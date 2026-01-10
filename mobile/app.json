@@ -1,0 +1,68 @@
+{
+  "expo": {
+    "name": "MOCA",
+    "slug": "moca",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "scheme": "moca",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E1E1E"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.moca.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "MOCA needs camera access to capture photos",
+        "NSMicrophoneUsageDescription": "MOCA needs microphone access to record audio",
+        "NSPhotoLibraryUsageDescription": "MOCA needs photo library access to select images"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1E1E1E"
+      },
+      "package": "com.moca.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow MOCA to access your camera to capture photos."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow MOCA to access your microphone to record audio."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow MOCA to access your photos to select images."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
