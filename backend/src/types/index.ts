@@ -11,15 +11,35 @@ export interface AuthenticatedRequest extends Request {
 export type MemoType =
   | 'photo'
   | 'image'
+  | 'video'
   | 'audio_recording'
   | 'audio_file'
   | 'text'
   | 'file';
 
+// Tile entity
+export interface Tile {
+  id: string;
+  user_id: string;
+  title?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  memo_count?: number;
+  memos?: Memo[];
+}
+
+// Create tile DTO
+export interface CreateTileDto {
+  title?: string;
+  description?: string;
+}
+
 // Memo entity
 export interface Memo {
   id: string;
   user_id: string;
+  tile_id?: string;
   type: MemoType;
   content?: string;
   storage_path?: string;
@@ -36,6 +56,7 @@ export interface Memo {
 // Create memo DTO
 export interface CreateMemoDto {
   type: MemoType;
+  tile_id?: string;
   content?: string;
   storage_path?: string;
   thumbnail_path?: string;

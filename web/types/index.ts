@@ -2,15 +2,29 @@
 export type MemoType =
   | 'photo'
   | 'image'
+  | 'video'
   | 'audio_recording'
   | 'audio_file'
   | 'text'
   | 'file';
 
+// Tile entity (group of memos)
+export interface Tile {
+  id: string;
+  user_id: string;
+  title?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  memo_count?: number;
+  memos?: Memo[];
+}
+
 // Memo entity
 export interface Memo {
   id: string;
   user_id: string;
+  tile_id?: string;
   type: MemoType;
   content?: string;
   storage_path?: string;

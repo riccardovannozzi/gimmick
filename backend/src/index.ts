@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 
 import { authRouter } from './routes/auth.js';
 import { memosRouter } from './routes/memos.js';
+import { tilesRouter } from './routes/tiles.js';
 import { uploadRouter } from './routes/upload.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
@@ -46,6 +47,7 @@ app.get('/health', (_req, res) => {
 // API Routes
 app.use('/api/auth', authRouter);
 app.use('/api/memos', memosRouter);
+app.use('/api/tiles', tilesRouter);
 app.use('/api/upload', uploadRouter);
 
 // Error handling

@@ -1,4 +1,4 @@
-import type { Memo, BufferItem } from '@/types';
+import type { Memo, BufferItem, Tile } from '@/types';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -183,10 +183,10 @@ export const memosApi = {
     });
   },
 
-  async createBatch(items: Partial<Memo>[]) {
+  async createBatch(items: Partial<Memo>[], tileId?: string) {
     return apiRequest<Memo[]>('/api/memos/batch', {
       method: 'POST',
-      body: JSON.stringify({ items }),
+      body: JSON.stringify({ items, tile_id: tileId }),
     });
   },
 
@@ -199,6 +199,49 @@ export const memosApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/memos/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Tiles API ============
+
+export const tilesApi = {
+  async list(options?: { page?: number; limit?: number }) {
+    const params = new URLSearchParams();
+    if (options?.page) params.set('page', options.page.toString());
+    if (options?.limit) params.set('limit', options.limit.toString());
+
+    const query = params.toString();
+    const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    return response.json() as Promise<PaginatedResponse<Tile>>;
+  },
+
+  async get(id: string) {
+    return apiRequest<Tile & { memos: Memo[] }>(`/api/tiles/${id}`);
+  },
+
+  async create(tile?: { title?: string; description?: string }) {
+    return apiRequest<Tile>('/api/tiles', {
+      method: 'POST',
+      body: JSON.stringify(tile || {}),
+    });
+  },
+
+  async update(id: string, updates: { title?: string; description?: string }) {
+    return apiRequest<Tile>(`/api/tiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -266,14 +309,22 @@ export const uploadApi = {
 function getFileType(fileName: string): string {
   const ext = fileName.split('.').pop()?.toLowerCase() || '';
   const mimeTypes: Record<string, string> = {
+    // Images
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     png: 'image/png',
     gif: 'image/gif',
     webp: 'image/webp',
+    // Videos
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    avi: 'video/x-msvideo',
+    webm: 'video/webm',
+    // Audio
     mp3: 'audio/mpeg',
     wav: 'audio/wav',
     m4a: 'audio/mp4',
+    // Documents
     pdf: 'application/pdf',
     doc: 'application/msword',
     docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -284,12 +335,25 @@ function getFileType(fileName: string): string {
 
 /**
  * Upload buffer items to backend
+ * When multiple items are uploaded together, they are grouped into a Tile
  */
 export async function uploadBufferItems(
   items: BufferItem[]
-): Promise<{ success: boolean; results: Memo[]; errors: string[] }> {
+): Promise<{ success: boolean; results: Memo[]; errors: string[]; tile?: Tile }> {
   const results: Memo[] = [];
   const errors: string[] = [];
+  let tile: Tile | undefined;
+
+  // If multiple items, create a tile first to group them
+  if (items.length > 1) {
+    const tileResult = await tilesApi.create();
+    if (tileResult.success && tileResult.data) {
+      tile = tileResult.data;
+    } else {
+      // Continue without tile if creation fails
+      console.warn('Failed to create tile:', tileResult.error);
+    }
+  }
 
   for (const item of items) {
     try {
@@ -300,6 +364,8 @@ export async function uploadBufferItems(
       if (item.type !== 'text' && item.uri) {
         const folder = item.type === 'photo' || item.type === 'image'
           ? 'images'
+          : item.type === 'video'
+          ? 'videos'
           : item.type.includes('audio')
           ? 'audio'
           : 'files';
@@ -314,9 +380,10 @@ export async function uploadBufferItems(
         storagePath = uploadResult.data?.path;
       }
 
-      // Create memo
+      // Create memo with tile_id if we have a tile
       const memoResult = await memosApi.create({
         type: item.type,
+        tile_id: tile?.id,
         content: item.preview,
         storage_path: storagePath,
         thumbnail_path: thumbnailPath,
@@ -344,5 +411,6 @@ export async function uploadBufferItems(
     success: errors.length === 0,
     results,
     errors,
+    tile,
   };
 }

@@ -2,7 +2,6 @@ import React from 'react';
 import { TouchableOpacity, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
-import { config } from '@/constants';
 
 interface CaptureButtonProps {
   icon: React.ReactNode;
@@ -34,29 +33,25 @@ export function CaptureButton({
       disabled={disabled}
       activeOpacity={0.7}
       className={`
-        flex-row items-center bg-background-2 rounded-xl px-4 border border-border
+        flex-1 aspect-square items-center justify-center bg-background-2 rounded-2xl border border-border
         ${disabled ? 'opacity-50' : ''}
       `}
-      style={{ height: config.ui.captureButtonHeight }}
     >
       {/* Icon container with color background */}
       <View
-        className="w-10 h-10 rounded-lg items-center justify-center mr-4"
+        className="w-14 h-14 rounded-xl items-center justify-center mb-2"
         style={{ backgroundColor: `${color}20` }}
       >
         {React.cloneElement(icon as React.ReactElement<{ size?: number; color?: string }>, {
-          size: 22,
+          size: 28,
           color: color,
         })}
       </View>
 
       {/* Label */}
-      <Text className="text-primary text-base font-medium flex-1">{label}</Text>
-
-      {/* Arrow indicator */}
-      <View className="w-6 h-6 items-center justify-center">
-        <Text className="text-secondary text-lg">&gt;</Text>
-      </View>
+      <Text className="text-primary text-xs font-medium uppercase tracking-wide">
+        {label}
+      </Text>
     </TouchableOpacity>
   );
 }

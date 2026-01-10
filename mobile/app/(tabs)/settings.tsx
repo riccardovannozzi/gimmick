@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView } from 'react-native';
+import { useRouter } from 'expo-router';
 import { ChevronRight, LogOut } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useSettingsStore, useAuthStore } from '@/store';
@@ -87,6 +88,7 @@ export default function SettingsScreen() {
   } = useSettingsStore();
 
   const { user, signOut } = useAuthStore();
+  const router = useRouter();
 
   return (
     <SafeAreaWrapper edges={['top']}>
@@ -117,9 +119,7 @@ export default function SettingsScreen() {
               <SettingRow
                 label="Non connesso"
                 description="Accedi per sincronizzare i tuoi memo"
-                onPress={() => {
-                  // TODO: Navigate to login
-                }}
+                onPress={() => router.push('/auth/login')}
                 showArrow
               />
             )}

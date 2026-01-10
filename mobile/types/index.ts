@@ -6,6 +6,7 @@ import { User, Session } from '@supabase/supabase-js';
 export type MemoType =
   | 'photo'           // Photo from camera
   | 'image'           // Image from gallery
+  | 'video'           // Video from camera
   | 'audio_recording' // Audio recorded in app
   | 'audio_file'      // Audio file picked
   | 'text'            // Text note
@@ -28,11 +29,26 @@ export interface BufferItem {
 }
 
 /**
+ * Tile - Group of related memos
+ */
+export interface Tile {
+  id: string;
+  user_id: string;
+  title?: string;
+  description?: string;
+  created_at: string;
+  updated_at: string;
+  memo_count?: number;
+  memos?: Memo[];
+}
+
+/**
  * Memo - Saved memo in database
  */
 export interface Memo {
   id: string;
   user_id: string;
+  tile_id?: string;       // Reference to parent tile
   type: MemoType;
   content?: string;       // For text memos
   storage_path?: string;  // Path in Supabase Storage

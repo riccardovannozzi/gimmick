@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useAuthStore } from '@/store';
@@ -25,9 +26,10 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <GestureHandlerRootView style={{ flex: 1 }}>
-        <Stack
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          <Stack
           screenOptions={{
             headerShown: false,
             contentStyle: { backgroundColor: colors.background1 },
@@ -37,6 +39,13 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="capture/photo"
+            options={{
+              presentation: 'fullScreenModal',
+              animation: 'fade',
+            }}
+          />
+          <Stack.Screen
+            name="capture/video"
             options={{
               presentation: 'fullScreenModal',
               animation: 'fade',
@@ -68,9 +77,17 @@ export default function RootLayout() {
               presentation: 'transparentModal',
             }}
           />
-        </Stack>
-        <ToastContainer />
-      </GestureHandlerRootView>
-    </QueryClientProvider>
+          <Stack.Screen
+            name="auth/login"
+            options={{
+              presentation: 'modal',
+              animation: 'slide_from_bottom',
+            }}
+          />
+          </Stack>
+          <ToastContainer />
+        </GestureHandlerRootView>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

@@ -15,6 +15,7 @@ memosRouter.use(authenticate);
 const memoTypeEnum = z.enum([
   'photo',
   'image',
+  'video',
   'audio_recording',
   'audio_file',
   'text',
@@ -23,13 +24,14 @@ const memoTypeEnum = z.enum([
 
 const createMemoSchema = z.object({
   type: memoTypeEnum,
+  tile_id: z.string().uuid().optional(),
   content: z.string().optional(),
   storage_path: z.string().optional(),
   thumbnail_path: z.string().optional(),
   file_name: z.string().optional(),
   mime_type: z.string().optional(),
-  file_size: z.number().int().positive().optional(),
-  duration: z.number().int().positive().optional(),
+  file_size: z.number().int().nonnegative().optional(),
+  duration: z.number().int().nonnegative().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -42,6 +44,7 @@ const querySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
   type: memoTypeEnum.optional(),
+  tile_id: z.string().uuid().optional(),
 });
 
 /**
@@ -53,10 +56,11 @@ memosRouter.get(
   validate(querySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { page, limit, type } = req.query as unknown as {
+      const { page, limit, type, tile_id } = req.query as unknown as {
         page: number;
         limit: number;
         type?: MemoType;
+        tile_id?: string;
       };
       const offset = (page - 1) * limit;
 
@@ -69,6 +73,10 @@ memosRouter.get(
 
       if (type) {
         query = query.eq('type', type);
+      }
+
+      if (tile_id) {
+        query = query.eq('tile_id', tile_id);
       }
 
       const { data, error, count } = await query;
@@ -158,13 +166,13 @@ memosRouter.post(
 
 /**
  * POST /api/memos/batch
- * Create multiple memos at once
+ * Create multiple memos at once (optionally with tile_id)
  */
 memosRouter.post(
   '/batch',
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { items } = req.body;
+      const { items, tile_id } = req.body;
 
       if (!Array.isArray(items) || items.length === 0) {
         res.status(400).json({
@@ -174,12 +182,13 @@ memosRouter.post(
         return;
       }
 
-      // Validate and add user_id to each item
+      // Validate and add user_id (and optional tile_id) to each item
       const memosData = items.map((item: unknown) => {
         const parsed = createMemoSchema.parse(item);
         return {
           ...parsed,
           user_id: req.user!.id,
+          tile_id: tile_id || parsed.tile_id, // Use batch tile_id or individual
         };
       });
 

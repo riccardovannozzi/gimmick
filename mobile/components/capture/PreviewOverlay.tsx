@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
+import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 import { X, Check, Edit2, FileText, Mic, File } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { colors } from '@/constants';
@@ -27,6 +28,7 @@ function PreviewContent({
   fileName,
 }: Pick<PreviewOverlayProps, 'type' | 'uri' | 'preview' | 'duration' | 'fileName'>) {
   const isImage = type === 'photo' || type === 'image';
+  const isVideo = type === 'video';
   const isAudio = type === 'audio_recording' || type === 'audio_file';
   const isText = type === 'text';
   const isFile = type === 'file';
@@ -38,6 +40,26 @@ function PreviewContent({
         className="w-full h-64 rounded-xl"
         resizeMode="cover"
       />
+    );
+  }
+
+  if (isVideo) {
+    return (
+      <View className="w-full h-64 rounded-xl overflow-hidden bg-black">
+        <ExpoVideo
+          source={{ uri }}
+          style={{ width: '100%', height: '100%' }}
+          resizeMode={ResizeMode.CONTAIN}
+          shouldPlay
+          isLooping
+          isMuted={false}
+        />
+        {duration ? (
+          <View className="absolute bottom-2 right-2 bg-black/70 px-2 py-1 rounded">
+            <Text className="text-white text-xs">{formatDuration(duration)}</Text>
+          </View>
+        ) : null}
+      </View>
     );
   }
 
@@ -64,12 +86,12 @@ function PreviewContent({
         <Text className="text-primary font-medium">
           {type === 'audio_recording' ? 'Registrazione audio' : 'File audio'}
         </Text>
-        {duration && (
+        {duration ? (
           <Text className="text-secondary mt-1">{formatDuration(duration)}</Text>
-        )}
-        {fileName && (
+        ) : null}
+        {fileName ? (
           <Text className="text-secondary text-sm mt-1">{fileName}</Text>
-        )}
+        ) : null}
       </View>
     );
   }
@@ -81,11 +103,11 @@ function PreviewContent({
           <File size={32} color={colors.capture.file} />
         </View>
         <Text className="text-primary font-medium">File</Text>
-        {fileName && (
+        {fileName ? (
           <Text className="text-secondary text-sm mt-1 text-center">
             {truncateText(fileName, 40)}
           </Text>
-        )}
+        ) : null}
       </View>
     );
   }

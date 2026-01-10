@@ -1,4 +1,4 @@
-import type { Memo, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
+import type { Memo, Tile, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
 
@@ -168,6 +168,48 @@ export const memosApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/memos/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Tiles API ============
+export const tilesApi = {
+  async list(options?: { page?: number; limit?: number }) {
+    const params = new URLSearchParams();
+    if (options?.page) params.set('page', options.page.toString());
+    if (options?.limit) params.set('limit', options.limit.toString());
+
+    const query = params.toString();
+    const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
+
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    return response.json() as Promise<PaginatedResponse<Tile>>;
+  },
+
+  async get(id: string) {
+    return apiRequest<Tile & { memos: Memo[] }>(`/api/tiles/${id}`);
+  },
+
+  async create(tile?: { title?: string; description?: string }) {
+    return apiRequest<Tile>('/api/tiles', {
+      method: 'POST',
+      body: JSON.stringify(tile || {}),
+    });
+  },
+
+  async update(id: string, updates: { title?: string; description?: string }) {
+    return apiRequest<Tile>(`/api/tiles/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
   },
 };
 

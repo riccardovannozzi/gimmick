@@ -22,6 +22,7 @@ export const colors = {
   // Capture button colors
   capture: {
     photo: '#3B82F6',
+    video: '#EC4899',
     text: '#22C55E',
     voice: '#EF4444',
     file: '#F59E0B',
