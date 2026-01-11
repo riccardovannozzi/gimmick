@@ -1,6 +1,6 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
-import { Home, Clock, Settings } from 'lucide-react-native';
+import { PlusCircle, LayoutGrid, Settings } from 'lucide-react-native';
 import { colors } from '@/constants';
 
 export default function TabsLayout() {
@@ -27,21 +27,21 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Cattura',
-          tabBarIcon: ({ color, size }) => <Home size={size} color={color} />,
+          title: 'Capture',
+          tabBarIcon: ({ color, size }) => <PlusCircle size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          title: 'Storico',
-          tabBarIcon: ({ color, size }) => <Clock size={size} color={color} />,
+          title: 'Tiles',
+          tabBarIcon: ({ color, size }) => <LayoutGrid size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Impostazioni',
+          title: 'Settings',
           tabBarIcon: ({ color, size }) => <Settings size={size} color={color} />,
         }}
       />

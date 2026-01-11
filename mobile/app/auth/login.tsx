@@ -15,12 +15,12 @@ export default function LoginScreen() {
 
   const handleSubmit = async () => {
     if (!email || !password) {
-      toast.warning('Inserisci email e password');
+      toast.warning('Enter email and password');
       return;
     }
 
     if (password.length < 6) {
-      toast.warning('La password deve avere almeno 6 caratteri');
+      toast.warning('Password must be at least 6 characters');
       return;
     }
 
@@ -30,7 +30,7 @@ export default function LoginScreen() {
         if (result.error) {
           toast.error(result.error);
         } else {
-          toast.success('Account creato! Ora puoi accedere.');
+          toast.success('Account created! You can now sign in.');
           setIsRegister(false);
         }
       } else {
@@ -38,12 +38,12 @@ export default function LoginScreen() {
         if (result.error) {
           toast.error(result.error);
         } else {
-          toast.success('Login effettuato!');
+          toast.success('Login successful!');
           router.back();
         }
       }
     } catch (error) {
-      toast.error('Errore di connessione');
+      toast.error('Connection error');
     }
   };
 
@@ -59,7 +59,7 @@ export default function LoginScreen() {
             <ArrowLeft size={24} color={colors.primary} />
           </TouchableOpacity>
           <Text className="text-primary text-xl font-bold">
-            {isRegister ? 'Registrati' : 'Accedi'}
+            {isRegister ? 'Sign up' : 'Sign in'}
           </Text>
         </View>
 
@@ -70,7 +70,7 @@ export default function LoginScreen() {
             <TextInput
               value={email}
               onChangeText={setEmail}
-              placeholder="nome@esempio.com"
+              placeholder="name@example.com"
               placeholderTextColor={colors.secondary}
               keyboardType="email-address"
               autoCapitalize="none"
@@ -100,7 +100,7 @@ export default function LoginScreen() {
             style={{ opacity: isLoading ? 0.6 : 1 }}
           >
             <Text className="text-white font-semibold text-base">
-              {isLoading ? 'Caricamento...' : isRegister ? 'Registrati' : 'Accedi'}
+              {isLoading ? 'Loading...' : isRegister ? 'Sign up' : 'Sign in'}
             </Text>
           </TouchableOpacity>
 
@@ -110,9 +110,9 @@ export default function LoginScreen() {
             className="mt-6 items-center"
           >
             <Text className="text-secondary">
-              {isRegister ? 'Hai già un account? ' : 'Non hai un account? '}
+              {isRegister ? 'Already have an account? ' : "Don't have an account? "}
               <Text className="text-accent">
-                {isRegister ? 'Accedi' : 'Registrati'}
+                {isRegister ? 'Sign in' : 'Sign up'}
               </Text>
             </Text>
           </TouchableOpacity>

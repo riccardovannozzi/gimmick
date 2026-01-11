@@ -80,7 +80,7 @@ export default function VoiceCaptureScreen() {
       setRecordingDuration(0);
     } catch (error) {
       console.error('Error starting recording:', error);
-      toast.error('Errore avvio registrazione');
+      toast.error('Error starting recording');
     }
   };
 
@@ -103,7 +103,7 @@ export default function VoiceCaptureScreen() {
       }
     } catch (error) {
       console.error('Error stopping recording:', error);
-      toast.error('Errore stop registrazione');
+      toast.error('Error stopping recording');
     }
   };
 
@@ -130,7 +130,7 @@ export default function VoiceCaptureScreen() {
       });
     } catch (error) {
       console.error('Error playing recording:', error);
-      toast.error('Errore riproduzione');
+      toast.error('Playback error');
     }
   };
 
@@ -159,7 +159,7 @@ export default function VoiceCaptureScreen() {
       duration: recordingDuration,
     });
 
-    toast.success('Registrazione aggiunta al buffer');
+    toast.success('Recording added to buffer');
     router.back();
   };
 
@@ -167,7 +167,7 @@ export default function VoiceCaptureScreen() {
   if (permissionGranted === null) {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Caricamento...</Text>
+        <Text className="text-primary">Loading...</Text>
       </View>
     );
   }
@@ -177,19 +177,19 @@ export default function VoiceCaptureScreen() {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center px-8">
         <Text className="text-primary text-lg font-medium text-center mb-4">
-          Accesso al microfono negato
+          Microphone access denied
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA ha bisogno dell'accesso al microfono per registrare audio
+          MOCA needs microphone access to record audio
         </Text>
         <TouchableOpacity
           onPress={checkPermissions}
           className="bg-accent px-6 py-3 rounded-lg"
         >
-          <Text className="text-white font-medium">Riprova</Text>
+          <Text className="text-white font-medium">Try again</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Torna indietro</Text>
+          <Text className="text-secondary">Go back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -218,7 +218,7 @@ export default function VoiceCaptureScreen() {
         {isRecording && (
           <View className="flex-row items-center mb-8">
             <View className="w-3 h-3 rounded-full bg-error mr-2 animate-pulse" />
-            <Text className="text-error font-medium">Registrazione...</Text>
+            <Text className="text-error font-medium">Recording...</Text>
           </View>
         )}
 

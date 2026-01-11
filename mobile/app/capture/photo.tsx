@@ -51,7 +51,7 @@ export default function PhotoCaptureScreen() {
       }
     } catch (error) {
       console.error('Error taking picture:', error);
-      toast.error('Errore durante lo scatto');
+      toast.error('Error taking photo');
     } finally {
       setIsTakingPhoto(false);
     }
@@ -69,20 +69,20 @@ export default function PhotoCaptureScreen() {
       uri: capturedUri,
     });
 
-    toast.success('Foto aggiunta al buffer');
+    toast.success('Photo added to buffer');
     router.back();
   };
 
   const handleEdit = () => {
     // TODO: Navigate to image editor
-    toast.info('Editor immagine in arrivo!');
+    toast.info('Image editor coming soon!');
   };
 
   // Permission not determined yet
   if (!permission) {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Caricamento...</Text>
+        <Text className="text-primary">Loading...</Text>
       </View>
     );
   }
@@ -92,19 +92,19 @@ export default function PhotoCaptureScreen() {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center px-8">
         <Text className="text-primary text-lg font-medium text-center mb-4">
-          Accesso alla fotocamera negato
+          Camera access denied
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA ha bisogno dell'accesso alla fotocamera per scattare foto
+          MOCA needs camera access to take photos
         </Text>
         <TouchableOpacity
           onPress={requestPermission}
           className="bg-accent px-6 py-3 rounded-lg"
         >
-          <Text className="text-white font-medium">Concedi accesso</Text>
+          <Text className="text-white font-medium">Grant access</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Torna indietro</Text>
+          <Text className="text-secondary">Go back</Text>
         </TouchableOpacity>
       </View>
     );

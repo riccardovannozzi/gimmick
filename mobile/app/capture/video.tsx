@@ -8,7 +8,7 @@ import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { colors } from '@/constants';
 
-const MAX_DURATION = 30; // 30 secondi
+const MAX_DURATION = 30; // 30 seconds
 
 export default function VideoCaptureScreen() {
   const router = useRouter();
@@ -25,7 +25,7 @@ export default function VideoCaptureScreen() {
   const addItem = useBufferStore((state) => state.addItem);
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
-  // Timer per il countdown durante la registrazione
+  // Timer for countdown during recording
   useEffect(() => {
     if (isRecording) {
       timerRef.current = setInterval(() => {
@@ -81,11 +81,11 @@ export default function VideoCaptureScreen() {
 
       if (video?.uri) {
         setCapturedUri(video.uri);
-        setVideoDuration(recordingTime * 1000); // Converti in millisecondi
+        setVideoDuration(recordingTime * 1000); // Convert to milliseconds
       }
     } catch (error) {
       console.error('Error recording video:', error);
-      toast.error('Errore durante la registrazione');
+      toast.error('Error during recording');
     } finally {
       setIsRecording(false);
     }
@@ -128,7 +128,7 @@ export default function VideoCaptureScreen() {
       mimeType: 'video/mp4',
     });
 
-    toast.success('Video aggiunto al buffer');
+    toast.success('Video added to buffer');
     router.back();
   };
 
@@ -138,24 +138,24 @@ export default function VideoCaptureScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Verifica permessi
+  // Check permissions
   if (!cameraPermission || !micPermission) {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Caricamento...</Text>
+        <Text className="text-primary">Loading...</Text>
       </View>
     );
   }
 
-  // Permessi negati
+  // Permissions denied
   if (!cameraPermission.granted || !micPermission.granted) {
     return (
       <View className="flex-1 bg-background-1 items-center justify-center px-8">
         <Text className="text-primary text-lg font-medium text-center mb-4">
-          Permessi richiesti
+          Permissions required
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA ha bisogno dell'accesso a fotocamera e microfono per registrare video
+          MOCA needs camera and microphone access to record video
         </Text>
         <TouchableOpacity
           onPress={async () => {
@@ -164,10 +164,10 @@ export default function VideoCaptureScreen() {
           }}
           className="bg-accent px-6 py-3 rounded-lg"
         >
-          <Text className="text-white font-medium">Concedi accesso</Text>
+          <Text className="text-white font-medium">Grant access</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Torna indietro</Text>
+          <Text className="text-secondary">Go back</Text>
         </TouchableOpacity>
       </View>
     );
@@ -206,7 +206,7 @@ export default function VideoCaptureScreen() {
           <View className="w-10" />
         </View>
 
-        {/* Progress bar durante la registrazione */}
+        {/* Progress bar during recording */}
         {isRecording && (
           <View className="absolute top-28 left-4 right-4">
             <View className="h-1 bg-white/30 rounded-full overflow-hidden">
@@ -230,10 +230,10 @@ export default function VideoCaptureScreen() {
           >
             <View className="w-20 h-20 rounded-full border-4 border-white items-center justify-center">
               {isRecording ? (
-                // Stop icon (quadrato)
+                // Stop icon (square)
                 <View className="w-8 h-8 rounded bg-error" />
               ) : (
-                // Record icon (cerchio rosso)
+                // Record icon (red circle)
                 <View className="w-16 h-16 rounded-full bg-error" />
               )}
             </View>
@@ -254,7 +254,7 @@ export default function VideoCaptureScreen() {
         {!isRecording && !capturedUri && (
           <View className="absolute bottom-36 left-0 right-0 items-center">
             <Text className="text-white/70 text-sm">
-              Premi per registrare (max {MAX_DURATION}s)
+              Press to record (max {MAX_DURATION}s)
             </Text>
           </View>
         )}

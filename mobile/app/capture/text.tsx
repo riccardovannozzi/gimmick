@@ -17,7 +17,7 @@ export default function TextCaptureScreen() {
 
   const handleSave = () => {
     if (!text.trim()) {
-      toast.warning('Inserisci del testo');
+      toast.warning('Please enter some text');
       return;
     }
 
@@ -27,7 +27,7 @@ export default function TextCaptureScreen() {
       preview: text,
     });
 
-    toast.success('Nota aggiunta al buffer');
+    toast.success('Note added to buffer');
     router.back();
   };
 
@@ -48,7 +48,7 @@ export default function TextCaptureScreen() {
             <X size={24} color={colors.secondary} />
           </TouchableOpacity>
 
-          <Text className="text-primary text-lg font-semibold">Nuova nota</Text>
+          <Text className="text-primary text-lg font-semibold">New note</Text>
 
           <TouchableOpacity
             onPress={handleSave}
@@ -66,7 +66,7 @@ export default function TextCaptureScreen() {
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Scrivi la tua nota..."
+            placeholder="Write your note..."
             placeholderTextColor={colors.secondary}
             multiline
             autoFocus
@@ -79,7 +79,7 @@ export default function TextCaptureScreen() {
         {/* Footer with char count */}
         <View className="px-4 py-3 border-t border-border">
           <Text className="text-secondary text-sm text-right">
-            {charCount} caratteri
+            {charCount} characters
           </Text>
         </View>
       </KeyboardAvoidingView>

@@ -36,13 +36,13 @@ export default function FileCaptureScreen() {
           size: asset.size,
         });
 
-        toast.success(`File "${asset.name}" aggiunto al buffer`);
+        toast.success(`File "${asset.name}" added to buffer`);
       }
 
       router.back();
     } catch (error) {
       console.error('Error picking document:', error);
-      toast.error('Errore selezione file');
+      toast.error('Error selecting file');
       router.back();
     }
   };
@@ -50,7 +50,7 @@ export default function FileCaptureScreen() {
   return (
     <View className="flex-1 bg-black/50 items-center justify-center">
       <View className="bg-background-2 rounded-2xl p-6">
-        <Text className="text-primary text-lg">Seleziona un file...</Text>
+        <Text className="text-primary text-lg">Select a file...</Text>
       </View>
     </View>
   );

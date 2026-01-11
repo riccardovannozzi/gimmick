@@ -12,7 +12,7 @@ export default function HistoryScreen() {
       <View className="flex-1">
         {/* Header */}
         <View className="px-4 py-4 border-b border-border">
-          <Text className="text-primary text-xl font-bold">Storico</Text>
+          <Text className="text-primary text-xl font-bold">Tiles</Text>
         </View>
 
         {/* Empty state */}
@@ -21,10 +21,10 @@ export default function HistoryScreen() {
             <Clock size={40} color={colors.secondary} />
           </View>
           <Text className="text-primary text-lg font-medium text-center mb-2">
-            Nessun memo salvato
+            No saved memos
           </Text>
           <Text className="text-secondary text-sm text-center">
-            I memo che caricherai appariranno qui
+            Memos you upload will appear here
           </Text>
         </View>
       </View>

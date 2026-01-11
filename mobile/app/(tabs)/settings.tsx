@@ -95,7 +95,7 @@ export default function SettingsScreen() {
       <ScrollView className="flex-1">
         {/* Header */}
         <View className="px-4 py-4 border-b border-border">
-          <Text className="text-primary text-xl font-bold">Impostazioni</Text>
+          <Text className="text-primary text-xl font-bold">Settings</Text>
         </View>
 
         <View className="pt-6">
@@ -104,21 +104,21 @@ export default function SettingsScreen() {
             {user ? (
               <>
                 <SettingRow
-                  label={user.email ?? 'Utente'}
-                  description="Account connesso"
+                  label={user.email ?? 'User'}
+                  description="Connected account"
                 />
                 <TouchableOpacity
                   onPress={signOut}
                   className="flex-row items-center py-4 px-4"
                 >
                   <LogOut size={20} color={colors.error} />
-                  <Text className="text-error ml-3">Disconnetti</Text>
+                  <Text className="text-error ml-3">Sign out</Text>
                 </TouchableOpacity>
               </>
             ) : (
               <SettingRow
-                label="Non connesso"
-                description="Accedi per sincronizzare i tuoi memo"
+                label="Not connected"
+                description="Sign in to sync your memos"
                 onPress={() => router.push('/auth/login')}
                 showArrow
               />
@@ -126,32 +126,32 @@ export default function SettingsScreen() {
           </SettingSection>
 
           {/* Upload section */}
-          <SettingSection title="Caricamento">
+          <SettingSection title="Upload">
             <SettingRow
-              label="Caricamento automatico"
-              description="Carica automaticamente gli elementi dal buffer"
+              label="Auto upload"
+              description="Automatically upload items from buffer"
               value={autoUpload}
               onValueChange={setAutoUpload}
             />
             <SettingRow
-              label="Solo Wi-Fi"
-              description="Carica solo quando connesso al Wi-Fi"
+              label="Wi-Fi only"
+              description="Only upload when connected to Wi-Fi"
               value={uploadOnWifiOnly}
               onValueChange={setUploadOnWifiOnly}
             />
           </SettingSection>
 
           {/* UI section */}
-          <SettingSection title="Interfaccia">
+          <SettingSection title="Interface">
             <SettingRow
-              label="Feedback aptico"
-              description="Vibrazione al tocco dei pulsanti"
+              label="Haptic feedback"
+              description="Vibration when pressing buttons"
               value={hapticFeedback}
               onValueChange={setHapticFeedback}
             />
             <SettingRow
-              label="Conferma eliminazione"
-              description="Chiedi conferma prima di rimuovere elementi"
+              label="Confirm delete"
+              description="Ask confirmation before removing items"
               value={confirmDelete}
               onValueChange={setConfirmDelete}
             />

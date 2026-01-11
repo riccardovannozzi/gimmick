@@ -17,17 +17,38 @@ import { truncateText } from '@/utils/formatters';
 interface BufferBarProps {
   onSend: () => void;
   onItemPress?: (item: BufferItem) => void;
+  large?: boolean;
 }
 
-function getItemIcon(type: MemoType) {
+function getItemColor(type: MemoType): string {
   switch (type) {
     case 'text':
-      return <FileText size={20} color={colors.capture.text} />;
+      return colors.capture.text;
     case 'audio_recording':
     case 'audio_file':
-      return <Mic size={20} color={colors.capture.voice} />;
+      return colors.capture.voice;
     case 'file':
-      return <File size={20} color={colors.capture.file} />;
+      return colors.capture.file;
+    case 'photo':
+    case 'image':
+      return colors.capture.photo;
+    case 'video':
+      return colors.capture.video;
+    default:
+      return colors.secondary;
+  }
+}
+
+function getItemIcon(type: MemoType, size = 20) {
+  const color = getItemColor(type);
+  switch (type) {
+    case 'text':
+      return <FileText size={size} color={color} />;
+    case 'audio_recording':
+    case 'audio_file':
+      return <Mic size={size} color={color} />;
+    case 'file':
+      return <File size={size} color={color} />;
     default:
       return null;
   }
@@ -37,12 +58,14 @@ function BufferThumbnail({
   item,
   onPress,
   onRemove,
+  large = false,
 }: {
   item: BufferItem;
   onPress?: () => void;
   onRemove: () => void;
+  large?: boolean;
 }) {
-  const isImage = item.type === 'photo' || item.type === 'image';
+  const isImage = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const confirmDelete = useSettingsStore((state) => state.confirmDelete);
 
@@ -53,11 +76,11 @@ function BufferThumbnail({
 
     if (confirmDelete) {
       Alert.alert(
-        'Rimuovi elemento',
-        'Vuoi rimuovere questo elemento dal buffer?',
+        'Remove item',
+        'Do you want to remove this item from the buffer?',
         [
-          { text: 'Annulla', style: 'cancel' },
-          { text: 'Rimuovi', style: 'destructive', onPress: onRemove },
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Remove', style: 'destructive', onPress: onRemove },
         ]
       );
     } else {
@@ -65,6 +88,52 @@ function BufferThumbnail({
     }
   };
 
+  // Layout large: stesse dimensioni dei CaptureButton (flex-1 aspect-square, rounded-2xl, bg-background-2)
+  if (large) {
+    const itemColor = getItemColor(item.type);
+    return (
+      <View className="flex-1 aspect-square" style={{ minWidth: '30%', maxWidth: '32%' }}>
+        <TouchableOpacity
+          onPress={onPress}
+          activeOpacity={0.8}
+          className="flex-1 relative"
+        >
+          <View className="flex-1 rounded-2xl overflow-hidden bg-background-2 border border-border items-center justify-center">
+            {isImage && item.uri ? (
+              <Image
+                source={{ uri: item.thumbnail ?? item.uri }}
+                className="w-full h-full"
+                resizeMode="cover"
+              />
+            ) : item.type === 'text' ? (
+              <View className="flex-1 p-3 justify-center">
+                <Text className="text-secondary text-xs" numberOfLines={4}>
+                  {truncateText(item.preview ?? '', 50)}
+                </Text>
+              </View>
+            ) : (
+              <View
+                className="w-14 h-14 rounded-xl items-center justify-center"
+                style={{ backgroundColor: `${itemColor}20` }}
+              >
+                {getItemIcon(item.type, 28)}
+              </View>
+            )}
+          </View>
+
+          {/* Remove button */}
+          <TouchableOpacity
+            onPress={handleRemove}
+            className="absolute -top-2 -right-2 w-6 h-6 bg-error rounded-full items-center justify-center"
+          >
+            <X size={14} color="#fff" />
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  // Layout compatto originale
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -91,7 +160,7 @@ function BufferThumbnail({
             </Text>
           </View>
         ) : (
-          getItemIcon(item.type)
+          getItemIcon(item.type, 20)
         )}
       </View>
 
@@ -106,7 +175,7 @@ function BufferThumbnail({
   );
 }
 
-export function BufferBar({ onSend, onItemPress }: BufferBarProps) {
+export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps) {
   const items = useBufferStore((state) => state.items);
   const removeItem = useBufferStore((state) => state.removeItem);
   const isUploading = useBufferStore((state) => state.isUploading);
@@ -122,7 +191,68 @@ export function BufferBar({ onSend, onItemPress }: BufferBarProps) {
   };
 
   const count = items.length;
+  const sendButtonSize = large ? 56 : config.ui.sendButtonSize;
 
+  // Layout large: griglia con stessa spaziatura dei pulsanti (gap-3 = 12px)
+  if (large) {
+    return (
+      <View className="flex-1">
+        {/* Thumbnails grid */}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          className="flex-1"
+          contentContainerStyle={{
+            paddingBottom: 80,
+          }}
+        >
+          {items.length === 0 ? (
+            <View className="flex-1 items-center justify-center py-8">
+              <Text className="text-secondary text-base italic">
+                No items in buffer
+              </Text>
+            </View>
+          ) : (
+            <View className="flex-row flex-wrap gap-3">
+              {items.map((item) => (
+                <BufferThumbnail
+                  key={item.id}
+                  item={item}
+                  onPress={() => onItemPress?.(item)}
+                  onRemove={() => removeItem(item.id)}
+                  large
+                />
+              ))}
+            </View>
+          )}
+        </ScrollView>
+
+        {/* Send button fisso in basso */}
+        {count > 0 && (
+          <View className="absolute bottom-4 right-0">
+            <TouchableOpacity
+              onPress={handleSend}
+              disabled={isUploading}
+              activeOpacity={0.7}
+              className="bg-accent rounded-full items-center justify-center"
+              style={{
+                width: sendButtonSize,
+                height: sendButtonSize,
+              }}
+            >
+              <Send size={24} color="#fff" />
+
+              {/* Badge */}
+              <View className="absolute -top-1 -right-1 bg-error rounded-full min-w-6 h-6 items-center justify-center px-1">
+                <Text className="text-white text-sm font-bold">{count}</Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Layout compatto originale
   return (
     <View
       className="bg-background-2 border-t border-border px-4 flex-row items-center"
@@ -139,7 +269,7 @@ export function BufferBar({ onSend, onItemPress }: BufferBarProps) {
         contentContainerStyle={{ alignItems: 'center', paddingVertical: 8 }}
       >
         {items.length === 0 ? (
-          <Text className="text-secondary text-sm italic">Nessun elemento</Text>
+          <Text className="text-secondary text-sm italic">No items</Text>
         ) : (
           items.map((item) => (
             <BufferThumbnail

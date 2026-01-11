@@ -16,7 +16,7 @@ export function ChatInput({
   onSubmitText,
   onVoiceResult,
   isProcessing = false,
-  placeholder = 'Chiedi qualcosa...',
+  placeholder = 'Ask something...',
 }: ChatInputProps) {
   const [text, setText] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -28,9 +28,9 @@ export function ChatInput({
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
       setIsRecording(true);
-      // TODO: Implementare registrazione reale
+      // TODO: Implement real recording
     } catch (error) {
-      console.error('Errore avvio registrazione:', error);
+      console.error('Recording start error:', error);
     }
   };
 
@@ -40,10 +40,10 @@ export function ChatInput({
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
       setIsRecording(false);
-      // TODO: Implementare stop e callback
+      // TODO: Implement stop and callback
       onVoiceResult('mock-uri');
     } catch (error) {
-      console.error('Errore stop registrazione:', error);
+      console.error('Recording stop error:', error);
     }
   };
 
@@ -63,7 +63,7 @@ export function ChatInput({
   if (isProcessing) {
     return (
       <View
-        className="flex-row items-center rounded-full px-4 h-[52px] border"
+        className="flex-row items-center rounded-2xl px-4 h-[104px] border"
         style={{
           backgroundColor: colors.background2,
           borderColor: colors.border,
@@ -72,7 +72,7 @@ export function ChatInput({
       >
         <ActivityIndicator size="small" color={colors.accent} />
         <Text className="flex-1 mx-3" style={{ color: colors.secondary }}>
-          Elaboro...
+          Processing...
         </Text>
       </View>
     );
@@ -82,7 +82,7 @@ export function ChatInput({
   if (isRecording) {
     return (
       <View
-        className="flex-row items-center rounded-full px-4 h-[52px] border"
+        className="flex-row items-center rounded-2xl px-4 h-[104px] border"
         style={{
           backgroundColor: colors.background2,
           borderColor: colors.error,
@@ -97,7 +97,7 @@ export function ChatInput({
           }}
         />
         <Text className="flex-1 mx-3" style={{ color: colors.secondary }}>
-          Sto ascoltando...
+          Listening...
         </Text>
         <Pressable
           onPress={handleStopRecording}
@@ -112,7 +112,7 @@ export function ChatInput({
   // Stato: Idle / Typing
   return (
     <View
-      className="flex-row items-center rounded-full px-4 h-[52px] border"
+      className="flex-row items-center rounded-2xl px-4 h-[104px] border"
       style={{
         backgroundColor: colors.background2,
         borderColor: colors.border,

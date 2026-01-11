@@ -68,7 +68,7 @@ function PreviewContent({
       <View className="bg-background-1 rounded-xl p-4 min-h-32">
         <View className="flex-row items-center mb-3">
           <FileText size={24} color={colors.capture.text} />
-          <Text className="text-primary font-medium ml-2">Nota di testo</Text>
+          <Text className="text-primary font-medium ml-2">Text note</Text>
         </View>
         <Text className="text-secondary leading-5">
           {truncateText(preview ?? '', 200)}
@@ -84,7 +84,7 @@ function PreviewContent({
           <Mic size={32} color={colors.capture.voice} />
         </View>
         <Text className="text-primary font-medium">
-          {type === 'audio_recording' ? 'Registrazione audio' : 'File audio'}
+          {type === 'audio_recording' ? 'Audio recording' : 'Audio file'}
         </Text>
         {duration ? (
           <Text className="text-secondary mt-1">{formatDuration(duration)}</Text>
@@ -181,11 +181,11 @@ export function PreviewOverlay({
 
       {/* Labels */}
       <View className="flex-row justify-center gap-6 mt-3">
-        <Text className="text-secondary text-sm w-16 text-center">Annulla</Text>
+        <Text className="text-secondary text-sm w-16 text-center">Cancel</Text>
         {onEdit && (
-          <Text className="text-secondary text-sm w-16 text-center">Modifica</Text>
+          <Text className="text-secondary text-sm w-16 text-center">Edit</Text>
         )}
-        <Text className="text-secondary text-sm w-16 text-center">Aggiungi</Text>
+        <Text className="text-secondary text-sm w-16 text-center">Add</Text>
       </View>
     </View>
   );
