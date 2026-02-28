@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { tilesApi } from '@/lib/api';
+import { typeLabels } from '@/lib/memo-utils';
+import { MemoViewer } from '@/components/memo/memo-viewer';
 import type { Memo, MemoType, Tile } from '@/types';
 
 const typeIcons: Record<MemoType, typeof FileText> = {
@@ -16,22 +18,20 @@ const typeIcons: Record<MemoType, typeof FileText> = {
   image: Image,
   video: Film,
   audio_recording: Mic,
-  audio_file: Mic,
   text: FileText,
   file: File,
 };
 
-const typeColors: Record<MemoType, string> = {
+const typeIconColors: Record<MemoType, string> = {
   photo: 'text-blue-400',
   image: 'text-green-400',
   video: 'text-orange-400',
   audio_recording: 'text-red-400',
-  audio_file: 'text-red-400',
   text: 'text-purple-400',
   file: 'text-yellow-400',
 };
 
-function TileCard({ tile }: { tile: Tile & { memos?: Memo[] } }) {
+function TileCard({ tile, onMemoClick }: { tile: Tile & { memos?: Memo[] }; onMemoClick: (memo: Memo) => void }) {
   const [expanded, setExpanded] = useState(false);
   const queryClient = useQueryClient();
 
@@ -96,20 +96,21 @@ function TileCard({ tile }: { tile: Tile & { memos?: Memo[] } }) {
             <div className="space-y-2">
               {memos.map((memo) => {
                 const Icon = typeIcons[memo.type] || FileText;
-                const color = typeColors[memo.type] || 'text-zinc-400';
+                const color = typeIconColors[memo.type] || 'text-zinc-400';
                 return (
-                  <div
+                  <button
                     key={memo.id}
-                    className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50"
+                    className="flex items-center gap-3 p-2 rounded-lg bg-zinc-800/50 hover:bg-zinc-700/50 transition-colors w-full text-left cursor-pointer"
+                    onClick={() => onMemoClick(memo)}
                   >
                     <Icon className={`h-4 w-4 ${color}`} />
                     <span className="text-sm text-white flex-1 truncate">
                       {memo.file_name || memo.content?.substring(0, 40) || memo.type}
                     </span>
                     <Badge className="text-xs bg-zinc-700 text-zinc-300">
-                      {memo.type}
+                      {typeLabels[memo.type]}
                     </Badge>
-                  </div>
+                  </button>
                 );
               })}
             </div>
@@ -122,6 +123,7 @@ function TileCard({ tile }: { tile: Tile & { memos?: Memo[] } }) {
 
 export default function TilesPage() {
   const [page, setPage] = useState(1);
+  const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['tiles', { page }],
@@ -158,7 +160,7 @@ export default function TilesPage() {
         ) : (
           <div className="space-y-3">
             {tiles.map((tile) => (
-              <TileCard key={tile.id} tile={tile} />
+              <TileCard key={tile.id} tile={tile} onMemoClick={setSelectedMemo} />
             ))}
           </div>
         )}
@@ -192,6 +194,12 @@ export default function TilesPage() {
           </div>
         )}
       </div>
+
+      <MemoViewer
+        memo={selectedMemo}
+        open={selectedMemo !== null}
+        onOpenChange={(open) => { if (!open) setSelectedMemo(null); }}
+      />
     </div>
   );
 }

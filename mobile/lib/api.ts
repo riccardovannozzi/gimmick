@@ -245,6 +245,55 @@ export const tilesApi = {
   },
 };
 
+// ============ Chat API ============
+
+export const chatApi = {
+  async send(
+    message: string,
+    history: { role: string; content: string }[],
+    model?: string
+  ) {
+    return apiRequest<{ reply: string }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history, model }),
+    });
+  },
+
+  async voiceSend(
+    audioUri: string,
+    history: { role: string; content: string }[],
+    model?: string
+  ): Promise<{ success: boolean; data?: { transcript: string; reply: string }; error?: string }> {
+    try {
+      const fileName = audioUri.split('/').pop() || 'audio.m4a';
+
+      const formData = new FormData();
+      formData.append('audio', {
+        uri: audioUri,
+        name: fileName,
+        type: 'audio/mp4',
+      } as unknown as Blob);
+      formData.append('history', JSON.stringify(history));
+      if (model) formData.append('model', model);
+
+      const response = await fetch(`${API_URL}/api/chat/voice`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+
+      return response.json();
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Voice chat failed',
+      };
+    }
+  },
+};
+
 // ============ Upload API ============
 
 export const uploadApi = {

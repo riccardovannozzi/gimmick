@@ -1,7 +1,7 @@
-import React from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, LogOut } from 'lucide-react-native';
+import { ChevronRight, LogOut, Check } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useSettingsStore, useAuthStore } from '@/store';
 import { colors } from '@/constants';
@@ -85,10 +85,21 @@ export default function SettingsScreen() {
     setAutoUpload,
     uploadOnWifiOnly,
     setUploadOnWifiOnly,
+    aiModel,
+    setAiModel,
   } = useSettingsStore();
 
   const { user, signOut } = useAuthStore();
   const router = useRouter();
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
+
+  const aiModels = [
+    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', description: 'Fast & economical' },
+    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet', description: 'Balanced' },
+    { id: 'claude-opus-4-6', label: 'Claude Opus', description: 'Most capable' },
+  ];
+
+  const currentModel = aiModels.find((m) => m.id === aiModel) || aiModels[0];
 
   return (
     <SafeAreaWrapper edges={['top']}>
@@ -141,6 +152,20 @@ export default function SettingsScreen() {
             />
           </SettingSection>
 
+          {/* AI section */}
+          <SettingSection title="AI Assistant">
+            <SettingRow
+              label="Provider"
+              description="Claude (Anthropic)"
+            />
+            <SettingRow
+              label="Model"
+              description={currentModel.label + ' — ' + currentModel.description}
+              onPress={() => setModelPickerOpen(true)}
+              showArrow
+            />
+          </SettingSection>
+
           {/* UI section */}
           <SettingSection title="Interface">
             <SettingRow
@@ -166,6 +191,49 @@ export default function SettingsScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Model Picker Modal */}
+      <Modal
+        visible={modelPickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setModelPickerOpen(false)}
+      >
+        <Pressable
+          onPress={() => setModelPickerOpen(false)}
+          className="flex-1 items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+        >
+          <View
+            className="mx-8 rounded-2xl overflow-hidden w-[85%]"
+            style={{ backgroundColor: colors.background2 }}
+          >
+            <Text className="text-primary text-lg font-semibold px-5 pt-5 pb-3">
+              Select Model
+            </Text>
+            {aiModels.map((model) => (
+              <TouchableOpacity
+                key={model.id}
+                onPress={() => {
+                  setAiModel(model.id);
+                  setModelPickerOpen(false);
+                }}
+                activeOpacity={0.7}
+                className="flex-row items-center px-5 py-4"
+              >
+                <View className="flex-1">
+                  <Text className="text-primary text-base">{model.label}</Text>
+                  <Text className="text-secondary text-sm mt-0.5">{model.description}</Text>
+                </View>
+                {aiModel === model.id && (
+                  <Check size={20} color={colors.accent} />
+                )}
+              </TouchableOpacity>
+            ))}
+            <View className="h-3" />
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaWrapper>
   );
 }

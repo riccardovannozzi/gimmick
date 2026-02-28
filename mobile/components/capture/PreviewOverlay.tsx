@@ -29,7 +29,7 @@ function PreviewContent({
 }: Pick<PreviewOverlayProps, 'type' | 'uri' | 'preview' | 'duration' | 'fileName'>) {
   const isImage = type === 'photo' || type === 'image';
   const isVideo = type === 'video';
-  const isAudio = type === 'audio_recording' || type === 'audio_file';
+  const isAudio = type === 'audio_recording';
   const isText = type === 'text';
   const isFile = type === 'file';
 

@@ -245,4 +245,10 @@ export const uploadApi = {
       body: JSON.stringify({ path }),
     });
   },
+
+  async getSignedUrl(path: string) {
+    return apiRequest<{ url: string; expires_in: number }>(
+      `/api/upload/signed-url?path=${encodeURIComponent(path)}`
+    );
+  },
 };

@@ -12,7 +12,6 @@ const typeLabels: Record<MemoType, string> = {
   image: 'Immagini',
   video: 'Video',
   audio_recording: 'Registrazioni',
-  audio_file: 'File Audio',
   text: 'Testo',
   file: 'File',
 };
@@ -22,7 +21,6 @@ const typeColors: Record<MemoType, string> = {
   image: 'bg-green-500',
   video: 'bg-orange-500',
   audio_recording: 'bg-red-500',
-  audio_file: 'bg-orange-500',
   text: 'bg-purple-500',
   file: 'bg-yellow-500',
 };

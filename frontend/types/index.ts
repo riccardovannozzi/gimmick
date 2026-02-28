@@ -4,7 +4,6 @@ export type MemoType =
   | 'image'
   | 'video'
   | 'audio_recording'
-  | 'audio_file'
   | 'text'
   | 'file';
 

@@ -22,21 +22,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { memosApi } from '@/lib/api';
-import type { MemoType } from '@/types';
-
-const typeColors: Record<MemoType, string> = {
-  photo: 'bg-blue-500/20 text-blue-400',
-  image: 'bg-green-500/20 text-green-400',
-  video: 'bg-orange-500/20 text-orange-400',
-  audio_recording: 'bg-red-500/20 text-red-400',
-  audio_file: 'bg-red-500/20 text-red-400',
-  text: 'bg-purple-500/20 text-purple-400',
-  file: 'bg-yellow-500/20 text-yellow-400',
-};
+import { typeColors } from '@/lib/memo-utils';
+import { MemoViewer } from '@/components/memo/memo-viewer';
+import type { Memo } from '@/types';
 
 export default function MemosPage() {
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
+  const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -128,7 +121,8 @@ export default function MemosPage() {
                 memos.map((memo) => (
                   <TableRow
                     key={memo.id}
-                    className="border-zinc-800 hover:bg-zinc-800/50"
+                    className="border-zinc-800 hover:bg-zinc-800/50 cursor-pointer"
+                    onClick={() => setSelectedMemo(memo)}
                   >
                     <TableCell className="font-medium text-white">
                       {memo.file_name || memo.content?.substring(0, 30) || memo.type}
@@ -151,7 +145,10 @@ export default function MemosPage() {
                         variant="ghost"
                         size="icon"
                         className="text-zinc-400 hover:text-red-400"
-                        onClick={() => deleteMutation.mutate(memo.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMutation.mutate(memo.id);
+                        }}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -192,6 +189,12 @@ export default function MemosPage() {
           </div>
         )}
       </div>
+
+      <MemoViewer
+        memo={selectedMemo}
+        open={selectedMemo !== null}
+        onOpenChange={(open) => { if (!open) setSelectedMemo(null); }}
+      />
     </div>
   );
 }

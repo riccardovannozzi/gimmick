@@ -172,6 +172,16 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         expiresAt: state.expiresAt,
       }),
+      onRehydrateStorage: () => (state) => {
+        // Sync tokens to API module as soon as AsyncStorage rehydrates
+        if (state?.accessToken && state?.refreshToken) {
+          setTokens({
+            access_token: state.accessToken,
+            refresh_token: state.refreshToken,
+            expires_at: state.expiresAt || 0,
+          });
+        }
+      },
     }
   )
 );

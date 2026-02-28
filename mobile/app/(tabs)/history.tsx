@@ -13,7 +13,6 @@ const typeIcons: Record<string, typeof FileText> = {
   image: Image,
   video: Film,
   audio_recording: Mic,
-  audio_file: Mic,
   text: FileText,
   file: File,
 };
@@ -23,7 +22,6 @@ const typeColors: Record<string, string> = {
   image: colors.capture.photo,
   video: colors.capture.video,
   audio_recording: colors.capture.voice,
-  audio_file: colors.capture.voice,
   text: colors.capture.text,
   file: colors.capture.file,
 };

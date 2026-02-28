@@ -8,7 +8,6 @@ export type MemoType =
   | 'image'           // Image from gallery
   | 'video'           // Video from camera
   | 'audio_recording' // Audio recorded in app
-  | 'audio_file'      // Audio file picked
   | 'text'            // Text note
   | 'file';           // Generic file
 

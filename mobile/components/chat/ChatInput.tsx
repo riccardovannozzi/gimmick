@@ -8,14 +8,14 @@ import { colors } from '@/constants';
 
 interface ChatInputProps {
   onSubmitText: (text: string) => void;
-  onVoiceResult: (audioUri: string, transcription?: string) => void;
+  onSubmitVoice: (audioUri: string) => void;
   isProcessing?: boolean;
   placeholder?: string;
 }
 
 export function ChatInput({
   onSubmitText,
-  onVoiceResult,
+  onSubmitVoice,
   isProcessing = false,
   placeholder = 'Ask something...',
 }: ChatInputProps) {
@@ -41,7 +41,7 @@ export function ChatInput({
       }
       const uri = await stopRecording();
       if (uri) {
-        onVoiceResult(uri);
+        onSubmitVoice(uri);
       }
     } catch (error) {
       console.error('Recording stop error:', error);
@@ -60,7 +60,7 @@ export function ChatInput({
 
   const hasText = text.trim().length > 0;
 
-  // Stato: Processing
+  // Processing state
   if (isProcessing) {
     return (
       <View
@@ -79,7 +79,7 @@ export function ChatInput({
     );
   }
 
-  // Stato: Recording
+  // Recording state
   if (isRecording) {
     return (
       <View
@@ -110,7 +110,7 @@ export function ChatInput({
     );
   }
 
-  // Stato: Idle / Typing
+  // Default state
   return (
     <View
       className="flex-row items-center rounded-2xl px-4 h-[104px] border"
@@ -130,21 +130,14 @@ export function ChatInput({
         onChangeText={setText}
         onSubmitEditing={handleSubmit}
         returnKeyType="send"
-        editable={!isProcessing}
       />
 
       {hasText ? (
-        <Pressable
-          onPress={handleSubmit}
-          className="w-8 h-8 items-center justify-center"
-        >
+        <Pressable onPress={handleSubmit} className="w-8 h-8 items-center justify-center">
           <Send size={20} color={colors.accent} />
         </Pressable>
       ) : (
-        <Pressable
-          onPress={handleStartRecording}
-          className="w-8 h-8 items-center justify-center"
-        >
+        <Pressable onPress={handleStartRecording} className="w-8 h-8 items-center justify-center">
           <Mic size={20} color={colors.secondary} />
         </Pressable>
       )}

@@ -29,7 +29,7 @@ export default function DashboardPage() {
   const allMemos = allMemosData?.data || [];
 
   const photoCount = allMemos.filter((m) => m.type === 'photo' || m.type === 'image').length;
-  const audioCount = allMemos.filter((m) => m.type === 'audio_recording' || m.type === 'audio_file').length;
+  const audioCount = allMemos.filter((m) => m.type === 'audio_recording').length;
   const fileCount = allMemos.filter((m) => m.type === 'file').length;
   const statValues = [totalMemos, photoCount, audioCount, fileCount];
 

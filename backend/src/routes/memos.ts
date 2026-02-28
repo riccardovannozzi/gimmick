@@ -17,7 +17,6 @@ const memoTypeEnum = z.enum([
   'image',
   'video',
   'audio_recording',
-  'audio_file',
   'text',
   'file',
 ]);

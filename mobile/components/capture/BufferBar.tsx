@@ -25,7 +25,6 @@ function getItemColor(type: MemoType): string {
     case 'text':
       return colors.capture.text;
     case 'audio_recording':
-    case 'audio_file':
       return colors.capture.voice;
     case 'file':
       return colors.capture.file;
@@ -45,7 +44,6 @@ function getItemIcon(type: MemoType, size = 20) {
     case 'text':
       return <FileText size={size} color={color} />;
     case 'audio_recording':
-    case 'audio_file':
       return <Mic size={size} color={color} />;
     case 'file':
       return <File size={size} color={color} />;

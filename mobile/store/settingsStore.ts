@@ -18,6 +18,10 @@ interface SettingsState {
   hapticFeedback: boolean;
   confirmDelete: boolean;
 
+  // AI settings
+  aiProvider: string;
+  aiModel: string;
+
   // Actions
   setPhotoQuality: (quality: 'low' | 'medium' | 'high') => void;
   setSaveOriginal: (save: boolean) => void;
@@ -26,6 +30,8 @@ interface SettingsState {
   setUploadOnWifiOnly: (wifiOnly: boolean) => void;
   setHapticFeedback: (enabled: boolean) => void;
   setConfirmDelete: (confirm: boolean) => void;
+  setAiProvider: (provider: string) => void;
+  setAiModel: (model: string) => void;
   resetSettings: () => void;
 }
 
@@ -37,6 +43,8 @@ const defaultSettings = {
   uploadOnWifiOnly: true,
   hapticFeedback: true,
   confirmDelete: true,
+  aiProvider: 'anthropic',
+  aiModel: 'claude-haiku-4-5-20251001',
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -51,6 +59,8 @@ export const useSettingsStore = create<SettingsState>()(
       setUploadOnWifiOnly: (uploadOnWifiOnly) => set({ uploadOnWifiOnly }),
       setHapticFeedback: (hapticFeedback) => set({ hapticFeedback }),
       setConfirmDelete: (confirmDelete) => set({ confirmDelete }),
+      setAiProvider: (aiProvider) => set({ aiProvider }),
+      setAiModel: (aiModel) => set({ aiModel }),
       resetSettings: () => set(defaultSettings),
     }),
     {

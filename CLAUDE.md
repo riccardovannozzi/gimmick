@@ -331,7 +331,7 @@ import { Button, Modal } from '@/components/ui';
 CREATE TABLE memos (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
-  type TEXT NOT NULL, -- 'photo', 'video', 'text', 'audio_recording', 'audio_file', 'file', 'image'
+  type TEXT NOT NULL, -- 'photo', 'video', 'text', 'audio_recording', 'file', 'image'
   content TEXT,
   storage_path TEXT,
   thumbnail_path TEXT,

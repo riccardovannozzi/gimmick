@@ -92,8 +92,7 @@ export default function CapturePage() {
         const uploadResult = await uploadApi.uploadFile(pending.file);
 
         if (uploadResult.data) {
-          const memoType = pending.type === 'image' ? 'image' :
-                          pending.type === 'audio' ? 'audio_file' : 'file';
+          const memoType = pending.type === 'image' ? 'image' : 'file';
 
           await memosApi.create({
             type: memoType,
