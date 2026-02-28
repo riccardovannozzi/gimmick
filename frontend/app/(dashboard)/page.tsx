@@ -19,8 +19,19 @@ export default function DashboardPage() {
     queryFn: () => memosApi.list({ limit: 5 }),
   });
 
+  const { data: allMemosData } = useQuery({
+    queryKey: ['memos', { page: 1, limit: 1000 }],
+    queryFn: () => memosApi.list({ page: 1, limit: 1000 }),
+  });
+
   const recentMemos = memosData?.data || [];
   const totalMemos = memosData?.pagination?.total || 0;
+  const allMemos = allMemosData?.data || [];
+
+  const photoCount = allMemos.filter((m) => m.type === 'photo' || m.type === 'image').length;
+  const audioCount = allMemos.filter((m) => m.type === 'audio_recording' || m.type === 'audio_file').length;
+  const fileCount = allMemos.filter((m) => m.type === 'file').length;
+  const statValues = [totalMemos, photoCount, audioCount, fileCount];
 
   return (
     <div className="flex flex-col h-full">
@@ -39,7 +50,7 @@ export default function DashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-white">
-                  {index === 0 ? totalMemos : '-'}
+                  {statValues[index]}
                 </div>
               </CardContent>
             </Card>

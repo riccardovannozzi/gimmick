@@ -41,3 +41,6 @@ mobile/android/
 
 # Backend specific
 backend/dist/
+
+# Claude Code
+.claude/

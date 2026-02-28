@@ -1,6 +1,6 @@
 import type { Memo, Tile, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
@@ -38,9 +38,12 @@ export function getAccessToken(): string | null {
 }
 
 // API request helper
+let isRefreshing = false;
+
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  _retry = false
 ): Promise<ApiResponse<T>> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -60,6 +63,17 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
+      // Auto-refresh token on 401
+      if (response.status === 401 && !_retry && refreshToken && !isRefreshing) {
+        isRefreshing = true;
+        const refreshResult = await authApi.refreshSession();
+        isRefreshing = false;
+
+        if (refreshResult.success) {
+          return apiRequest<T>(endpoint, options, true);
+        }
+      }
+
       return {
         success: false,
         error: data.error || `HTTP ${response.status}`,
@@ -139,13 +153,7 @@ export const memosApi = {
     const query = params.toString();
     const endpoint = `/api/memos${query ? `?${query}` : ''}`;
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    return response.json() as Promise<PaginatedResponse<Memo>>;
+    return apiRequest<PaginatedResponse<Memo>>(endpoint) as Promise<PaginatedResponse<Memo>>;
   },
 
   async get(id: string) {
@@ -181,13 +189,7 @@ export const tilesApi = {
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
-
-    return response.json() as Promise<PaginatedResponse<Tile>>;
+    return apiRequest<PaginatedResponse<Tile>>(endpoint) as Promise<PaginatedResponse<Tile>>;
   },
 
   async get(id: string) {

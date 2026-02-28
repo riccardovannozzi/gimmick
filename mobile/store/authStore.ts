@@ -164,7 +164,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'moca-auth',
+      name: 'gimmick-auth',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         user: state.user,

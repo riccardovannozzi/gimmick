@@ -10,6 +10,7 @@ import type { MemoType } from '@/types';
 const typeLabels: Record<MemoType, string> = {
   photo: 'Foto',
   image: 'Immagini',
+  video: 'Video',
   audio_recording: 'Registrazioni',
   audio_file: 'File Audio',
   text: 'Testo',
@@ -19,6 +20,7 @@ const typeLabels: Record<MemoType, string> = {
 const typeColors: Record<MemoType, string> = {
   photo: 'bg-blue-500',
   image: 'bg-green-500',
+  video: 'bg-orange-500',
   audio_recording: 'bg-red-500',
   audio_file: 'bg-orange-500',
   text: 'bg-purple-500',
@@ -52,6 +54,10 @@ export default function AnalyticsPage() {
   const sortedDates = Object.entries(dateGroups)
     .sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime())
     .slice(0, 7);
+
+  // Memos today
+  const today = new Date().toLocaleDateString('it-IT');
+  const memosToday = dateGroups[today] || 0;
 
   // Most used type
   const mostUsedType = Object.entries(typeCounts).sort((a, b) => b[1] - a[1])[0];
@@ -117,7 +123,7 @@ export default function AnalyticsPage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-white">
-                    {sortedDates[0]?.[1] || 0}
+                    {memosToday}
                   </p>
                   <p className="text-sm text-zinc-400">Memo Oggi</p>
                 </div>

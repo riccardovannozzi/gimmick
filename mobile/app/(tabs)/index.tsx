@@ -172,7 +172,7 @@ export default function HomeScreen() {
       <View className="flex-1">
         {/* Header */}
         <View className="py-4 items-center">
-          <Text className="text-primary text-2xl font-bold">MOCA</Text>
+          <Text className="text-primary text-2xl font-bold">Gimmick</Text>
         </View>
 
         {/* Capture buttons - 2x3 grid */}

@@ -159,9 +159,9 @@ export default function SettingsScreen() {
 
           {/* App info */}
           <View className="px-4 py-8 items-center">
-            <Text className="text-secondary text-sm">MOCA v1.0.0</Text>
+            <Text className="text-secondary text-sm">Gimmick v1.0.0</Text>
             <Text className="text-secondary text-xs mt-1">
-              Memorize, Organize, Communicate, Analyze
+              Capture everything, organize anything
             </Text>
           </View>
         </View>

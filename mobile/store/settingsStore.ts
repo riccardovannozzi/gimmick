@@ -54,7 +54,7 @@ export const useSettingsStore = create<SettingsState>()(
       resetSettings: () => set(defaultSettings),
     }),
     {
-      name: 'moca-settings',
+      name: 'gimmick-settings',
       storage: createJSONStorage(() => AsyncStorage),
     }
   )

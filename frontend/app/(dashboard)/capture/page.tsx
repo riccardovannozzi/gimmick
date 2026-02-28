@@ -316,7 +316,7 @@ export default function CapturePage() {
                     <Mic className="h-8 w-8 text-zinc-400" />
                   </div>
                   <p className="text-zinc-400 mb-2">
-                    Per registrare audio, usa l&apos;app mobile MOCA
+                    Per registrare audio, usa l&apos;app mobile Gimmick
                   </p>
                   <p className="text-sm text-zinc-500">
                     Puoi comunque caricare file audio esistenti dalla tab &quot;File&quot;

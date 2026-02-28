@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "MOCA",
-    "slug": "moca",
+    "name": "Gimmick",
+    "slug": "gimmick",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
-    "scheme": "moca",
+    "scheme": "gimmick",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,11 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.moca.app",
+      "bundleIdentifier": "com.gimmick.app",
       "infoPlist": {
-        "NSCameraUsageDescription": "MOCA needs camera access to capture photos",
-        "NSMicrophoneUsageDescription": "MOCA needs microphone access to record audio",
-        "NSPhotoLibraryUsageDescription": "MOCA needs photo library access to select images"
+        "NSCameraUsageDescription": "Gimmick needs camera access to capture photos",
+        "NSMicrophoneUsageDescription": "Gimmick needs microphone access to record audio",
+        "NSPhotoLibraryUsageDescription": "Gimmick needs photo library access to select images"
       }
     },
     "android": {
@@ -27,7 +27,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1E1E1E"
       },
-      "package": "com.moca.app",
+      "package": "com.gimmick.app",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
@@ -45,19 +45,19 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow MOCA to access your camera to capture photos."
+          "cameraPermission": "Allow Gimmick to access your camera to capture photos."
         }
       ],
       [
         "expo-av",
         {
-          "microphonePermission": "Allow MOCA to access your microphone to record audio."
+          "microphonePermission": "Allow Gimmick to access your microphone to record audio."
         }
       ],
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow MOCA to access your photos to select images."
+          "photosPermission": "Allow Gimmick to access your photos to select images."
         }
       ]
     ],

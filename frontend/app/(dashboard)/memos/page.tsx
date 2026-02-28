@@ -2,11 +2,10 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Search, Filter } from 'lucide-react';
+import { Plus, Trash2, Filter } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -28,6 +27,7 @@ import type { MemoType } from '@/types';
 const typeColors: Record<MemoType, string> = {
   photo: 'bg-blue-500/20 text-blue-400',
   image: 'bg-green-500/20 text-green-400',
+  video: 'bg-orange-500/20 text-orange-400',
   audio_recording: 'bg-red-500/20 text-red-400',
   audio_file: 'bg-red-500/20 text-red-400',
   text: 'bg-purple-500/20 text-purple-400',
@@ -66,14 +66,6 @@ export default function MemosPage() {
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-              <Input
-                placeholder="Cerca memos..."
-                className="w-64 bg-zinc-900 border-zinc-800 pl-9"
-              />
-            </div>
-
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="border-zinc-800 bg-zinc-900">

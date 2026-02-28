@@ -155,7 +155,7 @@ export default function VideoCaptureScreen() {
           Permissions required
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA needs camera and microphone access to record video
+          Gimmick needs camera and microphone access to record video
         </Text>
         <TouchableOpacity
           onPress={async () => {

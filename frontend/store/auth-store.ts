@@ -47,7 +47,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!result.success || !result.data) {
         set({ isLoading: false });
-        return { error: result.error || 'Login failed' };
+        return { error: result.error || 'Login fallito' };
       }
 
       set({ user: result.data.user, isLoading: false });
@@ -66,7 +66,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!result.success) {
         set({ isLoading: false });
-        return { error: result.error || 'Registration failed' };
+        return { error: result.error || 'Registrazione fallita' };
+      }
+
+      // Auto-login dopo registrazione
+      const loginResult = await authApi.signIn(email, password);
+      if (loginResult.success && loginResult.data) {
+        set({ user: loginResult.data.user, isLoading: false });
+        return {};
       }
 
       set({ isLoading: false });

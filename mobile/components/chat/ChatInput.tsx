@@ -3,6 +3,7 @@ import { View, TextInput, Pressable, Text, ActivityIndicator } from 'react-nativ
 import { MessageCircle, Mic, Send, Square } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
+import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
 import { colors } from '@/constants';
 
 interface ChatInputProps {
@@ -19,16 +20,15 @@ export function ChatInput({
   placeholder = 'Ask something...',
 }: ChatInputProps) {
   const [text, setText] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
+  const { isRecording, startRecording, stopRecording } = useVoiceRecorder();
 
   const handleStartRecording = async () => {
     try {
       if (hapticFeedback) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
       }
-      setIsRecording(true);
-      // TODO: Implement real recording
+      await startRecording();
     } catch (error) {
       console.error('Recording start error:', error);
     }
@@ -39,9 +39,10 @@ export function ChatInput({
       if (hapticFeedback) {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       }
-      setIsRecording(false);
-      // TODO: Implement stop and callback
-      onVoiceResult('mock-uri');
+      const uri = await stopRecording();
+      if (uri) {
+        onVoiceResult(uri);
+      }
     } catch (error) {
       console.error('Recording stop error:', error);
     }

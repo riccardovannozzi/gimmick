@@ -29,7 +29,7 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
     const { data, error } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm for development
+      email_confirm: process.env.NODE_ENV !== 'production',
     });
 
     if (error) {

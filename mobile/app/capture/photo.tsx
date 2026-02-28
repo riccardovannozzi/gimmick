@@ -95,7 +95,7 @@ export default function PhotoCaptureScreen() {
           Camera access denied
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA needs camera access to take photos
+          Gimmick needs camera access to take photos
         </Text>
         <TouchableOpacity
           onPress={requestPermission}

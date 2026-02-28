@@ -15,7 +15,7 @@ import { notFoundHandler } from './middleware/notFoundHandler.js';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Security middleware
 app.use(helmet());
@@ -55,7 +55,7 @@ app.use(notFoundHandler);
 app.use(errorHandler);
 
 app.listen(PORT, () => {
-  console.log(`🚀 MOCA Backend running on http://localhost:${PORT}`);
+  console.log(`🚀 Gimmick Backend running on http://localhost:${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 

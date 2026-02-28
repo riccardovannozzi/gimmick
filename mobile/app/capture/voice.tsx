@@ -180,7 +180,7 @@ export default function VoiceCaptureScreen() {
           Microphone access denied
         </Text>
         <Text className="text-secondary text-center mb-6">
-          MOCA needs microphone access to record audio
+          Gimmick needs microphone access to record audio
         </Text>
         <TouchableOpacity
           onPress={checkPermissions}

@@ -13,36 +13,40 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAuthStore } from '@/store/auth-store';
 
-const loginSchema = z.object({
+const registerSchema = z.object({
   email: z.string().email('Email non valida'),
   password: z.string().min(6, 'Password deve avere almeno 6 caratteri'),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Le password non corrispondono',
+  path: ['confirmPassword'],
 });
 
-type LoginForm = z.infer<typeof loginSchema>;
+type RegisterForm = z.infer<typeof registerSchema>;
 
-export default function LoginPage() {
+export default function RegisterPage() {
   const router = useRouter();
-  const { signIn, isLoading } = useAuthStore();
+  const { signUp, isLoading } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
-  } = useForm<LoginForm>({
-    resolver: zodResolver(loginSchema),
+  } = useForm<RegisterForm>({
+    resolver: zodResolver(registerSchema),
   });
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: RegisterForm) => {
     setError(null);
-    const result = await signIn(data.email, data.password);
+    const result = await signUp(data.email, data.password);
 
     if (result.error) {
       setError(result.error);
       toast.error(result.error);
     } else {
-      toast.success('Login effettuato!');
-      router.push('/');
+      toast.success('Registrazione completata! Effettua il login.');
+      router.push('/login');
     }
   };
 
@@ -50,9 +54,9 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-zinc-950 p-4">
       <Card className="w-full max-w-md bg-zinc-900 border-zinc-800">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold text-white">MOCA</CardTitle>
+          <CardTitle className="text-2xl font-bold text-white">Gimmick</CardTitle>
           <CardDescription className="text-zinc-400">
-            Accedi al tuo account
+            Crea un nuovo account
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -89,6 +93,22 @@ export default function LoginPage() {
               )}
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="confirmPassword" className="text-zinc-300">
+                Conferma Password
+              </Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                placeholder="••••••••"
+                className="bg-zinc-800 border-zinc-700 text-white"
+                {...register('confirmPassword')}
+              />
+              {errors.confirmPassword && (
+                <p className="text-sm text-red-400">{errors.confirmPassword.message}</p>
+              )}
+            </div>
+
             {error && (
               <p className="text-sm text-red-400 text-center">{error}</p>
             )}
@@ -98,14 +118,14 @@ export default function LoginPage() {
               className="w-full bg-blue-600 hover:bg-blue-700"
               disabled={isLoading}
             >
-              {isLoading ? 'Caricamento...' : 'Accedi'}
+              {isLoading ? 'Caricamento...' : 'Registrati'}
             </Button>
           </form>
 
           <p className="mt-4 text-center text-sm text-zinc-400">
-            Non hai un account?{' '}
-            <Link href="/register" className="text-blue-400 hover:underline">
-              Registrati
+            Hai gia un account?{' '}
+            <Link href="/login" className="text-blue-400 hover:underline">
+              Accedi
             </Link>
           </p>
         </CardContent>

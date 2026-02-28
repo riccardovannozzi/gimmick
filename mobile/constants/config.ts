@@ -1,10 +1,10 @@
 /**
- * MOCA App Configuration
+ * Gimmick App Configuration
  */
 export const config = {
   // App info
   app: {
-    name: 'MOCA',
+    name: 'Gimmick',
     version: '1.0.0',
   },
 

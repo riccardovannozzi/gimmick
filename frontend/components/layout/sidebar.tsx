@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   Home,
   FileText,
+  LayoutGrid,
   PlusCircle,
   Settings,
   BarChart3,
@@ -18,6 +19,7 @@ import { useAuthStore } from '@/store/auth-store';
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home },
   { name: 'Memos', href: '/memos', icon: FileText },
+  { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
   { name: 'Cattura', href: '/capture', icon: PlusCircle },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Impostazioni', href: '/settings', icon: Settings },
@@ -31,7 +33,7 @@ export function Sidebar() {
     <div className="flex h-full w-64 flex-col bg-zinc-950 border-r border-zinc-800">
       {/* Logo */}
       <div className="flex h-16 items-center px-6">
-        <span className="text-xl font-bold text-white">MOCA</span>
+        <span className="text-xl font-bold text-white">Gimmick</span>
       </div>
 
       <Separator className="bg-zinc-800" />

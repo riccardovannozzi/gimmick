@@ -1,5 +1,5 @@
 /**
- * MOCA Color Palette - Dark Theme
+ * Gimmick Color Palette - Dark Theme
  */
 export const colors = {
   // Background colors
