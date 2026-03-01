@@ -1,0 +1,11 @@
+# Exclude other project folders from EAS build upload
+../frontend/
+../backend/
+../.claude/
+
+# Node modules (EAS installs fresh)
+node_modules/
+
+# Environment files
+.env
+.env.local
