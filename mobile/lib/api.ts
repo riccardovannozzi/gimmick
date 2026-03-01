@@ -1,6 +1,29 @@
 import type { Memo, BufferItem, Tile } from '@/types';
+import Constants from 'expo-constants';
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
+
+function getApiUrl(): string {
+  // Override manuale da .env (ha sempre priorità)
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  if (__DEV__) {
+    // In sviluppo: usa l'IP locale di Expo automaticamente
+    const debuggerHost = Constants.expoConfig?.hostUri;
+    const host = debuggerHost?.split(':')[0];
+    if (host) {
+      return `http://${host}:5000`;
+    }
+    return 'http://localhost:5000';
+  }
+
+  // In produzione: usa Railway
+  return PRODUCTION_API_URL;
+}
+
+const API_URL = getApiUrl();
 
 interface ApiResponse<T> {
   success: boolean;
