@@ -341,17 +341,17 @@ export async function chat(
   while (response.stop_reason === 'tool_use') {
     const assistantContent = response.content;
     const toolUseBlocks = assistantContent.filter(
-      (block): block is Anthropic.ContentBlockParam & { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> } =>
-        block.type === 'tool_use'
+      (block) => block.type === 'tool_use'
     );
 
     // Execute all tool calls
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
-        const result = await executeTool(toolUse.name, toolUse.input, userId);
+        const tu = toolUse as { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> };
+        const result = await executeTool(tu.name, tu.input, userId);
         return {
           type: 'tool_result' as const,
-          tool_use_id: toolUse.id,
+          tool_use_id: tu.id,
           content: result,
         };
       })
