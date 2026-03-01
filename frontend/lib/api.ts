@@ -153,7 +153,7 @@ export const memosApi = {
     const query = params.toString();
     const endpoint = `/api/memos${query ? `?${query}` : ''}`;
 
-    return apiRequest<PaginatedResponse<Memo>>(endpoint) as Promise<PaginatedResponse<Memo>>;
+    return apiRequest<PaginatedResponse<Memo>>(endpoint) as unknown as Promise<PaginatedResponse<Memo>>;
   },
 
   async get(id: string) {
