@@ -56,8 +56,8 @@ app.use('/api/chat', chatRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-app.listen(PORT, () => {
-  console.log(`🚀 Gimmick Backend running on http://localhost:${PORT}`);
+app.listen(Number(PORT), '0.0.0.0', () => {
+  console.log(`🚀 Gimmick Backend running on http://0.0.0.0:${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
