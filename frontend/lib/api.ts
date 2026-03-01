@@ -189,7 +189,7 @@ export const tilesApi = {
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
 
-    return apiRequest<PaginatedResponse<Tile>>(endpoint) as Promise<PaginatedResponse<Tile>>;
+    return apiRequest<PaginatedResponse<Tile>>(endpoint) as unknown as Promise<PaginatedResponse<Tile>>;
   },
 
   async get(id: string) {
