@@ -4,7 +4,7 @@ import { MessageCircle, Mic, Send, Square } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 interface ChatInputProps {
   onSubmitText: (text: string) => void;
@@ -19,6 +19,7 @@ export function ChatInput({
   isProcessing = false,
   placeholder = 'Ask something...',
 }: ChatInputProps) {
+  const colors = useThemeColors();
   const [text, setText] = useState('');
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const { isRecording, startRecording, stopRecording } = useVoiceRecorder();
@@ -125,7 +126,7 @@ export function ChatInput({
         className="flex-1 mx-3 text-base"
         style={{ color: colors.primary }}
         placeholder={placeholder}
-        placeholderTextColor="#6B7280"
+        placeholderTextColor={colors.secondary}
         value={text}
         onChangeText={setText}
         onSubmitEditing={handleSubmit}

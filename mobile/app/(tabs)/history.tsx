@@ -1,10 +1,12 @@
 import React from 'react';
-import { View, Text, FlatList, Pressable, ActivityIndicator } from 'react-native';
-import { Clock, FileText, Image, Mic, Film, File, Trash2 } from 'lucide-react-native';
+import { View, Text, FlatList, Pressable, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Clock, FileText, Image, Mic, Film, File, Trash2, ArrowLeft } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { memosApi } from '@/lib/api';
-import { colors } from '@/constants';
+import { captureColors } from '@/constants/colors';
+import { useThemeColors } from '@/lib/theme';
 import { formatDate, formatFileSize } from '@/utils/formatters';
 import type { Memo } from '@/types';
 
@@ -18,15 +20,16 @@ const typeIcons: Record<string, typeof FileText> = {
 };
 
 const typeColors: Record<string, string> = {
-  photo: colors.capture.photo,
-  image: colors.capture.photo,
-  video: colors.capture.video,
-  audio_recording: colors.capture.voice,
-  text: colors.capture.text,
-  file: colors.capture.file,
+  photo: captureColors.photo,
+  image: captureColors.photo,
+  video: captureColors.video,
+  audio_recording: captureColors.voice,
+  text: captureColors.text,
+  file: captureColors.file,
 };
 
 function MemoItem({ memo, onDelete }: { memo: Memo; onDelete: (id: string) => void }) {
+  const colors = useThemeColors();
   const Icon = typeIcons[memo.type] || FileText;
   const iconColor = typeColors[memo.type] || colors.secondary;
 
@@ -63,6 +66,8 @@ function MemoItem({ memo, onDelete }: { memo: Memo; onDelete: (id: string) => vo
 }
 
 export default function HistoryScreen() {
+  const colors = useThemeColors();
+  const router = useRouter();
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
@@ -83,7 +88,10 @@ export default function HistoryScreen() {
     <SafeAreaWrapper edges={['top']}>
       <View className="flex-1">
         {/* Header */}
-        <View className="px-4 py-4 border-b" style={{ borderColor: colors.border }}>
+        <View className="flex-row items-center px-4 py-4 border-b" style={{ borderColor: colors.border }}>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/' as any)} className="mr-3">
+            <ArrowLeft size={24} color={colors.primary} />
+          </TouchableOpacity>
           <Text className="text-xl font-bold" style={{ color: colors.primary }}>
             Tiles
           </Text>

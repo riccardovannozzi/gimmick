@@ -8,7 +8,8 @@ import Animated, {
   runOnJS,
 } from 'react-native-reanimated';
 import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react-native';
-import { colors, config } from '@/constants';
+import { config } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 import type { ToastType } from '@/types';
 import { useToastStore } from '@/store';
 
@@ -18,26 +19,8 @@ interface ToastItemProps {
   message: string;
 }
 
-const toastConfig: Record<ToastType, { icon: React.ReactNode; bgColor: string }> = {
-  success: {
-    icon: <CheckCircle size={20} color={colors.success} />,
-    bgColor: 'bg-background-2 border-l-4 border-l-success',
-  },
-  error: {
-    icon: <XCircle size={20} color={colors.error} />,
-    bgColor: 'bg-background-2 border-l-4 border-l-error',
-  },
-  info: {
-    icon: <Info size={20} color={colors.accent} />,
-    bgColor: 'bg-background-2 border-l-4 border-l-accent',
-  },
-  warning: {
-    icon: <AlertTriangle size={20} color={colors.warning} />,
-    bgColor: 'bg-background-2 border-l-4 border-l-warning',
-  },
-};
-
 function ToastItem({ id, type, message }: ToastItemProps) {
+  const colors = useThemeColors();
   const hideToast = useToastStore((state) => state.hideToast);
   const translateY = useSharedValue(-100);
   const opacity = useSharedValue(0);
@@ -57,6 +40,25 @@ function ToastItem({ id, type, message }: ToastItemProps) {
     transform: [{ translateY: translateY.value }],
     opacity: opacity.value,
   }));
+
+  const toastConfig: Record<ToastType, { icon: React.ReactNode; bgColor: string }> = {
+    success: {
+      icon: <CheckCircle size={20} color={colors.success} />,
+      bgColor: 'bg-background-2 border-l-4 border-l-success',
+    },
+    error: {
+      icon: <XCircle size={20} color={colors.error} />,
+      bgColor: 'bg-background-2 border-l-4 border-l-error',
+    },
+    info: {
+      icon: <Info size={20} color={colors.accent} />,
+      bgColor: 'bg-background-2 border-l-4 border-l-accent',
+    },
+    warning: {
+      icon: <AlertTriangle size={20} color={colors.warning} />,
+      bgColor: 'bg-background-2 border-l-4 border-l-warning',
+    },
+  };
 
   const { icon, bgColor } = toastConfig[type];
 

@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, Pressable, FlatList, ScrollView, LayoutAnimation } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle } from 'lucide-react-native';
+import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle, Speech } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { CaptureButton } from '@/components/capture/CaptureButton';
 import { BufferBar } from '@/components/capture/BufferBar';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
 import { uploadBufferItems, chatApi } from '@/lib/api';
-import { colors } from '@/constants';
+import { captureColors } from '@/constants/colors';
+import { useThemeColors } from '@/lib/theme';
 import type { BufferItem, MemoType } from '@/types';
 
 type ChatMessage = {
@@ -39,21 +40,21 @@ const captureOptions = [
     id: 'photo',
     label: 'PHOTO',
     icon: <Camera />,
-    color: colors.capture.photo,
+    color: captureColors.photo,
     route: '/capture/photo',
   },
   {
     id: 'video',
     label: 'VIDEO',
     icon: <Video />,
-    color: colors.capture.video,
+    color: captureColors.video,
     route: '/capture/video',
   },
   {
     id: 'gallery',
     label: 'GALLERY',
     icon: <Image />,
-    color: colors.capture.gallery,
+    color: captureColors.gallery,
     route: '/capture/gallery',
   },
   // Row 2
@@ -61,26 +62,27 @@ const captureOptions = [
     id: 'text',
     label: 'TEXT',
     icon: <FileText />,
-    color: colors.capture.text,
+    color: captureColors.text,
     route: '/capture/text',
   },
   {
     id: 'voice',
     label: 'VOICE',
     icon: <Mic />,
-    color: colors.capture.voice,
+    color: captureColors.voice,
     route: '/capture/voice',
   },
   {
     id: 'file',
     label: 'FILE',
     icon: <FileUp />,
-    color: colors.capture.file,
+    color: captureColors.file,
     route: '/capture/file',
   },
 ] as const;
 
 export default function HomeScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const items = useBufferStore((state) => state.items);
@@ -271,17 +273,51 @@ export default function HomeScreen() {
     <SafeAreaWrapper edges={['top']}>
       <View className="flex-1">
         {/* Header */}
-        <View className="py-4 px-4 flex-row items-center">
-          {chatMode ? (
-            <TouchableOpacity onPress={() => toggleChatMode(false)} className="p-2 -ml-2">
-              <ChevronDown size={24} color={colors.primary} />
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity onPress={() => setMenuOpen(true)} className="p-2 -ml-2">
-              <Menu size={24} color={colors.primary} />
-            </TouchableOpacity>
-          )}
-          <Text className="flex-1 text-primary text-2xl font-bold text-center mr-8">Gimmick</Text>
+        <View className="py-4 px-4 flex-row items-center gap-3">
+          {/* Left column - aligned with Photo/Text */}
+          <View className="flex-1 items-center">
+            {chatMode ? (
+              <TouchableOpacity onPress={() => toggleChatMode(false)} className="p-2">
+                <ChevronDown size={24} color={colors.primary} />
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                onPress={() => setMenuOpen(true)}
+                activeOpacity={0.7}
+                className="items-center justify-center rounded-full"
+                style={{
+                  width: 96,
+                  height: 48,
+                  backgroundColor: colors.background1,
+                  borderWidth: 1.5,
+                  borderColor: colors.primary,
+                }}
+              >
+                <Menu size={24} color={colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {/* Center column */}
+          <View className="flex-1 items-center">
+            <Text className="text-primary text-2xl font-bold">Gimmick</Text>
+          </View>
+          {/* Right column - aligned with Gallery/Files */}
+          <View className="flex-1 items-center">
+            {!chatMode && (
+              <TouchableOpacity
+                onPress={() => toggleChatMode(true)}
+                activeOpacity={0.7}
+                className="items-center justify-center rounded-full"
+                style={{
+                  width: 96,
+                  height: 48,
+                  backgroundColor: colors.primary,
+                }}
+              >
+                <Speech size={24} color={colors.background1} strokeWidth={1.5} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Hamburger Menu Overlay */}
@@ -388,8 +424,8 @@ export default function HomeScreen() {
         ) : (
           /* ====== NORMAL MODE ====== */
           <>
-            {/* Capture buttons - 2x3 grid */}
-            <View className="px-4">
+            {/* Capture buttons */}
+            <View className="px-4 pt-4">
               {/* Row 1: Photo, Video, Gallery */}
               <View className="flex-row gap-3 mb-3">
                 {captureOptions.slice(0, 3).map((option) => {
@@ -408,7 +444,7 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
-              {/* Row 2: Text, Voice, Files */}
+              {/* Row 3: Text, Voice, Files */}
               <View className="flex-row gap-3">
                 {captureOptions.slice(3, 6).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
@@ -428,28 +464,8 @@ export default function HomeScreen() {
               </View>
             </View>
 
-            {/* Fake Chat Input - tap to open chat mode */}
-            <Pressable
-              onPress={() => toggleChatMode(true)}
-              className="mx-4 mt-4"
-            >
-              <View
-                className="flex-row items-center rounded-2xl px-4 h-[104px] border"
-                style={{
-                  backgroundColor: colors.background2,
-                  borderColor: colors.border,
-                }}
-              >
-                <MessageCircle size={20} color={colors.secondary} />
-                <Text className="flex-1 mx-3" style={{ color: '#6B7280', fontSize: 16 }}>
-                  Ask something...
-                </Text>
-                <Mic size={20} color={colors.secondary} />
-              </View>
-            </Pressable>
-
             {/* Buffer section */}
-            <View className="flex-1 px-4 mt-4">
+            <View className="flex-1 px-4 mt-6" style={{ paddingBottom: insets.bottom + 16 }}>
               <BufferBar onSend={handleSend} onItemPress={handleItemPress} large />
             </View>
           </>

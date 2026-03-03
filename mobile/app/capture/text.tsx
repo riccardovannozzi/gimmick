@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { X, Check } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 export default function TextCaptureScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const [text, setText] = useState('');
   const addItem = useBufferStore((state) => state.addItem);

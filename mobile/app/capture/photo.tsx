@@ -6,9 +6,10 @@ import { X, RefreshCw, Zap, ZapOff, Circle } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 export default function PhotoCaptureScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();

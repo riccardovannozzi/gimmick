@@ -6,10 +6,11 @@ import { X, Mic, Square, Play, Pause } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 import { formatDuration } from '@/utils/formatters';
 
 export default function VoiceCaptureScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);

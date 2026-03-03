@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useAuthStore, toast } from '@/store';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 export default function LoginScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
   const { signIn, signUp, isLoading } = useAuthStore();
   const [isRegister, setIsRegister] = useState(false);

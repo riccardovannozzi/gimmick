@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 import { useSettingsStore } from '@/store';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -70,6 +70,7 @@ export function Button({
   onPress,
   ...props
 }: ButtonProps) {
+  const colors = useThemeColors();
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
   const handlePress = async (e: any) => {

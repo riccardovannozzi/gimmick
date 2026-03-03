@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { Video as ExpoVideo, ResizeMode } from 'expo-av';
 import { X, Check, Edit2, FileText, Mic, File } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { colors } from '@/constants';
+import { captureColors } from '@/constants/colors';
 import { useSettingsStore } from '@/store';
 import type { MemoType } from '@/types';
 import { formatDuration, truncateText } from '@/utils/formatters';
@@ -67,7 +67,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 min-h-32">
         <View className="flex-row items-center mb-3">
-          <FileText size={24} color={colors.capture.text} />
+          <FileText size={24} color={captureColors.text} />
           <Text className="text-primary font-medium ml-2">Text note</Text>
         </View>
         <Text className="text-secondary leading-5">
@@ -81,7 +81,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 items-center">
         <View className="w-16 h-16 rounded-full bg-capture-voice/20 items-center justify-center mb-3">
-          <Mic size={32} color={colors.capture.voice} />
+          <Mic size={32} color={captureColors.voice} />
         </View>
         <Text className="text-primary font-medium">
           {type === 'audio_recording' ? 'Audio recording' : 'Audio file'}
@@ -100,7 +100,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 items-center">
         <View className="w-16 h-16 rounded-full bg-capture-file/20 items-center justify-center mb-3">
-          <File size={32} color={colors.capture.file} />
+          <File size={32} color={captureColors.file} />
         </View>
         <Text className="text-primary font-medium">File</Text>
         {fileName ? (

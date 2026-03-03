@@ -7,10 +7,12 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { Send, X, FileText, Mic, File } from 'lucide-react-native';
+import { Send, X, FileText, Mic, File, Camera, Video, Image as ImageIcon } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useBufferStore, useSettingsStore } from '@/store';
-import { colors, config } from '@/constants';
+import { config } from '@/constants';
+import { captureColors } from '@/constants/colors';
+import { useThemeColors } from '@/lib/theme';
 import type { BufferItem, MemoType } from '@/types';
 import { truncateText } from '@/utils/formatters';
 
@@ -20,26 +22,26 @@ interface BufferBarProps {
   large?: boolean;
 }
 
-function getItemColor(type: MemoType): string {
+function getItemColor(type: MemoType, secondaryColor: string): string {
   switch (type) {
     case 'text':
-      return colors.capture.text;
+      return captureColors.text;
     case 'audio_recording':
-      return colors.capture.voice;
+      return captureColors.voice;
     case 'file':
-      return colors.capture.file;
+      return captureColors.file;
     case 'photo':
     case 'image':
-      return colors.capture.photo;
+      return captureColors.photo;
     case 'video':
-      return colors.capture.video;
+      return captureColors.video;
     default:
-      return colors.secondary;
+      return secondaryColor;
   }
 }
 
-function getItemIcon(type: MemoType, size = 20) {
-  const color = getItemColor(type);
+function getItemIcon(type: MemoType, size = 20, secondaryColor = '#9CA3AF') {
+  const color = getItemColor(type, secondaryColor);
   switch (type) {
     case 'text':
       return <FileText size={size} color={color} />;
@@ -47,8 +49,26 @@ function getItemIcon(type: MemoType, size = 20) {
       return <Mic size={size} color={color} />;
     case 'file':
       return <File size={size} color={color} />;
+    case 'photo':
+      return <Camera size={size} color={color} />;
+    case 'video':
+      return <Video size={size} color={color} />;
+    case 'image':
+      return <ImageIcon size={size} color={color} />;
     default:
       return null;
+  }
+}
+
+function getItemLabel(type: MemoType): string {
+  switch (type) {
+    case 'text': return 'Text';
+    case 'audio_recording': return 'Voice';
+    case 'file': return 'File';
+    case 'photo': return 'Photo';
+    case 'video': return 'Video';
+    case 'image': return 'Gallery';
+    default: return 'Item';
   }
 }
 
@@ -63,6 +83,7 @@ function BufferThumbnail({
   onRemove: () => void;
   large?: boolean;
 }) {
+  const colors = useThemeColors();
   const isImage = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const confirmDelete = useSettingsStore((state) => state.confirmDelete);
@@ -86,94 +107,133 @@ function BufferThumbnail({
     }
   };
 
-  // Layout large: stesse dimensioni dei CaptureButton (flex-1 aspect-square, rounded-2xl, bg-background-2)
+  // Layout large: full-width row
   if (large) {
-    const itemColor = getItemColor(item.type);
+    const itemColor = getItemColor(item.type, colors.secondary);
     return (
-      <View className="flex-1 aspect-square" style={{ minWidth: '30%', maxWidth: '32%' }}>
-        <TouchableOpacity
-          onPress={onPress}
-          activeOpacity={0.8}
-          className="flex-1 relative"
-        >
-          <View className="flex-1 rounded-2xl overflow-hidden bg-background-2 border border-border items-center justify-center">
-            {isImage && item.uri ? (
-              <Image
-                source={{ uri: item.thumbnail ?? item.uri }}
-                className="w-full h-full"
-                resizeMode="cover"
-              />
-            ) : item.type === 'text' ? (
-              <View className="flex-1 p-3 justify-center">
-                <Text className="text-secondary text-xs" numberOfLines={4}>
-                  {truncateText(item.preview ?? '', 50)}
-                </Text>
-              </View>
-            ) : (
-              <View
-                className="w-14 h-14 rounded-xl items-center justify-center"
-                style={{ backgroundColor: `${itemColor}20` }}
-              >
-                {getItemIcon(item.type, 28)}
-              </View>
-            )}
-          </View>
-
-          {/* Remove button */}
-          <TouchableOpacity
-            onPress={handleRemove}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-error rounded-full items-center justify-center"
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.8}
+        className="flex-row items-center rounded-2xl overflow-hidden mb-3 px-2 py-3"
+        style={{
+          backgroundColor: colors.background2,
+          borderWidth: 1.5,
+          borderColor: colors.primary,
+          minHeight: 80,
+        }}
+      >
+        {/* Left: thumbnail or icon */}
+        {isImage && item.uri ? (
+          <Image
+            source={{ uri: item.thumbnail ?? item.uri }}
+            className="rounded-xl"
+            style={{ width: 60, height: 60 }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            className="rounded-xl items-center justify-center"
+            style={{ width: 60, height: 60, backgroundColor: `${itemColor}15` }}
           >
-            <X size={14} color="#fff" />
-          </TouchableOpacity>
+            {getItemIcon(item.type, 28, colors.secondary)}
+          </View>
+        )}
+
+        {/* Center: label / preview */}
+        <View className="flex-1 ml-3 mr-2">
+          {item.type === 'text' ? (
+            <Text className="text-primary text-lg">
+              {item.preview ?? ''}
+            </Text>
+          ) : (
+            <>
+              <Text className="text-primary text-lg font-medium">
+                {getItemLabel(item.type)}
+              </Text>
+              {item.fileName && (
+                <Text className="text-secondary text-base" numberOfLines={1}>
+                  {item.fileName}
+                </Text>
+              )}
+            </>
+          )}
+        </View>
+
+        {/* Right: remove button */}
+        <TouchableOpacity
+          onPress={handleRemove}
+          className="w-10 h-10 items-center justify-center"
+        >
+          <X size={20} color={colors.primary} />
         </TouchableOpacity>
-      </View>
+      </TouchableOpacity>
     );
   }
 
-  // Layout compatto originale
+  // Layout compatto (stessa struttura row del large)
+  const itemColor = getItemColor(item.type, colors.secondary);
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      className="relative mr-2"
+      className="flex-row items-center rounded-2xl overflow-hidden mb-3 px-2 py-3"
+      style={{
+        backgroundColor: colors.background2,
+        borderWidth: 1.5,
+        borderColor: colors.primary,
+        minHeight: 80,
+      }}
     >
-      <View
-        className="rounded-lg overflow-hidden bg-background-1 border border-border items-center justify-center"
-        style={{
-          width: config.ui.thumbnailSize,
-          height: config.ui.thumbnailSize,
-        }}
-      >
-        {isImage && item.uri ? (
-          <Image
-            source={{ uri: item.thumbnail ?? item.uri }}
-            className="w-full h-full"
-            resizeMode="cover"
-          />
-        ) : item.type === 'text' ? (
-          <View className="p-1">
-            <Text className="text-secondary text-xs" numberOfLines={2}>
-              {truncateText(item.preview ?? '', 20)}
-            </Text>
-          </View>
+      {/* Left: thumbnail or icon */}
+      {isImage && item.uri ? (
+        <Image
+          source={{ uri: item.thumbnail ?? item.uri }}
+          className="rounded-xl"
+          style={{ width: 60, height: 60 }}
+          resizeMode="cover"
+        />
+      ) : (
+        <View
+          className="rounded-xl items-center justify-center"
+          style={{ width: 60, height: 60, backgroundColor: `${itemColor}15` }}
+        >
+          {getItemIcon(item.type, 28, colors.secondary)}
+        </View>
+      )}
+
+      {/* Center: label / preview */}
+      <View className="flex-1 ml-3 mr-2">
+        {item.type === 'text' ? (
+          <Text className="text-primary text-lg">
+            {item.preview ?? ''}
+          </Text>
         ) : (
-          getItemIcon(item.type, 20)
+          <>
+            <Text className="text-primary text-lg font-medium">
+              {getItemLabel(item.type)}
+            </Text>
+            {item.fileName && (
+              <Text className="text-secondary text-base" numberOfLines={1}>
+                {item.fileName}
+              </Text>
+            )}
+          </>
         )}
       </View>
 
-      {/* Remove button */}
+      {/* Right: remove button */}
       <TouchableOpacity
         onPress={handleRemove}
-        className="absolute -top-1 -right-1 w-5 h-5 bg-error rounded-full items-center justify-center"
+        className="w-10 h-10 items-center justify-center"
       >
-        <X size={12} color="#fff" />
+        <X size={20} color={colors.primary} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
 }
 
 export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps) {
+  const colors = useThemeColors();
   const items = useBufferStore((state) => state.items);
   const removeItem = useBufferStore((state) => state.removeItem);
   const isUploading = useBufferStore((state) => state.isUploading);
@@ -203,44 +263,35 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
             paddingBottom: 80,
           }}
         >
-          {items.length === 0 ? (
-            <View className="flex-1 items-center justify-center py-8">
-              <Text className="text-secondary text-base italic">
-                No items in buffer
-              </Text>
-            </View>
-          ) : (
-            <View className="flex-row flex-wrap gap-3">
-              {items.map((item) => (
-                <BufferThumbnail
-                  key={item.id}
-                  item={item}
-                  onPress={() => onItemPress?.(item)}
-                  onRemove={() => removeItem(item.id)}
-                  large
-                />
-              ))}
-            </View>
-          )}
+          {items.map((item) => (
+            <BufferThumbnail
+              key={item.id}
+              item={item}
+              onPress={() => onItemPress?.(item)}
+              onRemove={() => removeItem(item.id)}
+              large
+            />
+          ))}
         </ScrollView>
 
-        {/* Send button fisso in basso */}
+        {/* Send button fisso in basso a destra */}
         {count > 0 && (
-          <View className="absolute bottom-4 right-0">
+          <View className="absolute bottom-0 right-0">
             <TouchableOpacity
               onPress={handleSend}
               disabled={isUploading}
               activeOpacity={0.7}
-              className="bg-accent rounded-full items-center justify-center"
+              className="rounded-full items-center justify-center flex-row"
               style={{
-                width: sendButtonSize,
-                height: sendButtonSize,
+                width: 96,
+                height: 48,
+                backgroundColor: colors.primary,
               }}
             >
-              <Send size={24} color="#fff" />
+              <Send size={20} color={colors.background1} />
 
               {/* Badge */}
-              <View className="absolute -top-1 -right-1 bg-error rounded-full min-w-6 h-6 items-center justify-center px-1">
+              <View className="absolute -top-2 -right-2 bg-error rounded-full min-w-6 h-6 items-center justify-center px-1">
                 <Text className="text-white text-sm font-bold">{count}</Text>
               </View>
             </TouchableOpacity>

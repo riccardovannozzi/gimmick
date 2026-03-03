@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, LogOut, Check } from 'lucide-react-native';
+import { ChevronRight, LogOut, Check, Sun, Moon, Smartphone, ArrowLeft } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useSettingsStore, useAuthStore } from '@/store';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 interface SettingRowProps {
   label: string;
@@ -23,6 +23,7 @@ function SettingRow({
   onPress,
   showArrow,
 }: SettingRowProps) {
+  const colors = useThemeColors();
   const content = (
     <View className="flex-row items-center justify-between py-4 px-4 border-b border-border">
       <View className="flex-1 mr-4">
@@ -76,6 +77,7 @@ function SettingSection({
 }
 
 export default function SettingsScreen() {
+  const colors = useThemeColors();
   const {
     hapticFeedback,
     setHapticFeedback,
@@ -87,11 +89,22 @@ export default function SettingsScreen() {
     setUploadOnWifiOnly,
     aiModel,
     setAiModel,
+    theme,
+    setTheme,
   } = useSettingsStore();
 
   const { user, signOut } = useAuthStore();
   const router = useRouter();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
+  const [themePickerOpen, setThemePickerOpen] = useState(false);
+
+  const themeOptions = [
+    { id: 'light' as const, label: 'Light', description: 'Light theme', icon: Sun },
+    { id: 'dark' as const, label: 'Dark', description: 'Dark theme', icon: Moon },
+    { id: 'system' as const, label: 'System', description: 'Match device setting', icon: Smartphone },
+  ];
+
+  const currentTheme = themeOptions.find((t) => t.id === theme) || themeOptions[1];
 
   const aiModels = [
     { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', description: 'Fast & economical' },
@@ -105,7 +118,10 @@ export default function SettingsScreen() {
     <SafeAreaWrapper edges={['top']}>
       <ScrollView className="flex-1">
         {/* Header */}
-        <View className="px-4 py-4 border-b border-border">
+        <View className="flex-row items-center px-4 py-4 border-b border-border">
+          <TouchableOpacity onPress={() => router.push('/(tabs)/' as any)} className="mr-3">
+            <ArrowLeft size={24} color={colors.primary} />
+          </TouchableOpacity>
           <Text className="text-primary text-xl font-bold">Settings</Text>
         </View>
 
@@ -162,6 +178,16 @@ export default function SettingsScreen() {
               label="Model"
               description={currentModel.label + ' — ' + currentModel.description}
               onPress={() => setModelPickerOpen(true)}
+              showArrow
+            />
+          </SettingSection>
+
+          {/* Appearance section */}
+          <SettingSection title="Appearance">
+            <SettingRow
+              label="Theme"
+              description={currentTheme.label + ' — ' + currentTheme.description}
+              onPress={() => setThemePickerOpen(true)}
               showArrow
             />
           </SettingSection>
@@ -230,6 +256,52 @@ export default function SettingsScreen() {
                 )}
               </TouchableOpacity>
             ))}
+            <View className="h-3" />
+          </View>
+        </Pressable>
+      </Modal>
+      {/* Theme Picker Modal */}
+      <Modal
+        visible={themePickerOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setThemePickerOpen(false)}
+      >
+        <Pressable
+          onPress={() => setThemePickerOpen(false)}
+          className="flex-1 items-center justify-center"
+          style={{ backgroundColor: colors.overlay }}
+        >
+          <View
+            className="mx-8 rounded-2xl overflow-hidden w-[85%]"
+            style={{ backgroundColor: colors.background2 }}
+          >
+            <Text className="text-primary text-lg font-semibold px-5 pt-5 pb-3">
+              Theme
+            </Text>
+            {themeOptions.map((option) => {
+              const Icon = option.icon;
+              return (
+                <TouchableOpacity
+                  key={option.id}
+                  onPress={() => {
+                    setTheme(option.id);
+                    setThemePickerOpen(false);
+                  }}
+                  activeOpacity={0.7}
+                  className="flex-row items-center px-5 py-4"
+                >
+                  <Icon size={20} color={colors.secondary} />
+                  <View className="flex-1 ml-3">
+                    <Text className="text-primary text-base">{option.label}</Text>
+                    <Text className="text-secondary text-sm mt-0.5">{option.description}</Text>
+                  </View>
+                  {theme === option.id && (
+                    <Check size={20} color={colors.accent} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
             <View className="h-3" />
           </View>
         </Pressable>

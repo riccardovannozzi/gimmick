@@ -3,9 +3,10 @@ import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { X, ImageIcon } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 export default function ImageEditorScreen() {
+  const colors = useThemeColors();
   const router = useRouter();
 
   return (

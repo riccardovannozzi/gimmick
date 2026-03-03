@@ -5,19 +5,21 @@ module.exports = {
     "./components/**/*.{js,jsx,ts,tsx}",
   ],
   presets: [require("nativewind/preset")],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
         background: {
-          1: '#1E1E1E',
-          2: '#252526',
+          1: 'rgb(var(--color-background-1) / <alpha-value>)',
+          2: 'rgb(var(--color-background-2) / <alpha-value>)',
         },
-        primary: '#F5F5F5',
-        secondary: '#9CA3AF',
-        accent: '#528BFF',
-        border: '#3E3E42',
-        success: '#22C55E',
-        error: '#EF4444',
+        primary: 'rgb(var(--color-primary) / <alpha-value>)',
+        secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        error: 'rgb(var(--color-error) / <alpha-value>)',
+        warning: 'rgb(var(--color-warning) / <alpha-value>)',
         capture: {
           photo: '#3B82F6',
           text: '#22C55E',
