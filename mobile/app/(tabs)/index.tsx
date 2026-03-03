@@ -328,25 +328,30 @@ export default function HomeScreen() {
             style={{ backgroundColor: colors.overlayLight }}
           >
             <View
-              className="absolute left-4 rounded-xl overflow-hidden"
-              style={{ top: insets.top + 52, backgroundColor: colors.background2 }}
+              className="absolute left-4 rounded-2xl overflow-hidden"
+              style={{
+                top: insets.top + 52,
+                backgroundColor: colors.background2,
+                borderWidth: 1.5,
+                borderColor: colors.primary,
+              }}
             >
               <TouchableOpacity
                 onPress={() => { setMenuOpen(false); router.push('/(tabs)/history' as any); }}
-                className="flex-row items-center px-5 py-4 gap-3"
+                className="flex-row items-center px-5 py-4 gap-4"
                 activeOpacity={0.7}
               >
-                <LayoutGrid size={20} color={colors.primary} />
-                <Text className="text-primary text-base font-medium">Tiles</Text>
+                <LayoutGrid size={24} color={colors.primary} />
+                <Text className="text-primary text-lg font-medium">Tiles</Text>
               </TouchableOpacity>
               <View style={{ height: 1, backgroundColor: colors.border }} />
               <TouchableOpacity
                 onPress={() => { setMenuOpen(false); router.push('/(tabs)/settings' as any); }}
-                className="flex-row items-center px-5 py-4 gap-3"
+                className="flex-row items-center px-5 py-4 gap-4"
                 activeOpacity={0.7}
               >
-                <Settings size={20} color={colors.primary} />
-                <Text className="text-primary text-base font-medium">Settings</Text>
+                <Settings size={24} color={colors.primary} />
+                <Text className="text-primary text-lg font-medium">Settings</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
