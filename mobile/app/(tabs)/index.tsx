@@ -328,7 +328,7 @@ export default function HomeScreen() {
             style={{ backgroundColor: colors.overlayLight }}
           >
             <View
-              className="absolute left-4 rounded-2xl overflow-hidden"
+              className="absolute left-4 right-4 rounded-2xl overflow-hidden"
               style={{
                 top: insets.top + 52,
                 backgroundColor: colors.background2,
@@ -338,20 +338,20 @@ export default function HomeScreen() {
             >
               <TouchableOpacity
                 onPress={() => { setMenuOpen(false); router.push('/(tabs)/history' as any); }}
-                className="flex-row items-center px-5 py-4 gap-4"
+                className="flex-row items-center px-6 py-6 gap-4"
                 activeOpacity={0.7}
               >
-                <LayoutGrid size={24} color={colors.primary} />
-                <Text className="text-primary text-lg font-medium">Tiles</Text>
+                <LayoutGrid size={28} color={colors.primary} />
+                <Text className="text-primary text-xl font-medium">Tiles</Text>
               </TouchableOpacity>
               <View style={{ height: 1, backgroundColor: colors.border }} />
               <TouchableOpacity
                 onPress={() => { setMenuOpen(false); router.push('/(tabs)/settings' as any); }}
-                className="flex-row items-center px-5 py-4 gap-4"
+                className="flex-row items-center px-6 py-6 gap-4"
                 activeOpacity={0.7}
               >
-                <Settings size={24} color={colors.primary} />
-                <Text className="text-primary text-lg font-medium">Settings</Text>
+                <Settings size={28} color={colors.primary} />
+                <Text className="text-primary text-xl font-medium">Settings</Text>
               </TouchableOpacity>
             </View>
           </Pressable>
