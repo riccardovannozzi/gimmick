@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authApi, setTokens } from '@/lib/api';
+import { authApi, setTokens, setOnAuthFailed } from '@/lib/api';
 
 interface User {
   id: string;
@@ -48,6 +48,9 @@ export const useAuthStore = create<AuthState>()(
               refresh_token: state.refreshToken,
               expires_at: state.expiresAt || 0,
             });
+
+            // Register auto-logout on auth failure
+            setOnAuthFailed(() => get().signOut());
 
             // Check if token is expired
             const now = Math.floor(Date.now() / 1000);
@@ -172,7 +175,7 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         expiresAt: state.expiresAt,
       }),
-      onRehydrateStorage: () => (state) => {
+      onRehydrateStorage: () => (state, store) => {
         // Sync tokens to API module as soon as AsyncStorage rehydrates
         if (state?.accessToken && state?.refreshToken) {
           setTokens({
@@ -180,6 +183,7 @@ export const useAuthStore = create<AuthState>()(
             refresh_token: state.refreshToken,
             expires_at: state.expiresAt || 0,
           });
+          setOnAuthFailed(() => state.signOut());
         }
       },
     }

@@ -52,6 +52,18 @@ interface AuthTokens {
 let accessToken: string | null = null;
 let refreshToken: string | null = null;
 
+// Token refresh state
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string | null) => void> = [];
+let onAuthFailedCallback: (() => void) | null = null;
+
+/**
+ * Register callback for when auth fails completely (refresh token invalid)
+ */
+export function setOnAuthFailed(cb: () => void) {
+  onAuthFailedCallback = cb;
+}
+
 /**
  * Set authentication tokens
  */
@@ -73,7 +85,59 @@ export function getAccessToken(): string | null {
 }
 
 /**
- * Make authenticated API request
+ * Try to refresh the access token
+ */
+async function tryRefreshToken(): Promise<string | null> {
+  if (!refreshToken) {
+    onAuthFailedCallback?.();
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_URL}/api/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+
+    const data = await response.json();
+
+    if (data.success && data.data?.session) {
+      setTokens(data.data.session);
+      return accessToken;
+    }
+
+    // Refresh failed — force logout
+    onAuthFailedCallback?.();
+    return null;
+  } catch {
+    onAuthFailedCallback?.();
+    return null;
+  }
+}
+
+/**
+ * Handle 401: queue concurrent requests, refresh once, retry all
+ */
+function handleTokenRefresh(): Promise<string | null> {
+  if (isRefreshing) {
+    return new Promise((resolve) => {
+      refreshSubscribers.push(resolve);
+    });
+  }
+
+  isRefreshing = true;
+
+  return tryRefreshToken().then((newToken) => {
+    isRefreshing = false;
+    refreshSubscribers.forEach((cb) => cb(newToken));
+    refreshSubscribers = [];
+    return newToken;
+  });
+}
+
+/**
+ * Make authenticated API request (with auto-refresh on 401)
  */
 async function apiRequest<T>(
   endpoint: string,
@@ -94,6 +158,24 @@ async function apiRequest<T>(
       headers,
     });
 
+    // On 401, try refreshing token and retry once
+    if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
+      const newToken = await handleTokenRefresh();
+      if (newToken) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
+        const retryResponse = await fetch(`${API_URL}${endpoint}`, {
+          ...options,
+          headers,
+        });
+        const retryData = await retryResponse.json();
+        if (!retryResponse.ok) {
+          return { success: false, error: retryData.error || `HTTP ${retryResponse.status}` };
+        }
+        return retryData;
+      }
+      return { success: false, error: 'Session expired' };
+    }
+
     const data = await response.json();
 
     if (!response.ok) {
@@ -110,6 +192,33 @@ async function apiRequest<T>(
       error: error instanceof Error ? error.message : 'Network error',
     };
   }
+}
+
+/**
+ * Authenticated fetch with auto-refresh on 401 (for direct fetch calls)
+ */
+async function authenticatedFetch(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  if (accessToken) {
+    headers['Authorization'] = `Bearer ${accessToken}`;
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+
+  if (response.status === 401) {
+    const newToken = await handleTokenRefresh();
+    if (newToken) {
+      headers['Authorization'] = `Bearer ${newToken}`;
+      return fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    }
+  }
+
+  return response;
 }
 
 // ============ Auth API ============
@@ -186,11 +295,7 @@ export const memosApi = {
     const query = params.toString();
     const endpoint = `/api/memos${query ? `?${query}` : ''}`;
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const response = await authenticatedFetch(endpoint);
 
     return response.json() as Promise<PaginatedResponse<Memo>>;
   },
@@ -236,11 +341,7 @@ export const tilesApi = {
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
 
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    const response = await authenticatedFetch(endpoint);
 
     return response.json() as Promise<PaginatedResponse<Tile>>;
   },
@@ -299,11 +400,8 @@ export const chatApi = {
       formData.append('history', JSON.stringify(history));
       if (model) formData.append('model', model);
 
-      const response = await fetch(`${API_URL}/api/chat/voice`, {
+      const response = await authenticatedFetch('/api/chat/voice', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: formData,
       });
 
@@ -344,11 +442,8 @@ export const uploadApi = {
       } as unknown as Blob);
       formData.append('folder', folder);
 
-      const response = await fetch(`${API_URL}/api/upload/file`, {
+      const response = await authenticatedFetch('/api/upload/file', {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: formData,
       });
 

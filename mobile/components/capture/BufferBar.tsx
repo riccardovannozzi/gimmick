@@ -7,8 +7,12 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { Send, X, FileText, Mic, File, Camera, Video, Image as ImageIcon } from 'lucide-react-native';
-import Svg, { Rect } from 'react-native-svg';
+import { Send, X, Camera, Paperclip } from 'lucide-react-native';
+import NiPenToSquare from '@/assets/icons/ni-pen-to-square.svg';
+import NiMicrophone from '@/assets/icons/ni-microphone.svg';
+import NiCameraReels from '@/assets/icons/ni-camera-reels.svg';
+import NiGallerySquare from '@/assets/icons/ni-gallery-square.svg';
+import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useBufferStore, useSettingsStore } from '@/store';
 import { config } from '@/constants';
@@ -45,17 +49,17 @@ function getItemIcon(type: MemoType, size = 20, secondaryColor = '#9CA3AF') {
   const color = getItemColor(type, secondaryColor);
   switch (type) {
     case 'text':
-      return <FileText size={size} color={color} />;
+      return <NiPenToSquare width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'audio_recording':
-      return <Mic size={size} color={color} />;
+      return <NiMicrophone width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'file':
-      return <File size={size} color={color} />;
+      return <Paperclip size={size} color={color} strokeWidth={1.8} />;
     case 'photo':
-      return <Camera size={size} color={color} />;
+      return <Camera size={size} color={color} strokeWidth={1.8} />;
     case 'video':
-      return <Video size={size} color={color} />;
+      return <NiCameraReels width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'image':
-      return <ImageIcon size={size} color={color} />;
+      return <NiGallerySquare width={size} height={size} stroke={color} strokeWidth={1.8} />;
     default:
       return null;
   }
@@ -136,13 +140,28 @@ function BufferThumbnail({
           minHeight: 80,
         }}
       >
-        {/* Thick arc accent on right + bottom border */}
+        {/* Color gradient fill + thick arc accent */}
         {perimeter > 0 && (
           <Svg
             width={cardSize.w}
             height={cardSize.h}
             style={{ position: 'absolute', top: 0, left: 0 }}
           >
+            <Defs>
+              <LinearGradient id={`memo-grad-${item.id}`} x1="100%" y1="0%" x2="0%" y2="100%">
+                <Stop offset="0%" stopColor={itemColor} stopOpacity={0.3} />
+                <Stop offset="100%" stopColor={itemColor} stopOpacity={0.02} />
+              </LinearGradient>
+            </Defs>
+            <Rect
+              x={1.5}
+              y={1.5}
+              width={cardSize.w - 3}
+              height={cardSize.h - 3}
+              rx={rx}
+              ry={rx}
+              fill={`url(#memo-grad-${item.id})`}
+            />
             <Rect
               x={1.5}
               y={1.5}
@@ -179,16 +198,16 @@ function BufferThumbnail({
         {/* Center: label / preview */}
         <View className="flex-1 ml-3 mr-2">
           {item.type === 'text' ? (
-            <Text className="text-primary text-lg">
+            <Text className="text-primary text-xl">
               {item.preview ?? ''}
             </Text>
           ) : (
             <>
-              <Text className="text-primary text-lg font-medium">
+              <Text className="text-primary text-xl font-medium">
                 {getItemLabel(item.type)}
               </Text>
               {item.fileName && (
-                <Text className="text-secondary text-base" numberOfLines={1}>
+                <Text className="text-secondary text-lg" numberOfLines={1}>
                   {item.fileName}
                 </Text>
               )}
@@ -232,13 +251,28 @@ function BufferThumbnail({
         minHeight: 80,
       }}
     >
-      {/* Thick arc accent on border */}
+      {/* Color gradient fill + thick arc accent */}
       {perimeter > 0 && (
         <Svg
           width={cardSize.w}
           height={cardSize.h}
           style={{ position: 'absolute', top: 0, left: 0 }}
         >
+          <Defs>
+            <LinearGradient id={`memo-c-${item.id}`} x1="100%" y1="0%" x2="0%" y2="100%">
+              <Stop offset="0%" stopColor={itemColor} stopOpacity={0.3} />
+              <Stop offset="100%" stopColor={itemColor} stopOpacity={0.02} />
+            </LinearGradient>
+          </Defs>
+          <Rect
+            x={1.5}
+            y={1.5}
+            width={cardSize.w - 3}
+            height={cardSize.h - 3}
+            rx={rx}
+            ry={rx}
+            fill={`url(#memo-c-${item.id})`}
+          />
           <Rect
             x={1.5}
             y={1.5}
@@ -274,16 +308,16 @@ function BufferThumbnail({
       {/* Center: label / preview */}
       <View className="flex-1 ml-3 mr-2">
         {item.type === 'text' ? (
-          <Text className="text-primary text-lg">
+          <Text className="text-primary text-xl">
             {item.preview ?? ''}
           </Text>
         ) : (
           <>
-            <Text className="text-primary text-lg font-medium">
+            <Text className="text-primary text-xl font-medium">
               {getItemLabel(item.type)}
             </Text>
             {item.fileName && (
-              <Text className="text-secondary text-base" numberOfLines={1}>
+              <Text className="text-secondary text-lg" numberOfLines={1}>
                 {item.fileName}
               </Text>
             )}

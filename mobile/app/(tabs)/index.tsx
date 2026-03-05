@@ -40,13 +40,21 @@ const buttonToMemoTypes: Record<string, MemoType[]> = {
 // Row 1: Photo, Video, Gallery
 // Row 2: Text, Voice, Files
 const captureOptions = [
-  // Row 1
+  // Row 1: blue, green, pink
   {
     id: 'photo',
     label: 'PHOTO',
     icon: <NiCamera />,
     color: captureColors.photo,
     route: '/capture/photo',
+    isSvg: true,
+  },
+  {
+    id: 'text',
+    label: 'TEXT',
+    icon: <NiPenToSquare />,
+    color: captureColors.text,
+    route: '/capture/text',
     isSvg: true,
   },
   {
@@ -57,23 +65,7 @@ const captureOptions = [
     route: '/capture/video',
     isSvg: true,
   },
-  {
-    id: 'gallery',
-    label: 'GALLERY',
-    icon: <NiGallerySquare />,
-    color: captureColors.gallery,
-    route: '/capture/gallery',
-    isSvg: true,
-  },
-  // Row 2
-  {
-    id: 'text',
-    label: 'TEXT',
-    icon: <NiPenToSquare />,
-    color: captureColors.text,
-    route: '/capture/text',
-    isSvg: true,
-  },
+  // Row 2: red, amber, purple
   {
     id: 'voice',
     label: 'VOICE',
@@ -89,6 +81,14 @@ const captureOptions = [
     color: captureColors.file,
     route: '/capture/file',
     isSvg: false,
+  },
+  {
+    id: 'gallery',
+    label: 'GALLERY',
+    icon: <NiGallerySquare />,
+    color: captureColors.gallery,
+    route: '/capture/gallery',
+    isSvg: true,
   },
 ] as const;
 
