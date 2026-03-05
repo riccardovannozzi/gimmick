@@ -1,5 +1,6 @@
 import React from 'react';
-import { TouchableOpacity, Text, View } from 'react-native';
+import { TouchableOpacity, Text, View, Platform } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useThemeColors } from '@/lib/theme';
@@ -11,6 +12,7 @@ interface CaptureButtonProps {
   onPress: () => void;
   disabled?: boolean;
   count?: number;
+  isSvg?: boolean;
 }
 
 export function CaptureButton({
@@ -20,6 +22,7 @@ export function CaptureButton({
   onPress,
   disabled = false,
   count = 0,
+  isSvg = false,
 }: CaptureButtonProps) {
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const colors = useThemeColors();
@@ -31,22 +34,58 @@ export function CaptureButton({
     onPress();
   };
 
+  const size = 96;
+  const strokeW = 3;
+  const radius = (size - strokeW) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const arcLength = circumference * 0.5; // 50% of circle
+
   return (
     <View className={`flex-1 items-center ${disabled ? 'opacity-50' : ''}`}>
       <TouchableOpacity
         onPress={handlePress}
         disabled={disabled}
-        activeOpacity={0.7}
+        activeOpacity={0.85}
         className="items-center justify-center"
         style={{
-          width: 96,
-          height: 96,
-          borderRadius: 48,
-          backgroundColor: `${color}15`,
-          borderWidth: 1.5,
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          backgroundColor: colors.background2,
+          borderWidth: 1,
           borderColor: colors.primary,
+          ...Platform.select({
+            ios: {
+              shadowColor: '#000000',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.04,
+              shadowRadius: 3,
+            },
+            android: {
+              elevation: 1,
+            },
+          }),
         }}
       >
+        {/* Thick arc accent */}
+        <Svg
+          width={size}
+          height={size}
+          style={{ position: 'absolute' }}
+        >
+          <Circle
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={colors.primary}
+            strokeWidth={strokeW}
+            fill="none"
+            strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+            strokeDashoffset={circumference * 0.25}
+            strokeLinecap="round"
+          />
+        </Svg>
+
         {/* Badge */}
         {count > 0 && (
           <View
@@ -58,17 +97,17 @@ export function CaptureButton({
         )}
 
         {/* Icon */}
-        {React.cloneElement(icon as React.ReactElement<{ size?: number; color?: string; strokeWidth?: number }>, {
-          size: 44,
-          color: color,
-          strokeWidth: 1.5,
+        {React.cloneElement(icon as React.ReactElement<any>, isSvg ? {
+          width: 32,
+          height: 32,
+          stroke: colors.primary,
+          strokeWidth: 1.8,
+        } : {
+          size: 32,
+          color: colors.primary,
+          strokeWidth: 1.8,
         })}
       </TouchableOpacity>
-
-      {/* Label below circle */}
-      <Text className="text-primary text-[10px] font-medium uppercase tracking-wide mt-2">
-        {label}
-      </Text>
     </View>
   );
 }

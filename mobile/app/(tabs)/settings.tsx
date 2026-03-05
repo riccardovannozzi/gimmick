@@ -25,11 +25,11 @@ function SettingRow({
 }: SettingRowProps) {
   const colors = useThemeColors();
   const content = (
-    <View className="flex-row items-center justify-between py-4 px-4 border-b border-border">
+    <View className="flex-row items-center justify-between py-5 px-6 border-b border-border">
       <View className="flex-1 mr-4">
-        <Text className="text-primary text-base">{label}</Text>
+        <Text className="text-primary text-lg">{label}</Text>
         {description && (
-          <Text className="text-secondary text-sm mt-1">{description}</Text>
+          <Text className="text-secondary text-base mt-1">{description}</Text>
         )}
       </View>
 
@@ -42,7 +42,7 @@ function SettingRow({
         />
       )}
 
-      {showArrow && <ChevronRight size={20} color={colors.secondary} />}
+      {showArrow && <ChevronRight size={24} color={colors.secondary} />}
     </View>
   );
 
@@ -64,12 +64,20 @@ function SettingSection({
   title: string;
   children: React.ReactNode;
 }) {
+  const colors = useThemeColors();
   return (
     <View className="mb-6">
-      <Text className="text-secondary text-xs font-medium uppercase px-4 mb-2">
+      <Text className="text-secondary text-sm font-medium uppercase px-4 mb-2">
         {title}
       </Text>
-      <View className="bg-background-2 rounded-lg overflow-hidden mx-4">
+      <View
+        className="rounded-2xl overflow-hidden mx-4"
+        style={{
+          backgroundColor: colors.background2,
+          borderWidth: 1.5,
+          borderColor: colors.primary,
+        }}
+      >
         {children}
       </View>
     </View>
@@ -136,10 +144,10 @@ export default function SettingsScreen() {
                 />
                 <TouchableOpacity
                   onPress={signOut}
-                  className="flex-row items-center py-4 px-4"
+                  className="flex-row items-center py-5 px-6 gap-4"
                 >
-                  <LogOut size={20} color={colors.error} />
-                  <Text className="text-error ml-3">Sign out</Text>
+                  <LogOut size={24} color={colors.error} />
+                  <Text className="text-error text-lg">Sign out</Text>
                 </TouchableOpacity>
               </>
             ) : (
@@ -232,9 +240,13 @@ export default function SettingsScreen() {
         >
           <View
             className="mx-8 rounded-2xl overflow-hidden w-[85%]"
-            style={{ backgroundColor: colors.background2 }}
+            style={{
+              backgroundColor: colors.background2,
+              borderWidth: 1.5,
+              borderColor: colors.primary,
+            }}
           >
-            <Text className="text-primary text-lg font-semibold px-5 pt-5 pb-3">
+            <Text className="text-primary text-xl font-semibold px-6 pt-5 pb-3">
               Select Model
             </Text>
             {aiModels.map((model) => (
@@ -245,14 +257,14 @@ export default function SettingsScreen() {
                   setModelPickerOpen(false);
                 }}
                 activeOpacity={0.7}
-                className="flex-row items-center px-5 py-4"
+                className="flex-row items-center px-6 py-5"
               >
                 <View className="flex-1">
-                  <Text className="text-primary text-base">{model.label}</Text>
-                  <Text className="text-secondary text-sm mt-0.5">{model.description}</Text>
+                  <Text className="text-primary text-lg">{model.label}</Text>
+                  <Text className="text-secondary text-base mt-0.5">{model.description}</Text>
                 </View>
                 {aiModel === model.id && (
-                  <Check size={20} color={colors.accent} />
+                  <Check size={24} color={colors.accent} />
                 )}
               </TouchableOpacity>
             ))}
@@ -274,9 +286,13 @@ export default function SettingsScreen() {
         >
           <View
             className="mx-8 rounded-2xl overflow-hidden w-[85%]"
-            style={{ backgroundColor: colors.background2 }}
+            style={{
+              backgroundColor: colors.background2,
+              borderWidth: 1.5,
+              borderColor: colors.primary,
+            }}
           >
-            <Text className="text-primary text-lg font-semibold px-5 pt-5 pb-3">
+            <Text className="text-primary text-xl font-semibold px-6 pt-5 pb-3">
               Theme
             </Text>
             {themeOptions.map((option) => {
@@ -289,15 +305,15 @@ export default function SettingsScreen() {
                     setThemePickerOpen(false);
                   }}
                   activeOpacity={0.7}
-                  className="flex-row items-center px-5 py-4"
+                  className="flex-row items-center px-6 py-5"
                 >
-                  <Icon size={20} color={colors.secondary} />
-                  <View className="flex-1 ml-3">
-                    <Text className="text-primary text-base">{option.label}</Text>
-                    <Text className="text-secondary text-sm mt-0.5">{option.description}</Text>
+                  <Icon size={24} color={colors.secondary} />
+                  <View className="flex-1 ml-4">
+                    <Text className="text-primary text-lg">{option.label}</Text>
+                    <Text className="text-secondary text-base mt-0.5">{option.description}</Text>
                   </View>
                   {theme === option.id && (
-                    <Check size={20} color={colors.accent} />
+                    <Check size={24} color={colors.accent} />
                   )}
                 </TouchableOpacity>
               );

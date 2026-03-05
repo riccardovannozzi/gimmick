@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, Pressable, FlatList, ScrollView, LayoutAnimation } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle, Speech } from 'lucide-react-native';
+import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle, Speech, Paperclip } from 'lucide-react-native';
+import NiCamera from '@/assets/icons/ni-camera.svg';
+import NiCameraReels from '@/assets/icons/ni-camera-reels.svg';
+import NiGallerySquare from '@/assets/icons/ni-gallery-square.svg';
+import NiPenToSquare from '@/assets/icons/ni-pen-to-square.svg';
+import NiMicrophone from '@/assets/icons/ni-microphone.svg';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { CaptureButton } from '@/components/capture/CaptureButton';
 import { BufferBar } from '@/components/capture/BufferBar';
@@ -39,45 +44,51 @@ const captureOptions = [
   {
     id: 'photo',
     label: 'PHOTO',
-    icon: <Camera />,
+    icon: <NiCamera />,
     color: captureColors.photo,
     route: '/capture/photo',
+    isSvg: true,
   },
   {
     id: 'video',
     label: 'VIDEO',
-    icon: <Video />,
+    icon: <NiCameraReels />,
     color: captureColors.video,
     route: '/capture/video',
+    isSvg: true,
   },
   {
     id: 'gallery',
     label: 'GALLERY',
-    icon: <Image />,
+    icon: <NiGallerySquare />,
     color: captureColors.gallery,
     route: '/capture/gallery',
+    isSvg: true,
   },
   // Row 2
   {
     id: 'text',
     label: 'TEXT',
-    icon: <FileText />,
+    icon: <NiPenToSquare />,
     color: captureColors.text,
     route: '/capture/text',
+    isSvg: true,
   },
   {
     id: 'voice',
     label: 'VOICE',
-    icon: <Mic />,
+    icon: <NiMicrophone />,
     color: captureColors.voice,
     route: '/capture/voice',
+    isSvg: true,
   },
   {
     id: 'file',
     label: 'FILE',
-    icon: <FileUp />,
+    icon: <Paperclip />,
     color: captureColors.file,
     route: '/capture/file',
+    isSvg: false,
   },
 ] as const;
 
@@ -430,9 +441,9 @@ export default function HomeScreen() {
           /* ====== NORMAL MODE ====== */
           <>
             {/* Capture buttons */}
-            <View className="px-4 pt-4">
+            <View className="px-4 pt-4" style={{ gap: 12 }}>
               {/* Row 1: Photo, Video, Gallery */}
-              <View className="flex-row gap-3 mb-3">
+              <View className="flex-row" style={{ gap: 12 }}>
                 {captureOptions.slice(0, 3).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
                   const count = types.reduce((sum, t) => sum + (bufferCounts[t] || 0), 0);
@@ -445,12 +456,13 @@ export default function HomeScreen() {
                       onPress={() => handleCapture(option.route)}
                       disabled={isUploading}
                       count={count}
+                      isSvg={option.isSvg}
                     />
                   );
                 })}
               </View>
-              {/* Row 3: Text, Voice, Files */}
-              <View className="flex-row gap-3">
+              {/* Row 2: Text, Voice, Files */}
+              <View className="flex-row" style={{ gap: 12 }}>
                 {captureOptions.slice(3, 6).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
                   const count = types.reduce((sum, t) => sum + (bufferCounts[t] || 0), 0);
@@ -463,6 +475,7 @@ export default function HomeScreen() {
                       onPress={() => handleCapture(option.route)}
                       disabled={isUploading}
                       count={count}
+                      isSvg={option.isSvg}
                     />
                   );
                 })}

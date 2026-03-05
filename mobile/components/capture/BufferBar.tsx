@@ -8,6 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { Send, X, FileText, Mic, File, Camera, Video, Image as ImageIcon } from 'lucide-react-native';
+import Svg, { Rect } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useBufferStore, useSettingsStore } from '@/store';
 import { config } from '@/constants';
@@ -110,18 +111,54 @@ function BufferThumbnail({
   // Layout large: full-width row
   if (large) {
     const itemColor = getItemColor(item.type, colors.secondary);
+    const [cardSize, setCardSize] = React.useState({ w: 0, h: 0 });
+    const rx = 16;
+    const perimeter = cardSize.w && cardSize.h
+      ? 2 * (cardSize.w + cardSize.h - 4 * rx) + 2 * Math.PI * rx
+      : 0;
+    const arcLen = perimeter * 0.5;
+    // Offset to position thick arc on right + bottom edges
+    const topEdge = cardSize.w - 2 * rx + Math.PI * rx / 2;
+
     return (
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.8}
-        className="flex-row items-center rounded-2xl overflow-hidden mb-3 px-2 py-3"
+        onLayout={(e) => {
+          const { width, height } = e.nativeEvent.layout;
+          setCardSize({ w: width, h: height });
+        }}
+        className="flex-row items-center rounded-2xl mb-3 px-2 py-3"
         style={{
           backgroundColor: colors.background2,
-          borderWidth: 1.5,
+          borderWidth: 1,
           borderColor: colors.primary,
           minHeight: 80,
         }}
       >
+        {/* Thick arc accent on right + bottom border */}
+        {perimeter > 0 && (
+          <Svg
+            width={cardSize.w}
+            height={cardSize.h}
+            style={{ position: 'absolute', top: 0, left: 0 }}
+          >
+            <Rect
+              x={1.5}
+              y={1.5}
+              width={cardSize.w - 3}
+              height={cardSize.h - 3}
+              rx={rx}
+              ry={rx}
+              stroke={colors.primary}
+              strokeWidth={3}
+              fill="none"
+              strokeDasharray={`${arcLen} ${perimeter - arcLen}`}
+              strokeDashoffset={-topEdge}
+              strokeLinecap="round"
+            />
+          </Svg>
+        )}
         {/* Left: thumbnail or icon */}
         {isImage && item.uri ? (
           <Image
@@ -172,18 +209,51 @@ function BufferThumbnail({
 
   // Layout compatto (stessa struttura row del large)
   const itemColor = getItemColor(item.type, colors.secondary);
+  const [cardSize, setCardSize] = React.useState({ w: 0, h: 0 });
+  const rx = 16;
+  const perimeter = cardSize.w && cardSize.h
+    ? 2 * (cardSize.w + cardSize.h - 4 * rx) + 2 * Math.PI * rx
+    : 0;
+  const arcLen = perimeter * 0.5;
+
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      className="flex-row items-center rounded-2xl overflow-hidden mb-3 px-2 py-3"
+      onLayout={(e) => {
+        const { width, height } = e.nativeEvent.layout;
+        setCardSize({ w: width, h: height });
+      }}
+      className="flex-row items-center rounded-2xl mb-3 px-2 py-3"
       style={{
         backgroundColor: colors.background2,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: colors.primary,
         minHeight: 80,
       }}
     >
+      {/* Thick arc accent on border */}
+      {perimeter > 0 && (
+        <Svg
+          width={cardSize.w}
+          height={cardSize.h}
+          style={{ position: 'absolute', top: 0, left: 0 }}
+        >
+          <Rect
+            x={1.5}
+            y={1.5}
+            width={cardSize.w - 3}
+            height={cardSize.h - 3}
+            rx={rx}
+            ry={rx}
+            stroke={colors.primary}
+            strokeWidth={3}
+            fill="none"
+            strokeDasharray={`${arcLen} ${perimeter - arcLen}`}
+            strokeLinecap="round"
+          />
+        </Svg>
+      )}
       {/* Left: thumbnail or icon */}
       {isImage && item.uri ? (
         <Image

@@ -22,6 +22,7 @@ export const semanticColors = {
 export const darkTheme = {
   background1: '#1E1E1E',
   background2: '#252526',
+  background3: '#2D2D30',
   primary: '#F5F5F5',
   secondary: '#9CA3AF',
   accent: '#528BFF',
@@ -33,8 +34,9 @@ export const darkTheme = {
 } as const;
 
 export const lightTheme = {
-  background1: '#F8F9FA',
+  background1: '#F5F5F4',
   background2: '#FFFFFF',
+  background3: '#E5E5E4',
   primary: '#1A1A1A',
   secondary: '#6B7280',
   accent: '#3B6EE6',
