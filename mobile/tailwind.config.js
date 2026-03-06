@@ -12,6 +12,7 @@ module.exports = {
         background: {
           1: 'rgb(var(--color-background-1) / <alpha-value>)',
           2: 'rgb(var(--color-background-2) / <alpha-value>)',
+          3: 'rgb(var(--color-background-3) / <alpha-value>)',
         },
         primary: 'rgb(var(--color-primary) / <alpha-value>)',
         secondary: 'rgb(var(--color-secondary) / <alpha-value>)',

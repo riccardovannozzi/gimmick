@@ -12,14 +12,12 @@ import NiPenToSquare from '@/assets/icons/ni-pen-to-square.svg';
 import NiMicrophone from '@/assets/icons/ni-microphone.svg';
 import NiCameraReels from '@/assets/icons/ni-camera-reels.svg';
 import NiGallerySquare from '@/assets/icons/ni-gallery-square.svg';
-import Svg, { Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 import { useBufferStore, useSettingsStore } from '@/store';
 import { config } from '@/constants';
 import { captureColors } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import type { BufferItem, MemoType } from '@/types';
-import { truncateText } from '@/utils/formatters';
 
 interface BufferBarProps {
   onSend: () => void;
@@ -45,8 +43,8 @@ function getItemColor(type: MemoType, secondaryColor: string): string {
   }
 }
 
-function getItemIcon(type: MemoType, size = 20, secondaryColor = '#9CA3AF') {
-  const color = getItemColor(type, secondaryColor);
+function getItemIcon(type: MemoType, size = 20) {
+  const color = '#FFFFFF';
   switch (type) {
     case 'text':
       return <NiPenToSquare width={size} height={size} stroke={color} strokeWidth={1.8} />;
@@ -81,17 +79,17 @@ function BufferThumbnail({
   item,
   onPress,
   onRemove,
-  large = false,
 }: {
   item: BufferItem;
   onPress?: () => void;
   onRemove: () => void;
-  large?: boolean;
 }) {
   const colors = useThemeColors();
   const isImage = item.type === 'photo' || item.type === 'image' || item.type === 'video';
+  const isText = item.type === 'text';
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const confirmDelete = useSettingsStore((state) => state.confirmDelete);
+  const itemColor = getItemColor(item.type, colors.secondary);
 
   const handleRemove = async () => {
     if (hapticFeedback) {
@@ -112,226 +110,173 @@ function BufferThumbnail({
     }
   };
 
-  // Layout large: full-width row
-  if (large) {
-    const itemColor = getItemColor(item.type, colors.secondary);
-    const [cardSize, setCardSize] = React.useState({ w: 0, h: 0 });
-    const rx = 16;
-    const perimeter = cardSize.w && cardSize.h
-      ? 2 * (cardSize.w + cardSize.h - 4 * rx) + 2 * Math.PI * rx
-      : 0;
-    const arcLen = perimeter * 0.5;
-    // Offset to position thick arc on right + bottom edges
-    const topEdge = cardSize.w - 2 * rx + Math.PI * rx / 2;
+  const formatSize = (bytes: number) =>
+    bytes < 1024 * 1024
+      ? `${(bytes / 1024).toFixed(0)} kb`
+      : `${(bytes / (1024 * 1024)).toFixed(1)} Mb`;
 
+  const formatDuration = (sec: number) =>
+    `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+
+  // Close button shared across all cards
+  const closeButton = (
+    <TouchableOpacity
+      onPress={handleRemove}
+      className="rounded-full items-center justify-center"
+      style={{
+        width: 32,
+        height: 32,
+        backgroundColor: 'rgba(0,0,0,0.3)',
+      }}
+    >
+      <X size={16} color="#FFFFFF" strokeWidth={2.5} />
+    </TouchableOpacity>
+  );
+
+  // ── TEXT CARD ──
+  // White bg, dashed blue left border, black text
+  if (isText) {
     return (
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.8}
-        onLayout={(e) => {
-          const { width, height } = e.nativeEvent.layout;
-          setCardSize({ w: width, h: height });
-        }}
-        className="flex-row items-center rounded-2xl mb-3 px-2 py-3"
+        className="flex-row mb-3 overflow-hidden"
         style={{
-          backgroundColor: colors.background2,
-          borderWidth: 1,
-          borderColor: colors.primary,
-          minHeight: 80,
+          backgroundColor: '#FFFFFF',
+          borderRadius: 16,
+          borderLeftWidth: 5,
+          borderLeftColor: colors.accent,
+          borderStyle: 'dashed',
+          minHeight: 72,
         }}
       >
-        {/* Color gradient fill + thick arc accent */}
-        {perimeter > 0 && (
-          <Svg
-            width={cardSize.w}
-            height={cardSize.h}
-            style={{ position: 'absolute', top: 0, left: 0 }}
-          >
-            <Defs>
-              <LinearGradient id={`memo-grad-${item.id}`} x1="100%" y1="0%" x2="0%" y2="100%">
-                <Stop offset="0%" stopColor={itemColor} stopOpacity={0.3} />
-                <Stop offset="100%" stopColor={itemColor} stopOpacity={0.02} />
-              </LinearGradient>
-            </Defs>
-            <Rect
-              x={1.5}
-              y={1.5}
-              width={cardSize.w - 3}
-              height={cardSize.h - 3}
-              rx={rx}
-              ry={rx}
-              fill={`url(#memo-grad-${item.id})`}
-            />
-            <Rect
-              x={1.5}
-              y={1.5}
-              width={cardSize.w - 3}
-              height={cardSize.h - 3}
-              rx={rx}
-              ry={rx}
-              stroke={colors.primary}
-              strokeWidth={3}
-              fill="none"
-              strokeDasharray={`${arcLen} ${perimeter - arcLen}`}
-              strokeDashoffset={-topEdge}
-              strokeLinecap="round"
-            />
-          </Svg>
-        )}
-        {/* Left: thumbnail or icon */}
-        {isImage && item.uri ? (
-          <Image
-            source={{ uri: item.thumbnail ?? item.uri }}
-            className="rounded-xl"
-            style={{ width: 60, height: 60 }}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            className="rounded-xl items-center justify-center"
-            style={{ width: 60, height: 60, backgroundColor: `${itemColor}15` }}
-          >
-            {getItemIcon(item.type, 28, colors.secondary)}
-          </View>
-        )}
-
-        {/* Center: label / preview */}
-        <View className="flex-1 ml-3 mr-2">
-          {item.type === 'text' ? (
-            <Text className="text-primary text-xl">
-              {item.preview ?? ''}
-            </Text>
-          ) : (
-            <>
-              <Text className="text-primary text-xl font-medium">
-                {getItemLabel(item.type)}
-              </Text>
-              {item.fileName && (
-                <Text className="text-secondary text-lg" numberOfLines={1}>
-                  {item.fileName}
-                </Text>
-              )}
-            </>
-          )}
+        {/* Icon */}
+        <View className="items-center justify-center pl-4">
+          {React.cloneElement(getItemIcon(item.type, 22)!, {
+            stroke: '#000000',
+            color: '#000000',
+          })}
         </View>
 
-        {/* Right: remove button */}
-        <TouchableOpacity
-          onPress={handleRemove}
-          className="w-10 h-10 items-center justify-center"
-        >
-          <X size={20} color={colors.primary} />
-        </TouchableOpacity>
+        {/* Text preview */}
+        <View className="flex-1 px-3 py-3">
+          <Text
+            style={{ color: '#000000', fontSize: 16, lineHeight: 22 }}
+            numberOfLines={5}
+          >
+            {item.preview ?? ''}
+          </Text>
+        </View>
+
+        {/* Close */}
+        <View className="items-center justify-center pr-3">
+          <TouchableOpacity
+            onPress={handleRemove}
+            className="rounded-full items-center justify-center"
+            style={{
+              width: 32,
+              height: 32,
+              backgroundColor: 'rgba(0,0,0,0.15)',
+            }}
+          >
+            <X size={16} color="#000000" strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
       </TouchableOpacity>
     );
   }
 
-  // Layout compatto (stessa struttura row del large)
-  const itemColor = getItemColor(item.type, colors.secondary);
-  const [cardSize, setCardSize] = React.useState({ w: 0, h: 0 });
-  const rx = 16;
-  const perimeter = cardSize.w && cardSize.h
-    ? 2 * (cardSize.w + cardSize.h - 4 * rx) + 2 * Math.PI * rx
-    : 0;
-  const arcLen = perimeter * 0.5;
+  // ── MEDIA CARD (photo / video / image) ──
+  // Colored bg, thumbnail on left, white text
+  if (isImage && item.uri) {
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        activeOpacity={0.8}
+        className="flex-row mb-3 overflow-hidden"
+        style={{
+          backgroundColor: itemColor,
+          borderRadius: 16,
+          minHeight: 100,
+        }}
+      >
+        {/* Thumbnail */}
+        <Image
+          source={{ uri: item.thumbnail ?? item.uri }}
+          style={{ width: 100, height: 100, borderRadius: 12, margin: 8 }}
+          resizeMode="cover"
+        />
 
+        {/* Info */}
+        <View className="flex-1 justify-center py-3 pr-2">
+          <View className="flex-row items-center mb-1">
+            {getItemIcon(item.type, 18)}
+            <Text
+              className="ml-2 font-semibold"
+              style={{ color: '#FFFFFF', fontSize: 17 }}
+              numberOfLines={1}
+            >
+              {item.fileName || getItemLabel(item.type)}
+            </Text>
+          </View>
+          {item.fileSize && (
+            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
+              {formatSize(item.fileSize)}
+            </Text>
+          )}
+        </View>
+
+        {/* Close */}
+        <View className="items-center justify-center pr-3">
+          {closeButton}
+        </View>
+      </TouchableOpacity>
+    );
+  }
+
+  // ── DEFAULT CARD (voice / file) ──
+  // Solid colored bg, icon + text white
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      onLayout={(e) => {
-        const { width, height } = e.nativeEvent.layout;
-        setCardSize({ w: width, h: height });
-      }}
-      className="flex-row items-center rounded-2xl mb-3 px-2 py-3"
+      className="flex-row items-center mb-3 px-4"
       style={{
-        backgroundColor: colors.background2,
-        borderWidth: 1,
-        borderColor: colors.primary,
-        minHeight: 80,
+        backgroundColor: itemColor,
+        borderRadius: 16,
+        height: 56,
       }}
     >
-      {/* Color gradient fill + thick arc accent */}
-      {perimeter > 0 && (
-        <Svg
-          width={cardSize.w}
-          height={cardSize.h}
-          style={{ position: 'absolute', top: 0, left: 0 }}
-        >
-          <Defs>
-            <LinearGradient id={`memo-c-${item.id}`} x1="100%" y1="0%" x2="0%" y2="100%">
-              <Stop offset="0%" stopColor={itemColor} stopOpacity={0.3} />
-              <Stop offset="100%" stopColor={itemColor} stopOpacity={0.02} />
-            </LinearGradient>
-          </Defs>
-          <Rect
-            x={1.5}
-            y={1.5}
-            width={cardSize.w - 3}
-            height={cardSize.h - 3}
-            rx={rx}
-            ry={rx}
-            fill={`url(#memo-c-${item.id})`}
-          />
-          <Rect
-            x={1.5}
-            y={1.5}
-            width={cardSize.w - 3}
-            height={cardSize.h - 3}
-            rx={rx}
-            ry={rx}
-            stroke={colors.primary}
-            strokeWidth={3}
-            fill="none"
-            strokeDasharray={`${arcLen} ${perimeter - arcLen}`}
-            strokeLinecap="round"
-          />
-        </Svg>
-      )}
-      {/* Left: thumbnail or icon */}
-      {isImage && item.uri ? (
-        <Image
-          source={{ uri: item.thumbnail ?? item.uri }}
-          className="rounded-xl"
-          style={{ width: 60, height: 60 }}
-          resizeMode="cover"
-        />
-      ) : (
-        <View
-          className="rounded-xl items-center justify-center"
-          style={{ width: 60, height: 60, backgroundColor: `${itemColor}15` }}
-        >
-          {getItemIcon(item.type, 28, colors.secondary)}
-        </View>
-      )}
+      {/* Icon */}
+      <View className="mr-3">
+        {getItemIcon(item.type, 22)}
+      </View>
 
-      {/* Center: label / preview */}
-      <View className="flex-1 ml-3 mr-2">
-        {item.type === 'text' ? (
-          <Text className="text-primary text-xl">
-            {item.preview ?? ''}
+      {/* Title / duration */}
+      <View className="flex-1">
+        {item.duration ? (
+          <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>
+            {formatDuration(item.duration)}
           </Text>
         ) : (
           <>
-            <Text className="text-primary text-xl font-medium">
-              {getItemLabel(item.type)}
+            <Text
+              style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}
+              numberOfLines={1}
+            >
+              {item.fileName || getItemLabel(item.type)}
             </Text>
-            {item.fileName && (
-              <Text className="text-secondary text-lg" numberOfLines={1}>
-                {item.fileName}
+            {item.fileSize && (
+              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
+                {formatSize(item.fileSize)}
               </Text>
             )}
           </>
         )}
       </View>
 
-      {/* Right: remove button */}
-      <TouchableOpacity
-        onPress={handleRemove}
-        className="w-10 h-10 items-center justify-center"
-      >
-        <X size={20} color={colors.primary} />
-      </TouchableOpacity>
+      {/* Close */}
+      {closeButton}
     </TouchableOpacity>
   );
 }
@@ -353,19 +298,15 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
   };
 
   const count = items.length;
-  const sendButtonSize = large ? 56 : config.ui.sendButtonSize;
 
-  // Layout large: griglia con stessa spaziatura dei pulsanti (gap-3 = 12px)
+  // Layout large: lista verticale
   if (large) {
     return (
       <View className="flex-1">
-        {/* Thumbnails grid */}
         <ScrollView
           showsVerticalScrollIndicator={false}
           className="flex-1"
-          contentContainerStyle={{
-            paddingBottom: 80,
-          }}
+          contentContainerStyle={{ paddingBottom: 80 }}
         >
           {items.map((item) => (
             <BufferThumbnail
@@ -373,12 +314,11 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
               item={item}
               onPress={() => onItemPress?.(item)}
               onRemove={() => removeItem(item.id)}
-              large
             />
           ))}
         </ScrollView>
 
-        {/* Send button fisso in basso a destra */}
+        {/* Send button */}
         {count > 0 && (
           <View className="absolute bottom-0 right-0">
             <TouchableOpacity
@@ -393,8 +333,6 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
               }}
             >
               <Send size={20} color={colors.background1} />
-
-              {/* Badge */}
               <View className="absolute -top-2 -right-2 bg-error rounded-full min-w-6 h-6 items-center justify-center px-1">
                 <Text className="text-white text-sm font-bold">{count}</Text>
               </View>
@@ -405,16 +343,13 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
     );
   }
 
-  // Layout compatto originale
+  // Layout compatto
   return (
     <View
       className="bg-background-2 border-t border-border px-4 flex-row items-center"
       style={{ height: config.ui.bufferBarHeight }}
     >
-      {/* Buffer label */}
       <Text className="text-secondary text-sm mr-3">Buffer:</Text>
-
-      {/* Thumbnails scroll */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -434,24 +369,17 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
           ))
         )}
       </ScrollView>
-
-      {/* Send button */}
       <TouchableOpacity
         onPress={handleSend}
         disabled={count === 0 || isUploading}
         activeOpacity={0.7}
-        className={`
-          rounded-full items-center justify-center ml-3
-          ${count > 0 ? 'bg-accent' : 'bg-border'}
-        `}
+        className={`rounded-full items-center justify-center ml-3 ${count > 0 ? 'bg-accent' : 'bg-border'}`}
         style={{
           width: config.ui.sendButtonSize,
           height: config.ui.sendButtonSize,
         }}
       >
         <Send size={20} color={count > 0 ? '#fff' : colors.secondary} />
-
-        {/* Badge */}
         {count > 0 && (
           <View className="absolute -top-1 -right-1 bg-error rounded-full min-w-5 h-5 items-center justify-center px-1">
             <Text className="text-white text-xs font-bold">{count}</Text>

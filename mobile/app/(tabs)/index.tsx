@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, Pressable, FlatList, ScrollView, LayoutAnimation } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle, Speech, Paperclip } from 'lucide-react-native';
+import { Camera, Video, FileText, Mic, FileUp, Image, X, Save, Menu, LayoutGrid, Settings, ChevronDown, MessageCircle, Sparkles, Paperclip } from 'lucide-react-native';
 import NiCamera from '@/assets/icons/ni-camera.svg';
 import NiCameraReels from '@/assets/icons/ni-camera-reels.svg';
 import NiGallerySquare from '@/assets/icons/ni-gallery-square.svg';
@@ -37,24 +37,15 @@ const buttonToMemoTypes: Record<string, MemoType[]> = {
   file: ['file'],
 };
 
-// Row 1: Photo, Video, Gallery
-// Row 2: Text, Voice, Files
+// Row 1: Photo, Video, Image
+// Row 2: Write, Rec, Attach
 const captureOptions = [
-  // Row 1: blue, green, pink
   {
     id: 'photo',
     label: 'PHOTO',
     icon: <NiCamera />,
     color: captureColors.photo,
     route: '/capture/photo',
-    isSvg: true,
-  },
-  {
-    id: 'text',
-    label: 'TEXT',
-    icon: <NiPenToSquare />,
-    color: captureColors.text,
-    route: '/capture/text',
     isSvg: true,
   },
   {
@@ -65,10 +56,25 @@ const captureOptions = [
     route: '/capture/video',
     isSvg: true,
   },
-  // Row 2: red, amber, purple
+  {
+    id: 'gallery',
+    label: 'IMAGE',
+    icon: <NiGallerySquare />,
+    color: captureColors.gallery,
+    route: '/capture/gallery',
+    isSvg: true,
+  },
+  {
+    id: 'text',
+    label: 'WRITE',
+    icon: <NiPenToSquare />,
+    color: captureColors.text,
+    route: '/capture/text',
+    isSvg: true,
+  },
   {
     id: 'voice',
-    label: 'VOICE',
+    label: 'REC',
     icon: <NiMicrophone />,
     color: captureColors.voice,
     route: '/capture/voice',
@@ -76,19 +82,11 @@ const captureOptions = [
   },
   {
     id: 'file',
-    label: 'FILE',
+    label: 'ATTACH',
     icon: <Paperclip />,
     color: captureColors.file,
     route: '/capture/file',
     isSvg: false,
-  },
-  {
-    id: 'gallery',
-    label: 'GALLERY',
-    icon: <NiGallerySquare />,
-    color: captureColors.gallery,
-    route: '/capture/gallery',
-    isSvg: true,
   },
 ] as const;
 
@@ -283,54 +281,6 @@ export default function HomeScreen() {
   return (
     <SafeAreaWrapper edges={['top']}>
       <View className="flex-1">
-        {/* Header */}
-        <View className="py-4 px-4 flex-row items-center gap-3">
-          {/* Left column - aligned with Photo/Text */}
-          <View className="flex-1 items-center">
-            {chatMode ? (
-              <TouchableOpacity onPress={() => toggleChatMode(false)} className="p-2">
-                <ChevronDown size={24} color={colors.primary} />
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                onPress={() => setMenuOpen(true)}
-                activeOpacity={0.7}
-                className="items-center justify-center rounded-full"
-                style={{
-                  width: 96,
-                  height: 48,
-                  backgroundColor: colors.background1,
-                  borderWidth: 1.5,
-                  borderColor: colors.primary,
-                }}
-              >
-                <Menu size={24} color={colors.primary} />
-              </TouchableOpacity>
-            )}
-          </View>
-          {/* Center column */}
-          <View className="flex-1 items-center">
-            <Text className="text-primary text-2xl font-bold">Gimmick</Text>
-          </View>
-          {/* Right column - aligned with Gallery/Files */}
-          <View className="flex-1 items-center">
-            {!chatMode && (
-              <TouchableOpacity
-                onPress={() => toggleChatMode(true)}
-                activeOpacity={0.7}
-                className="items-center justify-center rounded-full"
-                style={{
-                  width: 96,
-                  height: 48,
-                  backgroundColor: colors.primary,
-                }}
-              >
-                <Speech size={24} color={colors.background1} strokeWidth={1.5} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-
         {/* Hamburger Menu Overlay */}
         {menuOpen && (
           <Pressable
@@ -440,9 +390,59 @@ export default function HomeScreen() {
         ) : (
           /* ====== NORMAL MODE ====== */
           <>
-            {/* Capture buttons */}
-            <View className="px-4 pt-4" style={{ gap: 12 }}>
-              {/* Row 1: Photo, Video, Gallery */}
+            {/* Header + Capture buttons container */}
+            <View
+              className="mx-4 mt-4 px-4 pt-4 pb-5"
+              style={{
+                backgroundColor: colors.background3,
+                borderRadius: 30,
+                gap: 16,
+              }}
+            >
+              {/* Header */}
+              <View className="flex-row items-center gap-3 mb-1">
+                <View className="flex-1 items-center">
+                  {chatMode ? (
+                    <TouchableOpacity onPress={() => toggleChatMode(false)} className="p-2">
+                      <ChevronDown size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                  ) : (
+                    <TouchableOpacity
+                      onPress={() => setMenuOpen(true)}
+                      activeOpacity={0.7}
+                      className="items-center justify-center rounded-full"
+                      style={{
+                        width: 48,
+                        height: 48,
+                        backgroundColor: colors.background1,
+                      }}
+                    >
+                      <Menu size={24} color={colors.primary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <View className="flex-1 items-center">
+                  <Text className="text-2xl font-bold" style={{ color: '#000000' }}>Gimmick</Text>
+                </View>
+                <View className="flex-1 items-center">
+                  {!chatMode && (
+                    <TouchableOpacity
+                      onPress={() => toggleChatMode(true)}
+                      activeOpacity={0.7}
+                      className="items-center justify-center rounded-full"
+                      style={{
+                        width: 48,
+                        height: 48,
+                        backgroundColor: colors.background1,
+                      }}
+                    >
+                      <Sparkles size={22} color={colors.primary} strokeWidth={1.5} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              </View>
+
+              {/* Row 1 */}
               <View className="flex-row" style={{ gap: 12 }}>
                 {captureOptions.slice(0, 3).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
@@ -461,7 +461,7 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
-              {/* Row 2: Text, Voice, Files */}
+              {/* Row 2 */}
               <View className="flex-row" style={{ gap: 12 }}>
                 {captureOptions.slice(3, 6).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];

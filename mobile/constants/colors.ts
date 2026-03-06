@@ -4,12 +4,12 @@
 
 // Capture colors — brand colors, same in both themes
 export const captureColors = {
-  photo: '#3B82F6',
-  video: '#EC4899',
-  text: '#22C55E',
-  voice: '#EF4444',
-  file: '#F59E0B',
-  gallery: '#8B5CF6',
+  photo: '#0E8013',
+  video: '#3A96DA',
+  text: '#FFFFFF',
+  voice: '#DA563A',
+  file: '#FDD36B',
+  gallery: '#F86BFD',
 } as const;
 
 // Semantic colors — same in both themes
@@ -22,7 +22,7 @@ export const semanticColors = {
 export const darkTheme = {
   background1: '#1E1E1E',
   background2: '#252526',
-  background3: '#2D2D30',
+  background3: '#BBBBBB',
   primary: '#F5F5F5',
   secondary: '#9CA3AF',
   accent: '#528BFF',
