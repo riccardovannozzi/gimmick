@@ -118,7 +118,6 @@ function BufferThumbnail({
   const formatDuration = (sec: number) =>
     `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-  // Close button shared across all cards
   const closeButton = (
     <TouchableOpacity
       onPress={handleRemove}
@@ -134,7 +133,6 @@ function BufferThumbnail({
   );
 
   // ── TEXT CARD ──
-  // White bg, dashed blue left border, black text
   if (isText) {
     return (
       <TouchableOpacity
@@ -142,33 +140,29 @@ function BufferThumbnail({
         activeOpacity={0.8}
         className="flex-row mb-3 overflow-hidden"
         style={{
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.background2,
           borderRadius: 16,
-          borderLeftWidth: 5,
+          borderLeftWidth: 4,
           borderLeftColor: colors.accent,
-          borderStyle: 'dashed',
           minHeight: 72,
         }}
       >
-        {/* Icon */}
         <View className="items-center justify-center pl-4">
           {React.cloneElement(getItemIcon(item.type, 22)!, {
-            stroke: '#000000',
-            color: '#000000',
+            stroke: colors.accent,
+            color: colors.accent,
           })}
         </View>
 
-        {/* Text preview */}
         <View className="flex-1 px-3 py-3">
           <Text
-            style={{ color: '#000000', fontSize: 16, lineHeight: 22 }}
+            style={{ color: colors.primary, fontSize: 16, lineHeight: 22 }}
             numberOfLines={5}
           >
             {item.preview ?? ''}
           </Text>
         </View>
 
-        {/* Close */}
         <View className="items-center justify-center pr-3">
           <TouchableOpacity
             onPress={handleRemove}
@@ -176,10 +170,10 @@ function BufferThumbnail({
             style={{
               width: 32,
               height: 32,
-              backgroundColor: 'rgba(0,0,0,0.15)',
+              backgroundColor: `${colors.tertiary}30`,
             }}
           >
-            <X size={16} color="#000000" strokeWidth={2.5} />
+            <X size={16} color={colors.secondary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
       </TouchableOpacity>
@@ -187,7 +181,6 @@ function BufferThumbnail({
   }
 
   // ── MEDIA CARD (photo / video / image) ──
-  // Colored bg, thumbnail on left, white text
   if (isImage && item.uri) {
     return (
       <TouchableOpacity
@@ -195,38 +188,35 @@ function BufferThumbnail({
         activeOpacity={0.8}
         className="flex-row mb-3 overflow-hidden"
         style={{
-          backgroundColor: itemColor,
+          backgroundColor: colors.background2,
           borderRadius: 16,
           minHeight: 100,
         }}
       >
-        {/* Thumbnail */}
         <Image
           source={{ uri: item.thumbnail ?? item.uri }}
           style={{ width: 100, height: 100, borderRadius: 12, margin: 8 }}
           resizeMode="cover"
         />
 
-        {/* Info */}
         <View className="flex-1 justify-center py-3 pr-2">
           <View className="flex-row items-center mb-1">
             {getItemIcon(item.type, 18)}
             <Text
               className="ml-2 font-semibold"
-              style={{ color: '#FFFFFF', fontSize: 17 }}
+              style={{ color: colors.primary, fontSize: 17 }}
               numberOfLines={1}
             >
               {item.fileName || getItemLabel(item.type)}
             </Text>
           </View>
           {item.fileSize && (
-            <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 14 }}>
+            <Text style={{ color: colors.secondary, fontSize: 14 }}>
               {formatSize(item.fileSize)}
             </Text>
           )}
         </View>
 
-        {/* Close */}
         <View className="items-center justify-center pr-3">
           {closeButton}
         </View>
@@ -235,39 +225,36 @@ function BufferThumbnail({
   }
 
   // ── DEFAULT CARD (voice / file) ──
-  // Solid colored bg, icon + text white
   return (
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
       className="flex-row items-center mb-3 px-4"
       style={{
-        backgroundColor: itemColor,
+        backgroundColor: colors.background2,
         borderRadius: 16,
         height: 56,
       }}
     >
-      {/* Icon */}
       <View className="mr-3">
         {getItemIcon(item.type, 22)}
       </View>
 
-      {/* Title / duration */}
       <View className="flex-1">
         {item.duration ? (
-          <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '700' }}>
+          <Text style={{ color: colors.primary, fontSize: 18, fontWeight: '700' }}>
             {formatDuration(item.duration)}
           </Text>
         ) : (
           <>
             <Text
-              style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}
+              style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}
               numberOfLines={1}
             >
               {item.fileName || getItemLabel(item.type)}
             </Text>
             {item.fileSize && (
-              <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13 }}>
+              <Text style={{ color: colors.secondary, fontSize: 13 }}>
                 {formatSize(item.fileSize)}
               </Text>
             )}
@@ -275,7 +262,6 @@ function BufferThumbnail({
         )}
       </View>
 
-      {/* Close */}
       {closeButton}
     </TouchableOpacity>
   );
@@ -299,7 +285,6 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
 
   const count = items.length;
 
-  // Layout large: lista verticale
   if (large) {
     return (
       <View className="flex-1">
@@ -318,7 +303,6 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
           ))}
         </ScrollView>
 
-        {/* Send button */}
         {count > 0 && (
           <View className="absolute bottom-0 right-0">
             <TouchableOpacity
@@ -329,12 +313,15 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
               style={{
                 width: 96,
                 height: 48,
-                backgroundColor: colors.primary,
+                backgroundColor: colors.accent,
               }}
             >
-              <Send size={20} color={colors.background1} />
-              <View className="absolute -top-2 -right-2 bg-error rounded-full min-w-6 h-6 items-center justify-center px-1">
-                <Text className="text-white text-sm font-bold">{count}</Text>
+              <Send size={20} color={colors.onAccent} />
+              <View
+                className="absolute -top-2 -right-2 rounded-full min-w-6 h-6 items-center justify-center px-1"
+                style={{ backgroundColor: colors.error }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>{count}</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -343,13 +330,19 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
     );
   }
 
-  // Layout compatto
   return (
     <View
-      className="bg-background-2 border-t border-border px-4 flex-row items-center"
-      style={{ height: config.ui.bufferBarHeight }}
+      style={{
+        height: config.ui.bufferBarHeight,
+        backgroundColor: colors.background2,
+        borderTopWidth: 1,
+        borderTopColor: colors.border,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
     >
-      <Text className="text-secondary text-sm mr-3">Buffer:</Text>
+      <Text style={{ color: colors.secondary, fontSize: 13, marginRight: 12 }}>Buffer:</Text>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -357,7 +350,7 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
         contentContainerStyle={{ alignItems: 'center', paddingVertical: 8 }}
       >
         {items.length === 0 ? (
-          <Text className="text-secondary text-sm italic">No items</Text>
+          <Text style={{ color: colors.tertiary, fontSize: 13, fontStyle: 'italic' }}>No items</Text>
         ) : (
           items.map((item) => (
             <BufferThumbnail
@@ -373,16 +366,23 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
         onPress={handleSend}
         disabled={count === 0 || isUploading}
         activeOpacity={0.7}
-        className={`rounded-full items-center justify-center ml-3 ${count > 0 ? 'bg-accent' : 'bg-border'}`}
         style={{
           width: config.ui.sendButtonSize,
           height: config.ui.sendButtonSize,
+          borderRadius: config.ui.sendButtonSize / 2,
+          backgroundColor: count > 0 ? colors.accent : colors.border,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginLeft: 12,
         }}
       >
-        <Send size={20} color={count > 0 ? '#fff' : colors.secondary} />
+        <Send size={20} color={count > 0 ? colors.onAccent : colors.secondary} />
         {count > 0 && (
-          <View className="absolute -top-1 -right-1 bg-error rounded-full min-w-5 h-5 items-center justify-center px-1">
-            <Text className="text-white text-xs font-bold">{count}</Text>
+          <View
+            className="absolute -top-1 -right-1 rounded-full min-w-5 h-5 items-center justify-center px-1"
+            style={{ backgroundColor: colors.error }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 11, fontWeight: '700' }}>{count}</Text>
           </View>
         )}
       </TouchableOpacity>

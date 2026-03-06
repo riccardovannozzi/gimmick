@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { Eye, EyeOff } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useAuthStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
@@ -13,6 +13,9 @@ export default function LoginScreen() {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -48,60 +51,131 @@ export default function LoginScreen() {
     }
   };
 
+  const inputBorderColor = (focused: boolean) =>
+    focused ? colors.accent : colors.border;
+
   return (
     <SafeAreaWrapper edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         className="flex-1"
       >
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-4 border-b border-border">
-          <TouchableOpacity onPress={() => router.back()} className="mr-4">
-            <ArrowLeft size={24} color={colors.primary} />
-          </TouchableOpacity>
-          <Text className="text-primary text-xl font-bold">
-            {isRegister ? 'Sign up' : 'Sign in'}
-          </Text>
-        </View>
+        <View className="flex-1 justify-center px-6">
+          {/* Brand */}
+          <View className="items-center mb-12">
+            <Text
+              style={{
+                fontSize: 36,
+                fontWeight: '700',
+                color: colors.accent,
+                letterSpacing: -0.5,
+              }}
+            >
+              Gimmick
+            </Text>
+            <Text
+              style={{
+                fontSize: 15,
+                color: colors.secondary,
+                marginTop: 8,
+              }}
+            >
+              Capture everything, anywhere
+            </Text>
+          </View>
 
-        <View className="flex-1 px-4 pt-8">
-          {/* Email */}
+          {/* Email field — filled style */}
           <View className="mb-4">
-            <Text className="text-secondary text-sm mb-2">Email</Text>
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="name@example.com"
-              placeholderTextColor={colors.secondary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-              className="bg-background-2 text-primary px-4 py-3 rounded-lg border border-border"
-            />
+            <View
+              style={{
+                borderRadius: 16,
+                backgroundColor: colors.background2,
+                borderWidth: emailFocused ? 1 : 0,
+                borderColor: colors.accent,
+              }}
+            >
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="Email"
+                placeholderTextColor={colors.tertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
+                style={{
+                  color: colors.primary,
+                  fontSize: 16,
+                  paddingHorizontal: 20,
+                  paddingVertical: 18,
+                }}
+              />
+            </View>
           </View>
 
-          {/* Password */}
-          <View className="mb-6">
-            <Text className="text-secondary text-sm mb-2">Password</Text>
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              placeholderTextColor={colors.secondary}
-              secureTextEntry
-              className="bg-background-2 text-primary px-4 py-3 rounded-lg border border-border"
-            />
+          {/* Password field — filled style */}
+          <View className="mb-8">
+            <View
+              style={{
+                borderRadius: 16,
+                backgroundColor: colors.background2,
+                flexDirection: 'row',
+                alignItems: 'center',
+                borderWidth: passwordFocused ? 1 : 0,
+                borderColor: colors.accent,
+              }}
+            >
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Password"
+                placeholderTextColor={colors.tertiary}
+                secureTextEntry={!showPassword}
+                onFocus={() => setPasswordFocused(true)}
+                onBlur={() => setPasswordFocused(false)}
+                style={{
+                  flex: 1,
+                  color: colors.primary,
+                  fontSize: 16,
+                  paddingHorizontal: 20,
+                  paddingVertical: 18,
+                }}
+              />
+              <TouchableOpacity
+                onPress={() => setShowPassword(!showPassword)}
+                style={{ paddingRight: 20 }}
+              >
+                {showPassword ? (
+                  <EyeOff size={20} color={colors.secondary} />
+                ) : (
+                  <Eye size={20} color={colors.secondary} />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
 
-          {/* Submit button */}
+          {/* Submit button — Phantom vivid purple */}
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={isLoading}
-            className="bg-accent py-4 rounded-lg items-center"
-            style={{ opacity: isLoading ? 0.6 : 1 }}
+            activeOpacity={0.8}
+            style={{
+              backgroundColor: colors.fabBg,
+              paddingVertical: 16,
+              borderRadius: 16,
+              alignItems: 'center',
+              opacity: isLoading ? 0.6 : 1,
+            }}
           >
-            <Text className="text-white font-semibold text-base">
-              {isLoading ? 'Loading...' : isRegister ? 'Sign up' : 'Sign in'}
+            <Text
+              style={{
+                color: colors.onAccent,
+                fontSize: 16,
+                fontWeight: '600',
+              }}
+            >
+              {isLoading ? 'Loading...' : isRegister ? 'Create Account' : 'Sign In'}
             </Text>
           </TouchableOpacity>
 
@@ -110,9 +184,9 @@ export default function LoginScreen() {
             onPress={() => setIsRegister(!isRegister)}
             className="mt-6 items-center"
           >
-            <Text className="text-secondary">
+            <Text style={{ color: colors.secondary, fontSize: 14 }}>
               {isRegister ? 'Already have an account? ' : "Don't have an account? "}
-              <Text className="text-accent">
+              <Text style={{ color: colors.accent, fontWeight: '600' }}>
                 {isRegister ? 'Sign in' : 'Sign up'}
               </Text>
             </Text>

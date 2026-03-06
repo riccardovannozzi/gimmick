@@ -1,7 +1,6 @@
-import React from 'react';
-import { View, Text, FlatList, Pressable, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Clock, FileText, Image, Mic, Film, File, Trash2, ArrowLeft } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import React, { useState, useMemo } from 'react';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { Clock, FileText, Image, Mic, Film, File, Trash2 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { memosApi } from '@/lib/api';
@@ -21,54 +20,105 @@ const typeIcons: Record<string, typeof FileText> = {
 
 const typeColors: Record<string, string> = {
   photo: captureColors.photo,
-  image: captureColors.photo,
+  image: captureColors.gallery,
   video: captureColors.video,
   audio_recording: captureColors.voice,
   text: captureColors.text,
   file: captureColors.file,
 };
 
-function MemoItem({ memo, onDelete }: { memo: Memo; onDelete: (id: string) => void }) {
-  const colors = useThemeColors();
+const filterOptions = [
+  { id: 'all', label: 'All' },
+  { id: 'photo', label: 'Photos' },
+  { id: 'video', label: 'Video' },
+  { id: 'audio_recording', label: 'Audio' },
+  { id: 'text', label: 'Text' },
+  { id: 'file', label: 'Files' },
+];
+
+function groupByDate(memos: Memo[]): { title: string; data: Memo[] }[] {
+  const groups: Record<string, Memo[]> = {};
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  for (const memo of memos) {
+    const date = new Date(memo.created_at);
+    let key: string;
+    if (date.toDateString() === today.toDateString()) {
+      key = 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      key = 'Yesterday';
+    } else {
+      key = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+    }
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(memo);
+  }
+
+  return Object.entries(groups).map(([title, data]) => ({ title, data }));
+}
+
+function MemoItem({ memo, onDelete, colors }: { memo: Memo; onDelete: (id: string) => void; colors: any }) {
   const Icon = typeIcons[memo.type] || FileText;
   const iconColor = typeColors[memo.type] || colors.secondary;
 
   return (
     <View
-      className="flex-row items-center px-4 py-3 border-b"
-      style={{ borderColor: colors.border }}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 14,
+      }}
     >
       <View
-        className="w-10 h-10 rounded-lg items-center justify-center mr-3"
-        style={{ backgroundColor: `${iconColor}20` }}
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          backgroundColor: colors.surfaceVariant,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: 14,
+        }}
       >
-        <Icon size={20} color={iconColor} />
+        <Icon size={22} color={iconColor} />
       </View>
 
-      <View className="flex-1">
-        <Text className="text-sm font-medium" style={{ color: colors.primary }}>
+      <View style={{ flex: 1 }}>
+        <Text
+          style={{ fontSize: 15, fontWeight: '500', color: colors.primary }}
+          numberOfLines={1}
+        >
           {memo.file_name || memo.content?.substring(0, 40) || memo.type}
         </Text>
-        <Text className="text-xs mt-0.5" style={{ color: colors.secondary }}>
+        <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
           {formatDate(memo.created_at)}
           {memo.file_size ? ` · ${formatFileSize(memo.file_size)}` : ''}
         </Text>
       </View>
 
-      <Pressable
+      <TouchableOpacity
         onPress={() => onDelete(memo.id)}
-        className="w-8 h-8 items-center justify-center"
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
       >
-        <Trash2 size={16} color={colors.secondary} />
-      </Pressable>
+        <Trash2 size={18} color={colors.tertiary} />
+      </TouchableOpacity>
     </View>
   );
 }
 
 export default function HistoryScreen() {
   const colors = useThemeColors();
-  const router = useRouter();
   const queryClient = useQueryClient();
+  const [activeFilter, setActiveFilter] = useState('all');
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['memos', { page: 1, limit: 50 }],
@@ -82,55 +132,116 @@ export default function HistoryScreen() {
     },
   });
 
-  const memos = data?.data || [];
+  const allMemos = data?.data || [];
+  const filteredMemos = activeFilter === 'all'
+    ? allMemos
+    : allMemos.filter((m: Memo) => m.type === activeFilter || (activeFilter === 'photo' && m.type === 'image'));
+
+  const grouped = useMemo(() => groupByDate(filteredMemos), [filteredMemos]);
+
+  const flatData = useMemo(() => {
+    const result: ({ type: 'header'; title: string } | { type: 'memo'; memo: Memo })[] = [];
+    for (const group of grouped) {
+      result.push({ type: 'header', title: group.title });
+      for (const memo of group.data) {
+        result.push({ type: 'memo', memo });
+      }
+    }
+    return result;
+  }, [grouped]);
 
   return (
-    <SafeAreaWrapper edges={['top']}>
+    <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
       <View className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-4 border-b" style={{ borderColor: colors.border }}>
-          <TouchableOpacity onPress={() => router.push('/(tabs)/' as any)} className="mr-3">
-            <ArrowLeft size={24} color={colors.primary} />
-          </TouchableOpacity>
-          <Text className="text-xl font-bold" style={{ color: colors.primary }}>
-            Tiles
-          </Text>
+        {/* Filter chips */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={filterOptions}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => {
+              const isActive = activeFilter === item.id;
+              return (
+                <TouchableOpacity
+                  onPress={() => setActiveFilter(item.id)}
+                  activeOpacity={0.7}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: isActive ? colors.accentContainer : colors.surfaceVariant,
+                    marginRight: 8,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 13,
+                      fontWeight: '600',
+                      color: isActive ? colors.accent : colors.secondary,
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }}
+          />
         </View>
 
         {isLoading ? (
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={colors.accent} />
           </View>
-        ) : memos.length === 0 ? (
+        ) : filteredMemos.length === 0 ? (
           <View className="flex-1 items-center justify-center px-8">
             <View
-              className="w-20 h-20 rounded-full items-center justify-center mb-4"
-              style={{ backgroundColor: colors.background2 }}
+              style={{
+                width: 80,
+                height: 80,
+                borderRadius: 40,
+                backgroundColor: colors.surfaceVariant,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16,
+              }}
             >
-              <Clock size={40} color={colors.secondary} />
+              <Clock size={36} color={colors.tertiary} />
             </View>
-            <Text
-              className="text-lg font-medium text-center mb-2"
-              style={{ color: colors.primary }}
-            >
-              Nessun memo salvato
+            <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, textAlign: 'center', marginBottom: 8 }}>
+              No memos yet
             </Text>
-            <Text className="text-sm text-center" style={{ color: colors.secondary }}>
-              I memo che carichi appariranno qui
+            <Text style={{ fontSize: 14, color: colors.tertiary, textAlign: 'center' }}>
+              Your uploaded memos will appear here
             </Text>
           </View>
         ) : (
           <FlatList
-            data={memos}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <MemoItem memo={item} onDelete={(id) => deleteMutation.mutate(id)} />
-            )}
+            data={flatData}
+            keyExtractor={(item, index) => item.type === 'header' ? `h-${item.title}` : `m-${item.memo.id}`}
+            renderItem={({ item }) => {
+              if (item.type === 'header') {
+                return (
+                  <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
+                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.tertiary, letterSpacing: 0.5 }}>
+                      {item.title}
+                    </Text>
+                  </View>
+                );
+              }
+              return (
+                <MemoItem
+                  memo={item.memo}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                  colors={colors}
+                />
+              );
+            }}
             onRefresh={refetch}
             refreshing={isLoading}
           />
         )}
       </View>
-    </SafeAreaWrapper>
+    </View>
   );
 }

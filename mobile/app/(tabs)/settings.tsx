@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, LogOut, Check, Sun, Moon, Smartphone, ArrowLeft } from 'lucide-react-native';
+import { ChevronRight, LogOut, Check, Sun, Moon, Smartphone, User } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useSettingsStore, useAuthStore } from '@/store';
 import { useThemeColors } from '@/lib/theme';
@@ -13,6 +13,7 @@ interface SettingRowProps {
   onValueChange?: (value: boolean) => void;
   onPress?: () => void;
   showArrow?: boolean;
+  icon?: React.ReactNode;
 }
 
 function SettingRow({
@@ -22,14 +23,25 @@ function SettingRow({
   onValueChange,
   onPress,
   showArrow,
+  icon,
 }: SettingRowProps) {
   const colors = useThemeColors();
   const content = (
-    <View className="flex-row items-center justify-between py-5 px-6 border-b border-border">
-      <View className="flex-1 mr-4">
-        <Text className="text-primary text-lg">{label}</Text>
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+      }}
+    >
+      {icon && (
+        <View style={{ marginRight: 16 }}>{icon}</View>
+      )}
+      <View style={{ flex: 1, marginRight: 12 }}>
+        <Text style={{ fontSize: 16, color: colors.primary }}>{label}</Text>
         {description && (
-          <Text className="text-secondary text-base mt-1">{description}</Text>
+          <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{description}</Text>
         )}
       </View>
 
@@ -37,12 +49,12 @@ function SettingRow({
         <Switch
           value={value}
           onValueChange={onValueChange}
-          trackColor={{ false: colors.border, true: colors.accent }}
+          trackColor={{ false: colors.outline, true: colors.accent }}
           thumbColor="#fff"
         />
       )}
 
-      {showArrow && <ChevronRight size={24} color={colors.secondary} />}
+      {showArrow && <ChevronRight size={20} color={colors.tertiary} />}
     </View>
   );
 
@@ -66,16 +78,26 @@ function SettingSection({
 }) {
   const colors = useThemeColors();
   return (
-    <View className="mb-6">
-      <Text className="text-secondary text-sm font-medium uppercase px-4 mb-2">
+    <View style={{ marginBottom: 24 }}>
+      <Text
+        style={{
+          fontSize: 12,
+          fontWeight: '600',
+          color: colors.tertiary,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+          paddingHorizontal: 20,
+          marginBottom: 8,
+        }}
+      >
         {title}
       </Text>
       <View
-        className="rounded-2xl overflow-hidden mx-4"
         style={{
+          marginHorizontal: 16,
+          borderRadius: 20,
           backgroundColor: colors.background2,
-          borderWidth: 1.5,
-          borderColor: colors.primary,
+          overflow: 'hidden',
         }}
       >
         {children}
@@ -123,106 +145,143 @@ export default function SettingsScreen() {
   const currentModel = aiModels.find((m) => m.id === aiModel) || aiModels[0];
 
   return (
-    <SafeAreaWrapper edges={['top']}>
+    <View style={{ flex: 1, backgroundColor: colors.background1 }}>
       <ScrollView className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center px-4 py-4 border-b border-border">
-          <TouchableOpacity onPress={() => router.push('/(tabs)/' as any)} className="mr-3">
-            <ArrowLeft size={24} color={colors.primary} />
-          </TouchableOpacity>
-          <Text className="text-primary text-xl font-bold">Settings</Text>
+        {/* Account card */}
+        <View
+          style={{
+            marginHorizontal: 16,
+            marginBottom: 24,
+            borderRadius: 20,
+            backgroundColor: colors.background2,
+            overflow: 'hidden',
+          }}
+        >
+          {user ? (
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
+                <View
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 24,
+                    backgroundColor: colors.accentContainer,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 16,
+                  }}
+                >
+                  <User size={22} color={colors.accent} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
+                    {user.email ?? 'User'}
+                  </Text>
+                  <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
+                    Connected account
+                  </Text>
+                </View>
+              </View>
+              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+              <TouchableOpacity
+                onPress={signOut}
+                style={{ flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 }}
+              >
+                <LogOut size={20} color={colors.error} />
+                <Text style={{ fontSize: 16, color: colors.error }}>Sign out</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={() => router.push('/auth/login')}
+              style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: colors.accentContainer,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 16,
+                }}
+              >
+                <User size={22} color={colors.accent} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
+                  Not connected
+                </Text>
+                <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
+                  Sign in to sync your memos
+                </Text>
+              </View>
+              <ChevronRight size={20} color={colors.tertiary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View className="pt-6">
-          {/* Account section */}
-          <SettingSection title="Account">
-            {user ? (
-              <>
-                <SettingRow
-                  label={user.email ?? 'User'}
-                  description="Connected account"
-                />
-                <TouchableOpacity
-                  onPress={signOut}
-                  className="flex-row items-center py-5 px-6 gap-4"
-                >
-                  <LogOut size={24} color={colors.error} />
-                  <Text className="text-error text-lg">Sign out</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <SettingRow
-                label="Not connected"
-                description="Sign in to sync your memos"
-                onPress={() => router.push('/auth/login')}
-                showArrow
-              />
-            )}
-          </SettingSection>
+        {/* General section */}
+        <SettingSection title="General">
+          <SettingRow
+            label="Theme"
+            description={currentTheme.label}
+            onPress={() => setThemePickerOpen(true)}
+            showArrow
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+          <SettingRow
+            label="Haptic feedback"
+            value={hapticFeedback}
+            onValueChange={setHapticFeedback}
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+          <SettingRow
+            label="Confirm delete"
+            value={confirmDelete}
+            onValueChange={setConfirmDelete}
+          />
+        </SettingSection>
 
-          {/* Upload section */}
-          <SettingSection title="Upload">
-            <SettingRow
-              label="Auto upload"
-              description="Automatically upload items from buffer"
-              value={autoUpload}
-              onValueChange={setAutoUpload}
-            />
-            <SettingRow
-              label="Wi-Fi only"
-              description="Only upload when connected to Wi-Fi"
-              value={uploadOnWifiOnly}
-              onValueChange={setUploadOnWifiOnly}
-            />
-          </SettingSection>
+        {/* Upload section */}
+        <SettingSection title="Upload">
+          <SettingRow
+            label="Auto upload"
+            description="Upload items automatically"
+            value={autoUpload}
+            onValueChange={setAutoUpload}
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+          <SettingRow
+            label="Wi-Fi only"
+            description="Only upload on Wi-Fi"
+            value={uploadOnWifiOnly}
+            onValueChange={setUploadOnWifiOnly}
+          />
+        </SettingSection>
 
-          {/* AI section */}
-          <SettingSection title="AI Assistant">
-            <SettingRow
-              label="Provider"
-              description="Claude (Anthropic)"
-            />
-            <SettingRow
-              label="Model"
-              description={currentModel.label + ' — ' + currentModel.description}
-              onPress={() => setModelPickerOpen(true)}
-              showArrow
-            />
-          </SettingSection>
+        {/* AI section */}
+        <SettingSection title="AI Assistant">
+          <SettingRow
+            label="Provider"
+            description="Claude (Anthropic)"
+          />
+          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+          <SettingRow
+            label="Model"
+            description={currentModel.label}
+            onPress={() => setModelPickerOpen(true)}
+            showArrow
+          />
+        </SettingSection>
 
-          {/* Appearance section */}
-          <SettingSection title="Appearance">
-            <SettingRow
-              label="Theme"
-              description={currentTheme.label + ' — ' + currentTheme.description}
-              onPress={() => setThemePickerOpen(true)}
-              showArrow
-            />
-          </SettingSection>
-
-          {/* UI section */}
-          <SettingSection title="Interface">
-            <SettingRow
-              label="Haptic feedback"
-              description="Vibration when pressing buttons"
-              value={hapticFeedback}
-              onValueChange={setHapticFeedback}
-            />
-            <SettingRow
-              label="Confirm delete"
-              description="Ask confirmation before removing items"
-              value={confirmDelete}
-              onValueChange={setConfirmDelete}
-            />
-          </SettingSection>
-
-          {/* App info */}
-          <View className="px-4 py-8 items-center">
-            <Text className="text-secondary text-sm">Gimmick v1.0.0</Text>
-            <Text className="text-secondary text-xs mt-1">
-              Capture everything, organize anything
-            </Text>
-          </View>
+        {/* App info */}
+        <View style={{ alignItems: 'center', paddingVertical: 32 }}>
+          <Text style={{ fontSize: 13, color: colors.tertiary }}>Gimmick v1.0.0</Text>
+          <Text style={{ fontSize: 12, color: colors.tertiary, marginTop: 4, opacity: 0.7 }}>
+            Capture everything, organize anything
+          </Text>
         </View>
       </ScrollView>
 
@@ -235,18 +294,22 @@ export default function SettingsScreen() {
       >
         <Pressable
           onPress={() => setModelPickerOpen(false)}
-          className="flex-1 items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.6)' }}
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.overlay,
+          }}
         >
           <View
-            className="mx-8 rounded-2xl overflow-hidden w-[85%]"
             style={{
+              width: '85%',
+              borderRadius: 20,
               backgroundColor: colors.background2,
-              borderWidth: 1.5,
-              borderColor: colors.primary,
+              overflow: 'hidden',
             }}
           >
-            <Text className="text-primary text-xl font-semibold px-6 pt-5 pb-3">
+            <Text style={{ fontSize: 22, fontWeight: '600', color: colors.primary, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
               Select Model
             </Text>
             {aiModels.map((model) => (
@@ -257,21 +320,27 @@ export default function SettingsScreen() {
                   setModelPickerOpen(false);
                 }}
                 activeOpacity={0.7}
-                className="flex-row items-center px-6 py-5"
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 24,
+                  paddingVertical: 16,
+                }}
               >
-                <View className="flex-1">
-                  <Text className="text-primary text-lg">{model.label}</Text>
-                  <Text className="text-secondary text-base mt-0.5">{model.description}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, color: colors.primary }}>{model.label}</Text>
+                  <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{model.description}</Text>
                 </View>
                 {aiModel === model.id && (
-                  <Check size={24} color={colors.accent} />
+                  <Check size={22} color={colors.accent} />
                 )}
               </TouchableOpacity>
             ))}
-            <View className="h-3" />
+            <View style={{ height: 16 }} />
           </View>
         </Pressable>
       </Modal>
+
       {/* Theme Picker Modal */}
       <Modal
         visible={themePickerOpen}
@@ -281,18 +350,22 @@ export default function SettingsScreen() {
       >
         <Pressable
           onPress={() => setThemePickerOpen(false)}
-          className="flex-1 items-center justify-center"
-          style={{ backgroundColor: colors.overlay }}
+          style={{
+            flex: 1,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.overlay,
+          }}
         >
           <View
-            className="mx-8 rounded-2xl overflow-hidden w-[85%]"
             style={{
+              width: '85%',
+              borderRadius: 20,
               backgroundColor: colors.background2,
-              borderWidth: 1.5,
-              borderColor: colors.primary,
+              overflow: 'hidden',
             }}
           >
-            <Text className="text-primary text-xl font-semibold px-6 pt-5 pb-3">
+            <Text style={{ fontSize: 22, fontWeight: '600', color: colors.primary, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
               Theme
             </Text>
             {themeOptions.map((option) => {
@@ -305,23 +378,40 @@ export default function SettingsScreen() {
                     setThemePickerOpen(false);
                   }}
                   activeOpacity={0.7}
-                  className="flex-row items-center px-6 py-5"
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 24,
+                    paddingVertical: 16,
+                  }}
                 >
-                  <Icon size={24} color={colors.secondary} />
-                  <View className="flex-1 ml-4">
-                    <Text className="text-primary text-lg">{option.label}</Text>
-                    <Text className="text-secondary text-base mt-0.5">{option.description}</Text>
+                  <View
+                    style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: colors.surfaceVariant,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 16,
+                    }}
+                  >
+                    <Icon size={20} color={colors.secondary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, color: colors.primary }}>{option.label}</Text>
+                    <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{option.description}</Text>
                   </View>
                   {theme === option.id && (
-                    <Check size={24} color={colors.accent} />
+                    <Check size={22} color={colors.accent} />
                   )}
                 </TouchableOpacity>
               );
             })}
-            <View className="h-3" />
+            <View style={{ height: 16 }} />
           </View>
         </Pressable>
       </Modal>
-    </SafeAreaWrapper>
+    </View>
   );
 }
