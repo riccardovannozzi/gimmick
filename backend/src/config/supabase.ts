@@ -23,6 +23,14 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   },
 });
 
+// Anon client for auth operations (signIn, signUp with password, etc.)
+export const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey!, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
+
 // Client for user-context operations (when you have user's JWT)
 export function createUserClient(accessToken: string) {
   return createClient(supabaseUrl!, supabaseAnonKey!, {

@@ -1,7 +1,8 @@
 import React from 'react';
-import { TouchableOpacity, TouchableOpacityProps, View } from 'react-native';
+import { TouchableOpacity, TouchableOpacityProps } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
+import { useThemeColors } from '@/lib/theme';
 
 type IconButtonVariant = 'default' | 'filled' | 'ghost';
 type IconButtonSize = 'sm' | 'md' | 'lg';
@@ -19,12 +20,6 @@ const sizeMap: Record<IconButtonSize, number> = {
   lg: 56,
 };
 
-const variantStyles: Record<IconButtonVariant, string> = {
-  default: 'bg-background-2 border border-border',
-  filled: 'bg-accent',
-  ghost: 'bg-transparent',
-};
-
 export function IconButton({
   icon,
   variant = 'default',
@@ -35,6 +30,7 @@ export function IconButton({
   style,
   ...props
 }: IconButtonProps) {
+  const colors = useThemeColors();
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
   const handlePress = async (e: any) => {
@@ -46,21 +42,29 @@ export function IconButton({
 
   const buttonSize = sizeMap[size];
 
+  const getVariantBg = () => {
+    if (color) return color;
+    switch (variant) {
+      case 'filled': return colors.accent;
+      case 'ghost': return 'transparent';
+      default: return colors.surfaceVariant;
+    }
+  };
+
   return (
     <TouchableOpacity
       onPress={handlePress}
       disabled={disabled}
       activeOpacity={0.7}
-      className={`
-        items-center justify-center rounded-full
-        ${variantStyles[variant]}
-        ${disabled ? 'opacity-50' : ''}
-      `}
       style={[
         {
           width: buttonSize,
           height: buttonSize,
-          backgroundColor: color,
+          borderRadius: buttonSize / 2,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: getVariantBg(),
+          opacity: disabled ? 0.5 : 1,
         },
         style,
       ]}

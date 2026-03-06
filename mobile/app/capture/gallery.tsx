@@ -41,6 +41,10 @@ export default function GalleryCaptureScreen() {
           type: 'image',
           uri: asset.uri,
           mimeType: asset.mimeType ?? 'image/jpeg',
+          fileName: asset.fileName ?? undefined,
+          width: asset.width,
+          height: asset.height,
+          size: asset.fileSize ?? undefined,
         });
       }
 

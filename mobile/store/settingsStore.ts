@@ -22,6 +22,9 @@ interface SettingsState {
   aiProvider: string;
   aiModel: string;
 
+  // Theme
+  theme: 'light' | 'dark' | 'system';
+
   // Actions
   setPhotoQuality: (quality: 'low' | 'medium' | 'high') => void;
   setSaveOriginal: (save: boolean) => void;
@@ -32,6 +35,7 @@ interface SettingsState {
   setConfirmDelete: (confirm: boolean) => void;
   setAiProvider: (provider: string) => void;
   setAiModel: (model: string) => void;
+  setTheme: (theme: 'light' | 'dark' | 'system') => void;
   resetSettings: () => void;
 }
 
@@ -45,6 +49,7 @@ const defaultSettings = {
   confirmDelete: true,
   aiProvider: 'anthropic',
   aiModel: 'claude-haiku-4-5-20251001',
+  theme: 'dark' as const,
 };
 
 export const useSettingsStore = create<SettingsState>()(
@@ -61,6 +66,7 @@ export const useSettingsStore = create<SettingsState>()(
       setConfirmDelete: (confirmDelete) => set({ confirmDelete }),
       setAiProvider: (aiProvider) => set({ aiProvider }),
       setAiModel: (aiModel) => set({ aiModel }),
+      setTheme: (theme) => set({ theme }),
       resetSettings: () => set(defaultSettings),
     }),
     {

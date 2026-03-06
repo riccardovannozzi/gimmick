@@ -7,7 +7,7 @@ import {
   View,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 import { useSettingsStore } from '@/store';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
@@ -23,41 +23,6 @@ interface ButtonProps extends TouchableOpacityProps {
   fullWidth?: boolean;
 }
 
-const variantStyles: Record<ButtonVariant, { bg: string; text: string; border?: string }> = {
-  primary: {
-    bg: 'bg-accent',
-    text: 'text-white',
-  },
-  secondary: {
-    bg: 'bg-background-2',
-    text: 'text-primary',
-    border: 'border border-border',
-  },
-  ghost: {
-    bg: 'bg-transparent',
-    text: 'text-primary',
-  },
-  danger: {
-    bg: 'bg-error',
-    text: 'text-white',
-  },
-};
-
-const sizeStyles: Record<ButtonSize, { container: string; text: string }> = {
-  sm: {
-    container: 'px-3 py-2',
-    text: 'text-sm',
-  },
-  md: {
-    container: 'px-4 py-3',
-    text: 'text-base',
-  },
-  lg: {
-    container: 'px-6 py-4',
-    text: 'text-lg',
-  },
-};
-
 export function Button({
   title,
   variant = 'primary',
@@ -70,6 +35,7 @@ export function Button({
   onPress,
   ...props
 }: ButtonProps) {
+  const colors = useThemeColors();
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
   const handlePress = async (e: any) => {
@@ -79,33 +45,59 @@ export function Button({
     onPress?.(e);
   };
 
-  const styles = variantStyles[variant];
-  const sizes = sizeStyles[size];
+  const getVariantStyle = () => {
+    switch (variant) {
+      case 'primary':
+        return { bg: colors.accent, text: colors.onAccent };
+      case 'secondary':
+        return { bg: colors.surfaceVariant, text: colors.primary, border: colors.border };
+      case 'ghost':
+        return { bg: 'transparent', text: colors.primary };
+      case 'danger':
+        return { bg: colors.error, text: '#FFFFFF' };
+    }
+  };
+
+  const getSizeStyle = () => {
+    switch (size) {
+      case 'sm': return { px: 12, py: 8, fontSize: 13 };
+      case 'md': return { px: 16, py: 12, fontSize: 15 };
+      case 'lg': return { px: 24, py: 16, fontSize: 17 };
+    }
+  };
+
+  const vs = getVariantStyle();
+  const ss = getSizeStyle();
 
   return (
     <TouchableOpacity
       onPress={handlePress}
       disabled={disabled || loading}
       activeOpacity={0.7}
-      className={`
-        flex-row items-center justify-center rounded-lg
-        ${styles.bg}
-        ${styles.border ?? ''}
-        ${sizes.container}
-        ${fullWidth ? 'w-full' : ''}
-        ${disabled || loading ? 'opacity-50' : ''}
-      `}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: vs.bg,
+        borderRadius: 16,
+        paddingHorizontal: ss.px,
+        paddingVertical: ss.py,
+        width: fullWidth ? '100%' : undefined,
+        opacity: disabled || loading ? 0.5 : 1,
+        borderWidth: vs.border ? 1 : 0,
+        borderColor: vs.border,
+      }}
       {...props}
     >
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'primary' || variant === 'danger' ? '#fff' : colors.primary}
+          color={vs.text}
         />
       ) : (
-        <View className="flex-row items-center gap-2">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           {icon && iconPosition === 'left' && icon}
-          <Text className={`font-semibold ${styles.text} ${sizes.text}`}>
+          <Text style={{ fontWeight: '600', color: vs.text, fontSize: ss.fontSize }}>
             {title}
           </Text>
           {icon && iconPosition === 'right' && icon}

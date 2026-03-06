@@ -24,6 +24,8 @@ export interface BufferItem {
   fileName?: string;
   mimeType?: string;
   size?: number;          // File size in bytes
+  width?: number;         // Image/video width in pixels
+  height?: number;        // Image/video height in pixels
   createdAt: Date;
 }
 

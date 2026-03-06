@@ -8,7 +8,7 @@ import {
   ModalProps as RNModalProps,
 } from 'react-native';
 import { X } from 'lucide-react-native';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 interface ModalProps extends RNModalProps {
   title?: string;
@@ -27,6 +27,7 @@ export function Modal({
   visible,
   ...props
 }: ModalProps) {
+  const colors = useThemeColors();
   return (
     <RNModal
       visible={visible}

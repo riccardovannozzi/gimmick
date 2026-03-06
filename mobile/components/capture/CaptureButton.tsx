@@ -2,6 +2,7 @@ import React from 'react';
 import { TouchableOpacity, Text, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
+import { useThemeColors } from '@/lib/theme';
 
 interface CaptureButtonProps {
   icon: React.ReactNode;
@@ -21,6 +22,7 @@ export function CaptureButton({
   count = 0,
 }: CaptureButtonProps) {
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
+  const colors = useThemeColors();
 
   const handlePress = async () => {
     if (hapticFeedback) {
@@ -29,40 +31,46 @@ export function CaptureButton({
     onPress();
   };
 
+  const size = 72;
+
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      disabled={disabled}
-      activeOpacity={0.7}
-      className={`
-        flex-1 aspect-square items-center justify-center rounded-2xl
-        ${disabled ? 'opacity-50' : ''}
-      `}
-      style={{ backgroundColor: `${color}20` }}
-    >
-      {/* Badge */}
-      {count > 0 && (
-        <View
-          className="absolute top-2 right-2 z-10 min-w-[22px] h-[22px] rounded-full items-center justify-center px-1"
-          style={{ backgroundColor: color }}
-        >
-          <Text className="text-white text-xs font-bold">{count}</Text>
-        </View>
-      )}
-
-      {/* Icon - centered in upper area */}
-      <View className="flex-1 items-center justify-center">
-        {React.cloneElement(icon as React.ReactElement<{ size?: number; color?: string; strokeWidth?: number }>, {
-          size: 48,
+    <View className={`flex-1 items-center ${disabled ? 'opacity-50' : ''}`}>
+      <TouchableOpacity
+        onPress={handlePress}
+        disabled={disabled}
+        activeOpacity={0.7}
+        className="items-center justify-center"
+        style={{
+          width: size,
+          height: size,
+          borderRadius: 20,
+          backgroundColor: colors.surfaceVariant,
+        }}
+      >
+        {React.cloneElement(icon as React.ReactElement<any>, {
+          size: 28,
           color: color,
-          strokeWidth: 1.2,
+          strokeWidth: 1.8,
         })}
-      </View>
 
-      {/* Label - pinned to bottom */}
-      <Text className="text-primary text-xs font-medium uppercase tracking-wide mb-3">
+        {count > 0 && (
+          <View
+            className="absolute -top-1 -right-1 min-w-6 h-6 rounded-full items-center justify-center px-1"
+            style={{
+              backgroundColor: colors.accent,
+            }}
+          >
+            <Text style={{ color: '#FFFFFF', fontSize: 13, fontWeight: '700' }}>{count}</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+
+      <Text
+        className="mt-2 text-center"
+        style={{ color: colors.secondary, fontSize: 11, fontWeight: '500' }}
+      >
         {label}
       </Text>
-    </TouchableOpacity>
+    </View>
   );
 }

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, TextInput, Pressable, Text, ActivityIndicator } from 'react-native';
-import { MessageCircle, Mic, Send, Square } from 'lucide-react-native';
+import { Mic, Send, Square } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
-import { colors } from '@/constants';
+import { useThemeColors } from '@/lib/theme';
 
 interface ChatInputProps {
   onSubmitText: (text: string) => void;
@@ -17,8 +17,9 @@ export function ChatInput({
   onSubmitText,
   onSubmitVoice,
   isProcessing = false,
-  placeholder = 'Ask something...',
+  placeholder = 'Type a message...',
 }: ChatInputProps) {
+  const colors = useThemeColors();
   const [text, setText] = useState('');
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const { isRecording, startRecording, stopRecording } = useVoiceRecorder();
@@ -60,72 +61,82 @@ export function ChatInput({
 
   const hasText = text.trim().length > 0;
 
-  // Processing state
   if (isProcessing) {
     return (
       <View
-        className="flex-row items-center rounded-2xl px-4 h-[104px] border"
         style={{
-          backgroundColor: colors.background2,
-          borderColor: colors.border,
+          flexDirection: 'row',
+          alignItems: 'center',
+          height: 56,
+          borderRadius: 16,
+          paddingHorizontal: 20,
+          backgroundColor: colors.surfaceVariant,
           opacity: 0.7,
         }}
       >
         <ActivityIndicator size="small" color={colors.accent} />
-        <Text className="flex-1 mx-3" style={{ color: colors.secondary }}>
+        <Text style={{ flex: 1, marginLeft: 12, color: colors.tertiary }}>
           Processing...
         </Text>
       </View>
     );
   }
 
-  // Recording state
   if (isRecording) {
     return (
       <View
-        className="flex-row items-center rounded-2xl px-4 h-[104px] border"
         style={{
-          backgroundColor: colors.background2,
+          flexDirection: 'row',
+          alignItems: 'center',
+          height: 56,
+          borderRadius: 16,
+          paddingHorizontal: 20,
+          backgroundColor: colors.surfaceVariant,
+          borderWidth: 2,
           borderColor: colors.error,
         }}
       >
         <View
           style={{
-            width: 12,
-            height: 12,
+            width: 10,
+            height: 10,
             backgroundColor: colors.error,
-            borderRadius: 6,
+            borderRadius: 5,
           }}
         />
-        <Text className="flex-1 mx-3" style={{ color: colors.secondary }}>
+        <Text style={{ flex: 1, marginLeft: 12, color: colors.secondary }}>
           Listening...
         </Text>
         <Pressable
           onPress={handleStopRecording}
-          className="w-8 h-8 items-center justify-center"
+          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Square size={20} color={colors.error} fill={colors.error} />
+          <Square size={18} color={colors.error} fill={colors.error} />
         </Pressable>
       </View>
     );
   }
 
-  // Default state
   return (
     <View
-      className="flex-row items-center rounded-2xl px-4 h-[104px] border"
       style={{
-        backgroundColor: colors.background2,
-        borderColor: colors.border,
+        flexDirection: 'row',
+        alignItems: 'center',
+        height: 56,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        backgroundColor: colors.surfaceVariant,
       }}
     >
-      <MessageCircle size={20} color={colors.secondary} />
-
       <TextInput
-        className="flex-1 mx-3 text-base"
-        style={{ color: colors.primary }}
+        style={{
+          flex: 1,
+          fontSize: 16,
+          color: colors.primary,
+          marginHorizontal: 8,
+        }}
         placeholder={placeholder}
-        placeholderTextColor="#6B7280"
+        placeholderTextColor={colors.tertiary}
         value={text}
         onChangeText={setText}
         onSubmitEditing={handleSubmit}
@@ -133,12 +144,25 @@ export function ChatInput({
       />
 
       {hasText ? (
-        <Pressable onPress={handleSubmit} className="w-8 h-8 items-center justify-center">
-          <Send size={20} color={colors.accent} />
+        <Pressable
+          onPress={handleSubmit}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: colors.accent,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Send size={18} color={colors.onAccent} />
         </Pressable>
       ) : (
-        <Pressable onPress={handleStartRecording} className="w-8 h-8 items-center justify-center">
-          <Mic size={20} color={colors.secondary} />
+        <Pressable
+          onPress={handleStartRecording}
+          style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+        >
+          <Mic size={22} color={colors.secondary} />
         </Pressable>
       )}
     </View>

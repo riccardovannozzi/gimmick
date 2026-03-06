@@ -6,8 +6,6 @@ import { X, RefreshCw, Circle, Square } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
-import { colors } from '@/constants';
-
 const MAX_DURATION = 30; // 30 seconds
 
 export default function VideoCaptureScreen() {
