@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
-import { supabaseAdmin } from '../config/supabase.js';
+import { supabaseAdmin, supabaseAuth } from '../config/supabase.js';
 import { validate } from '../middleware/validate.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
@@ -63,7 +63,7 @@ authRouter.post('/signin', validate(signInSchema), async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
-    const { data, error } = await supabaseAdmin.auth.signInWithPassword({
+    const { data, error } = await supabaseAuth.auth.signInWithPassword({
       email,
       password,
     });
@@ -111,7 +111,7 @@ authRouter.post('/refresh', async (req, res, next) => {
       return;
     }
 
-    const { data, error } = await supabaseAdmin.auth.refreshSession({
+    const { data, error } = await supabaseAuth.auth.refreshSession({
       refresh_token,
     });
 
