@@ -33,6 +33,7 @@ export interface Memo {
   file_size?: number;
   duration?: number;
   metadata: Record<string, unknown>;
+  ai_status?: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }

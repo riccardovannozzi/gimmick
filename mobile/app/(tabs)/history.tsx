@@ -99,6 +99,23 @@ function MemoItem({ memo, onDelete, colors }: { memo: Memo; onDelete: (id: strin
         </Text>
       </View>
 
+      {/* AI indexing status indicator */}
+      <View
+        style={{
+          width: 10,
+          height: 10,
+          borderRadius: 5,
+          marginRight: 12,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.15)',
+          backgroundColor:
+            memo.ai_status === 'completed' ? '#22C55E' :
+            memo.ai_status === 'processing' ? '#F59E0B' :
+            memo.ai_status === 'failed' ? '#EF4444' :
+            '#6B7280',
+        }}
+      />
+
       <TouchableOpacity
         onPress={() => onDelete(memo.id)}
         style={{

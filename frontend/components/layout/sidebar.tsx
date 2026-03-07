@@ -9,7 +9,9 @@ import {
   PlusCircle,
   Settings,
   BarChart3,
+  Share2,
   LogOut,
+  Bot,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -21,11 +23,16 @@ const navigation = [
   { name: 'Memos', href: '/memos', icon: FileText },
   { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
   { name: 'Cattura', href: '/capture', icon: PlusCircle },
+  { name: 'Graph', href: '/graph', icon: Share2 },
   { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Impostazioni', href: '/settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onOpenChat?: () => void;
+}
+
+export function Sidebar({ onOpenChat }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuthStore();
 
@@ -59,6 +66,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Ask Gimmick button */}
+      <div className="px-3 pb-3">
+        <Button
+          onClick={onOpenChat}
+          className="w-full justify-start gap-3 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20"
+        >
+          <Bot className="h-5 w-5" />
+          Ask Gimmick
+        </Button>
+      </div>
 
       <Separator className="bg-zinc-800" />
 

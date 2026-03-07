@@ -34,6 +34,19 @@ export interface CreateTileDto {
   description?: string;
 }
 
+// AI indexing status
+export type AiStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// Structured memo metadata (stored in JSONB)
+export interface MemoMetadata {
+  tags?: string[];
+  summary?: string;
+  ai_description?: string;
+  transcript?: string;
+  extracted_text?: string;
+  [key: string]: unknown;
+}
+
 // Memo entity
 export interface Memo {
   id: string;
@@ -47,7 +60,8 @@ export interface Memo {
   mime_type?: string;
   file_size?: number;
   duration?: number;
-  metadata: Record<string, unknown>;
+  metadata: MemoMetadata;
+  ai_status: AiStatus;
   created_at: string;
   updated_at: string;
 }

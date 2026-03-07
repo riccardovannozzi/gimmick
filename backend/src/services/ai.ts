@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '../config/supabase.js';
+import { generateEmbedding } from './indexing.js';
 import type { MemoType } from '../types/index.js';
 
 const anthropic = new Anthropic();
@@ -12,10 +13,15 @@ Guidelines:
 - Be concise and helpful
 - When listing memos, format them clearly with their ID
 - IMPORTANT: When the user asks to delete a memo, you MUST execute the deletion immediately using the delete_memo tool. NEVER ask for confirmation. Search for the memo first if needed, then call delete_memo right away in the same turn. After deleting, tell the user what was deleted.
-- Dates are in ISO format; present them in a human-readable way
+- Dates from the database are in UTC (ISO format). ALWAYS convert them to Europe/Rome timezone (CET/CEST, UTC+1 or UTC+2 in summer) before presenting to the user. For example, 2026-03-07T17:12:00Z in UTC = 18:12 in Italy (CET, UTC+1).
 - Memo types: photo, image, video, audio_recording, text, file
-- If a memo has content (text), you can read it. For media files, you can see metadata (type, filename, size, date) but not the actual media content.
-- Respond in the same language the user writes in.`;
+- For text memos, the content field contains the full text.
+- For media memos (photos, images, audio, video, files), the metadata field may contain AI-generated data from indexing: ai_summary (a summary of the content), ai_tags (relevant tags), ai_description (description of images), ai_transcription (transcription of audio/video). Use get_memo to access these fields and answer questions about the content.
+- You cannot play or display media files directly, but you CAN read their AI-processed descriptions and transcriptions.
+- Use semantic_search when the user asks conceptual questions like "find my notes about cooking" or "what did I say about the project?". It searches by meaning, not just keywords.
+- Respond in the same language the user writes in.
+- Current date/time: {{CURRENT_DATE}}
+- When comparing dates/times, use the ISO timestamp for precise calculations. Do NOT estimate relative times (like "un'ora fa") unless you can calculate them exactly from the ISO timestamps.`;
 
 const tools: Anthropic.Tool[] = [
   {
@@ -137,7 +143,36 @@ const tools: Anthropic.Tool[] = [
       required: ['tile_id'],
     },
   },
+  {
+    name: 'semantic_search',
+    description: 'Search memos by meaning using AI embeddings. Use this for conceptual queries like "notes about travel", "recordings mentioning the budget", etc. Returns memos ranked by semantic similarity.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Natural language search query',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 5, max 20)',
+        },
+      },
+      required: ['query'],
+    },
+  },
 ];
+
+// Date helpers: when AI passes a date-only string like "2026-03-07",
+// expand it to cover the full day range for proper filtering.
+function normalizeDateFrom(d: string): string {
+  // If it's a date-only string (no T), add start-of-day
+  return d.includes('T') ? d : `${d}T00:00:00`;
+}
+function normalizeDateTo(d: string): string {
+  // If it's a date-only string (no T), add end-of-day
+  return d.includes('T') ? d : `${d}T23:59:59.999`;
+}
 
 // Tool execution functions
 async function executeTool(
@@ -171,6 +206,8 @@ async function executeToolInner(
       return listTiles(userId);
     case 'get_tile_memos':
       return getTileMemos(toolInput, userId);
+    case 'semantic_search':
+      return semanticSearch(toolInput, userId);
     default:
       return JSON.stringify({ error: `Unknown tool: ${toolName}` });
   }
@@ -190,8 +227,8 @@ async function searchMemos(input: Record<string, unknown>, userId: string): Prom
   if (input.query) {
     query = query.or(`content.ilike.%${input.query}%,file_name.ilike.%${input.query}%`);
   }
-  if (input.date_from) query = query.gte('created_at', input.date_from as string);
-  if (input.date_to) query = query.lte('created_at', input.date_to as string);
+  if (input.date_from) query = query.gte('created_at', normalizeDateFrom(input.date_from as string));
+  if (input.date_to) query = query.lte('created_at', normalizeDateTo(input.date_to as string));
 
   const { data, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
@@ -205,8 +242,8 @@ async function countMemos(input: Record<string, unknown>, userId: string): Promi
     .eq('user_id', userId);
 
   if (input.type) query = query.eq('type', input.type as MemoType);
-  if (input.date_from) query = query.gte('created_at', input.date_from as string);
-  if (input.date_to) query = query.lte('created_at', input.date_to as string);
+  if (input.date_from) query = query.gte('created_at', normalizeDateFrom(input.date_from as string));
+  if (input.date_to) query = query.lte('created_at', normalizeDateTo(input.date_to as string));
 
   const { count, error } = await query;
   if (error) return JSON.stringify({ error: error.message });
@@ -312,13 +349,100 @@ async function getTileMemos(input: Record<string, unknown>, userId: string): Pro
   return JSON.stringify({ tile: tile.title, memos: data, count: data?.length ?? 0 });
 }
 
+/**
+ * Expand a search query to bilingual (IT+EN) for better semantic matching.
+ */
+async function expandQueryBilingual(query: string): Promise<string> {
+  try {
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 100,
+      messages: [
+        {
+          role: 'user',
+          content: `Translate this search query to both Italian and English. Return ONLY the two versions separated by " / ". No explanation.\n\nQuery: ${query}`,
+        },
+      ],
+    });
+    const text = response.content[0].type === 'text' ? response.content[0].text.trim() : query;
+    return text || query;
+  } catch {
+    return query;
+  }
+}
+
+async function semanticSearch(input: Record<string, unknown>, userId: string): Promise<string> {
+  const query = input.query as string;
+  if (!query) return JSON.stringify({ error: 'Query is required' });
+
+  const limit = Math.min(Number(input.limit) || 5, 20);
+
+  try {
+    // Expand query to bilingual (IT+EN) for better cross-language matching
+    const bilingualQuery = await expandQueryBilingual(query);
+    console.log(`[AI Semantic] Original: "${query}" → Expanded: "${bilingualQuery}"`);
+    const queryEmbedding = await generateEmbedding(bilingualQuery);
+
+    const { data, error } = await supabaseAdmin.rpc('match_memos', {
+      query_embedding: JSON.stringify(queryEmbedding),
+      match_threshold: 0.2,
+      match_count: limit,
+      match_user_id: userId,
+    });
+
+    if (error) return JSON.stringify({ error: error.message });
+
+    return JSON.stringify({ memos: data || [], count: data?.length ?? 0, query });
+  } catch (err) {
+    return JSON.stringify({ error: 'Semantic search failed' });
+  }
+}
+
+// Extracts memo IDs from a tool result JSON string
+function extractMemoIds(toolName: string, resultJson: string): string[] {
+  try {
+    const parsed = JSON.parse(resultJson);
+    if (parsed.memos && Array.isArray(parsed.memos)) {
+      return parsed.memos.map((m: { id: string }) => m.id).filter(Boolean);
+    }
+    if (parsed.id && (toolName === 'get_memo')) {
+      return [parsed.id];
+    }
+  } catch {}
+  return [];
+}
+
+// Extracts tile IDs from a tool result JSON string
+function extractTileIds(toolName: string, resultJson: string): string[] {
+  try {
+    const parsed = JSON.parse(resultJson);
+    if (parsed.tiles && Array.isArray(parsed.tiles)) {
+      return parsed.tiles.map((t: { id: string }) => t.id).filter(Boolean);
+    }
+    if (parsed.tile && toolName === 'get_tile_memos') {
+      // get_tile_memos returns { tile: "title", memos: [...] } — tile_id is in the input, not result
+      return [];
+    }
+  } catch {}
+  return [];
+}
+
+export interface ChatResult {
+  reply: string;
+  foundMemoIds: string[];
+  foundTileIds: string[];
+}
+
 // Main chat function
 export async function chat(
   message: string,
   history: { role: 'user' | 'assistant'; content: string }[],
   userId: string,
   model: string = 'claude-haiku-4-5-20251001'
-): Promise<string> {
+): Promise<ChatResult> {
+  const collectedMemoIds: Set<string> = new Set();
+  const collectedTileIds: Set<string> = new Set();
+
   // Build messages array from history
   const messages: Anthropic.MessageParam[] = [
     ...history.map((h) => ({
@@ -328,11 +452,20 @@ export async function chat(
     { role: 'user', content: message },
   ];
 
+  // Inject current date into system prompt with explicit ISO + readable format
+  const now = new Date();
+  const isoNow = now.toISOString();
+  const readableNow = now.toLocaleString('it-IT', { dateStyle: 'full', timeStyle: 'long', timeZone: 'Europe/Rome' });
+  const systemPrompt = SYSTEM_PROMPT.replace(
+    '{{CURRENT_DATE}}',
+    `${readableNow} (ISO: ${isoNow})`
+  );
+
   // Initial request to Claude
   let response = await anthropic.messages.create({
     model,
     max_tokens: 1024,
-    system: SYSTEM_PROMPT,
+    system: systemPrompt,
     tools,
     messages,
   });
@@ -344,11 +477,24 @@ export async function chat(
       (block) => block.type === 'tool_use'
     );
 
-    // Execute all tool calls
+    // Execute all tool calls and collect memo IDs
     const toolResults: Anthropic.ToolResultBlockParam[] = await Promise.all(
       toolUseBlocks.map(async (toolUse) => {
         const tu = toolUse as { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> };
         const result = await executeTool(tu.name, tu.input, userId);
+
+        // Collect memo and tile IDs from results
+        for (const id of extractMemoIds(tu.name, result)) {
+          collectedMemoIds.add(id);
+        }
+        for (const id of extractTileIds(tu.name, result)) {
+          collectedTileIds.add(id);
+        }
+        // For get_tile_memos, collect tile_id from the input
+        if (tu.name === 'get_tile_memos' && tu.input.tile_id) {
+          collectedTileIds.add(tu.input.tile_id as string);
+        }
+
         return {
           type: 'tool_result' as const,
           tool_use_id: tu.id,
@@ -364,7 +510,7 @@ export async function chat(
     response = await anthropic.messages.create({
       model,
       max_tokens: 1024,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       tools,
       messages,
     });
@@ -372,5 +518,15 @@ export async function chat(
 
   // Extract text response
   const textBlock = response.content.find((block) => block.type === 'text');
-  return textBlock ? (textBlock as Anthropic.TextBlock).text : 'No response generated.';
+  const reply = textBlock ? (textBlock as Anthropic.TextBlock).text : 'No response generated.';
+
+  // Filter IDs to only those actually mentioned in the AI's reply
+  const mentionedMemoIds = Array.from(collectedMemoIds).filter((id) => reply.includes(id.substring(0, 8)));
+  const mentionedTileIds = Array.from(collectedTileIds).filter((id) => reply.includes(id.substring(0, 8)));
+
+  return {
+    reply,
+    foundMemoIds: mentionedMemoIds.length > 0 ? mentionedMemoIds : Array.from(collectedMemoIds),
+    foundTileIds: mentionedTileIds.length > 0 ? mentionedTileIds : Array.from(collectedTileIds),
+  };
 }

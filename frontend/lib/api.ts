@@ -196,6 +196,13 @@ export const tilesApi = {
     return apiRequest<Tile & { memos: Memo[] }>(`/api/tiles/${id}`);
   },
 
+  async graph() {
+    return apiRequest<{
+      tiles: { id: string; title?: string; description?: string; created_at: string }[];
+      memos: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
+    }>('/api/tiles/graph');
+  },
+
   async create(tile?: { title?: string; description?: string }) {
     return apiRequest<Tile>('/api/tiles', {
       method: 'POST',
@@ -212,6 +219,59 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Chat API ============
+export const chatApi = {
+  async send(
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[] = []
+  ) {
+    return apiRequest<{ reply: string; foundMemoIds?: string[]; foundTileIds?: string[] }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    });
+  },
+
+  async sendVoice(
+    audioBlob: Blob,
+    history: { role: 'user' | 'assistant'; content: string }[] = []
+  ) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.webm');
+    formData.append('history', JSON.stringify(history));
+
+    loadTokens();
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}/api/chat/voice`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    return response.json() as Promise<ApiResponse<{ transcript: string; reply: string; foundMemoIds?: string[]; foundTileIds?: string[] }>>;
+  },
+
+  async speak(text: string): Promise<HTMLAudioElement | null> {
+    loadTokens();
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}/api/chat/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    return audio;
   },
 };
 

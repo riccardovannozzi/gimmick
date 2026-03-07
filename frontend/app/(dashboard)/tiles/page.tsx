@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LayoutGrid, Trash2, ChevronDown, ChevronRight, FileText, Image, Mic, Film, File } from 'lucide-react';
+import { LayoutGrid, Trash2, ChevronDown, ChevronRight, FileText, Image, Mic, Film, File, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useFilterStore } from '@/store/filter-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { tilesApi } from '@/lib/api';
 import { typeLabels } from '@/lib/memo-utils';
@@ -124,20 +125,45 @@ function TileCard({ tile, onMemoClick }: { tile: Tile & { memos?: Memo[] }; onMe
 export default function TilesPage() {
   const [page, setPage] = useState(1);
   const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
+  const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['tiles', { page }],
-    queryFn: () => tilesApi.list({ page, limit: 20 }),
+    queryFn: () => tilesApi.list({ page, limit: 50 }),
   });
 
-  const tiles = data?.data || [];
+  const allTiles = data?.data || [];
   const pagination = data?.pagination;
+
+  const tiles = useMemo(() => {
+    if (!aiFilterIds) return allTiles;
+    const idSet = new Set(aiFilterIds);
+    return allTiles.filter((t) => idSet.has(t.id));
+  }, [allTiles, aiFilterIds]);
 
   return (
     <div className="flex flex-col h-full">
       <Header title="Tiles" />
 
       <div className="flex-1 p-6 space-y-4">
+        {/* AI Filter Banner */}
+        {aiFilterIds && (
+          <div className="flex items-center justify-between rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2.5">
+            <p className="text-sm text-purple-400">
+              Filtro AI attivo — {tiles.length} tile trovati
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilter}
+              className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 h-7 px-2"
+            >
+              <X className="h-3.5 w-3.5 mr-1" />
+              Rimuovi filtro
+            </Button>
+          </div>
+        )}
+
         {/* Header info */}
         <div className="flex items-center gap-2 text-zinc-400">
           <LayoutGrid className="h-5 w-5" />

@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Filter } from 'lucide-react';
+import { Plus, Trash2, Filter, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useFilterStore } from '@/store/filter-store';
 import {
   Table,
   TableBody,
@@ -31,10 +32,11 @@ export default function MemosPage() {
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
   const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
   const queryClient = useQueryClient();
+  const { memoIds: aiFilterIds, clearFilter } = useFilterStore();
 
   const { data, isLoading } = useQuery({
     queryKey: ['memos', { page, type: typeFilter }],
-    queryFn: () => memosApi.list({ page, limit: 20, type: typeFilter }),
+    queryFn: () => memosApi.list({ page, limit: 50, type: typeFilter }),
   });
 
   const deleteMutation = useMutation({
@@ -48,14 +50,38 @@ export default function MemosPage() {
     },
   });
 
-  const memos = data?.data || [];
+  const allMemos = data?.data || [];
   const pagination = data?.pagination;
+
+  const memos = useMemo(() => {
+    if (!aiFilterIds) return allMemos;
+    const idSet = new Set(aiFilterIds);
+    return allMemos.filter((m) => idSet.has(m.id));
+  }, [allMemos, aiFilterIds]);
 
   return (
     <div className="flex flex-col h-full">
       <Header title="Memos" />
 
       <div className="flex-1 p-6 space-y-4">
+        {/* AI Filter Banner */}
+        {aiFilterIds && (
+          <div className="flex items-center justify-between rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5">
+            <p className="text-sm text-blue-400">
+              Filtro AI attivo — {memos.length} memo trovati
+            </p>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilter}
+              className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 h-7 px-2"
+            >
+              <X className="h-3.5 w-3.5 mr-1" />
+              Rimuovi filtro
+            </Button>
+          </div>
+        )}
+
         {/* Toolbar */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
@@ -101,19 +127,20 @@ export default function MemosPage() {
                 <TableHead className="text-zinc-400">Tipo</TableHead>
                 <TableHead className="text-zinc-400">Data</TableHead>
                 <TableHead className="text-zinc-400">Dimensione</TableHead>
+                <TableHead className="text-zinc-400">AI</TableHead>
                 <TableHead className="text-zinc-400 text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-zinc-400">
+                  <TableCell colSpan={6} className="text-center text-zinc-400">
                     Caricamento...
                   </TableCell>
                 </TableRow>
               ) : memos.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-zinc-400">
+                  <TableCell colSpan={6} className="text-center text-zinc-400">
                     Nessun memo trovato
                   </TableCell>
                 </TableRow>
@@ -139,6 +166,21 @@ export default function MemosPage() {
                       {memo.file_size
                         ? `${(memo.file_size / 1024).toFixed(1)} KB`
                         : '-'}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full ${
+                            memo.ai_status === 'completed'
+                              ? 'bg-green-500'
+                              : memo.ai_status === 'processing'
+                              ? 'bg-yellow-500'
+                              : memo.ai_status === 'failed'
+                              ? 'bg-red-500'
+                              : 'bg-zinc-500'
+                          }`}
+                        />
+                      </div>
                     </TableCell>
                     <TableCell className="text-right">
                       <Button

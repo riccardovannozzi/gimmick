@@ -78,6 +78,47 @@ tilesRouter.get(
 );
 
 /**
+ * GET /api/tiles/graph
+ * Get all tiles with their memos for graph visualization
+ */
+tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    // Get all tiles
+    const { data: tiles, error: tilesError } = await supabaseAdmin
+      .from('tiles')
+      .select('id, title, description, created_at')
+      .eq('user_id', req.user!.id)
+      .order('created_at', { ascending: false });
+
+    if (tilesError) throw tilesError;
+
+    // Get all memos (with tile_id to build connections)
+    const { data: memos, error: memosError } = await supabaseAdmin
+      .from('memos')
+      .select('id, tile_id, type, content, file_name, metadata, created_at')
+      .eq('user_id', req.user!.id)
+      .order('created_at', { ascending: false });
+
+    if (memosError) throw memosError;
+
+    res.json({
+      success: true,
+      data: {
+        tiles: tiles || [],
+        memos: (memos || []).map((m: any) => ({
+          ...m,
+          label: m.content?.slice(0, 60) || m.file_name || m.type,
+          tags: m.metadata?.tags || [],
+          summary: m.metadata?.summary || null,
+        })),
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/tiles/:id
  * Get single tile with all its memos
  */
