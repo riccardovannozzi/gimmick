@@ -2,12 +2,12 @@ import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { X, Save, Send, Mic, ScanLine, Camera, Video, Images, PenSquare, Paperclip, Sparkles } from 'lucide-react-native';
+import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
 import { uploadBufferItems, chatApi } from '@/lib/api';
-import { captureColors } from '@/constants/colors';
+import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
 import type { BufferItem, MemoType } from '@/types';
@@ -31,14 +31,12 @@ const buttonToMemoTypes: Record<string, MemoType[]> = {
 };
 
 const captureOptions = [
-  { id: 'photo', label: 'Photo', icon: <Camera />, color: captureColors.photo, route: '/capture/photo' },
-  { id: 'video', label: 'Video', icon: <Video />, color: captureColors.video, route: '/capture/video' },
-  { id: 'gallery', label: 'Gallery', icon: <Images />, color: captureColors.gallery, route: '/capture/gallery' },
-  { id: 'scan', label: 'Scan', icon: <ScanLine />, color: captureColors.scan, route: '/capture/photo' },
-  { id: 'text', label: 'Text', icon: <PenSquare />, color: captureColors.text, route: '/capture/text' },
-  { id: 'voice', label: 'Rec', icon: <Mic />, color: captureColors.voice, route: '/capture/voice' },
-  { id: 'file', label: 'File', icon: <Paperclip />, color: captureColors.file, route: '/capture/file' },
-  { id: 'ai', label: 'Ask AI', icon: <Sparkles />, color: captureColors.ai, route: null },
+  { id: 'photo', label: 'PHOTO', icon: <Camera />, color: captureColors.photo, bg: captureColorsBg.photo, route: '/capture/photo' },
+  { id: 'video', label: 'VIDEO', icon: <Video />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
+  { id: 'gallery', label: 'GALLERY', icon: <Images />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
+  { id: 'text', label: 'TEXT', icon: <PenSquare />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
+  { id: 'voice', label: 'VOICE', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
+  { id: 'file', label: 'FILE', icon: <Paperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
 ] as const;
 
 function MemoChip({ item, index, onRemove, colors }: { item: BufferItem; index: number; onRemove: () => void; colors: any }) {
@@ -387,15 +385,12 @@ export default function HomeScreen() {
               style={{
                 marginHorizontal: 16,
                 marginTop: 16,
-                backgroundColor: colors.background2,
-                borderRadius: 20,
-                padding: 10,
                 gap: 10,
               }}
             >
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                {captureOptions.slice(0, 4).map((option) => {
+                {captureOptions.slice(0, 3).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
@@ -404,42 +399,42 @@ export default function HomeScreen() {
                   return (
                     <TouchableOpacity
                       key={option.id}
-                      onPress={() => option.id === 'ai' ? toggleChatMode() : handleCapture(option.route!)}
+                      onPress={() => handleCapture(option.route)}
                       disabled={isUploading}
                       activeOpacity={0.7}
                       style={{
                         flex: 1,
                         aspectRatio: 1,
                         borderRadius: 16,
-                        backgroundColor: colors.surfaceVariant,
+                        backgroundColor: option.bg,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
-                        size: 24,
+                        size: 42,
                         color: option.color,
-                        strokeWidth: 1.8,
+                        strokeWidth: 1.4,
                       })}
-                      <Text style={{ fontSize: 10, fontWeight: '500', color: colors.secondary, marginTop: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
                       </Text>
                       {count > 0 && (
                         <View
                           style={{
                             position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            minWidth: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            backgroundColor: colors.accent,
+                            top: 6,
+                            right: 6,
+                            minWidth: 20,
+                            height: 20,
+                            borderRadius: 10,
+                            backgroundColor: option.color,
                             alignItems: 'center',
                             justifyContent: 'center',
-                            paddingHorizontal: 3,
+                            paddingHorizontal: 4,
                           }}
                         >
-                          <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
                             {count}
                           </Text>
                         </View>
@@ -450,7 +445,7 @@ export default function HomeScreen() {
               </View>
               {/* Row 2 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
-                {captureOptions.slice(4, 8).map((option) => {
+                {captureOptions.slice(3, 6).map((option) => {
                   const types = buttonToMemoTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
@@ -459,42 +454,42 @@ export default function HomeScreen() {
                   return (
                     <TouchableOpacity
                       key={option.id}
-                      onPress={() => option.id === 'ai' ? toggleChatMode() : handleCapture(option.route!)}
+                      onPress={() => handleCapture(option.route)}
                       disabled={isUploading}
                       activeOpacity={0.7}
                       style={{
                         flex: 1,
                         aspectRatio: 1,
                         borderRadius: 16,
-                        backgroundColor: colors.surfaceVariant,
+                        backgroundColor: option.bg,
                         alignItems: 'center',
                         justifyContent: 'center',
                       }}
                     >
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
-                        size: 24,
+                        size: 42,
                         color: option.color,
-                        strokeWidth: 1.8,
+                        strokeWidth: 1.4,
                       })}
-                      <Text style={{ fontSize: 10, fontWeight: '500', color: colors.secondary, marginTop: 6 }}>
+                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
                       </Text>
                       {count > 0 && (
                         <View
                           style={{
                             position: 'absolute',
-                            top: 4,
-                            right: 4,
-                            minWidth: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            backgroundColor: colors.accent,
+                            top: 6,
+                            right: 6,
+                            minWidth: 20,
+                            height: 20,
+                            borderRadius: 10,
+                            backgroundColor: option.color,
                             alignItems: 'center',
                             justifyContent: 'center',
-                            paddingHorizontal: 3,
+                            paddingHorizontal: 4,
                           }}
                         >
-                          <Text style={{ color: '#FFFFFF', fontSize: 9, fontWeight: '700' }}>
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
                             {count}
                           </Text>
                         </View>
@@ -503,6 +498,26 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
+              {/* Ask AI button — same width as Voice, half height */}
+              <TouchableOpacity
+                onPress={toggleChatMode}
+                activeOpacity={0.7}
+                style={{
+                  flex: 1,
+                  borderRadius: 16,
+                  backgroundColor: '#1E1A2E',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingVertical: 14,
+                }}
+              >
+                <Sparkles size={20} color="#7B61FF" strokeWidth={1.8} />
+                <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF', letterSpacing: 0.3 }}>
+                  ASK AI
+                </Text>
+              </TouchableOpacity>
             </View>
 
             {/* Buffer chips */}

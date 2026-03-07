@@ -4,14 +4,21 @@
 
 // Capture colors — brand colors, same in both themes
 export const captureColors = {
-  photo: '#AB9FF2',    // phantom purple (light)
-  video: '#59A5F5',    // soft blue
-  text: '#AB9FF2',     // phantom purple
-  voice: '#F2726F',    // coral red
+  photo: '#5B8DEF',    // blue
+  video: '#E87DA0',    // pink
+  gallery: '#AB9FF2',  // purple
+  text: '#6FCF97',     // green
+  voice: '#EF4444',    // red
   file: '#F2C94C',     // warm yellow
-  gallery: '#6FCF97',  // soft green
-  scan: '#59A5F5',     // soft blue
-  ai: '#7B61FF',       // vivid purple
+} as const;
+
+export const captureColorsBg = {
+  photo: '#1A2540',    // dark blue tint
+  video: '#2D1A22',    // dark pink tint
+  gallery: '#241E35',  // dark purple tint
+  text: '#1A2D1E',     // dark green tint
+  voice: '#2D1A1A',    // dark red tint
+  file: '#2D2A1A',     // dark yellow tint
 } as const;
 
 // Semantic colors — same in both themes
