@@ -48,14 +48,14 @@ function TopNav() {
             }}
           >
             <Icon
-              size={20}
+              size={30}
               color={isActive ? colors.primary : colors.tertiary}
               strokeWidth={isActive ? 2 : 1.5}
             />
             {isActive && (
               <Text
                 style={{
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: '600',
                   color: colors.primary,
                 }}

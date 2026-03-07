@@ -4,6 +4,7 @@ import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions 
 import { useRouter } from 'expo-router';
 import { X, RefreshCw, Circle, Square } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { File } from 'expo-file-system/next';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 const MAX_DURATION = 30; // 30 seconds
@@ -17,7 +18,6 @@ export default function VideoCaptureScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
-  const [videoDuration, setVideoDuration] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const addItem = useBufferStore((state) => state.addItem);
@@ -79,7 +79,6 @@ export default function VideoCaptureScreen() {
 
       if (video?.uri) {
         setCapturedUri(video.uri);
-        setVideoDuration(recordingTime * 1000); // Convert to milliseconds
       }
     } catch (error) {
       console.error('Error recording video:', error);
@@ -113,16 +112,22 @@ export default function VideoCaptureScreen() {
   const handleCancel = () => {
     setCapturedUri(null);
     setRecordingTime(0);
-    setVideoDuration(0);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!capturedUri) return;
+
+    let fileSize: number | undefined;
+    try {
+      const file = new File(capturedUri);
+      fileSize = file.size ?? undefined;
+    } catch {};
 
     addItem({
       type: 'video',
       uri: capturedUri,
-      duration: videoDuration,
+      duration: recordingTime * 1000,
+      size: fileSize,
       mimeType: 'video/mp4',
     });
 
@@ -263,7 +268,7 @@ export default function VideoCaptureScreen() {
         visible={!!capturedUri}
         type="video"
         uri={capturedUri ?? ''}
-        duration={videoDuration}
+        duration={recordingTime}
         onCancel={handleCancel}
         onAdd={handleAdd}
       />

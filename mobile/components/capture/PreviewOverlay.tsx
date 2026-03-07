@@ -140,7 +140,7 @@ export function PreviewOverlay({
   return (
     <View className="absolute inset-0 bg-black/80 justify-center px-6">
       {/* Preview content */}
-      <View className="mb-8">
+      <View className="mb-16">
         <PreviewContent
           type={type}
           uri={uri}
@@ -151,7 +151,7 @@ export function PreviewOverlay({
       </View>
 
       {/* Action buttons */}
-      <View className="flex-row justify-center gap-6">
+      <View className="flex-row justify-center gap-12">
         {/* Cancel */}
         <TouchableOpacity
           onPress={() => handleAction(onCancel)}
@@ -180,7 +180,7 @@ export function PreviewOverlay({
       </View>
 
       {/* Labels */}
-      <View className="flex-row justify-center gap-6 mt-3">
+      <View className="flex-row justify-center gap-12 mt-3">
         <Text className="text-secondary text-sm w-16 text-center">Cancel</Text>
         {onEdit && (
           <Text className="text-secondary text-sm w-16 text-center">Edit</Text>

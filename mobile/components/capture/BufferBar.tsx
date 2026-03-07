@@ -118,19 +118,8 @@ function BufferThumbnail({
   const formatDuration = (sec: number) =>
     `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 
-  const closeButton = (
-    <TouchableOpacity
-      onPress={handleRemove}
-      className="rounded-full items-center justify-center"
-      style={{
-        width: 32,
-        height: 32,
-        backgroundColor: 'rgba(0,0,0,0.3)',
-      }}
-    >
-      <X size={16} color="#FFFFFF" strokeWidth={2.5} />
-    </TouchableOpacity>
-  );
+  const cardBg = '#2C2C2E';
+  const label = getItemLabel(item.type);
 
   // ── TEXT CARD ──
   if (isText) {
@@ -138,44 +127,32 @@ function BufferThumbnail({
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.8}
-        className="flex-row mb-3 overflow-hidden"
+        className="mb-4"
         style={{
-          backgroundColor: colors.background2,
-          borderRadius: 16,
-          borderLeftWidth: 4,
-          borderLeftColor: colors.accent,
-          minHeight: 72,
+          backgroundColor: cardBg,
+          borderRadius: 24,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 20,
         }}
       >
-        <View className="items-center justify-center pl-4">
-          {React.cloneElement(getItemIcon(item.type, 22)!, {
-            stroke: colors.accent,
-            color: colors.accent,
-          })}
-        </View>
-
-        <View className="flex-1 px-3 py-3">
-          <Text
-            style={{ color: colors.primary, fontSize: 16, lineHeight: 22 }}
-            numberOfLines={5}
-          >
-            {item.preview ?? ''}
+        {/* Header: label + close */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <Text style={{ color: colors.secondary, fontSize: 14, fontWeight: '500' }}>
+            {label}
           </Text>
-        </View>
-
-        <View className="items-center justify-center pr-3">
-          <TouchableOpacity
-            onPress={handleRemove}
-            className="rounded-full items-center justify-center"
-            style={{
-              width: 32,
-              height: 32,
-              backgroundColor: `${colors.tertiary}30`,
-            }}
-          >
-            <X size={16} color={colors.secondary} strokeWidth={2.5} />
+          <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <X size={18} color={colors.secondary} strokeWidth={2} />
           </TouchableOpacity>
         </View>
+
+        {/* Content */}
+        <Text
+          style={{ color: colors.primary, fontSize: 18, lineHeight: 26, fontWeight: '300' }}
+          numberOfLines={6}
+        >
+          {item.preview ?? ''}
+        </Text>
       </TouchableOpacity>
     );
   }
@@ -186,39 +163,45 @@ function BufferThumbnail({
       <TouchableOpacity
         onPress={onPress}
         activeOpacity={0.8}
-        className="flex-row mb-3 overflow-hidden"
+        className="mb-4"
         style={{
-          backgroundColor: colors.background2,
-          borderRadius: 16,
-          minHeight: 100,
+          backgroundColor: cardBg,
+          borderRadius: 24,
+          paddingHorizontal: 20,
+          paddingTop: 16,
+          paddingBottom: 20,
         }}
       >
-        <Image
-          source={{ uri: item.thumbnail ?? item.uri }}
-          style={{ width: 100, height: 100, borderRadius: 12, margin: 8 }}
-          resizeMode="cover"
-        />
-
-        <View className="flex-1 justify-center py-3 pr-2">
-          <View className="flex-row items-center mb-1">
-            {getItemIcon(item.type, 18)}
-            <Text
-              className="ml-2 font-semibold"
-              style={{ color: colors.primary, fontSize: 17 }}
-              numberOfLines={1}
-            >
-              {item.fileName || getItemLabel(item.type)}
-            </Text>
-          </View>
-          {item.fileSize && (
-            <Text style={{ color: colors.secondary, fontSize: 14 }}>
-              {formatSize(item.fileSize)}
-            </Text>
-          )}
+        {/* Header: label + close */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <Text style={{ color: colors.secondary, fontSize: 14, fontWeight: '500' }}>
+            {label}
+          </Text>
+          <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <X size={18} color={colors.secondary} strokeWidth={2} />
+          </TouchableOpacity>
         </View>
 
-        <View className="items-center justify-center pr-3">
-          {closeButton}
+        {/* Thumbnail + info */}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <Image
+            source={{ uri: item.thumbnail ?? item.uri }}
+            style={{ width: 72, height: 72, borderRadius: 14 }}
+            resizeMode="cover"
+          />
+          <View style={{ flex: 1, marginLeft: 14 }}>
+            <Text
+              style={{ color: colors.primary, fontSize: 18, fontWeight: '300' }}
+              numberOfLines={1}
+            >
+              {item.fileName || label}
+            </Text>
+            {item.fileSize && (
+              <Text style={{ color: colors.tertiary, fontSize: 14, marginTop: 2 }}>
+                {formatSize(item.fileSize)}
+              </Text>
+            )}
+          </View>
         </View>
       </TouchableOpacity>
     );
@@ -229,40 +212,45 @@ function BufferThumbnail({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.8}
-      className="flex-row items-center mb-3 px-4"
+      className="mb-4"
       style={{
-        backgroundColor: colors.background2,
-        borderRadius: 16,
-        height: 56,
+        backgroundColor: cardBg,
+        borderRadius: 24,
+        paddingHorizontal: 20,
+        paddingTop: 16,
+        paddingBottom: 20,
       }}
     >
-      <View className="mr-3">
-        {getItemIcon(item.type, 22)}
+      {/* Header: label + close */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+        <Text style={{ color: colors.secondary, fontSize: 14, fontWeight: '500' }}>
+          {label}
+        </Text>
+        <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+          <X size={18} color={colors.secondary} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
 
-      <View className="flex-1">
-        {item.duration ? (
-          <Text style={{ color: colors.primary, fontSize: 18, fontWeight: '700' }}>
-            {formatDuration(item.duration)}
+      {/* Content */}
+      {item.duration ? (
+        <Text style={{ color: colors.primary, fontSize: 36, fontWeight: '200' }}>
+          {formatDuration(item.duration)}
+        </Text>
+      ) : (
+        <>
+          <Text
+            style={{ color: colors.primary, fontSize: 18, fontWeight: '300' }}
+            numberOfLines={1}
+          >
+            {item.fileName || label}
           </Text>
-        ) : (
-          <>
-            <Text
-              style={{ color: colors.primary, fontSize: 16, fontWeight: '600' }}
-              numberOfLines={1}
-            >
-              {item.fileName || getItemLabel(item.type)}
+          {item.fileSize && (
+            <Text style={{ color: colors.tertiary, fontSize: 14, marginTop: 2 }}>
+              {formatSize(item.fileSize)}
             </Text>
-            {item.fileSize && (
-              <Text style={{ color: colors.secondary, fontSize: 13 }}>
-                {formatSize(item.fileSize)}
-              </Text>
-            )}
-          </>
-        )}
-      </View>
-
-      {closeButton}
+          )}
+        </>
+      )}
     </TouchableOpacity>
   );
 }

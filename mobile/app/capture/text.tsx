@@ -44,21 +44,28 @@ export default function TextCaptureScreen() {
         <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
           <TouchableOpacity
             onPress={handleClose}
-            className="w-10 h-10 items-center justify-center"
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 28,
+              backgroundColor: colors.surfaceVariant,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <X size={24} color={colors.secondary} />
+            <X size={26} color="#FFFFFF" />
           </TouchableOpacity>
 
-          <Text className="text-primary text-lg font-semibold">New note</Text>
+          <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>New note</Text>
 
           <TouchableOpacity
             onPress={handleSave}
             disabled={!text.trim()}
-            className={`w-10 h-10 rounded-full items-center justify-center ${
+            className={`w-14 h-14 rounded-full items-center justify-center ${
               text.trim() ? 'bg-success' : 'bg-border'
             }`}
           >
-            <Check size={20} color={text.trim() ? '#fff' : colors.secondary} />
+            <Check size={26} color={text.trim() ? '#fff' : colors.secondary} />
           </TouchableOpacity>
         </View>
 
@@ -73,7 +80,7 @@ export default function TextCaptureScreen() {
             autoFocus
             textAlignVertical="top"
             className="flex-1 text-primary text-base leading-6"
-            style={{ fontSize: 16 }}
+            style={{ fontSize: 20, lineHeight: 30 }}
           />
         </View>
 
