@@ -237,9 +237,9 @@ async function analyzeImage(spark: Spark): Promise<string> {
     | 'image/gif'
     | 'image/webp';
 
-  const response = await anthropic.messages.create({
+const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
-    max_tokens: 500,
+    max_tokens: 800,
     messages: [
       {
         role: 'user',
@@ -250,7 +250,16 @@ async function analyzeImage(spark: Spark): Promise<string> {
           },
           {
             type: 'text',
-            text: 'Describe this image concisely in 1-2 sentences in BOTH Italian and English. Focus on the main subject, objects, and context. Format: Italian description. English description.',
+            text: `Analizza questa immagine in dettaglio per permettere ricerche future. Descrivi in italiano:
+
+                  1. PERSONE: numero, sesso approssimativo, età approssimativa, abbigliamento (colori e capi specifici), accessori
+                  2. OGGETTI: elenca tutti gli oggetti visibili con i loro colori
+                  3. AMBIENTE: interno/esterno, tipo di luogo, illuminazione, ora del giorno
+                  4. COLORI DOMINANTI: elenca i 3-5 colori principali presenti
+                  5. AZIONI: cosa sta succedendo, cosa stanno facendo le persone
+                  6. TESTO VISIBILE: se presente, trascrivilo
+
+Sii specifico e usa aggettivi precisi. Questa descrizione serve per trovare l'immagine tramite ricerca testuale.`,
           },
         ],
       },
