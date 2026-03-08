@@ -4,16 +4,16 @@ import { useQuery } from '@tanstack/react-query';
 import { FileText, LayoutGrid, TrendingUp } from 'lucide-react';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { memosApi, tilesApi } from '@/lib/api';
-import type { MemoType } from '@/types';
+import { sparksApi, tilesApi } from '@/lib/api';
+import type { SparkType } from '@/types';
 
 const statConfig = [
   { name: 'Tiles', icon: LayoutGrid, color: 'text-blue-500', key: 'tiles' },
-  { name: 'Memos', icon: FileText, color: 'text-zinc-300', key: 'memos' },
+  { name: 'Sparks', icon: FileText, color: 'text-zinc-300', key: 'sparks' },
   { name: 'Spazio Utilizzato', icon: TrendingUp, color: 'text-green-500', key: 'size' },
 ] as const;
 
-const typeLabels: Record<MemoType, string> = {
+const typeLabels: Record<SparkType, string> = {
   photo: 'Foto',
   image: 'Immagini',
   video: 'Video',
@@ -22,7 +22,7 @@ const typeLabels: Record<MemoType, string> = {
   file: 'File',
 };
 
-const typeColors: Record<MemoType, string> = {
+const typeColors: Record<SparkType, string> = {
   photo: 'bg-blue-500',
   image: 'bg-green-500',
   video: 'bg-orange-500',
@@ -32,14 +32,14 @@ const typeColors: Record<MemoType, string> = {
 };
 
 export default function AnalyticsPage() {
-  const { data: memosData } = useQuery({
-    queryKey: ['memos', { limit: 5 }],
-    queryFn: () => memosApi.list({ limit: 5 }),
+  const { data: sparksData } = useQuery({
+    queryKey: ['sparks', { limit: 5 }],
+    queryFn: () => sparksApi.list({ limit: 5 }),
   });
 
   const { data: statsData } = useQuery({
-    queryKey: ['memos-stats'],
-    queryFn: () => memosApi.stats(),
+    queryKey: ['sparks-stats'],
+    queryFn: () => sparksApi.stats(),
   });
 
   const { data: tilesData } = useQuery({
@@ -47,18 +47,18 @@ export default function AnalyticsPage() {
     queryFn: () => tilesApi.list({ page: 1, limit: 1 }),
   });
 
-  const recentMemos = memosData?.data || [];
+  const recentSparks = sparksData?.data || [];
   const totalTiles = tilesData?.pagination?.total || 0;
 
   const stats = statsData?.data;
   const typeCounts = stats?.counts || {};
-  const totalMemos = stats?.total || 0;
+  const totalSparks = stats?.total || 0;
   const totalSize = stats?.totalSize || 0;
   const dateCounts = stats?.dateCounts || {};
 
   const getStatValue = (key: string) => {
     if (key === 'tiles') return totalTiles;
-    if (key === 'memos') return totalMemos;
+    if (key === 'sparks') return totalSparks;
     if (key === 'size') return `${(totalSize / 1024 / 1024).toFixed(1)} MB`;
     return typeCounts[key] || 0;
   };
@@ -106,18 +106,18 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="text-white">Distribuzione per Tipo</CardTitle>
               <CardDescription className="text-zinc-400">
-                Breakdown dei memo per categoria
+                Breakdown degli spark per categoria
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 {Object.entries(typeCounts).map(([type, count]) => {
-                  const percentage = totalMemos > 0 ? (count / totalMemos) * 100 : 0;
+                  const percentage = totalSparks > 0 ? (count / totalSparks) * 100 : 0;
                   return (
                     <div key={type} className="space-y-2">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-zinc-300">
-                          {typeLabels[type as MemoType] || type}
+                          {typeLabels[type as SparkType] || type}
                         </span>
                         <span className="text-zinc-400">
                           {count} ({percentage.toFixed(1)}%)
@@ -125,7 +125,7 @@ export default function AnalyticsPage() {
                       </div>
                       <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
                         <div
-                          className={`h-full ${typeColors[type as MemoType] || 'bg-zinc-500'} rounded-full transition-all duration-300`}
+                          className={`h-full ${typeColors[type as SparkType] || 'bg-zinc-500'} rounded-full transition-all duration-300`}
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
@@ -146,7 +146,7 @@ export default function AnalyticsPage() {
             <CardHeader>
               <CardTitle className="text-white">Attività Recente</CardTitle>
               <CardDescription className="text-zinc-400">
-                Memo creati negli ultimi 7 giorni
+                Spark creati negli ultimi 7 giorni
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -182,14 +182,14 @@ export default function AnalyticsPage() {
         {/* Recent memos */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
-            <CardTitle className="text-white">Memos recenti</CardTitle>
+            <CardTitle className="text-white">Sparks recenti</CardTitle>
           </CardHeader>
           <CardContent>
-            {recentMemos.length === 0 ? (
-              <p className="text-zinc-400">Nessun memo trovato</p>
+            {recentSparks.length === 0 ? (
+              <p className="text-zinc-400">Nessun spark trovato</p>
             ) : (
               <div className="space-y-3">
-                {recentMemos.map((memo) => (
+                {recentSparks.map((memo) => (
                   <div
                     key={memo.id}
                     className="flex items-center justify-between p-3 rounded-lg bg-zinc-800/50"

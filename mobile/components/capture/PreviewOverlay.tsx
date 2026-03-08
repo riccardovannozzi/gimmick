@@ -5,12 +5,12 @@ import { X, Check, Edit2, FileText, Mic, File } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
 import { captureColors } from '@/constants/colors';
 import { useSettingsStore } from '@/store';
-import type { MemoType } from '@/types';
+import type { SparkType } from '@/types';
 import { formatDuration, truncateText } from '@/utils/formatters';
 
 interface PreviewOverlayProps {
   visible: boolean;
-  type: MemoType;
+  type: SparkType;
   uri: string;
   preview?: string;      // For text
   duration?: number;     // For audio, in ms

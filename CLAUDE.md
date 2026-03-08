@@ -4,74 +4,65 @@
 
 ---
 
-## 🎯 Cos'è Gimmick
+## Cos'e Gimmick
 
-**Gimmick** è un'app mobile per la **cattura rapida** di informazioni multi-formato con **assistente AI** integrato.
+**Gimmick** e un'app multi-piattaforma per la **cattura rapida** di informazioni multi-formato con **assistente AI** integrato.
 
-### Modalità di utilizzo
+### Modalita di utilizzo
 
-1. **Standalone**: Cattura e organizza memo per uso personale
+1. **Standalone**: Cattura e organizza spark per uso personale
 2. **Teleport**: Invia "tiles" ad altre applicazioni collegate (es. Magicaboola)
 
 **Obiettivo**: Ridurre al minimo il tempo tra "ho un'informazione da salvare" e "informazione archiviata" - localmente o in un'altra app.
 
-**Repository**: https://github.com/riccardovannozzi/moca
+---
+
+## Architettura Entita
+
+```
+TILE (contenitore)
+├── title, description, is_event
+├── start_at, end_at          (scheduling/eventi)
+├── SPARKS (contenuti)
+│   ├── photo, image, video
+│   ├── audio_recording, text, file
+│   └── metadata (tags, summary, ai_description, transcript, pending_event)
+└── SERVIZI AI
+    ├── Chat (Claude Sonnet)
+    ├── Tags + Summary (Claude Haiku)
+    ├── Embedding (text-embedding-3-small)
+    └── Date extraction (Claude Haiku, confidence scoring)
+```
+
+### Entita principali
+
+- **Tile**: Contenitore logico. Puo essere un evento (is_event + start_at/end_at) o un semplice raggruppamento
+- **Spark**: Singolo contenuto catturato (foto, video, audio, testo, file). Appartiene a un Tile
+- **Tag**: Etichetta generata dall'AI, con alias per deduplicazione
+
+### AI Indexing Pipeline
+
+Quando un nuovo Spark viene creato:
+1. AI genera tags + summary (Claude Haiku)
+2. AI genera embedding vettoriale (OpenAI text-embedding-3-small)
+3. Per sparks di tipo text/audio: AI estrae date con confidence scoring
+   - Confidence >= 0.8: auto-salva start_at/end_at sul tile
+   - Confidence 0.3-0.8: salva come `pending_event` nei metadata dello spark
 
 ---
 
-## 🚀 Concetto "Teleport"
+## Stack Tecnico
 
-Gimmick funziona come un **hub di cattura universale**:
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      GIMMICK                            │
-│                  (Cattura contenuto)                    │
-└─────────────────────────┬───────────────────────────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │   Dove vuoi inviare?  │
-              └───────────────────────┘
-                          │
-          ┌───────────────┼───────────────┐
-          ▼               ▼               ▼
-    ┌──────────┐   ┌──────────────┐   ┌──────────┐
-    │ Gimmick  │   │ Magicaboola  │   │ Altra App│
-    │ (locale) │   │  (progetto)  │   │ collegata│
-    └──────────┘   └──────────────┘   └──────────┘
-```
-
-### Flusso Teleport
-
-1. Utente cattura contenuto (foto, audio, testo, etc.)
-2. Sceglie destinazione:
-   - **Locale**: salva in Gimmick
-   - **Teleport**: invia come "tile" a un'app collegata
-3. L'app destinazione riceve la tile con metadati
-
-### Integrazione con altre app
-
-```typescript
-// Esempio: invio tile a Magicaboola
-const teleportTile = {
-  source: 'gimmick',
-  type: 'photo',
-  content_uri: 'https://storage.../photo.jpg',
-  metadata: {
-    captured_at: '2026-01-10T12:00:00Z',
-    location: { lat: 42.123, lng: 11.456 },
-  },
-  destination: {
-    app: 'magicaboola',
-    target: 'project_id_123',  // Associa a progetto specifico
-  }
-};
-```
-
----
-
-## 🛠 Stack Tecnico
+### Frontend (Next.js - Dashboard Web)
+| Tecnologia | Uso |
+|------------|-----|
+| Next.js 15 | App Router, SSR |
+| TypeScript | Type safety |
+| Tailwind CSS | Styling |
+| React Query | Data fetching |
+| Zustand | State management |
+| FullCalendar | Calendario eventi |
+| D3.js | Grafo relazioni |
 
 ### Mobile (Expo/React Native)
 | Tecnologia | Versione | Uso |
@@ -89,26 +80,44 @@ const teleportTile = {
 | Express.js | API REST (porta 5000) |
 | TypeScript | Type safety |
 | Supabase | Auth, Storage, Database |
+| Claude API | AI chat, indexing, date extraction |
+| OpenAI API | Embeddings |
 
 ### Porte di sviluppo
 | Servizio | Porta |
 |----------|-------|
+| Next.js (frontend) | 3000 |
 | Expo (mobile) | 8081 |
 | Express.js (backend) | 5000 |
 
 ---
 
-## 📁 Struttura Progetto
+## Struttura Progetto
 
 ```
 gimmick/
 ├── CLAUDE.md              # Questo file
 ├── DEVELOP.md             # Roadmap e tracking
+├── frontend/              # Next.js dashboard
+│   ├── app/(dashboard)/
+│   │   ├── page.tsx           # Dashboard home
+│   │   ├── sparks/page.tsx    # Lista sparks
+│   │   ├── tiles/page.tsx     # Lista tiles
+│   │   ├── calendar/page.tsx  # Calendario eventi
+│   │   ├── graph/page.tsx     # Grafo relazioni
+│   │   └── capture/page.tsx   # Cattura contenuti
+│   ├── components/
+│   │   ├── spark/spark-viewer.tsx
+│   │   ├── chat/chat-panel.tsx
+│   │   └── layout/sidebar.tsx
+│   ├── lib/
+│   │   ├── api.ts             # sparksApi, tilesApi, calendarApi, chatApi
+│   │   └── spark-utils.ts     # Utility per spark types
+│   └── types/index.ts
 ├── backend/
 │   └── src/
 │       ├── index.ts           # Entry point
-│       ├── config/
-│       │   └── supabase.ts
+│       ├── config/supabase.ts
 │       ├── middleware/
 │       │   ├── auth.ts
 │       │   ├── errorHandler.ts
@@ -116,221 +125,85 @@ gimmick/
 │       │   └── validate.ts
 │       ├── routes/
 │       │   ├── auth.ts
-│       │   ├── memos.ts
-│       │   ├── tiles.ts       # API per teleport tiles
-│       │   └── upload.ts
-│       └── types/
-│           └── index.ts
+│       │   ├── sparks.ts      # CRUD sparks + search + reindex
+│       │   ├── tiles.ts       # CRUD tiles
+│       │   ├── calendar.ts    # Eventi calendario + create-event
+│       │   ├── chat.ts        # AI chat
+│       │   └── upload.ts      # File upload
+│       ├── services/
+│       │   ├── ai.ts          # AI chat con tool use
+│       │   └── indexing.ts    # AI indexing pipeline
+│       ├── scripts/
+│       │   ├── reindex-all.ts
+│       │   └── fix-orphan-sparks.ts
+│       └── types/index.ts
 └── mobile/
     ├── app/
-    │   ├── (tabs)/            # Tab navigation
+    │   ├── (tabs)/
     │   │   ├── index.tsx      # Home (cattura)
-    │   │   ├── history.tsx    # Storico memo
+    │   │   ├── history.tsx    # Storico sparks
     │   │   └── settings.tsx   # Impostazioni
-    │   ├── auth/
-    │   │   └── login.tsx
+    │   ├── auth/login.tsx
     │   ├── capture/           # Schermate cattura
-    │   │   ├── photo.tsx
-    │   │   ├── video.tsx
-    │   │   ├── text.tsx
-    │   │   ├── voice.tsx
-    │   │   ├── file.tsx
-    │   │   └── gallery.tsx
     │   └── edit/              # Editor
-    │       ├── image.tsx
-    │       ├── audio.tsx
-    │       └── text.tsx
     ├── components/
     │   ├── capture/
-    │   │   ├── BufferBar.tsx
-    │   │   ├── CaptureButton.tsx
-    │   │   └── PreviewOverlay.tsx
     │   ├── chat/
-    │   │   └── ChatInput.tsx
     │   ├── layout/
-    │   │   └── SafeAreaWrapper.tsx
     │   └── ui/
-    │       ├── Button.tsx
-    │       ├── ConfirmModal.tsx
-    │       ├── IconButton.tsx
-    │       ├── Modal.tsx
-    │       └── Toast.tsx
     ├── store/
     │   ├── authStore.ts
     │   ├── bufferStore.ts
     │   ├── settingsStore.ts
     │   └── toastStore.ts
-    ├── hooks/
-    │   └── useVoiceRecorder.ts
     ├── lib/
-    │   ├── api.ts
-    │   ├── compression.ts
-    │   ├── storage.ts
-    │   ├── supabase.ts
-    │   └── teleport.ts        # Logica teleport verso altre app
-    ├── constants/
-    │   ├── colors.ts
-    │   └── config.ts
-    ├── types/
-    │   └── index.ts
-    └── utils/
-        └── formatters.ts
+    │   ├── api.ts             # sparksApi
+    │   ├── storage.ts         # Supabase storage (bucket: sparks)
+    │   └── supabase.ts
+    └── types/index.ts
 ```
 
 ---
 
-## 🎨 Design System
+## Design System
 
 ### Palette Colori (Dark Theme)
 
 ```typescript
 const colors = {
-  // Backgrounds
   background1: '#1E1E1E',    // Primary background
   background2: '#252526',    // Cards, modals
   background3: '#2D2D30',    // Hover states
-  
-  // Text
   primary: '#F5F5F5',        // Primary text
   secondary: '#9CA3AF',      // Secondary text
   tertiary: '#6B7280',       // Muted text
-  
-  // Accent
   accent: '#528BFF',         // Primary accent (blue)
-  
-  // Semantic
   success: '#22C55E',
   warning: '#F59E0B',
   error: '#EF4444',
-  
-  // Border
   border: '#3E3E42',
-  
-  // Bottoni cattura
   capture: {
-    photo: '#3B82F6',      // Blue
-    video: '#8B5CF6',      // Purple
-    text: '#22C55E',       // Green
-    voice: '#EF4444',      // Red
-    file: '#F59E0B',       // Amber
-    gallery: '#EC4899',    // Pink
+    photo: '#3B82F6',
+    video: '#8B5CF6',
+    text: '#22C55E',
+    voice: '#EF4444',
+    file: '#F59E0B',
+    gallery: '#EC4899',
   }
 };
 ```
 
-### Spacing
-
-```typescript
-const spacing = {
-  xs: 4,
-  sm: 8,
-  md: 16,
-  lg: 24,
-  xl: 32,
-};
-```
-
-### Componenti UI
-
-| Componente | Specifiche |
-|------------|------------|
-| CaptureButton | Height: 56px, full-width, icona+label a sinistra |
-| ChatInput | Height: 52px, pill shape (border-radius: 26px) |
-| BufferBar | Height: 72px, scroll orizzontale |
-| Modal | Background: background2, border: border |
-
 ---
 
-## 📐 Pattern e Convenzioni
+## Database Schema
 
-### Zustand Store Pattern
-
-```typescript
-// store/exampleStore.ts
-import { create } from 'zustand';
-
-interface ExampleState {
-  data: string[];
-  isLoading: boolean;
-  
-  // Actions
-  addItem: (item: string) => void;
-  clear: () => void;
-}
-
-export const useExampleStore = create<ExampleState>((set) => ({
-  data: [],
-  isLoading: false,
-  
-  addItem: (item) => set((state) => ({
-    data: [...state.data, item],
-  })),
-  
-  clear: () => set({ data: [] }),
-}));
-```
-
-### Componente Pattern
-
-```typescript
-// components/Example.tsx
-import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-
-interface ExampleProps {
-  title: string;
-  onPress: () => void;
-  disabled?: boolean;
-}
-
-export function Example({ title, onPress, disabled = false }: ExampleProps) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      className="bg-background2 p-4 rounded-lg border border-border"
-    >
-      <Text className="text-primary">{title}</Text>
-    </Pressable>
-  );
-}
-
-export default Example;
-```
-
-### Import/Export
-
-```typescript
-// Usa index.ts per re-export
-// components/ui/index.ts
-export { Button } from './Button';
-export { Modal } from './Modal';
-export { Toast } from './Toast';
-
-// Poi importa così:
-import { Button, Modal } from '@/components/ui';
-```
-
-### Naming Conventions
-
-| Tipo | Convenzione | Esempio |
-|------|-------------|---------|
-| Componenti | PascalCase | `CaptureButton.tsx` |
-| Hooks | camelCase con "use" | `useVoiceRecorder.ts` |
-| Store | camelCase con "Store" | `bufferStore.ts` |
-| Tipi/Interface | PascalCase | `BufferItem`, `MemoType` |
-| Costanti | UPPER_SNAKE o camelCase | `colors`, `API_URL` |
-
----
-
-## 🗄 Database Schema
-
-### Tabella memos (contenuti locali)
+### Tabella sparks
 
 ```sql
-CREATE TABLE memos (
+CREATE TABLE sparks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
+  tile_id UUID REFERENCES tiles(id),
   type TEXT NOT NULL, -- 'photo', 'video', 'text', 'audio_recording', 'file', 'image'
   content TEXT,
   storage_path TEXT,
@@ -340,139 +213,94 @@ CREATE TABLE memos (
   file_size INTEGER,
   duration INTEGER,
   metadata JSONB DEFAULT '{}',
+  ai_status TEXT DEFAULT 'pending', -- 'pending', 'processing', 'completed', 'failed'
+  embedding vector(1536),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-### Tabella tiles (per teleport)
+### Tabella tiles
 
 ```sql
 CREATE TABLE tiles (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
-  memo_id UUID REFERENCES memos(id),
-  
-  -- Destinazione teleport
-  destination_app TEXT NOT NULL,      -- 'magicaboola', 'altra_app'
-  destination_target TEXT,            -- ID risorsa nell'app destinazione
-  
-  -- Stato
-  status TEXT DEFAULT 'pending',      -- 'pending', 'sent', 'received', 'failed'
-  sent_at TIMESTAMPTZ,
-  received_at TIMESTAMPTZ,
-  
-  -- Metadata
-  metadata JSONB DEFAULT '{}',
-  
-  created_at TIMESTAMPTZ DEFAULT NOW()
+  title TEXT,
+  description TEXT,
+  is_event BOOLEAN DEFAULT FALSE,
+  start_at TIMESTAMPTZ,
+  end_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
-### Storage Paths
+### Storage Bucket: `sparks`
 
 ```
-memos/{user_id}/photos/{memo_id}.jpg
-memos/{user_id}/videos/{memo_id}.mp4
-memos/{user_id}/audio/{memo_id}.m4a
-memos/{user_id}/files/{memo_id}_{filename}
-thumbnails/{user_id}/{memo_id}_thumb.jpg
-```
-
----
-
-## 🔧 Comandi Utili
-
-### Sviluppo
-
-```bash
-# Mobile
-cd mobile
-npx expo start
-
-# Backend
-cd backend
-npm run dev
-
-# Installare dipendenza Expo-compatibile
-npx expo install [pacchetto]
-```
-
-### Git
-
-```bash
-git add .
-git commit -m "feat: descrizione"
-git push
-```
-
-### Build
-
-```bash
-# APK Android (preview)
-eas build --platform android --profile preview
-
-# APK Android (production)
-eas build --platform android --profile production
+sparks/{user_id}/photos/{filename}.jpg
+sparks/{user_id}/videos/{filename}.mp4
+sparks/{user_id}/audio/{filename}.m4a
+sparks/{user_id}/files/{filename}
 ```
 
 ---
 
-## 📱 Funzionalità App
+## API Endpoints
 
-### Tipi di Cattura (6)
+### Sparks
+- `GET /api/sparks` - Lista con paginazione e filtri (type, tile_id)
+- `GET /api/sparks/:id` - Dettaglio spark
+- `GET /api/sparks/search?q=...` - Ricerca semantica
+- `GET /api/sparks/stats` - Statistiche per tipo
+- `POST /api/sparks` - Crea spark (auto-crea tile se mancante)
+- `POST /api/sparks/batch` - Crea multipli
+- `PATCH /api/sparks/:id` - Aggiorna
+- `DELETE /api/sparks/:id` - Elimina (+ file storage)
+- `POST /api/sparks/:id/reindex` - Ri-indicizza singolo
+- `POST /api/sparks/reindex-all` - Ri-indicizza pending/failed
 
-| Tipo | Icona | Azione |
-|------|-------|--------|
-| FOTO | 📷 | Scatta con fotocamera |
-| VIDEO | 🎬 | Registra max 30 sec, 720p |
-| TESTO | 📝 | Scrivi nota |
-| VOCE | 🎤 | Registra audio |
-| FILE | 📁 | Importa documento |
-| GALLERIA | 🖼️ | Seleziona da rullino |
+### Tiles
+- `GET /api/tiles` - Lista con sparks count
+- `GET /api/tiles/:id` - Dettaglio con sparks
+- `POST /api/tiles` - Crea
+- `PATCH /api/tiles/:id` - Aggiorna
+- `DELETE /api/tiles/:id` - Elimina (+ sparks + files)
 
-### Chat AI
+### Calendar
+- `GET /api/calendar/events` - Eventi schedulati
+- `POST /api/calendar/create-event` - Crea tile evento + spark testo atomicamente
+- `PATCH /api/calendar/reschedule/:id` - Rischedula
 
-Input stile Google con campo testo + microfono:
-- Comandi testuali o vocali
-- AI parsing e esecuzione azioni
-- Esempi: "Ricordami di...", "Riassumi gli ultimi memo"
-
-### Flusso Cattura
-
-```
-Tap bottone → Cattura → Preview → [Annulla|Aggiungi|Modifica] → Buffer → [Salva locale | Teleport]
-```
-
-### Flusso Teleport
-
-```
-Buffer pieno → Tap Invia → Scegli destinazione:
-  - "Salva in Gimmick" → Upload locale
-  - "Invia a Magicaboola" → Teleport tile
-  - "Invia a [altra app]" → Teleport tile
-```
+### Other
+- `POST /api/chat` - AI chat
+- `POST /api/upload/file` - Upload singolo
+- `POST /api/upload/files` - Upload multiplo
 
 ---
 
-## ⚠️ Note Importanti
+## Pattern e Convenzioni
 
-1. **NativeWind**: Usare `className` invece di `style` per Tailwind
-2. **Expo Router**: File-based routing in `app/`
-3. **Supabase RLS**: Row Level Security attivo, ogni query filtrata per user_id
-4. **TypeScript**: Strict mode attivo, evitare `any`
-5. **Icone**: Usare `lucide-react-native`
-6. **Teleport**: Le tile inviate mantengono riferimento al memo originale
+### Naming Conventions
+
+| Tipo | Convenzione | Esempio |
+|------|-------------|---------|
+| Componenti | PascalCase | `SparkViewer.tsx` |
+| Hooks | camelCase con "use" | `useVoiceRecorder.ts` |
+| Store | camelCase con "Store" | `bufferStore.ts` |
+| Tipi/Interface | PascalCase | `Spark`, `SparkType` |
+| Costanti | UPPER_SNAKE o camelCase | `colors`, `API_URL` |
+
+### Note Importanti
+
+1. **Entita**: Spark (non Memo) - contenuto catturato. Tile - contenitore
+2. **NativeWind**: Usare `className` per Tailwind nel mobile
+3. **Supabase RLS**: Row Level Security attivo, filtro per user_id
+4. **TypeScript**: Strict mode, evitare `any`
+5. **Icone**: `lucide-react-native` (mobile), `lucide-react` (web)
+6. **Storage bucket**: `sparks` (non `memos`)
 
 ---
 
-## 🔗 App Collegate (Teleport)
-
-| App | Descrizione | Stato |
-|-----|-------------|-------|
-| Magicaboola | Gestione pagamenti strutture turistiche | 🔄 Da integrare |
-| (altre) | Future integrazioni | ⏳ Pianificate |
-
----
-
-*Ultimo aggiornamento: Gennaio 2026*
+*Ultimo aggiornamento: Marzo 2026*

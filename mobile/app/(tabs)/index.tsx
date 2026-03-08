@@ -10,7 +10,7 @@ import { uploadBufferItems, chatApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, MemoType } from '@/types';
+import type { BufferItem, SparkType } from '@/types';
 
 type ChatMessage = {
   id: string;
@@ -21,7 +21,7 @@ type ChatMessage = {
 
 let msgCounter = 0;
 
-const buttonToMemoTypes: Record<string, MemoType[]> = {
+const buttonToSparkTypes: Record<string, SparkType[]> = {
   photo: ['photo'],
   video: ['video'],
   gallery: ['image'],
@@ -39,8 +39,8 @@ const captureOptions = [
   { id: 'file', label: 'FILE', icon: <Paperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
 ] as const;
 
-function MemoChip({ item, index, onRemove, onPress, colors }: { item: BufferItem; index: number; onRemove: () => void; onPress?: () => void; colors: any }) {
-  const getChipColor = (type: MemoType) => {
+function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferItem; index: number; onRemove: () => void; onPress?: () => void; colors: any }) {
+  const getChipColor = (type: SparkType) => {
     switch (type) {
       case 'photo': case 'image': return captureColors.photo;
       case 'video': return captureColors.video;
@@ -51,7 +51,7 @@ function MemoChip({ item, index, onRemove, onPress, colors }: { item: BufferItem
     }
   };
 
-  const getTypeLabel = (type: MemoType) => {
+  const getTypeLabel = (type: SparkType) => {
     switch (type) {
       case 'photo': return 'Photo';
       case 'image': return 'Image';
@@ -299,7 +299,7 @@ export default function HomeScreen() {
   const handleSend = async () => {
     if (items.length === 0) return;
     if (!isAuthenticated) {
-      toast.warning('Please login to upload memos');
+      toast.warning('Please login to upload sparks');
       router.push('/auth/login' as any);
       return;
     }
@@ -416,7 +416,7 @@ export default function HomeScreen() {
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {captureOptions.slice(0, 3).map((option) => {
-                  const types = buttonToMemoTypes[option.id] || [];
+                  const types = buttonToSparkTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
                     0,
@@ -471,7 +471,7 @@ export default function HomeScreen() {
               {/* Row 2 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {captureOptions.slice(3, 6).map((option) => {
-                  const types = buttonToMemoTypes[option.id] || [];
+                  const types = buttonToSparkTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
                     0,
@@ -581,7 +581,7 @@ export default function HomeScreen() {
                     const sameType = items.filter((it) => it.type === item.type);
                     const typeIndex = sameType.indexOf(item) + 1;
                     return (
-                      <MemoChip
+                      <SparkChip
                         key={item.id}
                         item={item}
                         index={typeIndex}

@@ -4,22 +4,22 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
-import type { AuthenticatedRequest, Memo, MemoType } from '../types/index.js';
-import { processNewMemo, generateEmbedding } from '../services/indexing.js';
+import type { AuthenticatedRequest, Spark, SparkType } from '../types/index.js';
+import { processNewSpark, generateEmbedding } from '../services/indexing.js';
 
-export const memosRouter = Router();
+export const sparksRouter = Router();
 
 // All routes require authentication
-memosRouter.use(authenticate);
+sparksRouter.use(authenticate);
 
 /**
- * GET /api/memos/stats
- * Get memo count grouped by type
+ * GET /api/sparks/stats
+ * Get spark count grouped by type
  */
-memosRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next) => {
+sparksRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .select('type, file_size, created_at')
       .eq('user_id', req.user!.id);
 
@@ -49,7 +49,7 @@ memosRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next)
 });
 
 // Validation schemas
-const memoTypeEnum = z.enum([
+const sparkTypeEnum = z.enum([
   'photo',
   'image',
   'video',
@@ -58,8 +58,8 @@ const memoTypeEnum = z.enum([
   'file',
 ]);
 
-const createMemoSchema = z.object({
-  type: memoTypeEnum,
+const createSparkSchema = z.object({
+  type: sparkTypeEnum,
   tile_id: z.string().uuid().optional(),
   content: z.string().optional(),
   storage_path: z.string().optional(),
@@ -71,7 +71,7 @@ const createMemoSchema = z.object({
   metadata: z.record(z.unknown()).optional(),
 });
 
-const updateMemoSchema = z.object({
+const updateSparkSchema = z.object({
   content: z.string().optional(),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -79,15 +79,15 @@ const updateMemoSchema = z.object({
 const querySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
-  type: memoTypeEnum.optional(),
+  type: sparkTypeEnum.optional(),
   tile_id: z.string().uuid().optional(),
 });
 
 /**
- * GET /api/memos
- * List user's memos with pagination
+ * GET /api/sparks
+ * List user's sparks with pagination
  */
-memosRouter.get(
+sparksRouter.get(
   '/',
   validate(querySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response, next) => {
@@ -95,13 +95,13 @@ memosRouter.get(
       const { page, limit, type, tile_id } = req.query as unknown as {
         page: number;
         limit: number;
-        type?: MemoType;
+        type?: SparkType;
         tile_id?: string;
       };
       const offset = (page - 1) * limit;
 
       let query = supabaseAdmin
-        .from('memos')
+        .from('sparks')
         .select('*', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
@@ -123,7 +123,7 @@ memosRouter.get(
 
       res.json({
         success: true,
-        data: data as Memo[],
+        data: data as Spark[],
         pagination: {
           page,
           limit,
@@ -138,10 +138,10 @@ memosRouter.get(
 );
 
 /**
- * GET /api/memos/search
- * Semantic search across user's memos
+ * GET /api/sparks/search
+ * Semantic search across user's sparks
  */
-memosRouter.get(
+sparksRouter.get(
   '/search',
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
@@ -157,8 +157,8 @@ memosRouter.get(
       // Generate embedding for the search query
       const queryEmbedding = await generateEmbedding(q);
 
-      // Call the match_memos RPC function
-      const { data, error } = await supabaseAdmin.rpc('match_memos', {
+      // Call the match_sparks RPC function
+      const { data, error } = await supabaseAdmin.rpc('match_sparks', {
         query_embedding: JSON.stringify(queryEmbedding),
         match_threshold: 0.3,
         match_count: searchLimit,
@@ -181,36 +181,34 @@ memosRouter.get(
 );
 
 /**
- * POST /api/memos/reindex-all
- * Re-trigger AI indexing for all pending/failed memos
+ * POST /api/sparks/reindex-all
+ * Re-trigger AI indexing for all pending/failed sparks
  */
-memosRouter.post('/reindex-all', async (req: AuthenticatedRequest, res: Response, next) => {
+sparksRouter.post('/reindex-all', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    // Find all memos that need indexing
-    const { data: memos, error } = await supabaseAdmin
-      .from('memos')
+    const { data: sparks, error } = await supabaseAdmin
+      .from('sparks')
       .select('id')
       .eq('user_id', req.user!.id)
       .in('ai_status', ['pending', 'failed']);
 
     if (error) throw error;
 
-    if (!memos || memos.length === 0) {
-      res.json({ success: true, message: 'No memos to reindex', count: 0 });
+    if (!sparks || sparks.length === 0) {
+      res.json({ success: true, message: 'No sparks to reindex', count: 0 });
       return;
     }
 
-    // Fire-and-forget indexing for each memo (concurrency limiter handles throttling)
-    for (const memo of memos) {
-      processNewMemo(memo.id).catch((err) => {
-        console.error(`[Memos] Reindex-all failed for ${memo.id}:`, err);
+    for (const spark of sparks) {
+      processNewSpark(spark.id).catch((err) => {
+        console.error(`[Sparks] Reindex-all failed for ${spark.id}:`, err);
       });
     }
 
     res.json({
       success: true,
-      message: `Reindexing started for ${memos.length} memos`,
-      count: memos.length,
+      message: `Reindexing started for ${sparks.length} sparks`,
+      count: sparks.length,
     });
   } catch (error) {
     next(error);
@@ -218,33 +216,31 @@ memosRouter.post('/reindex-all', async (req: AuthenticatedRequest, res: Response
 });
 
 /**
- * POST /api/memos/:id/reindex
- * Re-trigger AI indexing for a memo
+ * POST /api/sparks/:id/reindex
+ * Re-trigger AI indexing for a spark
  */
-memosRouter.post('/:id/reindex', async (req: AuthenticatedRequest, res: Response, next) => {
+sparksRouter.post('/:id/reindex', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const id = req.params.id as string;
 
-    // Verify ownership
-    const { data: memo, error } = await supabaseAdmin
-      .from('memos')
+    const { data: spark, error } = await supabaseAdmin
+      .from('sparks')
       .select('id')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();
 
-    if (error || !memo) {
-      throw new NotFoundError('Memo not found');
+    if (error || !spark) {
+      throw new NotFoundError('Spark not found');
     }
 
-    // Reset status and fire indexing
     await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .update({ ai_status: 'pending' })
       .eq('id', id);
 
-    processNewMemo(id).catch((err) => {
-      console.error(`[Memos] Reindex failed for ${id}:`, err);
+    processNewSpark(id).catch((err) => {
+      console.error(`[Sparks] Reindex failed for ${id}:`, err);
     });
 
     res.json({
@@ -257,27 +253,27 @@ memosRouter.post('/:id/reindex', async (req: AuthenticatedRequest, res: Response
 });
 
 /**
- * GET /api/memos/:id
- * Get single memo by ID
+ * GET /api/sparks/:id
+ * Get single spark by ID
  */
-memosRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+sparksRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
 
     const { data, error } = await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .select('*')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();
 
     if (error || !data) {
-      throw new NotFoundError('Memo not found');
+      throw new NotFoundError('Spark not found');
     }
 
     res.json({
       success: true,
-      data: data as Memo,
+      data: data as Spark,
     });
   } catch (error) {
     next(error);
@@ -285,12 +281,12 @@ memosRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
 });
 
 /**
- * POST /api/memos
- * Create a new memo
+ * POST /api/sparks
+ * Create a new spark
  */
-memosRouter.post(
+sparksRouter.post(
   '/',
-  validate(createMemoSchema),
+  validate(createSparkSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       let tileId = req.body.tile_id;
@@ -306,15 +302,15 @@ memosRouter.post(
         tileId = newTile.id;
       }
 
-      const memoData = {
+      const sparkData = {
         ...req.body,
         user_id: req.user!.id,
         tile_id: tileId,
       };
 
       const { data, error } = await supabaseAdmin
-        .from('memos')
-        .insert(memoData)
+        .from('sparks')
+        .insert(sparkData)
         .select()
         .single();
 
@@ -323,14 +319,14 @@ memosRouter.post(
       }
 
       // Fire-and-forget AI indexing
-      processNewMemo(data.id).catch((err) => {
-        console.error(`[Memos] Indexing trigger failed for ${data.id}:`, err);
+      processNewSpark(data.id).catch((err) => {
+        console.error(`[Sparks] Indexing trigger failed for ${data.id}:`, err);
       });
 
       res.status(201).json({
         success: true,
-        data: data as Memo,
-        message: 'Memo created successfully',
+        data: data as Spark,
+        message: 'Spark created successfully',
       });
     } catch (error) {
       next(error);
@@ -339,10 +335,10 @@ memosRouter.post(
 );
 
 /**
- * POST /api/memos/batch
- * Create multiple memos at once (optionally with tile_id)
+ * POST /api/sparks/batch
+ * Create multiple sparks at once (optionally with tile_id)
  */
-memosRouter.post(
+sparksRouter.post(
   '/batch',
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
@@ -356,7 +352,6 @@ memosRouter.post(
         return;
       }
 
-      // Auto-create tile if none provided at batch or item level
       let batchTileId = tile_id;
       if (!batchTileId) {
         const { data: newTile, error: tileError } = await supabaseAdmin
@@ -368,9 +363,8 @@ memosRouter.post(
         batchTileId = newTile.id;
       }
 
-      // Validate and add user_id and tile_id to each item
-      const memosData = items.map((item: unknown) => {
-        const parsed = createMemoSchema.parse(item);
+      const sparksData = items.map((item: unknown) => {
+        const parsed = createSparkSchema.parse(item);
         return {
           ...parsed,
           user_id: req.user!.id,
@@ -379,25 +373,24 @@ memosRouter.post(
       });
 
       const { data, error } = await supabaseAdmin
-        .from('memos')
-        .insert(memosData)
+        .from('sparks')
+        .insert(sparksData)
         .select();
 
       if (error) {
         throw error;
       }
 
-      // Fire-and-forget AI indexing for each memo
-      for (const memo of data) {
-        processNewMemo(memo.id).catch((err) => {
-          console.error(`[Memos] Indexing trigger failed for ${memo.id}:`, err);
+      for (const spark of data) {
+        processNewSpark(spark.id).catch((err) => {
+          console.error(`[Sparks] Indexing trigger failed for ${spark.id}:`, err);
         });
       }
 
       res.status(201).json({
         success: true,
-        data: data as Memo[],
-        message: `${data.length} memos created successfully`,
+        data: data as Spark[],
+        message: `${data.length} sparks created successfully`,
       });
     } catch (error) {
       next(error);
@@ -406,18 +399,18 @@ memosRouter.post(
 );
 
 /**
- * PATCH /api/memos/:id
- * Update a memo
+ * PATCH /api/sparks/:id
+ * Update a spark
  */
-memosRouter.patch(
+sparksRouter.patch(
   '/:id',
-  validate(updateMemoSchema),
+  validate(updateSparkSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
 
       const { data, error } = await supabaseAdmin
-        .from('memos')
+        .from('sparks')
         .update({
           ...req.body,
           updated_at: new Date().toISOString(),
@@ -428,13 +421,13 @@ memosRouter.patch(
         .single();
 
       if (error || !data) {
-        throw new NotFoundError('Memo not found');
+        throw new NotFoundError('Spark not found');
       }
 
       res.json({
         success: true,
-        data: data as Memo,
-        message: 'Memo updated successfully',
+        data: data as Spark,
+        message: 'Spark updated successfully',
       });
     } catch (error) {
       next(error);
@@ -443,37 +436,35 @@ memosRouter.patch(
 );
 
 /**
- * DELETE /api/memos/:id
- * Delete a memo
+ * DELETE /api/sparks/:id
+ * Delete a spark
  */
-memosRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+sparksRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
 
-    // First get the memo to check ownership and get storage paths
-    const { data: memo, error: fetchError } = await supabaseAdmin
-      .from('memos')
+    const { data: spark, error: fetchError } = await supabaseAdmin
+      .from('sparks')
       .select('*')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();
 
-    if (fetchError || !memo) {
-      throw new NotFoundError('Memo not found');
+    if (fetchError || !spark) {
+      throw new NotFoundError('Spark not found');
     }
 
     // Delete associated files from storage
     const filesToDelete: string[] = [];
-    if (memo.storage_path) filesToDelete.push(memo.storage_path);
-    if (memo.thumbnail_path) filesToDelete.push(memo.thumbnail_path);
+    if (spark.storage_path) filesToDelete.push(spark.storage_path);
+    if (spark.thumbnail_path) filesToDelete.push(spark.thumbnail_path);
 
     if (filesToDelete.length > 0) {
-      await supabaseAdmin.storage.from('memos').remove(filesToDelete);
+      await supabaseAdmin.storage.from('sparks').remove(filesToDelete);
     }
 
-    // Delete memo from database
     const { error: deleteError } = await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .delete()
       .eq('id', id)
       .eq('user_id', req.user!.id);
@@ -484,7 +475,7 @@ memosRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next
 
     res.json({
       success: true,
-      message: 'Memo deleted successfully',
+      message: 'Spark deleted successfully',
     });
   } catch (error) {
     next(error);

@@ -9,7 +9,7 @@ import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { memosApi, uploadApi } from '@/lib/api';
+import { sparksApi, uploadApi } from '@/lib/api';
 
 const captureColors = {
   photo: '#5B8DEF',
@@ -30,18 +30,18 @@ const captureColorsBg = {
 } as const;
 
 const captureOptions = [
-  { id: 'photo', label: 'PHOTO', icon: Camera, color: captureColors.photo, bg: captureColorsBg.photo, accept: 'image/*', memoType: 'photo' as const },
-  { id: 'video', label: 'VIDEO', icon: Video, color: captureColors.video, bg: captureColorsBg.video, accept: 'video/*', memoType: 'video' as const },
-  { id: 'gallery', label: 'GALLERY', icon: Images, color: captureColors.gallery, bg: captureColorsBg.gallery, accept: 'image/*', memoType: 'image' as const },
-  { id: 'text', label: 'TEXT', icon: PenSquare, color: captureColors.text, bg: captureColorsBg.text, accept: null, memoType: 'text' as const },
-  { id: 'voice', label: 'VOICE', icon: Mic, color: captureColors.voice, bg: captureColorsBg.voice, accept: 'audio/*', memoType: 'audio_recording' as const },
-  { id: 'file', label: 'FILE', icon: Paperclip, color: captureColors.file, bg: captureColorsBg.file, accept: '*/*', memoType: 'file' as const },
+  { id: 'photo', label: 'PHOTO', icon: Camera, color: captureColors.photo, bg: captureColorsBg.photo, accept: 'image/*', sparkType: 'photo' as const },
+  { id: 'video', label: 'VIDEO', icon: Video, color: captureColors.video, bg: captureColorsBg.video, accept: 'video/*', sparkType: 'video' as const },
+  { id: 'gallery', label: 'GALLERY', icon: Images, color: captureColors.gallery, bg: captureColorsBg.gallery, accept: 'image/*', sparkType: 'image' as const },
+  { id: 'text', label: 'TEXT', icon: PenSquare, color: captureColors.text, bg: captureColorsBg.text, accept: null, sparkType: 'text' as const },
+  { id: 'voice', label: 'VOICE', icon: Mic, color: captureColors.voice, bg: captureColorsBg.voice, accept: 'audio/*', sparkType: 'audio_recording' as const },
+  { id: 'file', label: 'FILE', icon: Paperclip, color: captureColors.file, bg: captureColorsBg.file, accept: '*/*', sparkType: 'file' as const },
 ] as const;
 
 interface PendingFile {
   file: File;
   preview?: string;
-  memoType: string;
+  sparkType: string;
   captureId: string;
 }
 
@@ -53,11 +53,11 @@ export default function CapturePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
-  const createMemoMutation = useMutation({
-    mutationFn: memosApi.create,
+  const createSparkMutation = useMutation({
+    mutationFn: sparksApi.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memos'] });
-      queryClient.invalidateQueries({ queryKey: ['memos-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sparks'] });
+      queryClient.invalidateQueries({ queryKey: ['sparks-stats'] });
       queryClient.invalidateQueries({ queryKey: ['tiles'] });
     },
   });
@@ -74,7 +74,7 @@ export default function CapturePage() {
     if (fileInputRef.current) {
       fileInputRef.current.accept = option.accept || '*/*';
       fileInputRef.current.dataset.captureId = option.id;
-      fileInputRef.current.dataset.memoType = option.memoType;
+      fileInputRef.current.dataset.sparkType = option.sparkType;
       fileInputRef.current.multiple = true;
       fileInputRef.current.click();
     }
@@ -85,12 +85,12 @@ export default function CapturePage() {
     if (!files || files.length === 0) return;
 
     const captureId = e.target.dataset.captureId || 'file';
-    const memoType = e.target.dataset.memoType || 'file';
+    const sparkType = e.target.dataset.sparkType || 'file';
 
     const newFiles: PendingFile[] = Array.from(files).map((file) => ({
       file,
       preview: file.type.startsWith('image/') ? URL.createObjectURL(file) : undefined,
-      memoType,
+      sparkType,
       captureId,
     }));
 
@@ -108,11 +108,11 @@ export default function CapturePage() {
 
   const handleTextSubmit = async () => {
     if (!textContent.trim()) return;
-    await createMemoMutation.mutateAsync({
+    await createSparkMutation.mutateAsync({
       type: 'text',
       content: textContent.trim(),
     });
-    toast.success('Memo di testo creato!');
+    toast.success('Spark di testo creato!');
     setTextContent('');
     setActivePanel(null);
   };
@@ -124,8 +124,8 @@ export default function CapturePage() {
       for (const pending of pendingFiles) {
         const uploadResult = await uploadApi.uploadFile(pending.file);
         if (uploadResult.data) {
-          await memosApi.create({
-            type: pending.memoType as any,
+          await sparksApi.create({
+            type: pending.sparkType as any,
             storage_path: uploadResult.data.path,
             file_name: pending.file.name,
             mime_type: pending.file.type,
@@ -133,8 +133,8 @@ export default function CapturePage() {
           });
         }
       }
-      queryClient.invalidateQueries({ queryKey: ['memos'] });
-      queryClient.invalidateQueries({ queryKey: ['memos-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sparks'] });
+      queryClient.invalidateQueries({ queryKey: ['sparks-stats'] });
       queryClient.invalidateQueries({ queryKey: ['tiles'] });
       toast.success(`${pendingFiles.length} file caricati!`);
       pendingFiles.forEach((f) => { if (f.preview) URL.revokeObjectURL(f.preview); });
@@ -203,7 +203,7 @@ export default function CapturePage() {
         {activePanel === 'text' && (
           <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-4 space-y-4">
             <Textarea
-              placeholder="Scrivi qui il tuo memo..."
+              placeholder="Scrivi qui il tuo spark..."
               value={textContent}
               onChange={(e) => setTextContent(e.target.value)}
               className="min-h-[160px] bg-zinc-800 border-zinc-700 text-white resize-none"
@@ -223,11 +223,11 @@ export default function CapturePage() {
                 <Button
                   size="sm"
                   onClick={handleTextSubmit}
-                  disabled={!textContent.trim() || createMemoMutation.isPending}
+                  disabled={!textContent.trim() || createSparkMutation.isPending}
                   className="bg-[#6FCF97] hover:bg-[#5CB882] text-black"
                 >
                   <Send className="mr-2 h-4 w-4" />
-                  {createMemoMutation.isPending ? 'Salvando...' : 'Salva'}
+                  {createSparkMutation.isPending ? 'Salvando...' : 'Salva'}
                 </Button>
               </div>
             </div>

@@ -22,53 +22,53 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { memosApi } from '@/lib/api';
-import { typeColors } from '@/lib/memo-utils';
-import { MemoViewer } from '@/components/memo/memo-viewer';
-import type { Memo } from '@/types';
+import { sparksApi } from '@/lib/api';
+import { typeColors } from '@/lib/spark-utils';
+import { SparkViewer } from '@/components/spark/spark-viewer';
+import type { Spark } from '@/types';
 
-export default function MemosPage() {
+export default function SparksPage() {
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeFilter] = useState<string | undefined>();
-  const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
+  const [selectedSpark, setSelectedSpark] = useState<Spark | null>(null);
   const queryClient = useQueryClient();
-  const { memoIds: aiFilterIds, clearFilter } = useFilterStore();
+  const { sparkIds: aiFilterIds, clearFilter } = useFilterStore();
 
   const { data, isLoading } = useQuery({
-    queryKey: ['memos', { page, type: typeFilter }],
-    queryFn: () => memosApi.list({ page, limit: 50, type: typeFilter }),
+    queryKey: ['sparks', { page, type: typeFilter }],
+    queryFn: () => sparksApi.list({ page, limit: 50, type: typeFilter }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: memosApi.delete,
+    mutationFn: sparksApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memos'] });
-      toast.success('Memo eliminato');
+      queryClient.invalidateQueries({ queryKey: ['sparks'] });
+      toast.success('Spark eliminato');
     },
     onError: () => {
       toast.error('Errore durante l\'eliminazione');
     },
   });
 
-  const allMemos = data?.data || [];
+  const allSparks = data?.data || [];
   const pagination = data?.pagination;
 
-  const memos = useMemo(() => {
-    if (!aiFilterIds) return allMemos;
+  const sparks = useMemo(() => {
+    if (!aiFilterIds) return allSparks;
     const idSet = new Set(aiFilterIds);
-    return allMemos.filter((m) => idSet.has(m.id));
-  }, [allMemos, aiFilterIds]);
+    return allSparks.filter((m) => idSet.has(m.id));
+  }, [allSparks, aiFilterIds]);
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Memos" />
+      <Header title="Sparks" />
 
       <div className="flex-1 p-6 space-y-4">
         {/* AI Filter Banner */}
         {aiFilterIds && (
           <div className="flex items-center justify-between rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5">
             <p className="text-sm text-blue-400">
-              Filtro AI attivo — {memos.length} memo trovati
+              Filtro AI attivo — {sparks.length} spark trovati
             </p>
             <Button
               variant="ghost"
@@ -114,7 +114,7 @@ export default function MemosPage() {
 
           <Button className="bg-blue-600 hover:bg-blue-700">
             <Plus className="mr-2 h-4 w-4" />
-            Nuovo Memo
+            Nuovo Spark
           </Button>
         </div>
 
@@ -138,18 +138,18 @@ export default function MemosPage() {
                     Caricamento...
                   </TableCell>
                 </TableRow>
-              ) : memos.length === 0 ? (
+              ) : sparks.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-zinc-400">
-                    Nessun memo trovato
+                    Nessun spark trovato
                   </TableCell>
                 </TableRow>
               ) : (
-                memos.map((memo) => (
+                sparks.map((memo) => (
                   <TableRow
                     key={memo.id}
                     className="border-zinc-800 hover:bg-zinc-800/50 cursor-pointer"
-                    onClick={() => setSelectedMemo(memo)}
+                    onClick={() => setSelectedSpark(memo)}
                   >
                     <TableCell className="font-medium text-white">
                       {memo.file_name || memo.content?.substring(0, 30) || memo.type}
@@ -232,10 +232,10 @@ export default function MemosPage() {
         )}
       </div>
 
-      <MemoViewer
-        memo={selectedMemo}
-        open={selectedMemo !== null}
-        onOpenChange={(open) => { if (!open) setSelectedMemo(null); }}
+      <SparkViewer
+        spark={selectedSpark}
+        open={selectedSpark !== null}
+        onOpenChange={(open) => { if (!open) setSelectedSpark(null); }}
       />
     </div>
   );

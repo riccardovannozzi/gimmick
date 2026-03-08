@@ -1,6 +1,6 @@
-import type { MemoType } from '@/types';
+import type { SparkType } from '@/types';
 
-export const typeColors: Record<MemoType, string> = {
+export const typeColors: Record<SparkType, string> = {
   photo: 'bg-blue-500/20 text-blue-400',
   image: 'bg-green-500/20 text-green-400',
   video: 'bg-orange-500/20 text-orange-400',
@@ -9,7 +9,7 @@ export const typeColors: Record<MemoType, string> = {
   file: 'bg-yellow-500/20 text-yellow-400',
 };
 
-export const typeLabels: Record<MemoType, string> = {
+export const typeLabels: Record<SparkType, string> = {
   photo: 'Foto',
   image: 'Immagine',
   video: 'Video',

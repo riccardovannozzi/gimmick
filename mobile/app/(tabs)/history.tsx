@@ -3,11 +3,11 @@ import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react
 import { Clock, FileText, Image, Mic, Film, File, Trash2 } from 'lucide-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { memosApi } from '@/lib/api';
+import { sparksApi } from '@/lib/api';
 import { captureColors } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatDate, formatFileSize } from '@/utils/formatters';
-import type { Memo } from '@/types';
+import type { Spark } from '@/types';
 
 const typeIcons: Record<string, typeof FileText> = {
   photo: Image,
@@ -36,14 +36,14 @@ const filterOptions = [
   { id: 'file', label: 'Files' },
 ];
 
-function groupByDate(memos: Memo[]): { title: string; data: Memo[] }[] {
-  const groups: Record<string, Memo[]> = {};
+function groupByDate(sparks: Spark[]): { title: string; data: Spark[] }[] {
+  const groups: Record<string, Spark[]> = {};
   const today = new Date();
   const yesterday = new Date(today);
   yesterday.setDate(yesterday.getDate() - 1);
 
-  for (const memo of memos) {
-    const date = new Date(memo.created_at);
+  for (const spark of sparks) {
+    const date = new Date(spark.created_at);
     let key: string;
     if (date.toDateString() === today.toDateString()) {
       key = 'Today';
@@ -53,15 +53,15 @@ function groupByDate(memos: Memo[]): { title: string; data: Memo[] }[] {
       key = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
     }
     if (!groups[key]) groups[key] = [];
-    groups[key].push(memo);
+    groups[key].push(spark);
   }
 
   return Object.entries(groups).map(([title, data]) => ({ title, data }));
 }
 
-function MemoItem({ memo, onDelete, colors }: { memo: Memo; onDelete: (id: string) => void; colors: any }) {
-  const Icon = typeIcons[memo.type] || FileText;
-  const iconColor = typeColors[memo.type] || colors.secondary;
+function SparkItem({ spark, onDelete, colors }: { spark: Spark; onDelete: (id: string) => void; colors: any }) {
+  const Icon = typeIcons[spark.type] || FileText;
+  const iconColor = typeColors[spark.type] || colors.secondary;
 
   return (
     <View
@@ -91,11 +91,11 @@ function MemoItem({ memo, onDelete, colors }: { memo: Memo; onDelete: (id: strin
           style={{ fontSize: 15, fontWeight: '500', color: colors.primary }}
           numberOfLines={1}
         >
-          {memo.file_name || memo.content?.substring(0, 40) || memo.type}
+          {spark.file_name || spark.content?.substring(0, 40) || spark.type}
         </Text>
         <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
-          {formatDate(memo.created_at)}
-          {memo.file_size ? ` · ${formatFileSize(memo.file_size)}` : ''}
+          {formatDate(spark.created_at)}
+          {spark.file_size ? ` · ${formatFileSize(spark.file_size)}` : ''}
         </Text>
       </View>
 
@@ -109,15 +109,15 @@ function MemoItem({ memo, onDelete, colors }: { memo: Memo; onDelete: (id: strin
           borderWidth: 1,
           borderColor: 'rgba(255,255,255,0.15)',
           backgroundColor:
-            memo.ai_status === 'completed' ? '#22C55E' :
-            memo.ai_status === 'processing' ? '#F59E0B' :
-            memo.ai_status === 'failed' ? '#EF4444' :
+            spark.ai_status === 'completed' ? '#22C55E' :
+            spark.ai_status === 'processing' ? '#F59E0B' :
+            spark.ai_status === 'failed' ? '#EF4444' :
             '#6B7280',
         }}
       />
 
       <TouchableOpacity
-        onPress={() => onDelete(memo.id)}
+        onPress={() => onDelete(spark.id)}
         style={{
           width: 36,
           height: 36,
@@ -138,30 +138,30 @@ export default function HistoryScreen() {
   const [activeFilter, setActiveFilter] = useState('all');
 
   const { data, isLoading, refetch } = useQuery({
-    queryKey: ['memos', { page: 1, limit: 50 }],
-    queryFn: () => memosApi.list({ page: 1, limit: 50 }),
+    queryKey: ['sparks', { page: 1, limit: 50 }],
+    queryFn: () => sparksApi.list({ page: 1, limit: 50 }),
   });
 
   const deleteMutation = useMutation({
-    mutationFn: memosApi.delete,
+    mutationFn: sparksApi.delete,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['memos'] });
+      queryClient.invalidateQueries({ queryKey: ['sparks'] });
     },
   });
 
-  const allMemos = data?.data || [];
-  const filteredMemos = activeFilter === 'all'
-    ? allMemos
-    : allMemos.filter((m: Memo) => m.type === activeFilter || (activeFilter === 'photo' && m.type === 'image'));
+  const allSparks = data?.data || [];
+  const filteredSparks = activeFilter === 'all'
+    ? allSparks
+    : allSparks.filter((m: Spark) => m.type === activeFilter || (activeFilter === 'photo' && m.type === 'image'));
 
-  const grouped = useMemo(() => groupByDate(filteredMemos), [filteredMemos]);
+  const grouped = useMemo(() => groupByDate(filteredSparks), [filteredSparks]);
 
   const flatData = useMemo(() => {
-    const result: ({ type: 'header'; title: string } | { type: 'memo'; memo: Memo })[] = [];
+    const result: ({ type: 'header'; title: string } | { type: 'spark'; spark: Spark })[] = [];
     for (const group of grouped) {
       result.push({ type: 'header', title: group.title });
-      for (const memo of group.data) {
-        result.push({ type: 'memo', memo });
+      for (const spark of group.data) {
+        result.push({ type: 'spark', spark });
       }
     }
     return result;
@@ -210,7 +210,7 @@ export default function HistoryScreen() {
           <View className="flex-1 items-center justify-center">
             <ActivityIndicator size="large" color={colors.accent} />
           </View>
-        ) : filteredMemos.length === 0 ? (
+        ) : filteredSparks.length === 0 ? (
           <View className="flex-1 items-center justify-center px-8">
             <View
               style={{
@@ -226,16 +226,16 @@ export default function HistoryScreen() {
               <Clock size={36} color={colors.tertiary} />
             </View>
             <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, textAlign: 'center', marginBottom: 8 }}>
-              No memos yet
+              No sparks yet
             </Text>
             <Text style={{ fontSize: 14, color: colors.tertiary, textAlign: 'center' }}>
-              Your uploaded memos will appear here
+              Your uploaded sparks will appear here
             </Text>
           </View>
         ) : (
           <FlatList
             data={flatData}
-            keyExtractor={(item, index) => item.type === 'header' ? `h-${item.title}` : `m-${item.memo.id}`}
+            keyExtractor={(item, index) => item.type === 'header' ? `h-${item.title}` : `s-${item.spark.id}`}
             renderItem={({ item }) => {
               if (item.type === 'header') {
                 return (
@@ -247,8 +247,8 @@ export default function HistoryScreen() {
                 );
               }
               return (
-                <MemoItem
-                  memo={item.memo}
+                <SparkItem
+                  spark={item.spark}
                   onDelete={(id) => deleteMutation.mutate(id)}
                   colors={colors}
                 />

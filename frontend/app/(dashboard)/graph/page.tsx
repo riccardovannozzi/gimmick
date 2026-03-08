@@ -23,7 +23,7 @@ const filterConfig: { key: FilterKey; label: string; color: string }[] = [
   { key: 'file', label: 'File', color: '#EAB308' },
 ];
 
-// Color map for memo types
+// Color map for spark types
 const typeColors: Record<string, string> = {
   photo: '#3B82F6',
   image: '#22C55E',
@@ -44,12 +44,12 @@ const typeLabels: Record<string, string> = {
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
-  type: 'root' | 'tile' | 'memo' | 'tag';
+  type: 'root' | 'tile' | 'spark' | 'tag';
   label: string;
-  memoType?: string;
+  sparkType?: string;
   tags?: string[];
   summary?: string;
-  memoCount?: number;
+  sparkCount?: number;
   color?: string;
   tileCount?: number;
 }
@@ -103,7 +103,7 @@ export default function GraphPage() {
     if (!graphData) return null;
     const allDates = [
       ...graphData.tiles.map((t) => new Date(t.created_at).getTime()),
-      ...graphData.memos.map((m) => new Date(m.created_at).getTime()),
+      ...graphData.sparks.map((m) => new Date(m.created_at).getTime()),
     ];
     if (allDates.length === 0) return null;
     const min = Math.min(...allDates);
@@ -173,7 +173,7 @@ export default function GraphPage() {
   useEffect(() => {
     if (!graphData || !svgRef.current || !containerRef.current) return;
 
-    const { tiles, memos, tags: graphTags } = graphData;
+    const { tiles, sparks, tags: graphTags } = graphData;
     const showTiles = activeFilters.has('tiles');
 
     // Filter by time range
@@ -184,20 +184,20 @@ export default function GraphPage() {
     };
 
     const timeTiles = tiles.filter((t) => inTimeRange(t.created_at));
-    const timeMemos = memos.filter((m) => inTimeRange(m.created_at));
+    const timeSparks = sparks.filter((m) => inTimeRange(m.created_at));
 
-    // Filter memos by active type filters
-    const filteredMemos = timeMemos.filter((m) => activeFilters.has(m.type as FilterKey));
+    // Filter sparks by active type filters
+    const filteredSparks = timeSparks.filter((m) => activeFilters.has(m.type as FilterKey));
 
     // Build nodes and links
     const nodes: GraphNode[] = [];
     const links: GraphLink[] = [];
 
-    // Count filtered memos per tile
-    const memoCounts = new Map<string, number>();
-    filteredMemos.forEach((m) => {
+    // Count filtered sparks per tile
+    const sparkCounts = new Map<string, number>();
+    filteredSparks.forEach((m) => {
       if (m.tile_id) {
-        memoCounts.set(m.tile_id, (memoCounts.get(m.tile_id) || 0) + 1);
+        sparkCounts.set(m.tile_id, (sparkCounts.get(m.tile_id) || 0) + 1);
       }
     });
 
@@ -236,26 +236,26 @@ export default function GraphPage() {
           id: `tile-${tile.id}`,
           type: 'tile',
           label: tile.title || 'Tile senza titolo',
-          memoCount: memoCounts.get(tile.id) || 0,
+          sparkCount: sparkCounts.get(tile.id) || 0,
         });
         links.push({ source: `tag-${selectedTag.id}`, target: `tile-${tile.id}` });
       });
 
-      // Show memos connected to those tiles
+      // Show sparks connected to those tiles
       const connectedTileIds = new Set(connectedTiles.map((t) => t.id));
-      filteredMemos.forEach((memo) => {
-        if (memo.tile_id && connectedTileIds.has(memo.tile_id)) {
+      filteredSparks.forEach((spark) => {
+        if (spark.tile_id && connectedTileIds.has(spark.tile_id)) {
           nodes.push({
-            id: `memo-${memo.id}`,
-            type: 'memo',
-            label: memo.label,
-            memoType: memo.type,
-            tags: memo.tags,
-            summary: memo.summary || undefined,
+            id: `spark-${spark.id}`,
+            type: 'spark',
+            label: spark.label,
+            sparkType: spark.type,
+            tags: spark.tags,
+            summary: spark.summary || undefined,
           });
           links.push({
-            source: `tile-${memo.tile_id}`,
-            target: `memo-${memo.id}`,
+            source: `tile-${spark.tile_id}`,
+            target: `spark-${spark.id}`,
           });
         }
       });
@@ -266,7 +266,7 @@ export default function GraphPage() {
       }
     } else {
       // === DEFAULT VIEW (root-centered) ===
-      if (filteredMemos.length === 0 && (!showTiles || timeTiles.length === 0)) {
+      if (filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) {
         return;
       }
 
@@ -289,7 +289,7 @@ export default function GraphPage() {
             id: nodeId,
             type: 'tile',
             label: tile.title || 'Tile senza titolo',
-            memoCount: memoCounts.get(tile.id) || 0,
+            sparkCount: sparkCounts.get(tile.id) || 0,
           });
           tileNodeIds.add(nodeId);
         });
@@ -326,26 +326,26 @@ export default function GraphPage() {
         });
       }
 
-      // Add memo nodes and links
-      filteredMemos.forEach((memo) => {
+      // Add spark nodes and links
+      filteredSparks.forEach((spark) => {
         nodes.push({
-          id: `memo-${memo.id}`,
-          type: 'memo',
-          label: memo.label,
-          memoType: memo.type,
-          tags: memo.tags,
-          summary: memo.summary || undefined,
+          id: `spark-${spark.id}`,
+          type: 'spark',
+          label: spark.label,
+          sparkType: spark.type,
+          tags: spark.tags,
+          summary: spark.summary || undefined,
         });
 
-        if (showTiles && memo.tile_id) {
+        if (showTiles && spark.tile_id) {
           links.push({
-            source: `tile-${memo.tile_id}`,
-            target: `memo-${memo.id}`,
+            source: `tile-${spark.tile_id}`,
+            target: `spark-${spark.id}`,
           });
         } else {
           links.push({
             source: 'root',
-            target: `memo-${memo.id}`,
+            target: `spark-${spark.id}`,
           });
         }
       });
@@ -474,7 +474,7 @@ export default function GraphPage() {
     node
       .filter((d) => d.type === 'tile')
       .append('circle')
-      .attr('r', (d) => 18 + Math.min((d.memoCount || 0) * 2, 16))
+      .attr('r', (d) => 18 + Math.min((d.sparkCount || 0) * 2, 16))
       .attr('fill', '#528BFF')
       .attr('fill-opacity', 0.2)
       .attr('stroke', '#528BFF')
@@ -494,23 +494,23 @@ export default function GraphPage() {
       .attr('font-weight', '600')
       .style('pointer-events', 'none');
 
-    // Memo nodes (smaller colored circles)
+    // Spark nodes (smaller colored circles)
     node
-      .filter((d) => d.type === 'memo')
+      .filter((d) => d.type === 'spark')
       .append('circle')
       .attr('r', 12)
-      .attr('fill', (d) => typeColors[d.memoType || ''] || '#6B7280')
+      .attr('fill', (d) => typeColors[d.sparkType || ''] || '#6B7280')
       .attr('fill-opacity', 0.3)
-      .attr('stroke', (d) => typeColors[d.memoType || ''] || '#6B7280')
+      .attr('stroke', (d) => typeColors[d.sparkType || ''] || '#6B7280')
       .attr('stroke-width', 1.5)
       .style('cursor', 'pointer');
 
-    // Memo type icon text
+    // Spark type icon text
     node
-      .filter((d) => d.type === 'memo')
+      .filter((d) => d.type === 'spark')
       .append('text')
       .text((d) => {
-        const t = d.memoType || '';
+        const t = d.sparkType || '';
         const icons: Record<string, string> = {
           photo: '\u{1F4F7}',
           image: '\u{1F5BC}',
@@ -685,7 +685,7 @@ export default function GraphPage() {
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
-        ) : !graphData || (graphData.tiles.length === 0 && graphData.memos.length === 0) ? (
+        ) : !graphData || (graphData.tiles.length === 0 && graphData.sparks.length === 0) ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
             <p className="text-zinc-400 text-lg">Nessun dato da visualizzare</p>
             <p className="text-zinc-500 text-sm mt-2">
@@ -793,7 +793,7 @@ export default function GraphPage() {
                 }}
               >
                 <p className="text-white text-sm font-medium mb-1">
-                  {tooltip.node.type === 'root' ? 'Root' : tooltip.node.type === 'tag' ? 'Tag' : tooltip.node.type === 'tile' ? 'Tile' : typeLabels[tooltip.node.memoType || ''] || 'Memo'}
+                  {tooltip.node.type === 'root' ? 'Root' : tooltip.node.type === 'tag' ? 'Tag' : tooltip.node.type === 'tile' ? 'Tile' : typeLabels[tooltip.node.sparkType || ''] || 'Spark'}
                 </p>
                 <p className="text-zinc-300 text-xs">
                   {tooltip.node.label}
@@ -803,9 +803,9 @@ export default function GraphPage() {
                     {tooltip.node.tileCount} tile collegati — clicca per centrare
                   </p>
                 )}
-                {tooltip.node.type === 'tile' && tooltip.node.memoCount != null && (
+                {tooltip.node.type === 'tile' && tooltip.node.sparkCount != null && (
                   <p className="text-zinc-400 text-xs mt-1">
-                    {tooltip.node.memoCount} memo collegati
+                    {tooltip.node.sparkCount} spark collegati
                   </p>
                 )}
                 {tooltip.node.summary && (

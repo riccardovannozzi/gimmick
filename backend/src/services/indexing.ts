@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { supabaseAdmin } from '../config/supabase.js';
-import type { Memo, MemoMetadata } from '../types/index.js';
+import type { Spark, SparkMetadata } from '../types/index.js';
 
 const anthropic = new Anthropic();
 const openai = new OpenAI();
@@ -37,10 +37,6 @@ function releaseSlot(): void {
 // Text sampling utilities
 // ---------------------------------------------------------------------------
 
-/**
- * Uniform sampling: takes start, middle, and end of a long text.
- * Best for embedding generation — gives a representative overview.
- */
 function sampleTextUniform(text: string, maxChars: number = 6000): string {
   if (text.length <= maxChars) return text;
 
@@ -56,10 +52,6 @@ function sampleTextUniform(text: string, maxChars: number = 6000): string {
   return `${start}\n\n[...]\n\n${mid}\n\n[...]\n\n${end}`;
 }
 
-/**
- * Paragraph-based sampling: picks paragraphs evenly distributed across the doc.
- * Best for tag/summary generation — avoids cutting sentences mid-way.
- */
 function sampleTextByParagraphs(text: string, maxChars: number = 4000): string {
   if (text.length <= maxChars) return text;
 
@@ -76,9 +68,6 @@ function sampleTextByParagraphs(text: string, maxChars: number = 4000): string {
   return sampled.slice(0, maxChars);
 }
 
-/**
- * Decide max tags based on content length.
- */
 function computeMaxTags(wordCount: number): number {
   if (wordCount < 50) return 3;
   if (wordCount < 200) return 5;
@@ -91,106 +80,110 @@ function computeMaxTags(wordCount: number): number {
 // ---------------------------------------------------------------------------
 
 /**
- * Main entry point — process a newly created memo for AI indexing.
+ * Main entry point — process a newly created spark for AI indexing.
  * Fire-and-forget: never throws.
  */
-export async function processNewMemo(memoId: string): Promise<void> {
+export async function processNewSpark(sparkId: string): Promise<void> {
   await acquireSlot();
   try {
-    // Fetch memo
-    const { data: memo, error } = await supabaseAdmin
-      .from('memos')
+    const { data: spark, error } = await supabaseAdmin
+      .from('sparks')
       .select('*')
-      .eq('id', memoId)
+      .eq('id', sparkId)
       .single();
 
-    if (error || !memo) {
-      console.error(`[Indexing] Memo ${memoId} not found:`, error);
+    if (error || !spark) {
+      console.error(`[Indexing] Spark ${sparkId} not found:`, error);
       return;
     }
 
-    // Set status to processing
     await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .update({ ai_status: 'processing' })
-      .eq('id', memoId);
+      .eq('id', sparkId);
 
     let textForAnalysis = '';
 
-    switch (memo.type) {
+    switch (spark.type) {
       case 'text':
-        textForAnalysis = memo.content || '';
+        textForAnalysis = spark.content || '';
         break;
       case 'audio_recording':
-        textForAnalysis = await analyzeAudio(memo);
+        textForAnalysis = await analyzeAudio(spark);
         break;
       case 'photo':
       case 'image':
-        textForAnalysis = await analyzeImage(memo);
+        textForAnalysis = await analyzeImage(spark);
         break;
       case 'video':
-        textForAnalysis = await analyzeVideo(memo);
+        textForAnalysis = await analyzeVideo(spark);
         break;
       case 'file':
-        textForAnalysis = await analyzeFile(memo);
+        textForAnalysis = await analyzeFile(spark);
         break;
       default:
-        textForAnalysis = memo.file_name || memo.type;
+        textForAnalysis = spark.file_name || spark.type;
     }
 
     if (!textForAnalysis.trim()) {
-      textForAnalysis = `${memo.type} memo: ${memo.file_name || 'untitled'}`;
+      textForAnalysis = `${spark.type} spark: ${spark.file_name || 'untitled'}`;
     }
 
-    // Generate tags and summary — use paragraph sampling for better coverage
+    // Generate tags and summary
     const textForTags = sampleTextByParagraphs(textForAnalysis, 4000);
-    const { tags, summary } = await generateTagsAndSummary(textForTags, memo.type);
+    const { tags, summary } = await generateTagsAndSummary(textForTags, spark.type);
 
-    // Generate embedding — use uniform sampling for representative vector
+    // Generate embedding
     const textForEmbedding = sampleTextUniform(textForAnalysis, 6000);
     const embeddingInput = [summary, tags.join(', '), textForEmbedding]
       .filter(Boolean)
       .join(' | ');
     const embedding = await generateEmbedding(embeddingInput);
 
-    // Build metadata update
-    const existingMetadata = (memo.metadata || {}) as MemoMetadata;
-    const updatedMetadata: MemoMetadata = {
+    const existingMetadata = (spark.metadata || {}) as SparkMetadata;
+    const updatedMetadata: SparkMetadata = {
       ...existingMetadata,
       tags,
       summary,
     };
 
-    // Store extracted text for file-type memos (max 4000 chars)
-    if (memo.type === 'file' && textForAnalysis.length > 0 && !textForAnalysis.startsWith('File:')) {
+    // Store extracted text for file-type sparks (max 4000 chars)
+    if (spark.type === 'file' && textForAnalysis.length > 0 && !textForAnalysis.startsWith('File:')) {
       updatedMetadata.extracted_text = textForAnalysis.slice(0, 4000);
     }
 
-    // Update memo
+    // Update spark
     await supabaseAdmin
-      .from('memos')
+      .from('sparks')
       .update({
         metadata: updatedMetadata,
         embedding: JSON.stringify(embedding),
         ai_status: 'completed',
       })
-      .eq('id', memoId);
+      .eq('id', sparkId);
 
-    console.log(`[Indexing] Completed memo ${memoId} (${memo.type}): ${tags.length} tags`);
+    console.log(`[Indexing] Completed spark ${sparkId} (${spark.type}): ${tags.length} tags`);
 
-    // Try to update tile if this memo belongs to one
-    if (memo.tile_id) {
-      await tryUpdateTileMetadata(memo.tile_id).catch((err) => {
-        console.error(`[Indexing] Tile update failed for ${memo.tile_id}:`, err);
+    // Try to update tile metadata + detect dates for calendar
+    if (spark.tile_id) {
+      await tryUpdateTileMetadata(spark.tile_id).catch((err) => {
+        console.error(`[Indexing] Tile update failed for ${spark.tile_id}:`, err);
       });
+
+      // Date extraction for text and audio sparks
+      if (spark.type === 'text' || spark.type === 'audio_recording') {
+        await tryExtractEventDate(spark.tile_id, textForAnalysis).catch((err) => {
+          console.error(`[Indexing] Date extraction failed for tile ${spark.tile_id}:`, err);
+        });
+      }
     }
   } catch (err) {
-    console.error(`[Indexing] Failed for memo ${memoId}:`, err);
+    console.error(`[Indexing] Failed for spark ${sparkId}:`, err);
     try {
       await supabaseAdmin
-        .from('memos')
+        .from('sparks')
         .update({ ai_status: 'failed' })
-        .eq('id', memoId);
+        .eq('id', sparkId);
     } catch {
       // ignore
     }
@@ -203,18 +196,15 @@ export async function processNewMemo(memoId: string): Promise<void> {
 // Content analyzers
 // ---------------------------------------------------------------------------
 
-/**
- * Transcribe audio with Whisper, store transcript, return text.
- */
-async function analyzeAudio(memo: Memo): Promise<string> {
-  if (!memo.storage_path) return memo.file_name || 'audio recording';
+async function analyzeAudio(spark: Spark): Promise<string> {
+  if (!spark.storage_path) return spark.file_name || 'audio recording';
 
-  const fileBuffer = await downloadFile(memo.storage_path);
-  if (!fileBuffer) return memo.file_name || 'audio recording';
+  const fileBuffer = await downloadFile(spark.storage_path);
+  if (!fileBuffer) return spark.file_name || 'audio recording';
 
-  const ext = memo.file_name?.split('.').pop() || 'm4a';
+  const ext = spark.file_name?.split('.').pop() || 'm4a';
   const file = new File([new Uint8Array(fileBuffer)], `audio.${ext}`, {
-    type: memo.mime_type || 'audio/mp4',
+    type: spark.mime_type || 'audio/mp4',
   });
 
   const transcription = await openai.audio.transcriptions.create({
@@ -225,27 +215,23 @@ async function analyzeAudio(memo: Memo): Promise<string> {
 
   const transcript = transcription.text;
 
-  // Store transcript in metadata
-  const existingMetadata = (memo.metadata || {}) as MemoMetadata;
+  const existingMetadata = (spark.metadata || {}) as SparkMetadata;
   await supabaseAdmin
-    .from('memos')
+    .from('sparks')
     .update({ metadata: { ...existingMetadata, transcript } })
-    .eq('id', memo.id);
+    .eq('id', spark.id);
 
   return transcript;
 }
 
-/**
- * Analyze image with Claude Vision.
- */
-async function analyzeImage(memo: Memo): Promise<string> {
-  if (!memo.storage_path) return memo.file_name || 'image';
+async function analyzeImage(spark: Spark): Promise<string> {
+  if (!spark.storage_path) return spark.file_name || 'image';
 
-  const fileBuffer = await downloadFile(memo.storage_path);
-  if (!fileBuffer) return memo.file_name || 'image';
+  const fileBuffer = await downloadFile(spark.storage_path);
+  if (!fileBuffer) return spark.file_name || 'image';
 
   const base64 = Buffer.from(fileBuffer).toString('base64');
-  const mediaType = (memo.mime_type || 'image/jpeg') as
+  const mediaType = (spark.mime_type || 'image/jpeg') as
     | 'image/jpeg'
     | 'image/png'
     | 'image/gif'
@@ -274,26 +260,23 @@ async function analyzeImage(memo: Memo): Promise<string> {
   const description =
     response.content[0].type === 'text' ? response.content[0].text : '';
 
-  const existingMetadata = (memo.metadata || {}) as MemoMetadata;
+  const existingMetadata = (spark.metadata || {}) as SparkMetadata;
   await supabaseAdmin
-    .from('memos')
+    .from('sparks')
     .update({ metadata: { ...existingMetadata, ai_description: description } })
-    .eq('id', memo.id);
+    .eq('id', spark.id);
 
   return description;
 }
 
-/**
- * Analyze video — use thumbnail if available, otherwise use filename.
- */
-async function analyzeVideo(memo: Memo): Promise<string> {
-  const thumbPath = memo.thumbnail_path;
+async function analyzeVideo(spark: Spark): Promise<string> {
+  const thumbPath = spark.thumbnail_path;
   if (!thumbPath) {
-    return `Video: ${memo.file_name || 'untitled'}${memo.duration ? `, duration: ${memo.duration}s` : ''}`;
+    return `Video: ${spark.file_name || 'untitled'}${spark.duration ? `, duration: ${spark.duration}s` : ''}`;
   }
 
   const fileBuffer = await downloadFile(thumbPath);
-  if (!fileBuffer) return `Video: ${memo.file_name || 'untitled'}`;
+  if (!fileBuffer) return `Video: ${spark.file_name || 'untitled'}`;
 
   const base64 = Buffer.from(fileBuffer).toString('base64');
 
@@ -320,57 +303,53 @@ async function analyzeVideo(memo: Memo): Promise<string> {
   const description =
     response.content[0].type === 'text' ? response.content[0].text : '';
 
-  const existingMetadata = (memo.metadata || {}) as MemoMetadata;
+  const existingMetadata = (spark.metadata || {}) as SparkMetadata;
   await supabaseAdmin
-    .from('memos')
+    .from('sparks')
     .update({ metadata: { ...existingMetadata, ai_description: description } })
-    .eq('id', memo.id);
+    .eq('id', spark.id);
 
   return description;
 }
 
-/**
- * Analyze file — extract text from docx, pdf, and text-based files.
- * Returns full extracted text (sampling is applied later in processNewMemo).
- */
-async function analyzeFile(memo: Memo): Promise<string> {
-  if (!memo.storage_path) return memo.file_name || 'file';
+async function analyzeFile(spark: Spark): Promise<string> {
+  if (!spark.storage_path) return spark.file_name || 'file';
 
-  const mimeType = memo.mime_type || '';
-  const fileBuffer = await downloadFile(memo.storage_path);
-  if (!fileBuffer) return memo.file_name || 'file';
+  const mimeType = spark.mime_type || '';
+  const fileBuffer = await downloadFile(spark.storage_path);
+  if (!fileBuffer) return spark.file_name || 'file';
 
   const buffer = Buffer.from(fileBuffer);
 
   // --- DOCX ---
   if (
     mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-    memo.file_name?.endsWith('.docx')
+    spark.file_name?.endsWith('.docx')
   ) {
     try {
       const mammoth = await import('mammoth');
       const result = await mammoth.extractRawText({ buffer });
       const text = result.value.trim();
       console.log(`[Indexing] DOCX extracted: ${text.length} chars`);
-      return text || `File: ${memo.file_name}`;
+      return text || `File: ${spark.file_name}`;
     } catch (err) {
       console.warn('[Indexing] mammoth failed:', err);
-      return `File: ${memo.file_name || 'document.docx'}`;
+      return `File: ${spark.file_name || 'document.docx'}`;
     }
   }
 
   // --- PDF ---
-  if (mimeType === 'application/pdf' || memo.file_name?.endsWith('.pdf')) {
+  if (mimeType === 'application/pdf' || spark.file_name?.endsWith('.pdf')) {
     try {
       // @ts-expect-error pdf-parse v1 has no type declarations
       const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
       const data = await pdfParse(buffer);
       const text = (data.text as string).trim();
       console.log(`[Indexing] PDF extracted: ${text.length} chars, ${data.numpages} pages`);
-      return text || `File: ${memo.file_name}`;
+      return text || `File: ${spark.file_name}`;
     } catch (err) {
       console.warn('[Indexing] pdf-parse failed:', err);
-      return `File: ${memo.file_name || 'document.pdf'}`;
+      return `File: ${spark.file_name || 'document.pdf'}`;
     }
   }
 
@@ -383,21 +362,16 @@ async function analyzeFile(memo: Memo): Promise<string> {
     return new TextDecoder().decode(fileBuffer);
   }
 
-  // --- Binary files without text extraction ---
-  return `File: ${memo.file_name || 'untitled'}, type: ${mimeType}`;
+  return `File: ${spark.file_name || 'untitled'}, type: ${mimeType}`;
 }
 
 // ---------------------------------------------------------------------------
 // AI generation
 // ---------------------------------------------------------------------------
 
-/**
- * Call Claude to generate tags and summary.
- * Tag count is proportional to content length.
- */
 async function generateTagsAndSummary(
   text: string,
-  memoType: string
+  sparkType: string
 ): Promise<{ tags: string[]; summary: string }> {
   const wordCount = text.split(/\s+/).length;
   const maxTags = computeMaxTags(wordCount);
@@ -408,7 +382,7 @@ async function generateTagsAndSummary(
     messages: [
       {
         role: 'user',
-        content: `Analyze this ${memoType} content and return ONLY valid JSON (no markdown, no backticks):
+        content: `Analyze this ${sparkType} content and return ONLY valid JSON (no markdown, no backticks):
 {"tags": ["tag1", "tag2", ...], "summary": "One sentence summary"}
 
 Rules:
@@ -460,12 +434,9 @@ export async function generateEmbedding(text: string): Promise<number[]> {
 // Storage
 // ---------------------------------------------------------------------------
 
-/**
- * Download a file from Supabase Storage.
- */
 async function downloadFile(storagePath: string): Promise<ArrayBuffer | null> {
   const { data, error } = await supabaseAdmin.storage
-    .from('memos')
+    .from('sparks')
     .download(storagePath);
 
   if (error || !data) {
@@ -480,11 +451,7 @@ async function downloadFile(storagePath: string): Promise<ArrayBuffer | null> {
 // Tile auto-metadata
 // ---------------------------------------------------------------------------
 
-/**
- * Auto-generate tile title and description when all memos are indexed.
- */
 async function tryUpdateTileMetadata(tileId: string): Promise<void> {
-  // Check if tile already has a title
   const { data: tile } = await supabaseAdmin
     .from('tiles')
     .select('title')
@@ -493,30 +460,28 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
 
   if (tile?.title) return;
 
-  // Count total and completed memos
   const { count: total } = await supabaseAdmin
-    .from('memos')
+    .from('sparks')
     .select('*', { count: 'exact', head: true })
     .eq('tile_id', tileId);
 
   const { count: completed } = await supabaseAdmin
-    .from('memos')
+    .from('sparks')
     .select('*', { count: 'exact', head: true })
     .eq('tile_id', tileId)
     .eq('ai_status', 'completed');
 
   if (!total || !completed || completed < total) return;
 
-  // All memos indexed — collect summaries
-  const { data: memos } = await supabaseAdmin
-    .from('memos')
+  const { data: sparks } = await supabaseAdmin
+    .from('sparks')
     .select('metadata, type')
     .eq('tile_id', tileId);
 
-  if (!memos || memos.length === 0) return;
+  if (!sparks || sparks.length === 0) return;
 
-  const summaries = memos
-    .map((m) => (m.metadata as MemoMetadata)?.summary)
+  const summaries = sparks
+    .map((s) => (s.metadata as SparkMetadata)?.summary)
     .filter(Boolean)
     .join('\n');
 
@@ -528,10 +493,10 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     messages: [
       {
         role: 'user',
-        content: `This is a collection of ${memos.length} memos. Generate a short title (max 5 words) and description (1 sentence) for this collection. Return ONLY valid JSON:
+        content: `This is a collection of ${sparks.length} sparks. Generate a short title (max 5 words) and description (1 sentence) for this collection. Return ONLY valid JSON:
 {"title": "...", "description": "..."}
 
-Memo summaries:
+Spark summaries:
 ${summaries.slice(0, 2000)}`,
       },
     ],
@@ -559,5 +524,115 @@ ${summaries.slice(0, 2000)}`,
     }
   } catch {
     console.warn('[Indexing] Failed to parse tile metadata');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI date extraction for calendar events
+// ---------------------------------------------------------------------------
+
+/**
+ * Extract date/time from spark content and save to tile if confidence is high.
+ * Called after indexing text and audio_recording sparks.
+ */
+async function tryExtractEventDate(tileId: string, textContent: string): Promise<void> {
+  // Skip if tile already has dates
+  const { data: tile } = await supabaseAdmin
+    .from('tiles')
+    .select('start_at, is_event')
+    .eq('id', tileId)
+    .single();
+
+  if (tile?.start_at || tile?.is_event) return;
+
+  if (!textContent || textContent.trim().length < 10) return;
+
+  const now = new Date();
+  const isoNow = now.toISOString();
+
+  const response = await anthropic.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 200,
+    messages: [
+      {
+        role: 'user',
+        content: `Current date/time: ${isoNow}
+
+Analyze this content and determine if it mentions a specific date and/or time for an event, appointment, meeting, deadline, etc.
+
+Content:
+${textContent.slice(0, 2000)}
+
+Return ONLY valid JSON:
+{"start_at": "ISO_DATETIME_OR_NULL", "end_at": "ISO_DATETIME_OR_NULL", "confidence": 0.0}
+
+Rules:
+- confidence: 0.0 to 1.0 — how certain you are that a specific event date is mentioned
+- Use ISO 8601 with Europe/Rome timezone (e.g. 2026-03-15T14:00:00+01:00)
+- If only a date is mentioned (no time), default to 09:00
+- If no end time, set end_at 1 hour after start_at
+- If NO date/time is found at all, return {"start_at": null, "end_at": null, "confidence": 0.0}
+- "domani alle 15" = tomorrow at 15:00, confidence ~0.9
+- "forse la prossima settimana" = low confidence ~0.3
+- Explicit dates like "15 marzo alle 14:30" = confidence ~0.95`,
+      },
+    ],
+  });
+
+  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+  if (!text) return;
+
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return;
+
+    const parsed = JSON.parse(match[0]);
+    if (!parsed.start_at) return;
+
+    const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0;
+    const startAt = new Date(parsed.start_at).toISOString();
+    const endAt = parsed.end_at ? new Date(parsed.end_at).toISOString() : new Date(new Date(startAt).getTime() + 3600000).toISOString();
+
+    if (confidence >= 0.8) {
+      // High confidence → auto-save on tile
+      await supabaseAdmin
+        .from('tiles')
+        .update({
+          start_at: startAt,
+          end_at: endAt,
+          is_event: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', tileId);
+
+      console.log(`[Indexing] Auto-scheduled tile ${tileId} (confidence: ${confidence})`);
+    } else if (confidence >= 0.3) {
+      // Low confidence → save as pending_event in spark metadata for user confirmation
+      // Find the most recent spark for this tile to attach the pending event
+      const { data: latestSpark } = await supabaseAdmin
+        .from('sparks')
+        .select('id, metadata')
+        .eq('tile_id', tileId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (latestSpark) {
+        const existingMeta = (latestSpark.metadata || {}) as SparkMetadata;
+        await supabaseAdmin
+          .from('sparks')
+          .update({
+            metadata: {
+              ...existingMeta,
+              pending_event: { start_at: startAt, end_at: endAt, confidence },
+            },
+          })
+          .eq('id', latestSpark.id);
+
+        console.log(`[Indexing] Pending event for tile ${tileId} (confidence: ${confidence})`);
+      }
+    }
+  } catch (err) {
+    console.error('[Indexing] Date extraction parse failed:', err);
   }
 }

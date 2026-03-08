@@ -1,5 +1,5 @@
-// Memo types
-export type MemoType =
+// Spark types
+export type SparkType =
   | 'photo'
   | 'image'
   | 'video'
@@ -7,25 +7,28 @@ export type MemoType =
   | 'text'
   | 'file';
 
-// Tile entity (group of memos)
+// Tile entity (group of sparks)
 export interface Tile {
   id: string;
   user_id: string;
   title?: string;
   description?: string;
+  start_at?: string;
+  end_at?: string;
+  is_event?: boolean;
   created_at: string;
   updated_at: string;
-  memo_count?: number;
-  memos?: Memo[];
+  spark_count?: number;
+  sparks?: Spark[];
   tags?: { id: string; name: string; color?: string }[];
 }
 
-// Memo entity
-export interface Memo {
+// Spark entity
+export interface Spark {
   id: string;
   user_id: string;
   tile_id?: string;
-  type: MemoType;
+  type: SparkType;
   content?: string;
   storage_path?: string;
   thumbnail_path?: string;

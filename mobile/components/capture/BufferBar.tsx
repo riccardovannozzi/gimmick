@@ -17,7 +17,7 @@ import { useBufferStore, useSettingsStore } from '@/store';
 import { config } from '@/constants';
 import { captureColors } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
-import type { BufferItem, MemoType } from '@/types';
+import type { BufferItem, SparkType } from '@/types';
 
 interface BufferBarProps {
   onSend: () => void;
@@ -25,7 +25,7 @@ interface BufferBarProps {
   large?: boolean;
 }
 
-function getItemColor(type: MemoType, secondaryColor: string): string {
+function getItemColor(type: SparkType, secondaryColor: string): string {
   switch (type) {
     case 'text':
       return captureColors.text;
@@ -43,7 +43,7 @@ function getItemColor(type: MemoType, secondaryColor: string): string {
   }
 }
 
-function getItemIcon(type: MemoType, size = 20) {
+function getItemIcon(type: SparkType, size = 20) {
   const color = '#FFFFFF';
   switch (type) {
     case 'text':
@@ -63,7 +63,7 @@ function getItemIcon(type: MemoType, size = 20) {
   }
 }
 
-function getItemLabel(type: MemoType): string {
+function getItemLabel(type: SparkType): string {
   switch (type) {
     case 'text': return 'Text';
     case 'audio_recording': return 'Voice';

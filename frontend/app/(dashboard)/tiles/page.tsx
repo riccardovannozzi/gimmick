@@ -17,11 +17,11 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { tilesApi, tagsApi } from '@/lib/api';
-import { typeLabels } from '@/lib/memo-utils';
-import { MemoViewer } from '@/components/memo/memo-viewer';
-import type { Memo, MemoType, Tile, Tag } from '@/types';
+import { typeLabels } from '@/lib/spark-utils';
+import { SparkViewer } from '@/components/spark/spark-viewer';
+import type { Spark, SparkType, Tile, Tag } from '@/types';
 
-const typeIcons: Record<MemoType, typeof FileText> = {
+const typeIcons: Record<SparkType, typeof FileText> = {
   photo: Image,
   image: Image,
   video: Film,
@@ -30,7 +30,7 @@ const typeIcons: Record<MemoType, typeof FileText> = {
   file: File,
 };
 
-const typeIconColors: Record<MemoType, string> = {
+const typeIconColors: Record<SparkType, string> = {
   photo: 'text-blue-400',
   image: 'text-green-400',
   video: 'text-orange-400',
@@ -133,7 +133,7 @@ function TileRow({
   selectedIds: Set<string>;
   allTags: Tag[];
   onSelect: (id: string, checked: boolean) => void;
-  onMemoClick: (memo: Memo) => void;
+  onMemoClick: (spark: Spark) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
@@ -154,7 +154,7 @@ function TileRow({
     onError: () => toast.error("Errore durante l'eliminazione"),
   });
 
-  const memos = tileDetail?.data?.memos || [];
+  const sparks = tileDetail?.data?.sparks || [];
 
   return (
     <Fragment>
@@ -230,7 +230,7 @@ function TileRow({
             />
           </div>
         </TableCell>
-        <TableCell className="text-zinc-400">{tile.memo_count || 0}</TableCell>
+        <TableCell className="text-zinc-400">{tile.spark_count || 0}</TableCell>
         <TableCell className="text-zinc-400 text-sm">
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
         </TableCell>
@@ -253,24 +253,24 @@ function TileRow({
         <TableRow className="border-zinc-800 hover:bg-transparent">
           <TableCell colSpan={8} className="p-0">
             <div className="bg-zinc-800/30 px-6 py-3 space-y-1.5">
-              {memos.length === 0 ? (
+              {sparks.length === 0 ? (
                 <p className="text-sm text-zinc-500 py-2">Caricamento...</p>
               ) : (
-                memos.map((memo) => {
-                  const Icon = typeIcons[memo.type] || FileText;
-                  const color = typeIconColors[memo.type] || 'text-zinc-400';
+                sparks.map((spark) => {
+                  const Icon = typeIcons[spark.type] || FileText;
+                  const color = typeIconColors[spark.type] || 'text-zinc-400';
                   return (
                     <button
-                      key={memo.id}
+                      key={spark.id}
                       className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-700/50 transition-colors w-full text-left"
-                      onClick={() => onMemoClick(memo)}
+                      onClick={() => onMemoClick(spark)}
                     >
                       <Icon className={`h-4 w-4 ${color}`} />
                       <span className="text-sm text-white flex-1 truncate">
-                        {memo.file_name || memo.content?.substring(0, 50) || memo.type}
+                        {spark.file_name || spark.content?.substring(0, 50) || spark.type}
                       </span>
                       <Badge className="text-xs bg-zinc-700 text-zinc-300">
-                        {typeLabels[memo.type]}
+                        {typeLabels[spark.type]}
                       </Badge>
                     </button>
                   );
@@ -286,7 +286,7 @@ function TileRow({
 
 export default function TilesPage() {
   const [page, setPage] = useState(1);
-  const [selectedMemo, setSelectedMemo] = useState<Memo | null>(null);
+  const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
 
@@ -412,7 +412,7 @@ export default function TilesPage() {
                   <TableHead className="text-zinc-400">Titolo</TableHead>
                   <TableHead className="text-zinc-400">Tags</TableHead>
                   <TableHead className="text-zinc-400 w-10" />
-                  <TableHead className="text-zinc-400 w-20">Memo</TableHead>
+                  <TableHead className="text-zinc-400 w-20">Spark</TableHead>
                   <TableHead className="text-zinc-400 w-28">Data</TableHead>
                   <TableHead className="text-zinc-400 text-right w-16" />
                 </TableRow>
@@ -464,8 +464,8 @@ export default function TilesPage() {
         )}
       </div>
 
-      <MemoViewer
-        memo={selectedMemo}
+      <SparkViewer
+        spark={selectedMemo}
         open={selectedMemo !== null}
         onOpenChange={(open) => { if (!open) setSelectedMemo(null); }}
       />

@@ -5,7 +5,7 @@ import {
 import { supabase } from './supabase';
 import { getFileExtension, getMimeType } from '@/utils/formatters';
 
-const BUCKET_NAME = 'memos';
+const BUCKET_NAME = 'sparks';
 
 /**
  * Upload a file to Supabase Storage

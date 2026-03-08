@@ -9,6 +9,7 @@ import {
   Settings,
   BarChart3,
   Share2,
+  Calendar,
   LogOut,
   Bot,
   Tag,
@@ -20,10 +21,11 @@ import { useAuthStore } from '@/store/auth-store';
 
 const navigation = [
   { name: 'Analytics', href: '/', icon: BarChart3 },
-  { name: 'Memos', href: '/memos', icon: FileText },
+  { name: 'Sparks', href: '/sparks', icon: FileText },
   { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
   { name: 'Tags', href: '/tags', icon: Tag },
   { name: 'Cattura', href: '/capture', icon: PlusCircle },
+  { name: 'Calendario', href: '/calendar', icon: Calendar },
   { name: 'Graph', href: '/graph', icon: Share2 },
   { name: 'Impostazioni', href: '/settings', icon: Settings },
 ];

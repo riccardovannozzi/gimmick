@@ -1,9 +1,9 @@
 import { User, Session } from '@supabase/supabase-js';
 
 /**
- * Memo Types - Types of content that can be captured
+ * Spark Types - Types of content that can be captured
  */
-export type MemoType =
+export type SparkType =
   | 'photo'           // Photo from camera
   | 'image'           // Image from gallery
   | 'video'           // Video from camera
@@ -16,7 +16,7 @@ export type MemoType =
  */
 export interface BufferItem {
   id: string;
-  type: MemoType;
+  type: SparkType;
   uri: string;
   thumbnail?: string;
   duration?: number;      // For audio, in milliseconds
@@ -30,7 +30,7 @@ export interface BufferItem {
 }
 
 /**
- * Tile - Group of related memos
+ * Tile - Group of related sparks
  */
 export interface Tile {
   id: string;
@@ -39,19 +39,19 @@ export interface Tile {
   description?: string;
   created_at: string;
   updated_at: string;
-  memo_count?: number;
-  memos?: Memo[];
+  spark_count?: number;
+  sparks?: Spark[];
 }
 
 /**
- * Memo - Saved memo in database
+ * Spark - Saved spark in database
  */
-export interface Memo {
+export interface Spark {
   id: string;
   user_id: string;
   tile_id?: string;       // Reference to parent tile
-  type: MemoType;
-  content?: string;       // For text memos
+  type: SparkType;
+  content?: string;       // For text sparks
   storage_path?: string;  // Path in Supabase Storage
   thumbnail_path?: string;
   file_name?: string;
@@ -70,7 +70,7 @@ export interface Memo {
 export interface UploadResult {
   success: boolean;
   bufferId: string;
-  memoId?: string;
+  sparkId?: string;
   error?: string;
 }
 

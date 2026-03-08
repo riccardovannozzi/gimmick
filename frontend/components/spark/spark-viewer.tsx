@@ -13,31 +13,31 @@ import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Mic, File, Download, Loader2, AlertCircle } from 'lucide-react';
 import { uploadApi } from '@/lib/api';
-import { typeColors, typeLabels, formatDuration, formatFileSize } from '@/lib/memo-utils';
+import { typeColors, typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
 import { cn } from '@/lib/utils';
-import type { Memo } from '@/types';
+import type { Spark } from '@/types';
 
-interface MemoViewerProps {
-  memo: Memo | null;
+interface SparkViewerProps {
+  spark: Spark | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
+export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !memo) {
+    if (!open || !spark) {
       setSignedUrl(null);
       setError(null);
       return;
     }
 
-    if (memo.type === 'text') return;
+    if (spark.type === 'text') return;
 
-    if (!memo.storage_path) {
+    if (!spark.storage_path) {
       setError('Percorso file mancante');
       return;
     }
@@ -46,7 +46,7 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
     setError(null);
 
     uploadApi
-      .getSignedUrl(memo.storage_path)
+      .getSignedUrl(spark.storage_path)
       .then((result) => {
         if (result.success && result.data) {
           setSignedUrl(result.data.url);
@@ -60,7 +60,7 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
       .finally(() => {
         setLoading(false);
       });
-  }, [open, memo]);
+  }, [open, spark]);
 
   function renderContent() {
     if (loading) {
@@ -81,16 +81,16 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
       );
     }
 
-    if (!memo) return null;
+    if (!spark) return null;
 
-    switch (memo.type) {
+    switch (spark.type) {
       case 'photo':
       case 'image':
         return (
           <div className="flex items-center justify-center">
             <img
               src={signedUrl!}
-              alt={memo.file_name || 'Immagine'}
+              alt={spark.file_name || 'Immagine'}
               className="max-h-[70vh] max-w-full rounded-lg object-contain"
             />
           </div>
@@ -112,9 +112,9 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
           <div className="flex flex-col items-center gap-4 py-8">
             <Mic className="h-16 w-16 text-zinc-500" />
             <audio src={signedUrl!} controls className="w-full" />
-            {memo.duration != null && (
+            {spark.duration != null && (
               <p className="text-sm text-zinc-400">
-                Durata: {formatDuration(memo.duration)}
+                Durata: {formatDuration(spark.duration)}
               </p>
             )}
           </div>
@@ -124,7 +124,7 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
         return (
           <ScrollArea className="max-h-[60vh]">
             <div className="whitespace-pre-wrap text-zinc-200 text-sm leading-relaxed p-4 rounded-lg bg-zinc-800/50">
-              {memo.content || 'Nessun contenuto'}
+              {spark.content || 'Nessun contenuto'}
             </div>
           </ScrollArea>
         );
@@ -134,17 +134,17 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
           <div className="flex flex-col items-center gap-4 py-8">
             <File className="h-16 w-16 text-zinc-500" />
             <div className="text-center space-y-1">
-              <p className="text-white font-medium">{memo.file_name || 'File'}</p>
-              {memo.mime_type && (
-                <p className="text-sm text-zinc-400">{memo.mime_type}</p>
+              <p className="text-white font-medium">{spark.file_name || 'File'}</p>
+              {spark.mime_type && (
+                <p className="text-sm text-zinc-400">{spark.mime_type}</p>
               )}
-              {memo.file_size != null && (
-                <p className="text-sm text-zinc-400">{formatFileSize(memo.file_size)}</p>
+              {spark.file_size != null && (
+                <p className="text-sm text-zinc-400">{formatFileSize(spark.file_size)}</p>
               )}
             </div>
             {signedUrl && (
               <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                <a href={signedUrl} download={memo.file_name} target="_blank" rel="noopener noreferrer">
+                <a href={signedUrl} download={spark.file_name} target="_blank" rel="noopener noreferrer">
                   <Download className="mr-2 h-4 w-4" />
                   Scarica
                 </a>
@@ -158,7 +158,7 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
     }
   }
 
-  const isMediaType = memo && ['photo', 'image', 'video'].includes(memo.type);
+  const isMediaType = spark && ['photo', 'image', 'video'].includes(spark.type);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -170,18 +170,18 @@ export function MemoViewer({ memo, open, onOpenChange }: MemoViewerProps) {
       >
         <DialogHeader>
           <DialogTitle className="text-white truncate">
-            {memo?.file_name || memo?.content?.substring(0, 40) || typeLabels[memo?.type || 'file']}
+            {spark?.file_name || spark?.content?.substring(0, 40) || typeLabels[spark?.type || 'file']}
           </DialogTitle>
           <DialogDescription asChild>
             <div className="flex items-center gap-2">
-              {memo && (
-                <Badge className={typeColors[memo.type]}>
-                  {typeLabels[memo.type]}
+              {spark && (
+                <Badge className={typeColors[spark.type]}>
+                  {typeLabels[spark.type]}
                 </Badge>
               )}
               <span className="text-zinc-500 text-sm">
-                {memo
-                  ? new Date(memo.created_at).toLocaleDateString('it-IT', {
+                {spark
+                  ? new Date(spark.created_at).toLocaleDateString('it-IT', {
                       day: 'numeric',
                       month: 'long',
                       year: 'numeric',

@@ -35,7 +35,7 @@ import { useFilterStore } from '@/store/filter-store';
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  foundMemoIds?: string[];
+  foundSparkIds?: string[];
   foundTileIds?: string[];
 }
 
@@ -59,7 +59,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const router = useRouter();
   const pathname = usePathname();
-  const setMemoFilter = useFilterStore((s) => s.setMemoFilter);
+  const setSparkFilter = useFilterStore((s) => s.setSparkFilter);
   const setTileFilter = useFilterStore((s) => s.setTileFilter);
 
   useEffect(() => {
@@ -80,10 +80,10 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     };
   }, []);
 
-  const handleMemoFilter = (memoIds: string[]) => {
-    setMemoFilter(memoIds);
-    if (pathname !== '/memos') {
-      router.push('/memos');
+  const handleSparkFilter = (sparkIds: string[]) => {
+    setSparkFilter(sparkIds);
+    if (pathname !== '/sparks') {
+      router.push('/sparks');
     }
   };
 
@@ -113,7 +113,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           {
             role: 'assistant',
             content: result.data.reply,
-            foundMemoIds: result.data.foundMemoIds?.length ? result.data.foundMemoIds : undefined,
+            foundSparkIds: result.data.foundSparkIds?.length ? result.data.foundSparkIds : undefined,
             foundTileIds: result.data.foundTileIds?.length ? result.data.foundTileIds : undefined,
           },
         ]);
@@ -261,10 +261,10 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
             <Bot className="h-12 w-12 text-zinc-600 mb-4" />
             <p className="text-zinc-400 text-sm">
-              Chiedimi qualcosa sui tuoi memo.
+              Chiedimi qualcosa sui tuoi spark.
             </p>
             <p className="text-zinc-500 text-xs mt-2">
-              Es: &quot;Quanti memo ho?&quot;, &quot;Trova le note sul viaggio&quot;
+              Es: &quot;Quanti spark ho?&quot;, &quot;Trova le note sul viaggio&quot;
             </p>
           </div>
         ) : (
@@ -327,15 +327,15 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                       )}
                     </button>
                     {/* Filter buttons */}
-                    {msg.foundMemoIds && msg.foundMemoIds.length > 0 && (
+                    {msg.foundSparkIds && msg.foundSparkIds.length > 0 && (
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleMemoFilter(msg.foundMemoIds!)}
+                        onClick={() => handleSparkFilter(msg.foundSparkIds!)}
                         className="border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 text-xs"
                       >
                         <Filter className="h-3 w-3 mr-1.5" />
-                        Filtra memo ({msg.foundMemoIds.length})
+                        Filtra spark ({msg.foundSparkIds.length})
                       </Button>
                     )}
                     {msg.foundTileIds && msg.foundTileIds.length > 0 && (

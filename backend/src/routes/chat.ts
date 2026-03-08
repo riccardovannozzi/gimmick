@@ -48,7 +48,7 @@ chatRouter.post(
 
       res.json({
         success: true,
-        data: { reply: result.reply, foundMemoIds: result.foundMemoIds, foundTileIds: result.foundTileIds },
+        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
     } catch (error: any) {
       console.error('Chat error:', error);
@@ -121,7 +121,7 @@ chatRouter.post(
 
       res.json({
         success: true,
-        data: { transcript, reply: result.reply, foundMemoIds: result.foundMemoIds, foundTileIds: result.foundTileIds },
+        data: { transcript, reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
     } catch (error: any) {
       console.error('Voice chat error:', error);
