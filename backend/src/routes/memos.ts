@@ -12,6 +12,42 @@ export const memosRouter = Router();
 // All routes require authentication
 memosRouter.use(authenticate);
 
+/**
+ * GET /api/memos/stats
+ * Get memo count grouped by type
+ */
+memosRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('memos')
+      .select('type, file_size, created_at')
+      .eq('user_id', req.user!.id);
+
+    if (error) throw error;
+
+    const counts: Record<string, number> = {};
+    const dateCounts: Record<string, number> = {};
+    let total = 0;
+    let totalSize = 0;
+
+    for (const row of data || []) {
+      counts[row.type] = (counts[row.type] || 0) + 1;
+      totalSize += row.file_size || 0;
+      total++;
+
+      const date = new Date(row.created_at).toISOString().split('T')[0];
+      dateCounts[date] = (dateCounts[date] || 0) + 1;
+    }
+
+    res.json({
+      success: true,
+      data: { counts, total, totalSize, dateCounts },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Validation schemas
 const memoTypeEnum = z.enum([
   'photo',

@@ -23,6 +23,7 @@ RETURNS TABLE (
   metadata JSONB,
   storage_path TEXT,
   thumbnail_path TEXT,
+  tile_id UUID,
   similarity FLOAT,
   created_at TIMESTAMPTZ
 )
@@ -38,6 +39,7 @@ BEGIN
     m.metadata,
     m.storage_path,
     m.thumbnail_path,
+    m.tile_id,
     1 - (m.embedding <=> query_embedding) AS similarity,
     m.created_at
   FROM memos m

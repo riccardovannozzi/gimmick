@@ -86,6 +86,16 @@ export interface UpdateMemoDto {
   metadata?: Record<string, unknown>;
 }
 
+// Tag entity
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  color?: string;
+  aliases?: string[];
+  created_at: string;
+}
+
 // API Response
 export interface ApiResponse<T = unknown> {
   success: boolean;

@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from 'react';
-import PdfThumbnail from 'react-native-pdf-thumbnail';
+import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -79,15 +78,6 @@ function MemoChip({ item, index, onRemove, onPress, colors }: { item: BufferItem
   const isMedia = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const isText = item.type === 'text';
   const isPdf = item.type === 'file' && item.mimeType === 'application/pdf';
-  const [pdfThumb, setPdfThumb] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (isPdf && item.uri) {
-      PdfThumbnail.generate(item.uri, 0)
-        .then((result) => setPdfThumb(result.uri))
-        .catch(() => {});
-    }
-  }, [isPdf, item.uri]);
 
   const getSecondLine = () => {
     if (isText) return item.preview || '';

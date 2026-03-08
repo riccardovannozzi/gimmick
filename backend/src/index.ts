@@ -10,6 +10,7 @@ import { memosRouter } from './routes/memos.js';
 import { tilesRouter } from './routes/tiles.js';
 import { uploadRouter } from './routes/upload.js';
 import { chatRouter } from './routes/chat.js';
+import { tagsRouter } from './routes/tags.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -54,6 +55,7 @@ app.use('/api/memos', memosRouter);
 app.use('/api/tiles', tilesRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/tags', tagsRouter);
 
 // Error handling
 app.use(notFoundHandler);

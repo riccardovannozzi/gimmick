@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home,
   FileText,
   LayoutGrid,
   PlusCircle,
@@ -12,6 +11,7 @@ import {
   Share2,
   LogOut,
   Bot,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -19,12 +19,12 @@ import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
+  { name: 'Analytics', href: '/', icon: BarChart3 },
   { name: 'Memos', href: '/memos', icon: FileText },
   { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
+  { name: 'Tags', href: '/tags', icon: Tag },
   { name: 'Cattura', href: '/capture', icon: PlusCircle },
   { name: 'Graph', href: '/graph', icon: Share2 },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
   { name: 'Impostazioni', href: '/settings', icon: Settings },
 ];
 

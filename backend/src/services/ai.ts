@@ -218,7 +218,7 @@ async function searchMemos(input: Record<string, unknown>, userId: string): Prom
 
   let query = supabaseAdmin
     .from('memos')
-    .select('id, type, content, file_name, file_size, duration, created_at')
+    .select('id, type, content, file_name, file_size, duration, tile_id, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -255,7 +255,7 @@ async function listRecentMemos(input: Record<string, unknown>, userId: string): 
 
   const { data, error } = await supabaseAdmin
     .from('memos')
-    .select('id, type, content, file_name, file_size, duration, created_at')
+    .select('id, type, content, file_name, file_size, duration, tile_id, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);
@@ -416,13 +416,22 @@ function extractMemoIds(toolName: string, resultJson: string): string[] {
 function extractTileIds(toolName: string, resultJson: string): string[] {
   try {
     const parsed = JSON.parse(resultJson);
+    const ids: string[] = [];
+    // From list_tiles results
     if (parsed.tiles && Array.isArray(parsed.tiles)) {
-      return parsed.tiles.map((t: { id: string }) => t.id).filter(Boolean);
+      ids.push(...parsed.tiles.map((t: { id: string }) => t.id).filter(Boolean));
     }
-    if (parsed.tile && toolName === 'get_tile_memos') {
-      // get_tile_memos returns { tile: "title", memos: [...] } — tile_id is in the input, not result
-      return [];
+    // From memo results that include tile_id
+    if (parsed.memos && Array.isArray(parsed.memos)) {
+      for (const m of parsed.memos) {
+        if (m.tile_id) ids.push(m.tile_id);
+      }
     }
+    // From single memo (get_memo)
+    if (parsed.tile_id && typeof parsed.tile_id === 'string') {
+      ids.push(parsed.tile_id);
+    }
+    return [...new Set(ids)];
   } catch {}
   return [];
 }

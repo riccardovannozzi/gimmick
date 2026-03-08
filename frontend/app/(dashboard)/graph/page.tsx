@@ -5,7 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
 import { tilesApi } from '@/lib/api';
-import { Loader2, ZoomIn, ZoomOut, Maximize2, Calendar } from 'lucide-react';
+import { Loader2, ZoomIn, ZoomOut, Maximize2, Calendar, Tag as TagIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useMemo } from 'react';
@@ -44,12 +44,14 @@ const typeLabels: Record<string, string> = {
 
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
-  type: 'root' | 'tile' | 'memo';
+  type: 'root' | 'tile' | 'memo' | 'tag';
   label: string;
   memoType?: string;
   tags?: string[];
   summary?: string;
   memoCount?: number;
+  color?: string;
+  tileCount?: number;
 }
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
@@ -70,6 +72,7 @@ export default function GraphPage() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
     () => new Set(filterConfig.map((f) => f.key))
   );
+  const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
 
   // Timeline range (0-100 percentage of date range)
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
@@ -170,7 +173,7 @@ export default function GraphPage() {
   useEffect(() => {
     if (!graphData || !svgRef.current || !containerRef.current) return;
 
-    const { tiles, memos } = graphData;
+    const { tiles, memos, tags: graphTags } = graphData;
     const showTiles = activeFilters.has('tiles');
 
     // Filter by time range
@@ -198,12 +201,6 @@ export default function GraphPage() {
       }
     });
 
-    if (filteredMemos.length === 0 && (!showTiles || timeTiles.length === 0)) {
-      const svg = d3.select(svgRef.current);
-      svg.selectAll('*').remove();
-      return;
-    }
-
     // Clear previous
     const svg = d3.select(svgRef.current);
     svg.selectAll('*').remove();
@@ -211,53 +208,148 @@ export default function GraphPage() {
     const width = containerRef.current.clientWidth;
     const height = containerRef.current.clientHeight;
 
-    // Root node (fixed at center)
-    const rootNode: GraphNode = {
-      id: 'root',
-      type: 'root',
-      label: 'Gimmick',
-      fx: width / 2,
-      fy: height / 2,
-    };
-    nodes.push(rootNode);
+    // Find the selected tag
+    const selectedTag = selectedTagId
+      ? (graphTags || []).find((t) => t.id === selectedTagId)
+      : null;
 
-    // Add tile nodes + root->tile links
-    if (showTiles) {
-      timeTiles.forEach((tile) => {
+    if (selectedTag) {
+      // === TAG-CENTERED VIEW ===
+      const tagTileIdSet = new Set(selectedTag.tile_ids || []);
+
+      // Center node is the tag
+      const centerNode: GraphNode = {
+        id: `tag-${selectedTag.id}`,
+        type: 'tag',
+        label: selectedTag.name,
+        color: selectedTag.color || '#3B82F6',
+        fx: width / 2,
+        fy: height / 2,
+        tileCount: selectedTag.tile_ids.length,
+      };
+      nodes.push(centerNode);
+
+      // Only show tiles connected to this tag
+      const connectedTiles = timeTiles.filter((t) => tagTileIdSet.has(t.id));
+      connectedTiles.forEach((tile) => {
         nodes.push({
           id: `tile-${tile.id}`,
           type: 'tile',
           label: tile.title || 'Tile senza titolo',
           memoCount: memoCounts.get(tile.id) || 0,
         });
-        links.push({ source: 'root', target: `tile-${tile.id}` });
-      });
-    }
-
-    // Add memo nodes and links
-    filteredMemos.forEach((memo) => {
-      nodes.push({
-        id: `memo-${memo.id}`,
-        type: 'memo',
-        label: memo.label,
-        memoType: memo.type,
-        tags: memo.tags,
-        summary: memo.summary || undefined,
+        links.push({ source: `tag-${selectedTag.id}`, target: `tile-${tile.id}` });
       });
 
-      if (showTiles && memo.tile_id) {
-        links.push({
-          source: `tile-${memo.tile_id}`,
-          target: `memo-${memo.id}`,
-        });
-      } else {
-        // Tiles filter disabled -> connect memos directly to root
-        links.push({
-          source: 'root',
-          target: `memo-${memo.id}`,
+      // Show memos connected to those tiles
+      const connectedTileIds = new Set(connectedTiles.map((t) => t.id));
+      filteredMemos.forEach((memo) => {
+        if (memo.tile_id && connectedTileIds.has(memo.tile_id)) {
+          nodes.push({
+            id: `memo-${memo.id}`,
+            type: 'memo',
+            label: memo.label,
+            memoType: memo.type,
+            tags: memo.tags,
+            summary: memo.summary || undefined,
+          });
+          links.push({
+            source: `tile-${memo.tile_id}`,
+            target: `memo-${memo.id}`,
+          });
+        }
+      });
+
+      if (nodes.length === 1) {
+        // Only the tag node, no connections
+        // Still render it
+      }
+    } else {
+      // === DEFAULT VIEW (root-centered) ===
+      if (filteredMemos.length === 0 && (!showTiles || timeTiles.length === 0)) {
+        return;
+      }
+
+      // Root node (fixed at center)
+      const rootNode: GraphNode = {
+        id: 'root',
+        type: 'root',
+        label: 'Gimmick',
+        fx: width / 2,
+        fy: height / 2,
+      };
+      nodes.push(rootNode);
+
+      // Add tile nodes first (so tag links can reference them)
+      const tileNodeIds = new Set<string>();
+      if (showTiles) {
+        timeTiles.forEach((tile) => {
+          const nodeId = `tile-${tile.id}`;
+          nodes.push({
+            id: nodeId,
+            type: 'tile',
+            label: tile.title || 'Tile senza titolo',
+            memoCount: memoCounts.get(tile.id) || 0,
+          });
+          tileNodeIds.add(nodeId);
         });
       }
-    });
+
+      // Add tag nodes connected to root, with links to existing tile nodes
+      const tilesLinkedByTag = new Set<string>();
+      if (graphTags && graphTags.length > 0 && showTiles) {
+        graphTags.forEach((tag) => {
+          const validTileIds = tag.tile_ids.filter((tid) => tileNodeIds.has(`tile-${tid}`));
+          if (validTileIds.length === 0) return;
+          nodes.push({
+            id: `tag-${tag.id}`,
+            type: 'tag',
+            label: tag.name,
+            color: tag.color || '#3B82F6',
+            tileCount: validTileIds.length,
+          });
+          links.push({ source: 'root', target: `tag-${tag.id}` });
+
+          validTileIds.forEach((tileId) => {
+            links.push({ source: `tag-${tag.id}`, target: `tile-${tileId}` });
+            tilesLinkedByTag.add(`tile-${tileId}`);
+          });
+        });
+      }
+
+      // Connect untagged tiles directly to root
+      if (showTiles) {
+        timeTiles.forEach((tile) => {
+          if (!tilesLinkedByTag.has(`tile-${tile.id}`)) {
+            links.push({ source: 'root', target: `tile-${tile.id}` });
+          }
+        });
+      }
+
+      // Add memo nodes and links
+      filteredMemos.forEach((memo) => {
+        nodes.push({
+          id: `memo-${memo.id}`,
+          type: 'memo',
+          label: memo.label,
+          memoType: memo.type,
+          tags: memo.tags,
+          summary: memo.summary || undefined,
+        });
+
+        if (showTiles && memo.tile_id) {
+          links.push({
+            source: `tile-${memo.tile_id}`,
+            target: `memo-${memo.id}`,
+          });
+        } else {
+          links.push({
+            source: 'root',
+            target: `memo-${memo.id}`,
+          });
+        }
+      });
+    }
 
     svg.attr('width', width).attr('height', height);
 
@@ -297,12 +389,14 @@ export default function GraphPage() {
           .id((d) => d.id)
           .distance((l) => {
             const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
-            return src === 'root' ? 160 : 90;
+            if (src === 'root') return 160;
+            if (src.startsWith('tag-')) return 120;
+            return 90;
           })
       )
       .force('charge', d3.forceManyBody().strength(-250))
       .force('collision', d3.forceCollide().radius((d: any) =>
-        d.type === 'root' ? 50 : d.type === 'tile' ? 40 : 22
+        d.type === 'root' ? 50 : d.type === 'tag' ? 45 : d.type === 'tile' ? 40 : 22
       ));
 
     simulationRef.current = simulation;
@@ -432,6 +526,38 @@ export default function GraphPage() {
       .attr('font-size', '10px')
       .style('pointer-events', 'none');
 
+    // Tag nodes
+    node
+      .filter((d) => d.type === 'tag')
+      .append('circle')
+      .attr('r', (d) => 22 + Math.min((d.tileCount || 0) * 2, 12))
+      .attr('fill', (d) => d.color || '#3B82F6')
+      .attr('fill-opacity', 0.2)
+      .attr('stroke', (d) => d.color || '#3B82F6')
+      .attr('stroke-width', 2.5)
+      .style('filter', 'url(#glow)')
+      .style('cursor', 'pointer');
+
+    node
+      .filter((d) => d.type === 'tag')
+      .append('text')
+      .text((d) => d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label)
+      .attr('text-anchor', 'middle')
+      .attr('dy', '0.35em')
+      .attr('fill', '#F5F5F5')
+      .attr('font-size', '11px')
+      .attr('font-weight', '700')
+      .style('pointer-events', 'none');
+
+    // Click tag node to center it
+    node
+      .filter((d) => d.type === 'tag')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        const tagId = d.id.replace('tag-', '');
+        setSelectedTagId((prev) => (prev === tagId ? null : tagId));
+      });
+
     // Hover interaction
     node.on('mouseenter', (event, d) => {
       const [x, y] = d3.pointer(event, containerRef.current);
@@ -497,7 +623,7 @@ export default function GraphPage() {
     return () => {
       simulation.stop();
     };
-  }, [graphData, activeFilters, timeFilter]);
+  }, [graphData, activeFilters, timeFilter, selectedTagId]);
 
   return (
     <div className="flex flex-col h-full">
@@ -596,6 +722,37 @@ export default function GraphPage() {
               })}
             </div>
 
+            {/* Tag selector */}
+            {graphData?.tags && graphData.tags.length > 0 && (
+              <div className="absolute top-14 left-4 z-10 flex flex-wrap gap-1.5">
+                {graphData.tags.map((tag) => {
+                  const isSelected = selectedTagId === tag.id;
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => setSelectedTagId(isSelected ? null : tag.id)}
+                      className={cn(
+                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
+                        isSelected
+                          ? 'border-opacity-60 text-white'
+                          : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                      )}
+                      style={isSelected ? {
+                        backgroundColor: `${tag.color || '#3B82F6'}20`,
+                        borderColor: `${tag.color || '#3B82F6'}60`,
+                      } : undefined}
+                    >
+                      <TagIcon className="h-3 w-3" style={{ color: tag.color || '#3B82F6' }} />
+                      {tag.name}
+                      {isSelected && (
+                        <span className="ml-1 text-[10px] opacity-60">✕</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             <svg ref={svgRef} className="w-full h-full" />
 
             {/* Zoom controls */}
@@ -636,11 +793,16 @@ export default function GraphPage() {
                 }}
               >
                 <p className="text-white text-sm font-medium mb-1">
-                  {tooltip.node.type === 'root' ? 'Root' : tooltip.node.type === 'tile' ? 'Tile' : typeLabels[tooltip.node.memoType || ''] || 'Memo'}
+                  {tooltip.node.type === 'root' ? 'Root' : tooltip.node.type === 'tag' ? 'Tag' : tooltip.node.type === 'tile' ? 'Tile' : typeLabels[tooltip.node.memoType || ''] || 'Memo'}
                 </p>
                 <p className="text-zinc-300 text-xs">
                   {tooltip.node.label}
                 </p>
+                {tooltip.node.type === 'tag' && tooltip.node.tileCount != null && (
+                  <p className="text-zinc-400 text-xs mt-1">
+                    {tooltip.node.tileCount} tile collegati — clicca per centrare
+                  </p>
+                )}
                 {tooltip.node.type === 'tile' && tooltip.node.memoCount != null && (
                   <p className="text-zinc-400 text-xs mt-1">
                     {tooltip.node.memoCount} memo collegati

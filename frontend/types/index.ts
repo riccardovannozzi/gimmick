@@ -17,6 +17,7 @@ export interface Tile {
   updated_at: string;
   memo_count?: number;
   memos?: Memo[];
+  tags?: { id: string; name: string; color?: string }[];
 }
 
 // Memo entity
@@ -63,6 +64,16 @@ export interface PaginatedResponse<T> {
     total: number;
     totalPages: number;
   };
+}
+
+// Tag entity
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  color?: string;
+  aliases?: string[];
+  created_at: string;
 }
 
 // Auth Tokens

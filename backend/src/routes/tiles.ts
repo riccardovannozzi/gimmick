@@ -42,10 +42,10 @@ tilesRouter.get(
       };
       const offset = (page - 1) * limit;
 
-      // Get tiles with memo count
+      // Get tiles with memo count and tags
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, memos(count)', { count: 'exact' })
+        .select('*, memos(count), tile_tags(tag_id, tags(id, name, color))', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -54,11 +54,13 @@ tilesRouter.get(
         throw error;
       }
 
-      // Transform data to include memo_count
+      // Transform data to include memo_count and tags
       const tilesWithCount = data?.map((tile: any) => ({
         ...tile,
         memo_count: tile.memos?.[0]?.count || 0,
-        memos: undefined, // Remove nested memos array
+        memos: undefined,
+        tags: (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean),
+        tile_tags: undefined,
       }));
 
       res.json({
@@ -101,6 +103,15 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
 
     if (memosError) throw memosError;
 
+    // Get all tags with their tile associations
+    const { data: tags, error: tagsError } = await supabaseAdmin
+      .from('tags')
+      .select('id, name, color, created_at, tile_tags(tile_id)')
+      .eq('user_id', req.user!.id)
+      .order('name');
+
+    if (tagsError) throw tagsError;
+
     res.json({
       success: true,
       data: {
@@ -110,6 +121,13 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
           label: m.content?.slice(0, 60) || m.file_name || m.type,
           tags: m.metadata?.tags || [],
           summary: m.metadata?.summary || null,
+        })),
+        tags: (tags || []).map((t: any) => ({
+          id: t.id,
+          name: t.name,
+          color: t.color,
+          created_at: t.created_at,
+          tile_ids: (t.tile_tags || []).map((tt: any) => tt.tile_id),
         })),
       },
     });

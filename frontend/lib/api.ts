@@ -1,4 +1,4 @@
-import type { Memo, Tile, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
+import type { Memo, Tile, Tag, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -156,6 +156,10 @@ export const memosApi = {
     return apiRequest<PaginatedResponse<Memo>>(endpoint) as unknown as Promise<PaginatedResponse<Memo>>;
   },
 
+  async stats() {
+    return apiRequest<{ counts: Record<string, number>; total: number; totalSize: number; dateCounts: Record<string, number> }>('/api/memos/stats');
+  },
+
   async get(id: string) {
     return apiRequest<Memo>(`/api/memos/${id}`);
   },
@@ -200,6 +204,7 @@ export const tilesApi = {
     return apiRequest<{
       tiles: { id: string; title?: string; description?: string; created_at: string }[];
       memos: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
+      tags: { id: string; name: string; color?: string; created_at: string; tile_ids: string[] }[];
     }>('/api/tiles/graph');
   },
 
@@ -310,5 +315,45 @@ export const uploadApi = {
     return apiRequest<{ url: string; expires_in: number }>(
       `/api/upload/signed-url?path=${encodeURIComponent(path)}`
     );
+  },
+};
+
+// ============ Tags API ============
+export const tagsApi = {
+  async list() {
+    return apiRequest<Tag[]>('/api/tags');
+  },
+
+  async create(tag: { name: string; color?: string; aliases?: string[] }) {
+    return apiRequest<Tag>('/api/tags', {
+      method: 'POST',
+      body: JSON.stringify(tag),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; color?: string; aliases?: string[] }) {
+    return apiRequest<Tag>(`/api/tags/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tags/${id}`, { method: 'DELETE' });
+  },
+
+  async tagTiles(tagId: string, tileIds: string[]) {
+    return apiRequest(`/api/tags/${tagId}/tiles`, {
+      method: 'POST',
+      body: JSON.stringify({ tile_ids: tileIds }),
+    });
+  },
+
+  async untagTile(tagId: string, tileId: string) {
+    return apiRequest(`/api/tags/${tagId}/tiles/${tileId}`, { method: 'DELETE' });
+  },
+
+  async getTiles(tagId: string) {
+    return apiRequest<Tile[]>(`/api/tags/${tagId}/tiles`);
   },
 };
