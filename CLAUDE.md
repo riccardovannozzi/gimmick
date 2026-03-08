@@ -19,13 +19,53 @@
 
 ## Architettura Entita
 
+### Struttura di un Tile
+
+```
+TILE
+  │
+  ├── SPARKS (contenuti catturati dall'utente)
+  │     ├── foto
+  │     ├── testo
+  │     ├── gallery
+  │     ├── audio
+  │     ├── video
+  │     └── file
+  │
+  ├── METADATI (campi strutturati del Tile)
+  │     ├── title
+  │     ├── description
+  │     ├── is_event
+  │     ├── start_at
+  │     └── end_at
+  │
+  └── SERVIZI AI (layer di interazione)
+        ├── chat (conversazione contestuale)
+        ├── tags + summary (generati dagli Spark)
+        └── embedding (vettore semantico)
+```
+
+### Regola fondamentale
+
+| Layer | Creato da | È un dato persistente? | Vive in |
+|-------|-----------|----------------------|---------|
+| Spark | utente | ✅ | tabella `sparks` |
+| Metadati | utente o AI | ✅ | tabella `tiles` |
+| Servizi AI | interazione | ❌ | stateless / sessione |
+
+- **Sparks**: contenuti catturati dall'utente. Sono atomici e appartengono a un Tile
+- **Metadati**: campi strutturati del Tile (title, description, date). Possono essere inseriti dall'utente o estratti dall'AI dagli Spark
+- **Servizi AI**: layer di interazione sopra il Tile. La chat AI non è uno Spark — è un'interfaccia. I risultati AI (es. riassunto) possono diventare Spark solo se l'utente lo sceglie esplicitamente
+
+### Schema interno (riferimento rapido)
+
 ```
 TILE (contenitore)
 ├── title, description, is_event
 ├── start_at, end_at          (scheduling/eventi)
 ├── SPARKS (contenuti)
 │   ├── photo, image, video
-│   ├── audio_recording, text, file
+│   ├── audio_recording, text, file, gallery
 │   └── metadata (tags, summary, ai_description, transcript, pending_event)
 └── SERVIZI AI
     ├── Chat (Claude Sonnet)
@@ -37,7 +77,7 @@ TILE (contenitore)
 ### Entita principali
 
 - **Tile**: Contenitore logico. Puo essere un evento (is_event + start_at/end_at) o un semplice raggruppamento
-- **Spark**: Singolo contenuto catturato (foto, video, audio, testo, file). Appartiene a un Tile
+- **Spark**: Singolo contenuto catturato (foto, video, audio, testo, file, gallery). Appartiene a un Tile
 - **Tag**: Etichetta generata dall'AI, con alias per deduplicazione
 
 ### AI Indexing Pipeline
@@ -204,7 +244,7 @@ CREATE TABLE sparks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id),
   tile_id UUID REFERENCES tiles(id),
-  type TEXT NOT NULL, -- 'photo', 'video', 'text', 'audio_recording', 'file', 'image'
+  type TEXT NOT NULL, -- 'photo', 'video', 'text', 'audio_recording', 'file', 'image', 'gallery'
   content TEXT,
   storage_path TEXT,
   thumbnail_path TEXT,
@@ -295,11 +335,12 @@ sparks/{user_id}/files/{filename}
 ### Note Importanti
 
 1. **Entita**: Spark (non Memo) - contenuto catturato. Tile - contenitore
-2. **NativeWind**: Usare `className` per Tailwind nel mobile
-3. **Supabase RLS**: Row Level Security attivo, filtro per user_id
-4. **TypeScript**: Strict mode, evitare `any`
-5. **Icone**: `lucide-react-native` (mobile), `lucide-react` (web)
-6. **Storage bucket**: `sparks` (non `memos`)
+2. **Chat AI**: non è uno Spark — è un layer di interazione. I risultati AI diventano Spark solo se l'utente lo sceglie esplicitamente
+3. **NativeWind**: Usare `className` per Tailwind nel mobile
+4. **Supabase RLS**: Row Level Security attivo, filtro per user_id
+5. **TypeScript**: Strict mode, evitare `any`
+6. **Icone**: `lucide-react-native` (mobile), `lucide-react` (web)
+7. **Storage bucket**: `sparks` (non `memos`)
 
 ---
 

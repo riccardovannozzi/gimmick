@@ -203,6 +203,20 @@ tilesRouter.post(
         throw error;
       }
 
+      // Auto-tag new tile with GIMMICK (inbox)
+      const { data: rootTag } = await supabaseAdmin
+        .from('tags')
+        .select('id')
+        .eq('user_id', req.user!.id)
+        .eq('is_root', true)
+        .single();
+
+      if (rootTag) {
+        await supabaseAdmin
+          .from('tile_tags')
+          .insert({ tile_id: data.id, tag_id: rootTag.id });
+      }
+
       res.status(201).json({
         success: true,
         data: data as Tile,

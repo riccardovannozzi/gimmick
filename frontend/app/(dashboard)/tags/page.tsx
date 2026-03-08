@@ -274,24 +274,28 @@ export default function TagsPage() {
                           {new Date(tag.created_at).toLocaleDateString('it-IT')}
                         </TableCell>
                         <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
-                              onClick={() => startEdit(tag)}
-                            >
-                              <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-7 w-7 text-zinc-500 hover:text-red-400"
-                              onClick={() => deleteMutation.mutate(tag.id)}
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          {tag.is_root ? (
+                            <span className="text-xs text-zinc-500 italic">Root</span>
+                          ) : (
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-500 hover:text-zinc-300"
+                                onClick={() => startEdit(tag)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 text-zinc-500 hover:text-red-400"
+                                onClick={() => deleteMutation.mutate(tag.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
                         </TableCell>
                       </>
                     )}

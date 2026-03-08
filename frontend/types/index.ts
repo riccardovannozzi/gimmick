@@ -74,9 +74,35 @@ export interface Tag {
   id: string;
   user_id: string;
   name: string;
+  slug?: string;
   color?: string;
   aliases?: string[];
+  usage_count?: number;
+  is_root?: boolean;
   created_at: string;
+}
+
+// Tag graph types
+export interface TagNode {
+  id: string;
+  name: string;
+  slug: string;
+  color?: string;
+  usage_count: number;
+  is_root?: boolean;
+}
+
+export interface TagEdge {
+  id: string;
+  tag_from: string;
+  tag_to: string;
+  weight: number;
+  relation_type?: string;
+}
+
+export interface TagGraph {
+  nodes: TagNode[];
+  edges: TagEdge[];
 }
 
 // Auth Tokens

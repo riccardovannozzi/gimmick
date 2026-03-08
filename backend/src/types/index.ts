@@ -102,9 +102,24 @@ export interface Tag {
   id: string;
   user_id: string;
   name: string;
+  slug?: string;
   color?: string;
   aliases?: string[];
+  usage_count?: number;
+  is_root?: boolean;
   created_at: string;
+}
+
+// Tag relation (weighted edge in the co-occurrence graph)
+export interface TagRelation {
+  id: string;
+  user_id: string;
+  tag_from: string;
+  tag_to: string;
+  weight: number;
+  relation_type?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // API Response

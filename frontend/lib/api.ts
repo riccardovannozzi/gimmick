@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -355,6 +355,21 @@ export const tagsApi = {
 
   async getTiles(tagId: string) {
     return apiRequest<Tile[]>(`/api/tags/${tagId}/tiles`);
+  },
+
+  async graph() {
+    return apiRequest<TagGraph>('/api/tags/graph');
+  },
+
+  async getRelated(tagId: string, limit = 10) {
+    return apiRequest<(TagNode & { weight: number })[]>(`/api/tags/${tagId}/related?limit=${limit}`);
+  },
+
+  async updateRelation(tagFrom: string, tagTo: string, weight: number) {
+    return apiRequest('/api/tags/relations', {
+      method: 'PATCH',
+      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo, weight }),
+    });
   },
 };
 

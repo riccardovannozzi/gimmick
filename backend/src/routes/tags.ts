@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Tag } from '../types/index.js';
+import { updateTagWeights, getTagGraph, getRelatedTags } from '../services/tagGraph.js';
 
 export const tagsRouter = Router();
 
@@ -21,6 +22,8 @@ const updateTagSchema = z.object({
   color: z.string().max(7).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
 });
+
+// ─── Static routes (before :id params) ───────────────────────
 
 /**
  * GET /api/tags
@@ -53,17 +56,39 @@ tagsRouter.post(
     try {
       const { name, color, aliases } = req.body;
 
+      const slug = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
+
       const { data, error } = await supabaseAdmin
         .from('tags')
-        .insert({ name, color, aliases: aliases || [], user_id: req.user!.id })
+        .insert({ name, color, slug, aliases: aliases || [], user_id: req.user!.id })
         .select()
         .single();
 
       if (error) throw error;
 
+      const newTag = data as Tag;
+
+      // Auto-link new tag to GIMMICK root tag
+      const { data: rootTag } = await supabaseAdmin
+        .from('tags')
+        .select('id')
+        .eq('user_id', req.user!.id)
+        .eq('is_root', true)
+        .single();
+
+      if (rootTag && rootTag.id !== newTag.id) {
+        await supabaseAdmin.from('tag_relations').upsert(
+          [
+            { user_id: req.user!.id, tag_from: newTag.id, tag_to: rootTag.id, weight: 0, relation_type: 'root-link' },
+            { user_id: req.user!.id, tag_from: rootTag.id, tag_to: newTag.id, weight: 0, relation_type: 'root-link' },
+          ],
+          { onConflict: 'user_id,tag_from,tag_to' }
+        );
+      }
+
       res.status(201).json({
         success: true,
-        data: data as Tag,
+        data: newTag,
         message: 'Tag created successfully',
       });
     } catch (error) {
@@ -71,6 +96,52 @@ tagsRouter.post(
     }
   }
 );
+
+/**
+ * GET /api/tags/graph
+ * Get the full tag co-occurrence graph (nodes + weighted edges)
+ */
+tagsRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const graph = await getTagGraph(req.user!.id);
+    console.log(`[Tags] Graph: ${graph.nodes.length} nodes, ${graph.edges.length} edges`);
+    res.json({ success: true, data: graph });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PATCH /api/tags/relations
+ * Manually adjust a tag relation weight
+ */
+tagsRouter.patch('/relations', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tag_from, tag_to, weight } = req.body;
+
+    if (!tag_from || !tag_to || weight === undefined) {
+      return res.status(400).json({ success: false, error: 'tag_from, tag_to, and weight required' });
+    }
+
+    // Upsert both directions
+    const rows = [
+      { user_id: req.user!.id, tag_from, tag_to, weight, updated_at: new Date().toISOString() },
+      { user_id: req.user!.id, tag_from: tag_to, tag_to: tag_from, weight, updated_at: new Date().toISOString() },
+    ];
+
+    const { error } = await supabaseAdmin
+      .from('tag_relations')
+      .upsert(rows, { onConflict: 'user_id,tag_from,tag_to' });
+
+    if (error) throw error;
+
+    res.json({ success: true, message: 'Relation updated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ─── Parameterized routes (:id) ──────────────────────────────
 
 /**
  * PATCH /api/tags/:id
@@ -83,9 +154,15 @@ tagsRouter.patch(
     try {
       const { id } = req.params;
 
+      // If name is being updated, also update slug
+      const updates = { ...req.body };
+      if (updates.name) {
+        updates.slug = updates.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
+      }
+
       const { data, error } = await supabaseAdmin
         .from('tags')
-        .update(req.body)
+        .update(updates)
         .eq('id', id)
         .eq('user_id', req.user!.id)
         .select()
@@ -107,14 +184,66 @@ tagsRouter.patch(
 tagsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+    const userId = req.user!.id;
 
+    // Check if tag is the root GIMMICK tag
+    const { data: tag } = await supabaseAdmin
+      .from('tags')
+      .select('is_root')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single();
+
+    if (!tag) throw new NotFoundError('Tag not found');
+
+    if (tag.is_root) {
+      return res.status(403).json({
+        success: false,
+        error: 'Il tag GIMMICK non può essere eliminato',
+      });
+    }
+
+    // Find tiles that will become orphans after deletion
+    const { data: affectedTileTags } = await supabaseAdmin
+      .from('tile_tags')
+      .select('tile_id')
+      .eq('tag_id', id);
+
+    const affectedTileIds = (affectedTileTags || []).map((tt) => tt.tile_id);
+
+    // Delete the tag (cascade removes tile_tags and tag_relations)
     const { error } = await supabaseAdmin
       .from('tags')
       .delete()
       .eq('id', id)
-      .eq('user_id', req.user!.id);
+      .eq('user_id', userId);
 
     if (error) throw error;
+
+    // Reassign orphan tiles to GIMMICK
+    if (affectedTileIds.length > 0) {
+      const { data: rootTag } = await supabaseAdmin
+        .from('tags')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('is_root', true)
+        .single();
+
+      if (rootTag) {
+        for (const tileId of affectedTileIds) {
+          const { count } = await supabaseAdmin
+            .from('tile_tags')
+            .select('*', { count: 'exact', head: true })
+            .eq('tile_id', tileId);
+
+          if (count === 0) {
+            await supabaseAdmin
+              .from('tile_tags')
+              .insert({ tile_id: tileId, tag_id: rootTag.id });
+          }
+        }
+      }
+    }
 
     res.json({ success: true, message: 'Tag deleted' });
   } catch (error) {
@@ -143,6 +272,13 @@ tagsRouter.post('/:id/tiles', async (req: AuthenticatedRequest, res: Response, n
 
     if (error) throw error;
 
+    // Update tag graph weights for each affected tile (fire-and-forget)
+    for (const tileId of tile_ids) {
+      updateTagWeights(req.user!.id, tileId).catch((err) =>
+        console.error(`[Tags] Weight update failed for tile ${tileId}:`, err)
+      );
+    }
+
     res.json({ success: true, message: 'Tiles tagged' });
   } catch (error) {
     next(error);
@@ -155,7 +291,8 @@ tagsRouter.post('/:id/tiles', async (req: AuthenticatedRequest, res: Response, n
  */
 tagsRouter.delete('/:id/tiles/:tileId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { id: tagId, tileId } = req.params;
+    const tagId = req.params.id as string;
+    const tileId = req.params.tileId as string;
 
     const { error } = await supabaseAdmin
       .from('tile_tags')
@@ -164,6 +301,32 @@ tagsRouter.delete('/:id/tiles/:tileId', async (req: AuthenticatedRequest, res: R
       .eq('tile_id', tileId);
 
     if (error) throw error;
+
+    // Update tag graph weights after removal (fire-and-forget)
+    updateTagWeights(req.user!.id, tileId).catch((err) =>
+      console.error(`[Tags] Weight update failed for tile ${tileId}:`, err)
+    );
+
+    // If tile is now orphan (no tags left), assign GIMMICK
+    const { count } = await supabaseAdmin
+      .from('tile_tags')
+      .select('*', { count: 'exact', head: true })
+      .eq('tile_id', tileId);
+
+    if (count === 0) {
+      const { data: rootTag } = await supabaseAdmin
+        .from('tags')
+        .select('id')
+        .eq('user_id', req.user!.id)
+        .eq('is_root', true)
+        .single();
+
+      if (rootTag) {
+        await supabaseAdmin
+          .from('tile_tags')
+          .insert({ tile_id: tileId, tag_id: rootTag.id });
+      }
+    }
 
     res.json({ success: true, message: 'Tag removed from tile' });
   } catch (error) {
@@ -188,6 +351,21 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
 
     const tiles = data?.map((row: any) => row.tiles).filter(Boolean) || [];
     res.json({ success: true, data: tiles });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * GET /api/tags/:id/related
+ * Get tags related to a specific tag, ordered by co-occurrence weight
+ */
+tagsRouter.get('/:id/related', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const tagId = req.params.id as string;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const related = await getRelatedTags(req.user!.id, tagId, limit);
+    res.json({ success: true, data: related });
   } catch (error) {
     next(error);
   }
