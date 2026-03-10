@@ -29,7 +29,7 @@ export default function SettingsPage() {
     <div className="flex flex-col h-full">
       <Header title="Impostazioni" />
 
-      <div className="flex-1 p-6 space-y-6 max-w-3xl">
+      <div className="flex-1 p-6 space-y-6 max-w-3xl overflow-y-auto">
         {/* Profile Section */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>

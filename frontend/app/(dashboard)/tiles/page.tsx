@@ -285,6 +285,7 @@ function TileRow({
 }
 
 export default function TilesPage() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -332,9 +333,48 @@ export default function TilesPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Tiles" />
+      <Header
+        title="Tiles"
+        actions={selectedIds.size > 0 ? (
+          <div className="flex items-center gap-2">
+            <Badge className="bg-blue-500/20 text-blue-400">
+              {selectedIds.size} selezionat{selectedIds.size === 1 ? 'o' : 'i'}
+            </Badge>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                const ids = Array.from(selectedIds);
+                const results = await Promise.all(ids.map((id) => tilesApi.delete(id)));
+                const failed = results.filter((r) => !r.success).length;
+                const succeeded = ids.length - failed;
+                if (succeeded > 0) {
+                  queryClient.invalidateQueries({ queryKey: ['tiles'] });
+                  setSelectedIds(new Set());
+                  toast.success(`${succeeded} tile eliminat${succeeded === 1 ? 'o' : 'i'}`);
+                }
+                if (failed > 0) {
+                  toast.error(`${failed} tile non eliminat${failed === 1 ? 'o' : 'i'}`);
+                }
+              }}
+              className="text-red-400 hover:text-red-300 hover:bg-red-950/50 h-8 px-3"
+            >
+              <Trash2 className="h-4 w-4 mr-1.5" />
+              Elimina ({selectedIds.size})
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedIds(new Set())}
+              className="text-zinc-400 hover:text-zinc-300 h-8 px-2"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        ) : undefined}
+      />
 
-      <div className="flex-1 p-6 space-y-4">
+      <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
         {/* AI Filter Banner */}
         {aiFilterIds && (
           <div className="flex items-center justify-between rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2.5">
@@ -353,29 +393,12 @@ export default function TilesPage() {
           </div>
         )}
 
-        {/* Header info + selection actions */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-zinc-400">
-            <LayoutGrid className="h-5 w-5" />
-            <span className="text-sm">
-              {pagination?.total || 0} tiles totali
-            </span>
-            {selectedIds.size > 0 && (
-              <Badge className="ml-2 bg-blue-500/20 text-blue-400">
-                {selectedIds.size} selezionati
-              </Badge>
-            )}
-          </div>
-          {selectedIds.size > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setSelectedIds(new Set())}
-              className="text-zinc-400 hover:text-zinc-300 h-7 px-2"
-            >
-              Deseleziona tutto
-            </Button>
-          )}
+        {/* Header info */}
+        <div className="flex items-center gap-2 text-zinc-400">
+          <LayoutGrid className="h-5 w-5" />
+          <span className="text-sm">
+            {pagination?.total || 0} tiles totali
+          </span>
         </div>
 
         {/* Tiles table */}
@@ -390,7 +413,7 @@ export default function TilesPage() {
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
             <Table>
               <TableHeader>
                 <TableRow className="border-zinc-800 hover:bg-transparent">
@@ -417,20 +440,24 @@ export default function TilesPage() {
                   <TableHead className="text-zinc-400 text-right w-16" />
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {tiles.map((tile) => (
-                  <TileRow
-                    key={tile.id}
-                    tile={tile}
-                    selected={selectedIds.has(tile.id)}
-                    selectedIds={selectedIds}
-                    allTags={allTags}
-                    onSelect={handleSelect}
-                    onMemoClick={setSelectedMemo}
-                  />
-                ))}
-              </TableBody>
             </Table>
+            <div className="flex-1 overflow-y-auto">
+              <Table>
+                <TableBody>
+                  {tiles.map((tile) => (
+                    <TileRow
+                      key={tile.id}
+                      tile={tile}
+                      selected={selectedIds.has(tile.id)}
+                      selectedIds={selectedIds}
+                      allTags={allTags}
+                      onSelect={handleSelect}
+                      onMemoClick={setSelectedMemo}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           </div>
         )}
 

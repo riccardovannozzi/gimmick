@@ -117,16 +117,21 @@ tagsRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next) 
  */
 tagsRouter.patch('/relations', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { tag_from, tag_to, weight } = req.body;
+    const { tag_from, tag_to, weight, relation_type } = req.body;
 
-    if (!tag_from || !tag_to || weight === undefined) {
-      return res.status(400).json({ success: false, error: 'tag_from, tag_to, and weight required' });
+    if (!tag_from || !tag_to) {
+      return res.status(400).json({ success: false, error: 'tag_from and tag_to required' });
     }
+
+    // Build update object — only include fields that are provided
+    const base: Record<string, unknown> = { user_id: req.user!.id, updated_at: new Date().toISOString() };
+    if (weight !== undefined) base.weight = weight;
+    if (relation_type !== undefined) base.relation_type = relation_type;
 
     // Upsert both directions
     const rows = [
-      { user_id: req.user!.id, tag_from, tag_to, weight, updated_at: new Date().toISOString() },
-      { user_id: req.user!.id, tag_from: tag_to, tag_to: tag_from, weight, updated_at: new Date().toISOString() },
+      { ...base, tag_from, tag_to },
+      { ...base, tag_from: tag_to, tag_to: tag_from },
     ];
 
     const { error } = await supabaseAdmin
@@ -136,6 +141,42 @@ tagsRouter.patch('/relations', async (req: AuthenticatedRequest, res: Response, 
     if (error) throw error;
 
     res.json({ success: true, message: 'Relation updated' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * DELETE /api/tags/relations
+ * Delete a tag relation (both directions)
+ */
+tagsRouter.delete('/relations', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tag_from, tag_to } = req.body;
+
+    if (!tag_from || !tag_to) {
+      return res.status(400).json({ success: false, error: 'tag_from and tag_to required' });
+    }
+
+    // Delete both directions
+    const { error: err1 } = await supabaseAdmin
+      .from('tag_relations')
+      .delete()
+      .eq('user_id', req.user!.id)
+      .eq('tag_from', tag_from)
+      .eq('tag_to', tag_to);
+
+    const { error: err2 } = await supabaseAdmin
+      .from('tag_relations')
+      .delete()
+      .eq('user_id', req.user!.id)
+      .eq('tag_from', tag_to)
+      .eq('tag_to', tag_from);
+
+    if (err1) throw err1;
+    if (err2) throw err2;
+
+    res.json({ success: true, message: 'Relation deleted' });
   } catch (error) {
     next(error);
   }

@@ -365,10 +365,17 @@ export const tagsApi = {
     return apiRequest<(TagNode & { weight: number })[]>(`/api/tags/${tagId}/related?limit=${limit}`);
   },
 
-  async updateRelation(tagFrom: string, tagTo: string, weight: number) {
+  async updateRelation(tagFrom: string, tagTo: string, weight: number, relationType?: string) {
     return apiRequest('/api/tags/relations', {
       method: 'PATCH',
-      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo, weight }),
+      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo, weight, relation_type: relationType }),
+    });
+  },
+
+  async deleteRelation(tagFrom: string, tagTo: string) {
+    return apiRequest('/api/tags/relations', {
+      method: 'DELETE',
+      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo }),
     });
   },
 };

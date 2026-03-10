@@ -63,7 +63,7 @@ export default function SparksPage() {
     <div className="flex flex-col h-full">
       <Header title="Sparks" />
 
-      <div className="flex-1 p-6 space-y-4">
+      <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
         {/* AI Filter Banner */}
         {aiFilterIds && (
           <div className="flex items-center justify-between rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2.5">
@@ -119,7 +119,7 @@ export default function SparksPage() {
         </div>
 
         {/* Table */}
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900">
+        <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
           <Table>
             <TableHeader>
               <TableRow className="border-zinc-800 hover:bg-zinc-800/50">
@@ -131,6 +131,9 @@ export default function SparksPage() {
                 <TableHead className="text-zinc-400 text-right">Azioni</TableHead>
               </TableRow>
             </TableHeader>
+          </Table>
+          <div className="flex-1 overflow-y-auto">
+          <Table>
             <TableBody>
               {isLoading ? (
                 <TableRow>
@@ -200,6 +203,7 @@ export default function SparksPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </div>
 
         {/* Pagination */}

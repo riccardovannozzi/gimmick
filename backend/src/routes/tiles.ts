@@ -97,7 +97,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all sparks (with tile_id to build connections)
     const { data: sparks, error: sparksError } = await supabaseAdmin
       .from('sparks')
-      .select('id, tile_id, type, content, file_name, metadata, created_at')
+      .select('id, tile_id, type, content, file_name, metadata, created_at, storage_path')
       .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 
@@ -121,6 +121,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
           label: s.content?.slice(0, 60) || s.file_name || s.type,
           tags: s.metadata?.tags || [],
           summary: s.metadata?.summary || null,
+          storage_path: s.storage_path || null,
         })),
         tags: (tags || []).map((t: any) => ({
           id: t.id,
@@ -276,7 +277,7 @@ tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next
     // First get all sparks for this tile to delete their files
     const { data: sparks, error: fetchError } = await supabaseAdmin
       .from('sparks')
-      .select('storage_path, thumbnail_path')
+      .select('storage_path')
       .eq('tile_id', id)
       .eq('user_id', req.user!.id);
 
@@ -288,7 +289,6 @@ tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next
     const filesToDelete: string[] = [];
     sparks?.forEach((spark) => {
       if (spark.storage_path) filesToDelete.push(spark.storage_path);
-      if (spark.thumbnail_path) filesToDelete.push(spark.thumbnail_path);
     });
 
     // Delete files from storage
@@ -296,7 +296,24 @@ tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next
       await supabaseAdmin.storage.from('sparks').remove(filesToDelete);
     }
 
-    // Delete tile (cascade will delete sparks)
+    // Delete sparks first (in case FK has no CASCADE)
+    const { error: sparksDeleteError } = await supabaseAdmin
+      .from('sparks')
+      .delete()
+      .eq('tile_id', id)
+      .eq('user_id', req.user!.id);
+
+    if (sparksDeleteError) {
+      throw sparksDeleteError;
+    }
+
+    // Delete tile_tags
+    await supabaseAdmin
+      .from('tile_tags')
+      .delete()
+      .eq('tile_id', id);
+
+    // Delete tile
     const { error: deleteError } = await supabaseAdmin
       .from('tiles')
       .delete()
@@ -312,6 +329,7 @@ tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next
       message: 'Tile and all sparks deleted successfully',
     });
   } catch (error) {
+    console.error('[DELETE /tiles/:id] Error:', JSON.stringify(error, null, 2));
     next(error);
   }
 });

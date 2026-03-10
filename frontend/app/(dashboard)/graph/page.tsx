@@ -4,18 +4,18 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
-import { tilesApi, tagsApi } from '@/lib/api';
+import { sparksApi, tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import {
   Loader2,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Calendar,
   Tag as TagIcon,
   Plus,
   X,
   Trash2,
   Link as LinkIcon,
+  Pencil,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -74,6 +74,7 @@ interface ContentGraphNode extends d3.SimulationNodeDatum {
   sparkCount?: number;
   color?: string;
   tileCount?: number;
+  storagePath?: string;
 }
 
 interface ContentGraphLink extends d3.SimulationLinkDatum<ContentGraphNode> {
@@ -88,6 +89,7 @@ interface TagGraphNodeDatum extends d3.SimulationNodeDatum {
   color: string;
   radius: number;
   usageCount: number;
+  isRoot: boolean;
 }
 
 interface TagGraphLinkDatum extends d3.SimulationLinkDatum<TagGraphNodeDatum> {
@@ -112,6 +114,15 @@ export default function GraphPage() {
     content: React.ReactNode;
   } | null>(null);
 
+  // ─── Context menu state ───
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    type: 'spark' | 'tile';
+    id: string;
+    label: string;
+  } | null>(null);
+
   // ─── Content view state ───
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
     () => new Set(filterConfig.map((f) => f.key))
@@ -120,13 +131,23 @@ export default function GraphPage() {
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<'start' | 'end' | null>(null);
-
   // ─── Tag view state ───
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<{
+    tagFrom: string;
+    tagTo: string;
+    weight: number;
+    relationType?: string;
+    fromName: string;
+    toName: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [edgeEditLabel, setEdgeEditLabel] = useState('');
 
   // Refs to access current link state inside D3 callbacks without causing re-render
   const linkModeRef = useRef(linkMode);
@@ -226,7 +247,7 @@ export default function GraphPage() {
     (e: React.MouseEvent | MouseEvent) => {
       if (!trackRef.current || !draggingRef.current) return;
       const rect = trackRef.current.getBoundingClientRect();
-      const pct = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+      const pct = Math.max(0, Math.min(100, 100 - ((e.clientY - rect.top) / rect.height) * 100));
       setTimeRange((prev) => {
         if (draggingRef.current === 'start') return [Math.min(pct, prev[1] - 2), prev[1]];
         return [prev[0], Math.max(pct, prev[0] + 2)];
@@ -339,6 +360,7 @@ export default function GraphPage() {
             sparkType: spark.type,
             tags: spark.tags,
             summary: spark.summary || undefined,
+            storagePath: (spark as any).storage_path || undefined,
           });
           links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}` });
         }
@@ -404,6 +426,7 @@ export default function GraphPage() {
           sparkType: spark.type,
           tags: spark.tags,
           summary: spark.summary || undefined,
+          storagePath: (spark as any).storage_path || undefined,
         });
         if (showTiles && spark.tile_id)
           links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}` });
@@ -497,14 +520,46 @@ export default function GraphPage() {
           })
       );
 
-    // Root node
-    node.filter((d) => d.type === 'root')
-      .append('circle').attr('r', 30).attr('fill', '#528BFF').attr('fill-opacity', 0.15)
-      .attr('stroke', '#528BFF').attr('stroke-width', 3).style('filter', 'url(#glow)');
-    node.filter((d) => d.type === 'root')
-      .append('text').text('Gimmick').attr('text-anchor', 'middle').attr('dy', '0.35em')
-      .attr('fill', '#528BFF').attr('font-size', '12px').attr('font-weight', '700')
-      .style('pointer-events', 'none');
+    // Root node (hexagon + Bot icon, same style as tag view)
+    const contentHexPoints = (r: number) =>
+      Array.from({ length: 6 }, (_, i) => {
+        const angle = (Math.PI / 3) * i;
+        return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+      }).join(' ');
+    const contentRootNodes = node.filter((d) => d.type === 'root');
+    contentRootNodes.append('polygon')
+      .attr('points', contentHexPoints(24))
+      .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
+      .attr('stroke', '#FFFFFF').attr('stroke-width', 1.5)
+      .style('filter', 'url(#glow)');
+    contentRootNodes.each(function () {
+      const iconG = d3.select(this).append('g')
+        .attr('transform', 'translate(-10,-10) scale(0.85)')
+        .style('pointer-events', 'none');
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const paths = ['M12 8V4H8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2'];
+      paths.forEach((d) => {
+        const p = document.createElementNS(svgNS, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', '#FFFFFF');
+        p.setAttribute('stroke-width', '2');
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+        iconG.node()!.appendChild(p);
+      });
+      const rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('width', '16'); rect.setAttribute('height', '12');
+      rect.setAttribute('x', '4'); rect.setAttribute('y', '8'); rect.setAttribute('rx', '2');
+      rect.setAttribute('fill', 'none'); rect.setAttribute('stroke', '#FFFFFF');
+      rect.setAttribute('stroke-width', '2'); rect.setAttribute('stroke-linecap', 'round');
+      rect.setAttribute('stroke-linejoin', 'round');
+      iconG.node()!.appendChild(rect);
+    });
+    contentRootNodes.append('text')
+      .text('GIMMICK')
+      .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', '#4B5563')
+      .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
 
     // Tile nodes (square shape)
     const tileSize = (d: ContentGraphNode) => 2 * (18 + Math.min((d.sparkCount || 0) * 2, 16));
@@ -557,14 +612,29 @@ export default function GraphPage() {
         setSelectedTagId((prev) => (prev === tagId ? null : tagId));
       });
 
+    // Right-click context menu on sparks and tiles
+    node.filter((d) => d.type === 'spark' || d.type === 'tile')
+      .on('contextmenu', (event, d) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const [px, py] = d3.pointer(event, containerRef.current);
+        const rawId = d.type === 'spark' ? d.id.replace('spark-', '') : d.id.replace('tile-', '');
+        setContextMenu({ x: px, y: py, type: d.type as 'spark' | 'tile', id: rawId, label: d.label });
+      });
+
     // Hover: tooltip + highlight (using mouseenter/mouseleave to avoid bubbling flicker)
     node.on('mouseenter', function (event, d) {
       // Tooltip
       const [x, y] = d3.pointer(event, containerRef.current);
-      setTooltip({
+      const isImage = d.type === 'spark' && (d.sparkType === 'photo' || d.sparkType === 'image') && d.storagePath;
+
+      const buildTooltip = (imageUrl?: string) => ({
         x, y,
         content: (
           <>
+            {imageUrl && (
+              <img src={imageUrl} alt="" className="rounded-md mb-2 max-w-[180px] max-h-[140px] object-cover" />
+            )}
             <p className="text-white text-sm font-medium mb-1">
               {d.type === 'root' ? 'Root' : d.type === 'tag' ? 'Tag' : d.type === 'tile' ? 'Tile' : typeLabels[d.sparkType || ''] || 'Spark'}
             </p>
@@ -590,6 +660,17 @@ export default function GraphPage() {
           </>
         ),
       });
+
+      setTooltip(buildTooltip());
+
+      // Fetch thumbnail for photo/image sparks
+      if (isImage) {
+        uploadApi.getSignedUrl(d.storagePath!).then((res) => {
+          if (res.success && res.data) {
+            setTooltip(buildTooltip(res.data.url));
+          }
+        }).catch(() => {});
+      }
 
       // Highlight connected
       node.style('opacity', 0.2);
@@ -633,6 +714,8 @@ export default function GraphPage() {
       node.attr('transform', (d) => `translate(${d.x},${d.y})`);
     });
 
+    svg.on('click', () => { setContextMenu(null); });
+
     return () => { simulation.stop(); };
   }, [viewMode, graphData, activeFilters, timeFilter, selectedTagId]);
 
@@ -655,8 +738,9 @@ export default function GraphPage() {
       tagId: t.id,
       label: t.name,
       color: t.color || '#3B82F6',
-      radius: 24 + Math.min((t.usage_count || 0) * 3, 20),
+      radius: t.is_root ? 36 : 24 + Math.min((t.usage_count || 0) * 3, 20),
       usageCount: t.usage_count || 0,
+      isRoot: !!t.is_root,
     }));
 
     const seenPairs = new Set<string>();
@@ -714,6 +798,16 @@ export default function GraphPage() {
       .force('center', d3.forceCenter(width / 2, height / 2).strength(0.05))
       .force('collision', d3.forceCollide<TagGraphNodeDatum>().radius((d) => d.radius + 12).strength(0.8));
 
+    // Invisible wider hit area for easier click on edges
+    const linkHit = g
+      .append('g')
+      .selectAll('line')
+      .data(links)
+      .join('line')
+      .attr('stroke', 'transparent')
+      .attr('stroke-width', 16)
+      .style('cursor', 'pointer');
+
     const link = g
       .append('g')
       .selectAll('line')
@@ -722,18 +816,38 @@ export default function GraphPage() {
       .attr('stroke', (d) => d.relationType === 'root-link' ? '#528BFF' : '#3E3E42')
       .attr('stroke-width', (d) => d.relationType === 'root-link' ? 1 : Math.max(1.5, Math.min(d.weight * 1.5, 8)))
       .attr('stroke-opacity', (d) => d.relationType === 'root-link' ? 0.3 : 0.6)
-      .attr('stroke-dasharray', (d) => d.relationType === 'root-link' ? '4,4' : 'none');
+      .attr('stroke-dasharray', (d) => d.relationType === 'root-link' ? '4,4' : 'none')
+      .style('pointer-events', 'none');
 
     const linkLabel = g
       .append('g')
       .selectAll('text')
-      .data(links.filter((d) => d.weight > 0))
+      .data(links)
       .join('text')
-      .text((d) => d.weight.toFixed(0))
+      .text((d) => d.relationType === 'root-link' ? '' : d.weight > 0 ? d.weight.toFixed(0) : '')
       .attr('text-anchor', 'middle')
       .attr('fill', '#6B7280')
       .attr('font-size', '10px')
       .style('pointer-events', 'none');
+
+    // Click on edge to edit
+    linkHit.on('click', (event, d) => {
+      event.stopPropagation();
+      const src = d.source as TagGraphNodeDatum;
+      const tgt = d.target as TagGraphNodeDatum;
+      const [px, py] = d3.pointer(event, containerRef.current);
+      setSelectedEdge({
+        tagFrom: src.tagId,
+        tagTo: tgt.tagId,
+        weight: d.weight,
+        relationType: d.relationType,
+        fromName: src.label,
+        toName: tgt.label,
+        x: px,
+        y: py,
+      });
+      setEdgeEditLabel(d.relationType || '');
+    });
 
     const node = g
       .append('g')
@@ -760,18 +874,74 @@ export default function GraphPage() {
           })
       );
 
-    node.append('circle')
+    // Helper: flat-top hexagon polygon points (rotated 90° from pointy-top)
+    const hexPoints = (r: number) =>
+      Array.from({ length: 6 }, (_, i) => {
+        const angle = (Math.PI / 3) * i;
+        return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
+      }).join(' ');
+
+    // Root node (GIMMICK): hexagon + Bot icon
+    const rootNodes = node.filter((d) => d.isRoot);
+    rootNodes.append('polygon')
+      .attr('points', (d) => hexPoints(d.radius * 0.65))
+      .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
+      .attr('stroke', '#FFFFFF').attr('stroke-width', 1.5)
+      .style('filter', 'url(#tag-glow)');
+    // Bot icon (lucide Bot paths)
+    rootNodes.each(function () {
+      const iconG = d3.select(this).append('g')
+        .attr('transform', 'translate(-10,-10) scale(0.85)')
+        .style('pointer-events', 'none');
+      const svgNS = 'http://www.w3.org/2000/svg';
+      const paths = [
+        'M12 8V4H8',
+        'M2 14h2',
+        'M20 14h2',
+        'M15 13v2',
+        'M9 13v2',
+      ];
+      paths.forEach((d) => {
+        const p = document.createElementNS(svgNS, 'path');
+        p.setAttribute('d', d);
+        p.setAttribute('fill', 'none');
+        p.setAttribute('stroke', '#FFFFFF');
+        p.setAttribute('stroke-width', '2');
+        p.setAttribute('stroke-linecap', 'round');
+        p.setAttribute('stroke-linejoin', 'round');
+        iconG.node()!.appendChild(p);
+      });
+      // rect for Bot body
+      const rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('width', '16');
+      rect.setAttribute('height', '12');
+      rect.setAttribute('x', '4');
+      rect.setAttribute('y', '8');
+      rect.setAttribute('rx', '2');
+      rect.setAttribute('fill', 'none');
+      rect.setAttribute('stroke', '#FFFFFF');
+      rect.setAttribute('stroke-width', '2');
+      rect.setAttribute('stroke-linecap', 'round');
+      rect.setAttribute('stroke-linejoin', 'round');
+      iconG.node()!.appendChild(rect);
+    });
+    rootNodes.append('text')
+      .text('GIMMICK')
+      .attr('text-anchor', 'middle').attr('dy', (d) => d.radius + 14).attr('fill', '#4B5563')
+      .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
+
+    // Regular tag nodes: circle
+    const regularNodes = node.filter((d) => !d.isRoot);
+    regularNodes.append('circle')
       .attr('r', (d) => d.radius)
       .attr('fill', (d) => d.color).attr('fill-opacity', 0.15)
       .attr('stroke', (d) => d.color).attr('stroke-width', 2.5)
       .style('filter', 'url(#tag-glow)');
-
-    node.append('text')
+    regularNodes.append('text')
       .text((d) => (d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label))
       .attr('text-anchor', 'middle').attr('dy', '-0.2em').attr('fill', '#F5F5F5')
       .attr('font-size', '12px').attr('font-weight', '700').style('pointer-events', 'none');
-
-    node.append('text')
+    regularNodes.append('text')
       .text((d) => `${d.usageCount} tile`)
       .attr('text-anchor', 'middle').attr('dy', '1.2em').attr('fill', '#6B7280')
       .attr('font-size', '9px').style('pointer-events', 'none');
@@ -798,6 +968,7 @@ export default function GraphPage() {
 
     svg.on('click', () => {
       setSelectedNodeId(null);
+      setSelectedEdge(null);
       if (linkModeRef.current) { setLinkSource(null); setLinkMode(false); }
     });
 
@@ -847,12 +1018,19 @@ export default function GraphPage() {
     node.on('mouseleave', function () {
       setTooltip(null);
       node.style('opacity', 1);
-      link.style('opacity', 0.6).attr('stroke', '#3E3E42')
-        .attr('stroke-width', (d) => Math.max(1.5, Math.min((d as TagGraphLinkDatum).weight * 1.5, 8)));
+      link
+        .attr('stroke', (d) => (d as TagGraphLinkDatum).relationType === 'root-link' ? '#528BFF' : '#3E3E42')
+        .attr('stroke-width', (d) => (d as TagGraphLinkDatum).relationType === 'root-link' ? 1 : Math.max(1.5, Math.min((d as TagGraphLinkDatum).weight * 1.5, 8)))
+        .attr('stroke-opacity', (d) => (d as TagGraphLinkDatum).relationType === 'root-link' ? 0.3 : 0.6);
       linkLabel.style('opacity', 1).attr('fill', '#6B7280');
     });
 
     simulation.on('tick', () => {
+      linkHit
+        .attr('x1', (d) => ((d.source as TagGraphNodeDatum).x ?? 0))
+        .attr('y1', (d) => ((d.source as TagGraphNodeDatum).y ?? 0))
+        .attr('x2', (d) => ((d.target as TagGraphNodeDatum).x ?? 0))
+        .attr('y2', (d) => ((d.target as TagGraphNodeDatum).y ?? 0));
       link
         .attr('x1', (d) => ((d.source as TagGraphNodeDatum).x ?? 0))
         .attr('y1', (d) => ((d.source as TagGraphNodeDatum).y ?? 0))
@@ -984,53 +1162,70 @@ export default function GraphPage() {
         )}
       </div>
 
-      {/* Content view: timeline slider */}
-      {viewMode === 'content' && dateExtent && (
-        <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-4">
-          <Calendar className="h-4 w-4 text-zinc-500 shrink-0" />
-          <span className="text-xs text-zinc-400 w-20 shrink-0">
-            {new Date(dateExtent.min + (timeRange[0] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-          </span>
-          <div className="flex-1 relative h-6 flex items-center">
-            <div
-              ref={trackRef}
-              className="w-full h-1.5 bg-zinc-700 rounded-full relative cursor-pointer"
-              onClick={(e) => {
-                if (!trackRef.current) return;
-                const rect = trackRef.current.getBoundingClientRect();
-                const pct = ((e.clientX - rect.left) / rect.width) * 100;
-                setTimeRange((prev) => {
-                  const distStart = Math.abs(pct - prev[0]);
-                  const distEnd = Math.abs(pct - prev[1]);
-                  if (distStart < distEnd) return [Math.min(pct, prev[1] - 2), prev[1]];
-                  return [prev[0], Math.max(pct, prev[0] + 2)];
-                });
-              }}
-            >
-              <div
-                className="absolute h-full bg-blue-500/50 rounded-full"
-                style={{ left: `${timeRange[0]}%`, width: `${timeRange[1] - timeRange[0]}%` }}
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
-                style={{ left: `${timeRange[0]}%`, transform: `translate(-50%, -50%)` }}
-                onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'start'; }}
-              />
-              <div
-                className="absolute top-1/2 -translate-y-1/2 w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
-                style={{ left: `${timeRange[1]}%`, transform: `translate(-50%, -50%)` }}
-                onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'end'; }}
-              />
-            </div>
-          </div>
-          <span className="text-xs text-zinc-400 w-20 shrink-0 text-right">
-            {new Date(dateExtent.min + (timeRange[1] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-          </span>
-        </div>
-      )}
-
       {/* Graph area */}
       <div className="flex-1 relative overflow-hidden bg-zinc-950" ref={containerRef}>
+        {/* Content view: vertical timeline slider (right side) */}
+        {viewMode === 'content' && dateExtent && (
+          <div className="absolute right-0 top-0 bottom-0 z-10 w-12 flex flex-col items-center py-4">
+            {/* Quick time range buttons */}
+            {[1, 2, 7, 30].map((days) => {
+              const totalRange = dateExtent.max - dateExtent.min;
+              const daysMs = days * 24 * 60 * 60 * 1000;
+              const startPct = totalRange > 0 ? Math.max(0, ((totalRange - daysMs) / totalRange) * 100) : 0;
+              const isActive = Math.abs(timeRange[0] - startPct) < 1 && Math.abs(timeRange[1] - 100) < 1;
+              return (
+                <button
+                  key={days}
+                  onClick={() => setTimeRange([startPct, 100])}
+                  className={`text-[9px] font-medium px-1.5 py-0.5 rounded mb-1 transition-colors ${
+                    isActive ? 'bg-blue-500/30 text-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700/30'
+                  }`}
+                >
+                  {days}gg
+                </button>
+              );
+            })}
+            <div className="h-8" />
+            <span className="text-[10px] text-zinc-400 mb-2 leading-tight text-center">
+              {new Date(dateExtent.min + (timeRange[1] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+            </span>
+            <div className="flex-1 relative w-6 flex justify-center">
+              <div
+                ref={trackRef}
+                className="h-full w-2.5 bg-zinc-700/15 rounded-full relative cursor-pointer"
+                onClick={(e) => {
+                  if (!trackRef.current) return;
+                  const rect = trackRef.current.getBoundingClientRect();
+                  const pct = 100 - ((e.clientY - rect.top) / rect.height) * 100;
+                  setTimeRange((prev) => {
+                    const distStart = Math.abs(pct - prev[0]);
+                    const distEnd = Math.abs(pct - prev[1]);
+                    if (distStart < distEnd) return [Math.min(pct, prev[1] - 2), prev[1]];
+                    return [prev[0], Math.max(pct, prev[0] + 2)];
+                  });
+                }}
+              >
+                <div
+                  className="absolute w-full bg-blue-500/12 rounded-full"
+                  style={{ top: `${100 - timeRange[1]}%`, height: `${timeRange[1] - timeRange[0]}%` }}
+                />
+                <div
+                  className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
+                  style={{ top: `${100 - timeRange[1]}%`, left: '50%', transform: 'translate(-50%, -50%)' }}
+                  onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'end'; }}
+                />
+                <div
+                  className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
+                  style={{ top: `${100 - timeRange[0]}%`, left: '50%', transform: 'translate(-50%, -50%)' }}
+                  onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'start'; }}
+                />
+              </div>
+            </div>
+            <span className="text-[10px] text-zinc-400 mt-2 leading-tight text-center">
+              {new Date(dateExtent.min + (timeRange[0] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+            </span>
+          </div>
+        )}
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
@@ -1121,7 +1316,7 @@ export default function GraphPage() {
             <svg ref={svgRef} className="w-full h-full" />
 
             {/* Zoom controls */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2">
+            <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
               <Button variant="outline" size="icon" onClick={handleZoomIn}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
                 <ZoomIn className="h-4 w-4" />
@@ -1143,6 +1338,107 @@ export default function GraphPage() {
                 style={{ left: tooltip.x + 16, top: tooltip.y - 10 }}
               >
                 {tooltip.content}
+              </div>
+            )}
+
+            {/* Context menu (right-click on spark/tile) */}
+            {contextMenu && viewMode === 'content' && (
+              <div
+                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[160px]"
+                style={{ left: contextMenu.x, top: contextMenu.y }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="px-3 py-1.5 text-xs text-zinc-400 truncate border-b border-zinc-700">
+                  {contextMenu.type === 'tile' ? 'Tile' : 'Spark'}: {contextMenu.label}
+                </p>
+                <button
+                  className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
+                  onClick={async () => {
+                    try {
+                      if (contextMenu.type === 'spark') {
+                        await sparksApi.delete(contextMenu.id);
+                      } else {
+                        await tilesApi.delete(contextMenu.id);
+                      }
+                      queryClient.invalidateQueries({ queryKey: ['graph-data'] });
+                      toast.success(`${contextMenu.type === 'tile' ? 'Tile' : 'Spark'} eliminato`);
+                    } catch {
+                      toast.error('Errore durante l\'eliminazione');
+                    }
+                    setContextMenu(null);
+                  }}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Elimina
+                </button>
+              </div>
+            )}
+
+            {/* Edge edit popover */}
+            {selectedEdge && viewMode === 'tags' && (
+              <div
+                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg p-3 shadow-xl w-64"
+                style={{ left: selectedEdge.x + 16, top: selectedEdge.y - 10 }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <p className="text-xs text-zinc-400 mb-2 truncate">
+                  {selectedEdge.fromName} &harr; {selectedEdge.toName}
+                </p>
+                <div className="flex items-center gap-2 mb-2">
+                  <Input
+                    value={edgeEditLabel}
+                    onChange={(e) => setEdgeEditLabel(e.target.value)}
+                    placeholder="Tipo relazione..."
+                    className="h-7 text-xs bg-zinc-900 border-zinc-700 text-white flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        tagsApi.updateRelation(selectedEdge.tagFrom, selectedEdge.tagTo, selectedEdge.weight, edgeEditLabel || undefined).then(() => {
+                          queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
+                          toast.success('Relazione aggiornata');
+                          setSelectedEdge(null);
+                        }).catch(() => toast.error('Errore'));
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={() => {
+                      tagsApi.updateRelation(selectedEdge.tagFrom, selectedEdge.tagTo, selectedEdge.weight, edgeEditLabel || undefined).then(() => {
+                        queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
+                        toast.success('Relazione aggiornata');
+                        setSelectedEdge(null);
+                      }).catch(() => toast.error('Errore'));
+                    }}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </Button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-950 px-2"
+                    onClick={() => {
+                      tagsApi.deleteRelation(selectedEdge.tagFrom, selectedEdge.tagTo).then(() => {
+                        queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
+                        toast.success('Relazione eliminata');
+                        setSelectedEdge(null);
+                      }).catch(() => toast.error('Errore'));
+                    }}
+                  >
+                    <Trash2 className="h-3 w-3 mr-1" />
+                    Elimina
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-zinc-400 hover:text-zinc-300 px-2"
+                    onClick={() => setSelectedEdge(null)}
+                  >
+                    Chiudi
+                  </Button>
+                </div>
               </div>
             )}
           </>

@@ -36,7 +36,7 @@ export default function DashboardLayout({
   return (
     <div className="flex h-screen">
       <Sidebar onOpenChat={() => setChatOpen(true)} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-hidden">{children}</main>
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
