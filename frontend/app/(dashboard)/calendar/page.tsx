@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -8,13 +8,13 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import multiMonthPlugin from '@fullcalendar/multimonth';
 import type { EventInput, EventDropArg, DateSelectArg, EventClickArg } from '@fullcalendar/core';
+import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import {
   Loader2,
   Plus,
   X,
-  Search,
   Sparkles,
   Tag as TagIcon,
   Trash2,
@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Tile, Tag } from '@/types';
+import type { Tile, Tag, ApiResponse } from '@/types';
 
 // Map tag colors for events
 const defaultEventColor = '#528BFF';
@@ -103,7 +103,7 @@ export default function CalendarPage() {
   });
 
   const events = eventsData?.data || [];
-  const tags = (tagsData as any)?.data || [];
+  const tags = (tagsData as ApiResponse<Tag[]>)?.data || [];
   const unscheduledTiles = (tilesData?.data || []).filter((t: Tile) => !t.is_event);
 
   // Reschedule mutation (drag-and-drop)
@@ -146,8 +146,8 @@ export default function CalendarPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
-      calendarApi.updateEvent(params.id, params.updates as any),
+    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string } }) =>
+      calendarApi.updateEvent(params.id, params.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
       setModal(emptyModal);
@@ -172,7 +172,7 @@ export default function CalendarPage() {
     }
 
     return filtered.map((tile: Tile) => {
-      const tagColor = (tile as any).tags?.[0]?.color;
+      const tagColor = tile.tags?.[0]?.color;
       return {
         id: tile.id,
         title: tile.title || 'Senza titolo',
@@ -182,8 +182,8 @@ export default function CalendarPage() {
         borderColor: tagColor || defaultEventColor,
         extendedProps: {
           description: tile.description,
-          spark_count: (tile as any).spark_count || 0,
-          tags: (tile as any).tags || [],
+          spark_count: tile.spark_count || 0,
+          tags: tile.tags || [],
         },
       };
     });
@@ -208,7 +208,7 @@ export default function CalendarPage() {
   }, [rescheduleMutation]);
 
   // Handle event resize
-  const handleEventResize = useCallback((info: any) => {
+  const handleEventResize = useCallback((info: EventResizeDoneArg) => {
     const { event } = info;
     rescheduleMutation.mutate({
       id: event.id,
@@ -252,7 +252,7 @@ export default function CalendarPage() {
       startAt: tile.start_at || '',
       endAt: tile.end_at || '',
       autoDetect: false,
-      tagIds: ((tile as any).tags || []).map((t: Tag) => t.id),
+      tagIds: (tile.tags || []).map((t) => t.id),
     });
   }, [events]);
 
@@ -295,7 +295,7 @@ export default function CalendarPage() {
           start_at: modal.startAt || undefined,
           end_at: modal.endAt || undefined,
         }, {
-          onSuccess: async (result: any) => {
+          onSuccess: async (result: ApiResponse<Tile>) => {
             if (result?.data?.id && modal.tagIds.length > 0) {
               await syncTags(result.data.id, modal.tagIds);
               queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -307,7 +307,7 @@ export default function CalendarPage() {
     } else if (modal.mode === 'edit' && modal.tileId) {
       // Get current tags from the event
       const currentEvent = events.find((e: Tile) => e.id === modal.tileId);
-      const currentTagIds = ((currentEvent as any)?.tags || []).map((t: Tag) => t.id);
+      const currentTagIds = (currentEvent?.tags || []).map((t) => t.id);
       const toAdd = modal.tagIds.filter((id: string) => !currentTagIds.includes(id));
       const toRemove = currentTagIds.filter((id: string) => !modal.tagIds.includes(id));
 
@@ -746,7 +746,7 @@ export default function CalendarPage() {
             </div>
 
             <p className="text-xs text-zinc-400 mb-3">
-              Seleziona un tile da aggiungere al calendario. L'AI cerchera di rilevare data e ora dal contenuto.
+              Seleziona un tile da aggiungere al calendario. L&apos;AI cerchera di rilevare data e ora dal contenuto.
             </p>
 
             <div className="flex-1 overflow-y-auto space-y-2">
