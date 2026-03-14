@@ -1,15 +1,14 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { useDropzone } from 'react-dropzone';
 import { Camera, Video, Images, PenSquare, Mic, Paperclip, X, Send, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
 import { sparksApi, uploadApi } from '@/lib/api';
+import type { SparkType } from '@/types';
 
 const captureColors = {
   photo: '#5B8DEF',
@@ -125,7 +124,7 @@ export default function CapturePage() {
         const uploadResult = await uploadApi.uploadFile(pending.file);
         if (uploadResult.data) {
           await sparksApi.create({
-            type: pending.sparkType as any,
+            type: pending.sparkType as SparkType,
             storage_path: uploadResult.data.path,
             file_name: pending.file.name,
             mime_type: pending.file.type,

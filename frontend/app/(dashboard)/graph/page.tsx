@@ -190,15 +190,6 @@ export default function GraphPage() {
     onError: () => toast.error("Errore nell'eliminazione"),
   });
 
-  const linkMutation = useMutation({
-    mutationFn: ({ from, to, weight }: { from: string; to: string; weight: number }) =>
-      tagsApi.updateRelation(from, to, weight),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
-      toast.success('Relazione aggiornata');
-    },
-    onError: () => toast.error("Errore nell'aggiornamento relazione"),
-  });
 
   // ─── Date range ───
   const dateExtent = useMemo(() => {
@@ -316,7 +307,9 @@ export default function GraphPage() {
       ? graphTags.find((t) => t.id === selectedTagId)
       : null;
 
-    if (selectedTag) {
+    const isEditMode = toolbarMode === 'edit';
+
+    if (selectedTag && !isEditMode) {
       // ─── Focused tag mode ───
       const tagTileIdSet = new Set(selectedTag.tile_ids || []);
       const centerNode: GraphNode = {
@@ -387,14 +380,18 @@ export default function GraphPage() {
             sparkType: spark.type,
             tags: spark.tags,
             summary: spark.summary || undefined,
-            storagePath: (spark as any).storage_path || undefined,
+            storagePath: (spark as Record<string, unknown>).storage_path as string || undefined,
           });
           links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}`, linkType: 'tile-spark' });
         }
       });
     } else {
       // ─── Full graph mode ───
-      if (tagNodes.length === 0 && filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) return;
+      if (isEditMode) {
+        if (tagNodes.length === 0) return;
+      } else {
+        if (tagNodes.length === 0 && filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) return;
+      }
 
       const rootNode: GraphNode = {
         id: 'root',
@@ -466,9 +463,9 @@ export default function GraphPage() {
         }
       }
 
-      // Tile nodes
+      // Tile nodes (skip in edit mode)
       const tileNodeIds = new Set<string>();
-      if (showTiles) {
+      if (showTiles && !isEditMode) {
         timeTiles.forEach((tile) => {
           const nodeId = `tile-${tile.id}`;
           nodes.push({
@@ -481,9 +478,9 @@ export default function GraphPage() {
         });
       }
 
-      // Tag→tile links
+      // Tag→tile links (skip in edit mode)
       const tilesLinkedByTag = new Set<string>();
-      if (showTiles) {
+      if (showTiles && !isEditMode) {
         for (const tag of graphTags) {
           if (!tagNodeMap.has(tag.id)) continue;
           const validTileIds = tag.tile_ids.filter((tid) => tileNodeIds.has(`tile-${tid}`));
@@ -499,22 +496,24 @@ export default function GraphPage() {
         });
       }
 
-      // Spark nodes
-      filteredSparks.forEach((spark) => {
-        nodes.push({
-          id: `spark-${spark.id}`,
-          type: 'spark',
-          label: spark.label,
-          sparkType: spark.type,
-          tags: spark.tags,
-          summary: spark.summary || undefined,
-          storagePath: (spark as any).storage_path || undefined,
+      // Spark nodes (skip in edit mode)
+      if (!isEditMode) {
+        filteredSparks.forEach((spark) => {
+          nodes.push({
+            id: `spark-${spark.id}`,
+            type: 'spark',
+            label: spark.label,
+            sparkType: spark.type,
+            tags: spark.tags,
+            summary: spark.summary || undefined,
+            storagePath: (spark as Record<string, unknown>).storage_path as string || undefined,
+          });
+          if (showTiles && spark.tile_id)
+            links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}`, linkType: 'tile-spark' });
+          else
+            links.push({ source: 'root', target: `spark-${spark.id}`, linkType: 'root-spark' });
         });
-        if (showTiles && spark.tile_id)
-          links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}`, linkType: 'tile-spark' });
-        else
-          links.push({ source: 'root', target: `spark-${spark.id}`, linkType: 'root-spark' });
-      });
+      }
     }
 
     // ─── SVG setup ───
@@ -1001,7 +1000,7 @@ export default function GraphPage() {
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, queryClient]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, queryClient]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
