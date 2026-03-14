@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
-  Home,
   FileText,
   LayoutGrid,
   PlusCircle,
   Settings,
   BarChart3,
+  Share2,
+  Calendar,
   LogOut,
+  Bot,
+  Tag,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -17,15 +20,21 @@ import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
 
 const navigation = [
-  { name: 'Dashboard', href: '/', icon: Home },
-  { name: 'Memos', href: '/memos', icon: FileText },
+  { name: 'Analytics', href: '/', icon: BarChart3 },
+  { name: 'Sparks', href: '/sparks', icon: FileText },
   { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
+  { name: 'Tags', href: '/tags', icon: Tag },
   { name: 'Cattura', href: '/capture', icon: PlusCircle },
-  { name: 'Analytics', href: '/analytics', icon: BarChart3 },
+  { name: 'Calendario', href: '/calendar', icon: Calendar },
+  { name: 'Graph', href: '/graph', icon: Share2 },
   { name: 'Impostazioni', href: '/settings', icon: Settings },
 ];
 
-export function Sidebar() {
+interface SidebarProps {
+  onOpenChat?: () => void;
+}
+
+export function Sidebar({ onOpenChat }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuthStore();
 
@@ -59,6 +68,17 @@ export function Sidebar() {
           );
         })}
       </nav>
+
+      {/* Ask Gimmick button */}
+      <div className="px-3 pb-3">
+        <Button
+          onClick={onOpenChat}
+          className="w-full justify-start gap-3 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20"
+        >
+          <Bot className="h-5 w-5" />
+          Ask Gimmick
+        </Button>
+      </div>
 
       <Separator className="bg-zinc-800" />
 

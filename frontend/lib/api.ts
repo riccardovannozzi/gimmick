@@ -1,4 +1,4 @@
-import type { Memo, Tile, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -142,8 +142,8 @@ export const authApi = {
   },
 };
 
-// ============ Memos API ============
-export const memosApi = {
+// ============ Sparks API ============
+export const sparksApi = {
   async list(options?: { page?: number; limit?: number; type?: string }) {
     const params = new URLSearchParams();
     if (options?.page) params.set('page', options.page.toString());
@@ -151,31 +151,35 @@ export const memosApi = {
     if (options?.type) params.set('type', options.type);
 
     const query = params.toString();
-    const endpoint = `/api/memos${query ? `?${query}` : ''}`;
+    const endpoint = `/api/sparks${query ? `?${query}` : ''}`;
 
-    return apiRequest<PaginatedResponse<Memo>>(endpoint) as unknown as Promise<PaginatedResponse<Memo>>;
+    return apiRequest<PaginatedResponse<Spark>>(endpoint) as unknown as Promise<PaginatedResponse<Spark>>;
+  },
+
+  async stats() {
+    return apiRequest<{ counts: Record<string, number>; total: number; totalSize: number; dateCounts: Record<string, number> }>('/api/sparks/stats');
   },
 
   async get(id: string) {
-    return apiRequest<Memo>(`/api/memos/${id}`);
+    return apiRequest<Spark>(`/api/sparks/${id}`);
   },
 
-  async create(memo: Partial<Memo>) {
-    return apiRequest<Memo>('/api/memos', {
+  async create(spark: Partial<Spark>) {
+    return apiRequest<Spark>('/api/sparks', {
       method: 'POST',
-      body: JSON.stringify(memo),
+      body: JSON.stringify(spark),
     });
   },
 
-  async update(id: string, updates: Partial<Memo>) {
-    return apiRequest<Memo>(`/api/memos/${id}`, {
+  async update(id: string, updates: Partial<Spark>) {
+    return apiRequest<Spark>(`/api/sparks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
   async delete(id: string) {
-    return apiRequest(`/api/memos/${id}`, { method: 'DELETE' });
+    return apiRequest(`/api/sparks/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -193,7 +197,15 @@ export const tilesApi = {
   },
 
   async get(id: string) {
-    return apiRequest<Tile & { memos: Memo[] }>(`/api/tiles/${id}`);
+    return apiRequest<Tile & { sparks: Spark[] }>(`/api/tiles/${id}`);
+  },
+
+  async graph() {
+    return apiRequest<{
+      tiles: { id: string; title?: string; description?: string; created_at: string }[];
+      sparks: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
+      tags: { id: string; name: string; color?: string; created_at: string; tile_ids: string[] }[];
+    }>('/api/tiles/graph');
   },
 
   async create(tile?: { title?: string; description?: string }) {
@@ -212,6 +224,59 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Chat API ============
+export const chatApi = {
+  async send(
+    message: string,
+    history: { role: 'user' | 'assistant'; content: string }[] = []
+  ) {
+    return apiRequest<{ reply: string; foundSparkIds?: string[]; foundTileIds?: string[] }>('/api/chat', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    });
+  },
+
+  async sendVoice(
+    audioBlob: Blob,
+    history: { role: 'user' | 'assistant'; content: string }[] = []
+  ) {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'audio.webm');
+    formData.append('history', JSON.stringify(history));
+
+    loadTokens();
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}/api/chat/voice`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    return response.json() as Promise<ApiResponse<{ transcript: string; reply: string; foundSparkIds?: string[]; foundTileIds?: string[] }>>;
+  },
+
+  async speak(text: string): Promise<HTMLAudioElement | null> {
+    loadTokens();
+    const token = getAccessToken();
+    const response = await fetch(`${API_URL}/api/chat/tts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ text }),
+    });
+
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    audio.onended = () => URL.revokeObjectURL(url);
+    return audio;
   },
 };
 
@@ -250,5 +315,134 @@ export const uploadApi = {
     return apiRequest<{ url: string; expires_in: number }>(
       `/api/upload/signed-url?path=${encodeURIComponent(path)}`
     );
+  },
+};
+
+// ============ Tags API ============
+export const tagsApi = {
+  async list() {
+    return apiRequest<Tag[]>('/api/tags');
+  },
+
+  async create(tag: { name: string; color?: string; aliases?: string[] }) {
+    return apiRequest<Tag>('/api/tags', {
+      method: 'POST',
+      body: JSON.stringify(tag),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; color?: string; aliases?: string[] }) {
+    return apiRequest<Tag>(`/api/tags/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tags/${id}`, { method: 'DELETE' });
+  },
+
+  async tagTiles(tagId: string, tileIds: string[]) {
+    return apiRequest(`/api/tags/${tagId}/tiles`, {
+      method: 'POST',
+      body: JSON.stringify({ tile_ids: tileIds }),
+    });
+  },
+
+  async untagTile(tagId: string, tileId: string) {
+    return apiRequest(`/api/tags/${tagId}/tiles/${tileId}`, { method: 'DELETE' });
+  },
+
+  async getTiles(tagId: string) {
+    return apiRequest<Tile[]>(`/api/tags/${tagId}/tiles`);
+  },
+
+  async graph() {
+    return apiRequest<TagGraph>('/api/tags/graph');
+  },
+
+  async getRelated(tagId: string, limit = 10) {
+    return apiRequest<(TagNode & { weight: number })[]>(`/api/tags/${tagId}/related?limit=${limit}`);
+  },
+
+  async updateRelation(tagFrom: string, tagTo: string, weight: number, relationType?: string) {
+    return apiRequest('/api/tags/relations', {
+      method: 'PATCH',
+      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo, weight, relation_type: relationType }),
+    });
+  },
+
+  async deleteRelation(tagFrom: string, tagTo: string) {
+    return apiRequest('/api/tags/relations', {
+      method: 'DELETE',
+      body: JSON.stringify({ tag_from: tagFrom, tag_to: tagTo }),
+    });
+  },
+};
+
+// ============ Calendar API ============
+export const calendarApi = {
+  async events(start: string, end: string, tagId?: string) {
+    const params = new URLSearchParams({ start, end });
+    if (tagId) params.set('tag_id', tagId);
+    return apiRequest<Tile[]>(`/api/calendar/events?${params}`);
+  },
+
+  async createEvent(data: {
+    title?: string;
+    description?: string;
+    start_at?: string;
+    end_at?: string;
+  }) {
+    return apiRequest<Tile>('/api/calendar/create-event', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async schedule(data: {
+    tile_id: string;
+    start_at?: string;
+    end_at?: string;
+    title?: string;
+    description?: string;
+    auto_detect?: boolean;
+  }) {
+    return apiRequest<Tile>('/api/calendar/schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async reschedule(id: string, start_at: string, end_at?: string) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ start_at, end_at }),
+    });
+  },
+
+  async updateEvent(id: string, updates: {
+    title?: string;
+    description?: string;
+    start_at?: string;
+    end_at?: string;
+  }) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async unschedule(id: string) {
+    return apiRequest(`/api/calendar/events/${id}/unschedule`, {
+      method: 'DELETE',
+    });
+  },
+
+  async aiFilter(query: string, start?: string, end?: string) {
+    return apiRequest<Tile[]>('/api/calendar/ai-filter', {
+      method: 'POST',
+      body: JSON.stringify({ query, start, end }),
+    });
   },
 };

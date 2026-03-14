@@ -1,4 +1,4 @@
-import type { Memo, BufferItem, Tile } from '@/types';
+import type { Spark, BufferItem, Tile } from '@/types';
 import Constants from 'expo-constants';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
@@ -283,9 +283,9 @@ export const authApi = {
   },
 };
 
-// ============ Memos API ============
+// ============ Sparks API ============
 
-export const memosApi = {
+export const sparksApi = {
   async list(options?: { page?: number; limit?: number; type?: string }) {
     const params = new URLSearchParams();
     if (options?.page) params.set('page', options.page.toString());
@@ -293,40 +293,40 @@ export const memosApi = {
     if (options?.type) params.set('type', options.type);
 
     const query = params.toString();
-    const endpoint = `/api/memos${query ? `?${query}` : ''}`;
+    const endpoint = `/api/sparks${query ? `?${query}` : ''}`;
 
     const response = await authenticatedFetch(endpoint);
 
-    return response.json() as Promise<PaginatedResponse<Memo>>;
+    return response.json() as Promise<PaginatedResponse<Spark>>;
   },
 
   async get(id: string) {
-    return apiRequest<Memo>(`/api/memos/${id}`);
+    return apiRequest<Spark>(`/api/sparks/${id}`);
   },
 
-  async create(memo: Partial<Memo>) {
-    return apiRequest<Memo>('/api/memos', {
+  async create(spark: Partial<Spark>) {
+    return apiRequest<Spark>('/api/sparks', {
       method: 'POST',
-      body: JSON.stringify(memo),
+      body: JSON.stringify(spark),
     });
   },
 
-  async createBatch(items: Partial<Memo>[], tileId?: string) {
-    return apiRequest<Memo[]>('/api/memos/batch', {
+  async createBatch(items: Partial<Spark>[], tileId?: string) {
+    return apiRequest<Spark[]>('/api/sparks/batch', {
       method: 'POST',
       body: JSON.stringify({ items, tile_id: tileId }),
     });
   },
 
-  async update(id: string, updates: Partial<Memo>) {
-    return apiRequest<Memo>(`/api/memos/${id}`, {
+  async update(id: string, updates: Partial<Spark>) {
+    return apiRequest<Spark>(`/api/sparks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
   async delete(id: string) {
-    return apiRequest(`/api/memos/${id}`, { method: 'DELETE' });
+    return apiRequest(`/api/sparks/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -347,7 +347,7 @@ export const tilesApi = {
   },
 
   async get(id: string) {
-    return apiRequest<Tile & { memos: Memo[] }>(`/api/tiles/${id}`);
+    return apiRequest<Tile & { sparks: Spark[] }>(`/api/tiles/${id}`);
   },
 
   async create(tile?: { title?: string; description?: string }) {
@@ -506,8 +506,8 @@ function getFileType(fileName: string): string {
  */
 export async function uploadBufferItems(
   items: BufferItem[]
-): Promise<{ success: boolean; results: Memo[]; errors: string[]; tile?: Tile }> {
-  const results: Memo[] = [];
+): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile }> {
+  const results: Spark[] = [];
   const errors: string[] = [];
   let tile: Tile | undefined;
 
@@ -547,8 +547,8 @@ export async function uploadBufferItems(
         storagePath = uploadResult.data?.path;
       }
 
-      // Create memo with tile_id if we have a tile
-      const memoResult = await memosApi.create({
+      // Create spark with tile_id if we have a tile
+      const sparkResult = await sparksApi.create({
         type: item.type,
         tile_id: tile?.id,
         content: item.preview,
@@ -560,10 +560,10 @@ export async function uploadBufferItems(
         duration: item.duration,
       });
 
-      if (memoResult.success && memoResult.data) {
-        results.push(memoResult.data);
+      if (sparkResult.success && sparkResult.data) {
+        results.push(sparkResult.data);
       } else {
-        errors.push(`Failed to create memo: ${memoResult.error}`);
+        errors.push(`Failed to create spark: ${sparkResult.error}`);
       }
     } catch (error) {
       errors.push(

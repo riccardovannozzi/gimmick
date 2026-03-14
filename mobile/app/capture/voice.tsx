@@ -202,9 +202,16 @@ export default function VoiceCaptureScreen() {
       <View className="flex-row items-center px-4 pt-12">
         <TouchableOpacity
           onPress={handleClose}
-          className="w-10 h-10 rounded-full bg-background-2 items-center justify-center"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: 28,
+            backgroundColor: colors.surfaceVariant,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
         >
-          <X size={24} color={colors.secondary} />
+          <X size={26} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 

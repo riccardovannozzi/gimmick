@@ -7,8 +7,8 @@ export interface AuthenticatedRequest extends Request {
   accessToken?: string;
 }
 
-// Memo types
-export type MemoType =
+// Spark types (formerly MemoType)
+export type SparkType =
   | 'photo'
   | 'image'
   | 'video'
@@ -22,24 +22,48 @@ export interface Tile {
   user_id: string;
   title?: string;
   description?: string;
+  start_at?: string;
+  end_at?: string;
+  is_event?: boolean;
   created_at: string;
   updated_at: string;
-  memo_count?: number;
-  memos?: Memo[];
+  spark_count?: number;
+  sparks?: Spark[];
 }
 
 // Create tile DTO
 export interface CreateTileDto {
   title?: string;
   description?: string;
+  start_at?: string;
+  end_at?: string;
+  is_event?: boolean;
 }
 
-// Memo entity
-export interface Memo {
+// AI indexing status
+export type AiStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+// Structured spark metadata (stored in JSONB)
+export interface SparkMetadata {
+  tags?: string[];
+  summary?: string;
+  ai_description?: string;
+  transcript?: string;
+  extracted_text?: string;
+  pending_event?: {
+    start_at: string;
+    end_at?: string;
+    confidence: number;
+  };
+  [key: string]: unknown;
+}
+
+// Spark entity (formerly Memo)
+export interface Spark {
   id: string;
   user_id: string;
   tile_id?: string;
-  type: MemoType;
+  type: SparkType;
   content?: string;
   storage_path?: string;
   thumbnail_path?: string;
@@ -47,14 +71,15 @@ export interface Memo {
   mime_type?: string;
   file_size?: number;
   duration?: number;
-  metadata: Record<string, unknown>;
+  metadata: SparkMetadata;
+  ai_status: AiStatus;
   created_at: string;
   updated_at: string;
 }
 
-// Create memo DTO
-export interface CreateMemoDto {
-  type: MemoType;
+// Create spark DTO
+export interface CreateSparkDto {
+  type: SparkType;
   tile_id?: string;
   content?: string;
   storage_path?: string;
@@ -66,10 +91,35 @@ export interface CreateMemoDto {
   metadata?: Record<string, unknown>;
 }
 
-// Update memo DTO
-export interface UpdateMemoDto {
+// Update spark DTO
+export interface UpdateSparkDto {
   content?: string;
   metadata?: Record<string, unknown>;
+}
+
+// Tag entity
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  slug?: string;
+  color?: string;
+  aliases?: string[];
+  usage_count?: number;
+  is_root?: boolean;
+  created_at: string;
+}
+
+// Tag relation (weighted edge in the co-occurrence graph)
+export interface TagRelation {
+  id: string;
+  user_id: string;
+  tag_from: string;
+  tag_to: string;
+  weight: number;
+  relation_type?: string;
+  created_at: string;
+  updated_at: string;
 }
 
 // API Response

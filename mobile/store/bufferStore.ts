@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BufferItem, MemoType } from '@/types';
+import type { BufferItem, SparkType } from '@/types';
 import { generateId } from '@/utils/formatters';
 
 interface BufferState {

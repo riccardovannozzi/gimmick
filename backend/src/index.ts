@@ -6,10 +6,12 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 
 import { authRouter } from './routes/auth.js';
-import { memosRouter } from './routes/memos.js';
+import { sparksRouter } from './routes/sparks.js';
 import { tilesRouter } from './routes/tiles.js';
 import { uploadRouter } from './routes/upload.js';
 import { chatRouter } from './routes/chat.js';
+import { tagsRouter } from './routes/tags.js';
+import { calendarRouter } from './routes/calendar.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -50,10 +52,12 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/auth', authRouter);
-app.use('/api/memos', memosRouter);
+app.use('/api/sparks', sparksRouter);
 app.use('/api/tiles', tilesRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/tags', tagsRouter);
+app.use('/api/calendar', calendarRouter);
 
 // Error handling
 app.use(notFoundHandler);

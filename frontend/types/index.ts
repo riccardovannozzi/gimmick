@@ -1,5 +1,5 @@
-// Memo types
-export type MemoType =
+// Spark types
+export type SparkType =
   | 'photo'
   | 'image'
   | 'video'
@@ -7,24 +7,28 @@ export type MemoType =
   | 'text'
   | 'file';
 
-// Tile entity (group of memos)
+// Tile entity (group of sparks)
 export interface Tile {
   id: string;
   user_id: string;
   title?: string;
   description?: string;
+  start_at?: string;
+  end_at?: string;
+  is_event?: boolean;
   created_at: string;
   updated_at: string;
-  memo_count?: number;
-  memos?: Memo[];
+  spark_count?: number;
+  sparks?: Spark[];
+  tags?: { id: string; name: string; color?: string }[];
 }
 
-// Memo entity
-export interface Memo {
+// Spark entity
+export interface Spark {
   id: string;
   user_id: string;
   tile_id?: string;
-  type: MemoType;
+  type: SparkType;
   content?: string;
   storage_path?: string;
   thumbnail_path?: string;
@@ -33,6 +37,7 @@ export interface Memo {
   file_size?: number;
   duration?: number;
   metadata: Record<string, unknown>;
+  ai_status?: 'pending' | 'processing' | 'completed' | 'failed';
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +67,42 @@ export interface PaginatedResponse<T> {
     total: number;
     totalPages: number;
   };
+}
+
+// Tag entity
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  slug?: string;
+  color?: string;
+  aliases?: string[];
+  usage_count?: number;
+  is_root?: boolean;
+  created_at: string;
+}
+
+// Tag graph types
+export interface TagNode {
+  id: string;
+  name: string;
+  slug: string;
+  color?: string;
+  usage_count: number;
+  is_root?: boolean;
+}
+
+export interface TagEdge {
+  id: string;
+  tag_from: string;
+  tag_to: string;
+  weight: number;
+  relation_type?: string;
+}
+
+export interface TagGraph {
+  nodes: TagNode[];
+  edges: TagEdge[];
 }
 
 // Auth Tokens

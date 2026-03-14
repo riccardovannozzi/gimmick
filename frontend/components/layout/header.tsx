@@ -14,9 +14,10 @@ import { useAuthStore } from '@/store/auth-store';
 
 interface HeaderProps {
   title: string;
+  actions?: React.ReactNode;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, actions }: HeaderProps) {
   const { user, signOut } = useAuthStore();
 
   const initials = user?.email
@@ -30,6 +31,7 @@ export function Header({ title }: HeaderProps) {
 
       {/* Right side */}
       <div className="flex items-center gap-4">
+        {actions}
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />

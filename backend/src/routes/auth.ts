@@ -40,6 +40,15 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
       return;
     }
 
+    // Create root GIMMICK tag for the new user
+    await supabaseAdmin.from('tags').insert({
+      user_id: data.user.id,
+      name: 'GIMMICK',
+      is_root: true,
+      color: '#528BFF',
+      slug: 'gimmick',
+    });
+
     res.status(201).json({
       success: true,
       data: {

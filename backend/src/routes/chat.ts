@@ -44,11 +44,11 @@ chatRouter.post(
     try {
       const { message, history, model } = req.body;
 
-      const reply = await chat(message, history, req.user!.id, model);
+      const result = await chat(message, history, req.user!.id, model);
 
       res.json({
         success: true,
-        data: { reply },
+        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
     } catch (error: any) {
       console.error('Chat error:', error);
@@ -117,11 +117,11 @@ chatRouter.post(
       }
 
       // Send transcription to Claude
-      const reply = await chat(transcript, history, req.user!.id, model);
+      const result = await chat(transcript, history, req.user!.id, model);
 
       res.json({
         success: true,
-        data: { transcript, reply },
+        data: { transcript, reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
     } catch (error: any) {
       console.error('Voice chat error:', error);
@@ -130,6 +130,47 @@ chatRouter.post(
         success: false,
         error: errorMessage,
       });
+    }
+  }
+);
+
+// POST /api/chat/tts — text-to-speech using OpenAI TTS
+chatRouter.post(
+  '/tts',
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { text } = req.body;
+      if (!text || typeof text !== 'string') {
+        res.status(400).json({ success: false, error: 'Text is required' });
+        return;
+      }
+
+      // Strip markdown for cleaner speech
+      const cleanText = text
+        .replace(/\*\*([^*]+)\*\*/g, '$1')
+        .replace(/\*([^*]+)\*/g, '$1')
+        .replace(/#{1,6}\s/g, '')
+        .replace(/`[^`]+`/g, '')
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        .slice(0, 4000);
+
+      const response = await openai.audio.speech.create({
+        model: 'tts-1',
+        voice: 'nova',
+        input: cleanText,
+        response_format: 'mp3',
+      });
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      res.set({
+        'Content-Type': 'audio/mpeg',
+        'Content-Length': buffer.length.toString(),
+      });
+      res.send(buffer);
+    } catch (error: any) {
+      console.error('TTS error:', error);
+      res.status(500).json({ success: false, error: 'TTS failed' });
     }
   }
 );

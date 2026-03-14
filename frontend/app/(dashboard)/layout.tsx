@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
+import { ChatPanel } from '@/components/chat/chat-panel';
 import { useAuthStore } from '@/store/auth-store';
 
 export default function DashboardLayout({
@@ -12,6 +13,7 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const { user, isLoading, isInitialized } = useAuthStore();
+  const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
     if (isInitialized && !isLoading && !user) {
@@ -33,8 +35,9 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <Sidebar onOpenChat={() => setChatOpen(true)} />
+      <main className="flex-1 overflow-hidden">{children}</main>
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

@@ -214,7 +214,7 @@ export default function SettingsScreen() {
                   Not connected
                 </Text>
                 <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
-                  Sign in to sync your memos
+                  Sign in to sync your sparks
                 </Text>
               </View>
               <ChevronRight size={20} color={colors.tertiary} />

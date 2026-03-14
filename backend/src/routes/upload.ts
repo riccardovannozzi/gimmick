@@ -18,7 +18,7 @@ const upload = multer({
   },
 });
 
-const BUCKET_NAME = 'memos';
+const BUCKET_NAME = 'sparks';
 
 /**
  * Generate unique filename

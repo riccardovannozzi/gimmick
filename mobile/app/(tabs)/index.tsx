@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation } from 'react-native';
+import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles } from 'lucide-react-native';
+import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles, Check } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
@@ -10,7 +10,7 @@ import { uploadBufferItems, chatApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, MemoType } from '@/types';
+import type { BufferItem, SparkType } from '@/types';
 
 type ChatMessage = {
   id: string;
@@ -21,7 +21,7 @@ type ChatMessage = {
 
 let msgCounter = 0;
 
-const buttonToMemoTypes: Record<string, MemoType[]> = {
+const buttonToSparkTypes: Record<string, SparkType[]> = {
   photo: ['photo'],
   video: ['video'],
   gallery: ['image'],
@@ -35,12 +35,12 @@ const captureOptions = [
   { id: 'video', label: 'VIDEO', icon: <Video />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
   { id: 'gallery', label: 'GALLERY', icon: <Images />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
   { id: 'text', label: 'TEXT', icon: <PenSquare />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
-  { id: 'voice', label: 'VOICE', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
+  { id: 'voice', label: 'REC', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
   { id: 'file', label: 'FILE', icon: <Paperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
 ] as const;
 
-function MemoChip({ item, index, onRemove, colors }: { item: BufferItem; index: number; onRemove: () => void; colors: any }) {
-  const getChipColor = (type: MemoType) => {
+function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferItem; index: number; onRemove: () => void; onPress?: () => void; colors: any }) {
+  const getChipColor = (type: SparkType) => {
     switch (type) {
       case 'photo': case 'image': return captureColors.photo;
       case 'video': return captureColors.video;
@@ -51,7 +51,7 @@ function MemoChip({ item, index, onRemove, colors }: { item: BufferItem; index: 
     }
   };
 
-  const getTypeLabel = (type: MemoType) => {
+  const getTypeLabel = (type: SparkType) => {
     switch (type) {
       case 'photo': return 'Photo';
       case 'image': return 'Image';
@@ -77,90 +77,115 @@ function MemoChip({ item, index, onRemove, colors }: { item: BufferItem; index: 
   const chipColor = getChipColor(item.type);
   const isMedia = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const isText = item.type === 'text';
+  const isPdf = item.type === 'file' && item.mimeType === 'application/pdf';
 
-  return (
-    <View
-      style={{
-        backgroundColor: colors.surfaceVariant,
-        borderRadius: 12,
-        marginBottom: 8,
-        minHeight: 56,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', paddingRight: 10 }}>
-        {isMedia && item.uri ? (
-          <RNImage
-            source={{ uri: item.thumbnail ?? item.uri }}
-            style={{ width: 56, height: 56, borderTopLeftRadius: 12, borderBottomLeftRadius: isText ? 0 : 12 }}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
+  const getSecondLine = () => {
+    if (isText) return item.preview || '';
+    if (item.type === 'audio_recording') {
+      return [item.duration ? formatDuration(item.duration) : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+    }
+    if (isMedia) {
+      const dur = item.duration
+        ? formatDuration(item.duration < 1000 ? item.duration * 1000 : item.duration)
+        : null;
+      return [item.fileName, dur, item.width && item.height ? `${item.width}×${item.height}` : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+    }
+    if (item.type === 'file') {
+      return [item.fileName, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+    }
+    return getDetails(item);
+  };
+
+  if (isMedia && item.uri) {
+    return (
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={onPress}
+        style={{
+          backgroundColor: colors.surfaceVariant,
+          borderRadius: 12,
+          marginBottom: 8,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+        }}
+      >
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text style={{ color: chipColor, fontSize: 12, fontWeight: '700' }}>
+            {getTypeLabel(item.type)}
+          </Text>
+          <TouchableOpacity
+            onPress={onRemove}
             style={{
-              width: 56,
-              minHeight: 56,
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: `${colors.tertiary}20`,
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            {item.type === 'text' ? (
-              <PenSquare size={20} color={chipColor} strokeWidth={1.8} />
-            ) : item.type === 'audio_recording' ? (
-              <Mic size={20} color={chipColor} strokeWidth={1.8} />
-            ) : item.type === 'file' ? (
-              <Paperclip size={20} color={chipColor} strokeWidth={1.8} />
-            ) : (
-              <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: chipColor }} />
-            )}
-          </View>
-        )}
-        {isText ? (
-          <View style={{ flex: 1, paddingVertical: 10, paddingHorizontal: 10 }}>
-            <Text style={{ color: colors.primary, fontSize: 14, lineHeight: 20 }}>
-              {item.preview || 'Text'}
-            </Text>
-          </View>
-        ) : (
-          <View style={{ flex: 1, paddingVertical: 8, paddingHorizontal: 10 }}>
-            <Text
-              numberOfLines={1}
-              style={{ color: colors.primary, fontSize: 14, fontWeight: '600' }}
-            >
-              {item.type === 'file' || isMedia
-                ? item.fileName || item.uri.split('/').pop() || `${getTypeLabel(item.type)} ${index}`
-                : `${getTypeLabel(item.type)} ${index}`}
-            </Text>
-            <Text
-              numberOfLines={1}
-              style={{ color: colors.tertiary, fontSize: 12, marginTop: 2 }}
-            >
-              {item.type === 'audio_recording'
-                ? [item.duration ? formatDuration(item.duration) : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || 'Audio'
-                : isMedia
-                  ? [item.width && item.height ? `${item.width}×${item.height}` : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || getTypeLabel(item.type)
-                  : item.type === 'file'
-                    ? (item.size ? formatFileSize(item.size) : 'File')
-                    : getDetails(item)}
-            </Text>
-          </View>
-        )}
-        <TouchableOpacity
-          onPress={onRemove}
-          style={{
-            width: 28,
-            height: 28,
-            borderRadius: 14,
-            backgroundColor: `${colors.tertiary}20`,
-            alignItems: 'center',
-            justifyContent: 'center',
-            alignSelf: 'flex-start',
-            marginTop: 14,
-          }}
-        >
-          <X size={14} color={colors.secondary} strokeWidth={2.5} />
-        </TouchableOpacity>
+            <X size={14} color={colors.secondary} strokeWidth={2.5} />
+          </TouchableOpacity>
+        </View>
+        <RNImage
+          source={{ uri: item.thumbnail ?? item.uri }}
+          style={{ width: '100%', height: 160, borderRadius: 10, marginTop: 8 }}
+          resizeMode="cover"
+        />
+        {(getSecondLine() || item.type === 'video') ? (
+          <Text
+            numberOfLines={2}
+            style={{ color: '#FFFFFF', fontSize: 15, marginTop: 8 }}
+          >
+            {getSecondLine() || `${item.duration ? formatDuration(item.duration) : 'Video'}`}
+          </Text>
+        ) : null}
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      activeOpacity={0.7}
+      onPress={onPress}
+      style={{
+        backgroundColor: colors.surfaceVariant,
+        borderRadius: 12,
+        marginBottom: 8,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 14,
+        paddingVertical: 12,
+      }}
+    >
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: chipColor, fontSize: 12, fontWeight: '700' }}>
+          {getTypeLabel(item.type)}
+        </Text>
+        {getSecondLine() ? (
+          <Text
+            numberOfLines={4}
+            style={{ color: '#FFFFFF', fontSize: 15, marginTop: 4 }}
+          >
+            {getSecondLine()}
+          </Text>
+        ) : null}
       </View>
-    </View>
+      <TouchableOpacity
+        onPress={onRemove}
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: 14,
+          backgroundColor: `${colors.tertiary}20`,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginLeft: 8,
+        }}
+      >
+        <X size={14} color={colors.secondary} strokeWidth={2.5} />
+      </TouchableOpacity>
+    </TouchableOpacity>
   );
 }
 
@@ -274,7 +299,7 @@ export default function HomeScreen() {
   const handleSend = async () => {
     if (items.length === 0) return;
     if (!isAuthenticated) {
-      toast.warning('Please login to upload memos');
+      toast.warning('Please login to upload sparks');
       router.push('/auth/login' as any);
       return;
     }
@@ -391,7 +416,7 @@ export default function HomeScreen() {
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {captureOptions.slice(0, 3).map((option) => {
-                  const types = buttonToMemoTypes[option.id] || [];
+                  const types = buttonToSparkTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
                     0,
@@ -446,7 +471,7 @@ export default function HomeScreen() {
               {/* Row 2 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {captureOptions.slice(3, 6).map((option) => {
-                  const types = buttonToMemoTypes[option.id] || [];
+                  const types = buttonToSparkTypes[option.id] || [];
                   const count = types.reduce(
                     (sum, t) => sum + items.filter((i) => i.type === t).length,
                     0,
@@ -499,25 +524,45 @@ export default function HomeScreen() {
                 })}
               </View>
               {/* Ask AI button — same width as Voice, half height */}
-              <TouchableOpacity
-                onPress={toggleChatMode}
-                activeOpacity={0.7}
-                style={{
-                  flex: 1,
-                  borderRadius: 16,
-                  backgroundColor: '#1E1A2E',
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  paddingVertical: 14,
-                }}
-              >
-                <Sparkles size={20} color="#7B61FF" strokeWidth={1.8} />
-                <Text style={{ fontSize: 13, fontWeight: '600', color: '#FFFFFF', letterSpacing: 0.3 }}>
-                  ASK AI
-                </Text>
-              </TouchableOpacity>
+              <View style={{ flexDirection: 'row', gap: 10 }}>
+                <TouchableOpacity
+                  onPress={toggleChatMode}
+                  activeOpacity={0.7}
+                  style={{
+                    flex: 1,
+                    borderRadius: 16,
+                    backgroundColor: colors.background3,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                    paddingVertical: 18,
+                  }}
+                >
+                  <Sparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
+                    ASK GIMMICK
+                  </Text>
+                </TouchableOpacity>
+                {bufferCount > 0 && (
+                  <TouchableOpacity
+                    onPress={handleSend}
+                    disabled={isUploading}
+                    activeOpacity={0.7}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: colors.surfaceVariant,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: isUploading ? 0.6 : 1,
+                    }}
+                  >
+                    <Send size={22} color={colors.onAccent} />
+                  </TouchableOpacity>
+                )}
+              </View>
             </View>
 
             {/* Buffer chips */}
@@ -532,39 +577,23 @@ export default function HomeScreen() {
                   Buffer ({bufferCount})
                 </Text>
                 <View>
-                  {items.map((item, i) => {
-                    const typeIndex = items.slice(0, i).filter((it) => it.type === item.type).length + 1;
+                  {[...items].reverse().map((item) => {
+                    const sameType = items.filter((it) => it.type === item.type);
+                    const typeIndex = sameType.indexOf(item) + 1;
                     return (
-                      <MemoChip
+                      <SparkChip
                         key={item.id}
                         item={item}
                         index={typeIndex}
                         onRemove={() => removeItem(item.id)}
+                        onPress={() => {
+                          setEditingItem(item);
+                          if (item.type === 'text') setEditText(item.preview || '');
+                        }}
                         colors={colors}
                       />
                     );
                   })}
-                </View>
-                <View style={{ alignItems: 'flex-end', marginTop: 12 }}>
-                  <TouchableOpacity
-                    onPress={handleSend}
-                    disabled={isUploading}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      backgroundColor: colors.fabBg,
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 12,
-                      gap: 6,
-                      opacity: isUploading ? 0.6 : 1,
-                    }}
-                  >
-                    <Send size={14} color={colors.onAccent} />
-                    <Text style={{ color: colors.onAccent, fontSize: 13, fontWeight: '600' }}>
-                      Upload
-                    </Text>
-                  </TouchableOpacity>
                 </View>
               </View>
             )}
@@ -578,51 +607,77 @@ export default function HomeScreen() {
           statusBarTranslucent={false}
           onRequestClose={handleCloseEdit}
         >
-          <SafeAreaWrapper edges={['top']}>
-            <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
+          <SafeAreaWrapper edges={['top', 'bottom']}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              className="flex-1"
+              style={{ backgroundColor: colors.background1 }}
+            >
+              {/* Header */}
               <View
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   paddingHorizontal: 16,
-                  paddingVertical: 14,
+                  paddingVertical: 12,
                   borderBottomWidth: 1,
                   borderBottomColor: colors.border,
                 }}
               >
-                <TouchableOpacity onPress={handleCloseEdit} style={{ padding: 8 }}>
-                  <X size={24} color={colors.secondary} />
+                <TouchableOpacity
+                  onPress={handleCloseEdit}
+                  style={{
+                    width: 56,
+                    height: 56,
+                    borderRadius: 28,
+                    backgroundColor: colors.surfaceVariant,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <X size={26} color="#FFFFFF" />
                 </TouchableOpacity>
-                <Text style={{ color: colors.primary, fontSize: 18, fontWeight: '600' }}>
-                  {editingItem?.type === 'text' ? 'Edit text' : 'Preview'}
+
+                <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>
+                  {editingItem?.type === 'text' ? 'Edit note' : 'Preview'}
                 </Text>
+
                 {editingItem?.type === 'text' ? (
-                  <TouchableOpacity onPress={handleSaveEdit} style={{ padding: 8 }}>
-                    <Save size={24} color={colors.accent} />
+                  <TouchableOpacity
+                    onPress={handleSaveEdit}
+                    style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: 28,
+                      backgroundColor: editText.trim() ? '#22C55E' : colors.border,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Check size={26} color={editText.trim() ? '#fff' : colors.secondary} />
                   </TouchableOpacity>
                 ) : (
-                  <View style={{ width: 40 }} />
+                  <View style={{ width: 56 }} />
                 )}
               </View>
 
-              <View className="flex-1 p-4" style={{ paddingBottom: insets.bottom + 16 }}>
+              {/* Content */}
+              <View className="flex-1 p-4">
                 {editingItem?.type === 'text' ? (
                   <TextInput
                     style={{
                       flex: 1,
                       textAlignVertical: 'top',
-                      backgroundColor: colors.surfaceVariant,
                       color: colors.primary,
-                      fontSize: 16,
-                      borderRadius: 16,
-                      padding: 16,
+                      fontSize: 20,
+                      lineHeight: 30,
                     }}
                     multiline
                     value={editText}
                     onChangeText={setEditText}
-                    placeholder="Type here..."
-                    placeholderTextColor={colors.tertiary}
+                    placeholder="Write your note..."
+                    placeholderTextColor={colors.secondary}
                     autoFocus
                   />
                 ) : editingItem?.type === 'photo' || editingItem?.type === 'image' || editingItem?.type === 'video' ? (
@@ -641,7 +696,16 @@ export default function HomeScreen() {
                   </View>
                 )}
               </View>
-            </View>
+
+              {/* Footer */}
+              {editingItem?.type === 'text' && (
+                <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Text style={{ color: colors.secondary, fontSize: 13, textAlign: 'right' }}>
+                    {editText.length} characters
+                  </Text>
+                </View>
+              )}
+            </KeyboardAvoidingView>
           </SafeAreaWrapper>
         </Modal>
       </View>

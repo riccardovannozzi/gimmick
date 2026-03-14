@@ -20,7 +20,7 @@ function TopNav() {
   return (
     <View
       style={{
-        paddingTop: insets.top + 4,
+        paddingTop: insets.top + 16,
         paddingBottom: 8,
         paddingHorizontal: 16,
         backgroundColor: colors.background1,
@@ -43,21 +43,21 @@ function TopNav() {
               paddingHorizontal: isActive ? 16 : 12,
               paddingVertical: 8,
               borderRadius: 20,
-              backgroundColor: isActive ? colors.accentContainer : 'transparent',
+              backgroundColor: isActive ? colors.surfaceVariant : 'transparent',
               gap: 6,
             }}
           >
             <Icon
-              size={20}
-              color={isActive ? colors.accent : colors.tertiary}
+              size={30}
+              color={isActive ? colors.primary : colors.tertiary}
               strokeWidth={isActive ? 2 : 1.5}
             />
             {isActive && (
               <Text
                 style={{
-                  fontSize: 13,
+                  fontSize: 15,
                   fontWeight: '600',
-                  color: colors.accent,
+                  color: colors.primary,
                 }}
               >
                 {tab.label}

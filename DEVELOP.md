@@ -36,7 +36,7 @@
 - [x] Selezione da galleria (expo-image-picker)
 - [x] Buffer pre-invio funzionante
 - [x] Upload a Supabase Storage
-- [x] API routes backend (auth, memos, upload)
+- [x] API routes backend (auth, sparks, upload)
 
 **Data completamento**: Gennaio 2026
 
@@ -99,8 +99,8 @@
 - [ ] Esecuzione azioni
   - [ ] Crea evento calendario
   - [ ] Crea promemoria
-  - [ ] Ricerca memo
-  - [ ] Riassumi memo
+  - [ ] Ricerca sparks
+  - [ ] Riassumi sparks
   - [ ] Trascrivi audio
   - [ ] Preview azione prima di eseguire
   - [ ] Conferma/annulla azione
@@ -109,8 +109,8 @@
 ```
 "Memorizza appuntamento con Luca domani ore 18"
 "Ricordami di chiamare Mario tra 2 ore"
-"Riassumi gli ultimi 3 memo vocali"
-"Cerca tutti i memo su progetto X"
+"Riassumi gli ultimi 3 sparks vocali"
+"Cerca tutti i sparks su progetto X"
 "Trascrivi le note vocali di oggi"
 ```
 
@@ -179,7 +179,7 @@ Funzionalità per inviare "tiles" ad altre applicazioni collegate.
   - [ ] Retry automatico su errore
   
 - [ ] File `lib/teleport.ts`
-  - [ ] `teleportTile(memo, destination)`
+  - [ ] `teleportTile(spark, destination)`
   - [ ] `getConnectedApps()`
   - [ ] `getTileStatus(tileId)`
 
@@ -187,7 +187,7 @@ Funzionalità per inviare "tiles" ad altre applicazioni collegate.
 ```typescript
 interface Tile {
   id: string;
-  memo_id: string;
+  spark_count?: number;
   destination_app: 'magicaboola' | 'altra_app';
   destination_target?: string;  // ID risorsa destinazione
   status: 'pending' | 'sent' | 'received' | 'failed';
@@ -218,12 +218,12 @@ interface Tile {
   - [ ] Android widget (`react-native-android-widget`)
   - [ ] iOS widget (richiede codice nativo)
   - [ ] Quick capture da widget
-  - [ ] Mostra ultimi memo
+  - [ ] Mostra ultimi sparks
   
 - [ ] Wearable
   - [ ] Apple Watch companion
   - [ ] Wear OS companion
-  - [ ] Quick voice memo da watch
+  - [ ] Quick voice spark da watch
 
 ---
 
@@ -290,7 +290,7 @@ Processing: [⏳ Elaboro...                  ]
 └─────────────┘     └─────────────┘     └─────────────┘
       │                   │                    │
       │ POST /tiles       │ Salva tile         │
-      │ {memo, dest}      │ Notifica app       │
+      │ {spark, dest}      │ Notifica app       │
       │                   │ destinazione       │
       │                   │                    │
       │◀──────────────────│◀───────────────────│
@@ -379,4 +379,4 @@ npm install @react-native-community/netinfo
 
 ---
 
-*Ultimo aggiornamento: Gennaio 2026*
+*Ultimo aggiornamento: Marzo 2026*
