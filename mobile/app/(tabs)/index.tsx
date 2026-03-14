@@ -35,7 +35,7 @@ const captureOptions = [
   { id: 'video', label: 'VIDEO', icon: <Video />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
   { id: 'gallery', label: 'GALLERY', icon: <Images />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
   { id: 'text', label: 'TEXT', icon: <PenSquare />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
-  { id: 'voice', label: 'VOICE', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
+  { id: 'voice', label: 'REC', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
   { id: 'file', label: 'FILE', icon: <Paperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
 ] as const;
 

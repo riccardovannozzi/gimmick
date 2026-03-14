@@ -16,6 +16,10 @@ import {
   Trash2,
   Link as LinkIcon,
   Pencil,
+  Eye,
+  Settings2,
+  ChevronDown,
+  Filter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -105,11 +109,16 @@ export default function GraphPage() {
     label: string;
   } | null>(null);
 
+  // Toolbar mode
+  const [toolbarMode, setToolbarMode] = useState<'navigate' | 'edit'>('navigate');
+
   // Content filters
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
     () => new Set(filterConfig.map((f) => f.key))
   );
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<'start' | 'end' | null>(null);
@@ -869,9 +878,9 @@ export default function GraphPage() {
 
       // Highlight connected
       node.style('opacity', 0.2);
-      linkOther.style('opacity', 0.05);
-      linkCo.style('opacity', 0.05);
-      linkCoLabel.style('opacity', 0.05);
+      linkOther.attr('stroke-opacity', 0.05);
+      linkCo.attr('stroke-opacity', 0.05);
+      linkCoLabel.attr('fill-opacity', 0.05);
       const connectedIds = new Set<string>();
       connectedIds.add(d.id);
       links.forEach((l) => {
@@ -885,18 +894,18 @@ export default function GraphPage() {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).style('opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 2);
+      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 2);
       linkCo.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).style('opacity', 0.9).attr('stroke', d.color || '#528BFF')
+      }).attr('stroke-opacity', 0.9).attr('stroke', d.color || '#528BFF')
         .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)));
       linkCoLabel.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).style('opacity', 1).attr('fill', '#F5F5F5');
+      }).attr('fill-opacity', 1).attr('fill', '#F5F5F5');
     });
 
     node.on('mouseleave', function () {
@@ -928,7 +937,7 @@ export default function GraphPage() {
         })
         .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
         .attr('stroke-opacity', 0.5);
-      linkCoLabel.style('opacity', 1).attr('fill', '#9CA3AF');
+      linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
     });
 
     // ─── Tick ───
@@ -957,7 +966,38 @@ export default function GraphPage() {
     svg.on('click', () => {
       setContextMenu(null);
       setSelectedEdge(null);
+      setFilterDropdownOpen(false);
+      setTagDropdownOpen(false);
       if (linkModeRef.current) { setLinkSource(null); setLinkMode(false); }
+      // Reset all highlights
+      node.style('opacity', 1);
+      linkOther
+        .attr('stroke', (l) => {
+          if (l.linkType === 'root-tag') return '#528BFF';
+          if (l.linkType === 'tag-tile') return '#6B7280';
+          if (l.linkType === 'tile-spark') return '#4B5563';
+          return '#3E3E42';
+        })
+        .attr('stroke-width', (l) => {
+          if (l.linkType === 'root-tag') return 1.5;
+          if (l.linkType === 'tag-tile') return 2;
+          return 1.5;
+        })
+        .attr('stroke-opacity', (l) => {
+          if (l.linkType === 'root-tag') return 0.4;
+          if (l.linkType === 'tag-tile') return 0.7;
+          return 0.6;
+        });
+      linkCo
+        .attr('stroke', (l) => {
+          const src = typeof l.source === 'string'
+            ? nodes.find((n) => n.id === (l.source as string))
+            : (l.source as GraphNode);
+          return src?.color || '#8B5CF6';
+        })
+        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
+        .attr('stroke-opacity', 0.5);
+      linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
     });
 
     return () => { simulation.stop(); };
@@ -975,69 +1015,205 @@ export default function GraphPage() {
 
       {/* Toolbar */}
       <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
-        {/* Quick create tag */}
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="Nuovo tag..."
-            value={newTagName}
-            onChange={(e) => setNewTagName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
-            className="h-8 w-40 bg-zinc-800 border-zinc-700 text-white text-xs placeholder:text-zinc-500"
-          />
-          <div className="flex gap-1">
-            {TAG_COLORS.map((color) => (
-              <button
-                key={color}
-                onClick={() => setNewTagColor(color)}
-                className="w-4 h-4 rounded-full transition-transform"
-                style={{
-                  backgroundColor: color,
-                  transform: newTagColor === color ? 'scale(1.3)' : 'scale(1)',
-                  boxShadow: newTagColor === color ? `0 0 0 2px ${color}50` : 'none',
-                }}
-              />
-            ))}
-          </div>
-          <Button
-            size="sm"
-            onClick={handleCreateTag}
-            disabled={!newTagName.trim() || createMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
+        {/* Mode toggle */}
+        <div className="flex items-center bg-zinc-800 rounded-lg p-0.5">
+          <button
+            onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              toolbarMode === 'navigate'
+                ? 'bg-zinc-700 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-300'
+            )}
           >
-            <Plus className="h-3.5 w-3.5 mr-1" />
-            Crea
-          </Button>
+            <Eye className="h-3.5 w-3.5" />
+            Navigate
+          </button>
+          <button
+            onClick={() => setToolbarMode('edit')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
+              toolbarMode === 'edit'
+                ? 'bg-zinc-700 text-white shadow-sm'
+                : 'text-zinc-400 hover:text-zinc-300'
+            )}
+          >
+            <Settings2 className="h-3.5 w-3.5" />
+            Edit Tag
+          </button>
         </div>
 
         <div className="w-px h-6 bg-zinc-700" />
 
-        {/* Link mode toggle */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => { setLinkMode((p) => !p); setLinkSource(null); }}
-          className={cn(
-            'text-xs h-8',
-            linkMode
-              ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-              : 'bg-zinc-800 border-zinc-700 text-zinc-400'
-          )}
-        >
-          <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
-          {linkMode ? 'Collegamento attivo' : 'Collega tag'}
-        </Button>
+        {toolbarMode === 'navigate' ? (
+          <>
+            {/* Filter dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => { setFilterDropdownOpen((p) => !p); setTagDropdownOpen(false); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-750 transition-all h-8"
+              >
+                <Filter className="h-3.5 w-3.5" />
+                Filtri
+                {activeFilters.size < filterConfig.length && (
+                  <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 rounded-full">{activeFilters.size}</span>
+                )}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </button>
+              {filterDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px]">
+                  {filterConfig.map((f) => {
+                    const active = activeFilters.has(f.key);
+                    return (
+                      <button
+                        key={f.key}
+                        onClick={() => toggleFilter(f.key)}
+                        className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors"
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full border-2 flex items-center justify-center"
+                          style={{ borderColor: f.color, backgroundColor: active ? f.color : 'transparent' }}
+                        />
+                        <span className={active ? 'text-white' : 'text-zinc-500'}>{f.label}</span>
+                      </button>
+                    );
+                  })}
+                  <div className="border-t border-zinc-700 mt-1 pt-1">
+                    <button
+                      onClick={() => setActiveFilters(new Set(filterConfig.map((f) => f.key)))}
+                      className="w-full px-3 py-1.5 text-left text-xs text-zinc-400 hover:text-white hover:bg-zinc-700/50"
+                    >
+                      Mostra tutti
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
-        {/* Delete selected tag */}
-        {selectedTagForDelete && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
-            className="text-xs h-8 text-red-400 border-red-900 hover:bg-red-950"
-          >
-            <Trash2 className="h-3.5 w-3.5 mr-1.5" />
-            Elimina &quot;{selectedTagForDelete.name}&quot;
-          </Button>
+            {/* Tag dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => { setTagDropdownOpen((p) => !p); setFilterDropdownOpen(false); }}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all h-8',
+                  selectedTagId
+                    ? 'bg-blue-500/10 border-blue-500/40 text-blue-400'
+                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
+                )}
+              >
+                <TagIcon className="h-3.5 w-3.5" />
+                {selectedTagId
+                  ? graphData?.tags?.find((t) => t.id === selectedTagId)?.name || 'Tag'
+                  : 'Tag'}
+                <ChevronDown className="h-3 w-3 ml-1" />
+              </button>
+              {tagDropdownOpen && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[300px] overflow-y-auto">
+                  <button
+                    onClick={() => { setSelectedTagId(null); setTagDropdownOpen(false); }}
+                    className={cn(
+                      'w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors',
+                      !selectedTagId ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
+                    )}
+                  >
+                    Tutti i tag
+                  </button>
+                  <div className="border-t border-zinc-700 my-1" />
+                  {graphData?.tags?.map((tag) => (
+                    <button
+                      key={tag.id}
+                      onClick={() => { setSelectedTagId(tag.id); setTagDropdownOpen(false); }}
+                      className={cn(
+                        'w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors',
+                        selectedTagId === tag.id ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
+                      )}
+                    >
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color || '#3B82F6' }} />
+                      {tag.name}
+                      <span className="ml-auto text-[10px] text-zinc-600">{tag.tile_ids.length}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Clear tag selection */}
+            {selectedTagId && (
+              <button
+                onClick={() => setSelectedTagId(null)}
+                className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Edit mode: create tag */}
+            <div className="flex items-center gap-2">
+              <Input
+                placeholder="Nuovo tag..."
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
+                className="h-8 w-40 bg-zinc-800 border-zinc-700 text-white text-xs placeholder:text-zinc-500"
+              />
+              <div className="flex gap-1">
+                {TAG_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setNewTagColor(color)}
+                    className="w-4 h-4 rounded-full transition-transform"
+                    style={{
+                      backgroundColor: color,
+                      transform: newTagColor === color ? 'scale(1.3)' : 'scale(1)',
+                      boxShadow: newTagColor === color ? `0 0 0 2px ${color}50` : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+              <Button
+                size="sm"
+                onClick={handleCreateTag}
+                disabled={!newTagName.trim() || createMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Crea
+              </Button>
+            </div>
+
+            <div className="w-px h-6 bg-zinc-700" />
+
+            {/* Link mode toggle */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => { setLinkMode((p) => !p); setLinkSource(null); }}
+              className={cn(
+                'text-xs h-8',
+                linkMode
+                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
+                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
+              )}
+            >
+              <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+              {linkMode ? 'Collegamento attivo' : 'Collega tag'}
+            </Button>
+
+            {/* Delete selected tag */}
+            {selectedTagForDelete && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
+                className="text-xs h-8 text-red-400 border-red-900 hover:bg-red-950"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                Elimina &quot;{selectedTagForDelete.name}&quot;
+              </Button>
+            )}
+          </>
         )}
 
         <div className="flex-1" />
@@ -1127,60 +1303,6 @@ export default function GraphPage() {
           </div>
         ) : (
           <>
-            {/* Content filter bar */}
-            <div className="absolute top-4 left-4 z-10 flex flex-wrap gap-1.5">
-              {filterConfig.map((f) => {
-                const active = activeFilters.has(f.key);
-                return (
-                  <button
-                    key={f.key}
-                    onClick={() => toggleFilter(f.key)}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                      active
-                        ? 'bg-zinc-800 border-zinc-600 text-white'
-                        : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
-                    )}
-                  >
-                    <div
-                      className="w-2.5 h-2.5 rounded-full transition-opacity"
-                      style={{ backgroundColor: f.color, opacity: active ? 1 : 0.3 }}
-                    />
-                    {f.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tag selector (for focusing on a specific tag) */}
-            {graphData?.tags && graphData.tags.length > 0 && (
-              <div className="absolute top-14 left-4 z-10 flex flex-wrap gap-1.5">
-                {graphData.tags.map((tag) => {
-                  const isSelected = selectedTagId === tag.id;
-                  return (
-                    <button
-                      key={tag.id}
-                      onClick={() => setSelectedTagId(isSelected ? null : tag.id)}
-                      className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border',
-                        isSelected
-                          ? 'border-opacity-60 text-white'
-                          : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-zinc-300'
-                      )}
-                      style={isSelected ? {
-                        backgroundColor: `${tag.color || '#3B82F6'}20`,
-                        borderColor: `${tag.color || '#3B82F6'}60`,
-                      } : undefined}
-                    >
-                      <TagIcon className="h-3 w-3" style={{ color: tag.color || '#3B82F6' }} />
-                      {tag.name}
-                      {isSelected && <span className="ml-1 text-[10px] opacity-60">&times;</span>}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-
             {/* Link mode indicator */}
             {linkMode && (
               <div className="absolute top-4 left-4 z-20 bg-blue-600/20 border border-blue-500/40 rounded-lg px-4 py-2 text-sm text-blue-300 flex items-center gap-2">
