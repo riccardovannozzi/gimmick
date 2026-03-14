@@ -20,11 +20,14 @@ import {
   Settings2,
   ChevronDown,
   Filter,
+  SlidersHorizontal,
+  Palette,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
+import { useTileNotificationStore } from '@/store/tile-notification-store';
 import type { TagNode, TagEdge } from '@/types';
 
 // ─── Content filter types ───
@@ -63,10 +66,28 @@ const TAG_COLORS = [
   '#F59E0B', '#22C55E', '#06B6D4', '#F97316',
 ];
 
+// ─── Physics defaults ───
+const defaultPhysics = {
+  chargeTag: -400,
+  chargeTile: -250,
+  chargeSpark: -100,
+  chargeMax: 800,
+  linkCoDist: 250,
+  linkTagTile: 140,
+  linkTileSpark: 80,
+  linkCoStrength: 0.3,
+  linkTagTileStrength: 0.4,
+  collisionTag: 50,
+  collisionTile: 50,
+  collisionSpark: 24,
+  centerStrength: 0.02,
+  velocityDecay: 0.3,
+};
+
 // ─── Node / Link types ───
 interface GraphNode extends d3.SimulationNodeDatum {
   id: string;
-  type: 'root' | 'tile' | 'spark' | 'tag';
+  type: 'tile' | 'spark' | 'tag';
   label: string;
   sparkType?: string;
   tags?: string[];
@@ -83,7 +104,7 @@ interface GraphNode extends d3.SimulationNodeDatum {
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode;
   target: string | GraphNode;
-  linkType?: 'root-tag' | 'tag-tile' | 'tile-spark' | 'root-tile' | 'root-spark' | 'co-occurrence' | 'root-content';
+  linkType?: 'tag-tile' | 'tile-spark' | 'co-occurrence';
   weight?: number;
   edgeId?: string;
   relationType?: string;
@@ -94,6 +115,7 @@ export default function GraphPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const queryClient = useQueryClient();
+  const markRead = useTileNotificationStore((s) => s.markRead);
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -104,10 +126,20 @@ export default function GraphPage() {
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
-    type: 'spark' | 'tile';
+    type: 'spark' | 'tile' | 'tag';
     id: string;
     label: string;
+    color?: string;
   } | null>(null);
+  const [tagRenameValue, setTagRenameValue] = useState('');
+  const [tagRenaming, setTagRenaming] = useState(false);
+  const [tagColorPicking, setTagColorPicking] = useState(false);
+
+  // Physics console
+  const [showPhysicsPanel, setShowPhysicsPanel] = useState(false);
+  const [physics, setPhysics] = useState(defaultPhysics);
+  const physicsRef = useRef(physics);
+  physicsRef.current = physics;
 
   // Toolbar mode
   const [toolbarMode, setToolbarMode] = useState<'navigate' | 'edit'>('navigate');
@@ -190,6 +222,19 @@ export default function GraphPage() {
     onError: () => toast.error("Errore nell'eliminazione"),
   });
 
+  const updateTagMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: { name?: string; color?: string } }) =>
+      tagsApi.update(id, updates),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
+      queryClient.invalidateQueries({ queryKey: ['graph-data'] });
+      setContextMenu(null);
+      setTagRenaming(false);
+      setTagColorPicking(false);
+      toast.success('Tag aggiornato');
+    },
+  });
 
   // ─── Date range ───
   const dateExtent = useMemo(() => {
@@ -393,19 +438,10 @@ export default function GraphPage() {
         if (tagNodes.length === 0 && filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) return;
       }
 
-      const rootNode: GraphNode = {
-        id: 'root',
-        type: 'root',
-        label: 'Gimmick',
-        fx: width / 2,
-        fy: height / 2,
-      };
-      nodes.push(rootNode);
-
-      // Tag nodes from tagGraph (skip GIMMICK root)
+      // Tag nodes from tagGraph (include GIMMICK root as a regular tag node)
       const tagNodeMap = new Map<string, GraphNode>();
+      let gimmickNodeId: string | null = null;
       for (const t of tagNodes) {
-        if (t.is_root) continue;
         const node: GraphNode = {
           id: `tag-${t.id}`,
           type: 'tag',
@@ -413,12 +449,12 @@ export default function GraphPage() {
           color: t.color || '#3B82F6',
           tagId: t.id,
           usageCount: t.usage_count || 0,
-          isRoot: false,
+          isRoot: t.is_root || false,
           tileCount: 0,
         };
         tagNodeMap.set(t.id, node);
         nodes.push(node);
-        links.push({ source: 'root', target: `tag-${t.id}`, linkType: 'root-tag' });
+        if (t.is_root) gimmickNodeId = `tag-${t.id}`;
       }
 
       // Also add tags from content data that might not be in tagGraph
@@ -434,7 +470,6 @@ export default function GraphPage() {
           };
           tagNodeMap.set(tag.id, node);
           nodes.push(node);
-          links.push({ source: 'root', target: `tag-${tag.id}`, linkType: 'root-tag' });
         }
       }
 
@@ -444,7 +479,7 @@ export default function GraphPage() {
         if (node) node.tileCount = tag.tile_ids.length;
       }
 
-      // Tag-to-tag co-occurrence edges
+      // Tag-to-tag co-occurrence edges (skip root-link type)
       const seenPairs = new Set<string>();
       for (const edge of tagEdges) {
         if (edge.relation_type === 'root-link') continue;
@@ -489,11 +524,13 @@ export default function GraphPage() {
             tilesLinkedByTag.add(`tile-${tileId}`);
           });
         }
-        // Tiles without tags → root
-        timeTiles.forEach((tile) => {
-          if (!tilesLinkedByTag.has(`tile-${tile.id}`))
-            links.push({ source: 'root', target: `tile-${tile.id}`, linkType: 'root-tile' });
-        });
+        // Tiles without tags → connect to GIMMICK node
+        if (gimmickNodeId) {
+          timeTiles.forEach((tile) => {
+            if (!tilesLinkedByTag.has(`tile-${tile.id}`))
+              links.push({ source: gimmickNodeId!, target: `tile-${tile.id}`, linkType: 'tag-tile' });
+          });
+        }
       }
 
       // Spark nodes (skip in edit mode)
@@ -510,8 +547,8 @@ export default function GraphPage() {
           });
           if (showTiles && spark.tile_id)
             links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}`, linkType: 'tile-spark' });
-          else
-            links.push({ source: 'root', target: `spark-${spark.id}`, linkType: 'root-spark' });
+          else if (gimmickNodeId)
+            links.push({ source: gimmickNodeId, target: `spark-${spark.id}`, linkType: 'tile-spark' });
         });
       }
     }
@@ -539,10 +576,22 @@ export default function GraphPage() {
     zoomRef.current = zoom;
 
     // ─── Simulation ───
+    const p = physicsRef.current;
+    const areaDensity = Math.sqrt((width * height) / Math.max(nodes.length, 1));
+
+    // Connection count per node (for connection-aware repulsion)
+    const connectionCount = new Map<string, number>();
+    links.forEach((l) => {
+      const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
+      const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
+      connectionCount.set(src, (connectionCount.get(src) || 0) + 1);
+      connectionCount.set(tgt, (connectionCount.get(tgt) || 0) + 1);
+    });
+
     const simulation = d3
       .forceSimulation<GraphNode>(nodes)
       .alphaDecay(0.03)
-      .velocityDecay(0.4)
+      .velocityDecay(p.velocityDecay)
       .force(
         'link',
         d3
@@ -550,27 +599,36 @@ export default function GraphPage() {
           .id((d) => d.id)
           .distance((l) => {
             const lt = l.linkType;
+            const scale = Math.max(0.6, areaDensity / 120);
             if (lt === 'co-occurrence') {
               const w = l.weight || 1;
-              return Math.max(100, 220 - w * 15);
+              return Math.max(100, p.linkCoDist - w * 15) * scale;
             }
-            if (lt === 'root-tag' || lt === 'root-tile' || lt === 'root-spark') return 160;
-            if (lt === 'tag-tile') return 120;
-            return 90;
+            if (lt === 'tag-tile') return p.linkTagTile * scale;
+            return p.linkTileSpark * scale;
           })
           .strength((l) => {
-            if (l.linkType === 'co-occurrence') return 0.7;
+            if (l.linkType === 'co-occurrence') return p.linkCoStrength;
+            if (l.linkType === 'tag-tile') return p.linkTagTileStrength;
             return 0.5;
           })
       )
-      .force('charge', d3.forceManyBody().strength(-300).distanceMax(600))
+      .force('charge', d3.forceManyBody<GraphNode>().strength((d) => {
+        const conns = connectionCount.get(d.id) || 0;
+        const connBoost = Math.min(conns * 30, 200);
+        if (d.type === 'tag' && d.isRoot) return -500 - connBoost;
+        if (d.type === 'tag') return p.chargeTag - connBoost;
+        if (d.type === 'tile') return p.chargeTile;
+        return p.chargeSpark;
+      }).distanceMax(p.chargeMax))
+      .force('center', d3.forceCenter(width / 2, height / 2).strength(p.centerStrength))
       .force(
         'collision',
         d3.forceCollide<GraphNode>().radius((d) => {
-          if (d.type === 'root') return 50;
-          if (d.type === 'tag') return 24 + Math.min((d.usageCount || 0) * 3, 20) + 12;
-          if (d.type === 'tile') return 40;
-          return 22;
+          if (d.type === 'tag' && d.isRoot) return 50;
+          if (d.type === 'tag') return p.collisionTag + Math.min((d.usageCount || 0) * 3, 20);
+          if (d.type === 'tile') return p.collisionTile;
+          return p.collisionSpark;
         }).strength(0.8)
       );
 
@@ -585,24 +643,17 @@ export default function GraphPage() {
       .data(otherLinks)
       .join('line')
       .attr('stroke', (l) => {
-        if (l.linkType === 'root-tag') return '#528BFF';
         if (l.linkType === 'tag-tile') return '#6B7280';
         if (l.linkType === 'tile-spark') return '#4B5563';
         return '#3E3E42';
       })
       .attr('stroke-width', (l) => {
-        if (l.linkType === 'root-tag') return 1.5;
         if (l.linkType === 'tag-tile') return 2;
         return 1.5;
       })
       .attr('stroke-opacity', (l) => {
-        if (l.linkType === 'root-tag') return 0.4;
         if (l.linkType === 'tag-tile') return 0.7;
         return 0.6;
-      })
-      .attr('stroke-dasharray', (l) => {
-        if (l.linkType === 'root-tag') return '6,4';
-        return 'none';
       });
 
     // Co-occurrence hit areas
@@ -673,47 +724,69 @@ export default function GraphPage() {
       .call(
         d3
           .drag<SVGGElement, GraphNode>()
-          .on('start', (event, d) => {
-            if (d.type === 'root') return;
+          .on('start', function (event, d) {
             if (!event.active) simulation.alphaTarget(0.3).restart();
             d.fx = d.x;
             d.fy = d.y;
+            if (d.type === 'tag') {
+              // Threshold for tags to prevent "escape" on click
+              (this as SVGGElement & { __dragStart: { x: number; y: number }; __dragged: boolean }).__dragStart = { x: event.x, y: event.y };
+              (this as SVGGElement & { __dragged: boolean }).__dragged = false;
+            }
           })
-          .on('drag', (event, d) => {
-            if (d.type === 'root') return;
-            d.fx = event.x;
-            d.fy = event.y;
+          .on('drag', function (event, d) {
+            if (d.type === 'tag') {
+              const start = (this as SVGGElement & { __dragStart: { x: number; y: number } }).__dragStart;
+              const dist = Math.sqrt((event.x - start.x) ** 2 + (event.y - start.y) ** 2);
+              if (dist > 5) {
+                (this as SVGGElement & { __dragged: boolean }).__dragged = true;
+                d.fx = event.x;
+                d.fy = event.y;
+              }
+            } else {
+              d.fx = event.x;
+              d.fy = event.y;
+            }
           })
-          .on('end', (event, d) => {
-            if (d.type === 'root') return;
+          .on('end', function (event, d) {
             if (!event.active) simulation.alphaTarget(0);
-            d.fx = null;
-            d.fy = null;
+            if (d.type === 'tag' && !(this as SVGGElement & { __dragged: boolean }).__dragged) {
+              // Was just a click, not a drag — release pin
+              d.fx = null;
+              d.fy = null;
+            } else {
+              d.fx = null;
+              d.fy = null;
+            }
           })
       );
 
-    // Root node (hexagon + Bot icon)
+    // Hexagon helper
     const hexPoints = (r: number) =>
       Array.from({ length: 6 }, (_, i) => {
         const angle = (Math.PI / 3) * i;
         return `${r * Math.cos(angle)},${r * Math.sin(angle)}`;
       }).join(' ');
 
-    const rootNodes = node.filter((d) => d.type === 'root');
-    rootNodes.append('polygon')
+    // Tag nodes — GIMMICK (isRoot) gets hexagon+bot icon, others get circle
+    const tagNodesG = node.filter((d) => d.type === 'tag');
+
+    // GIMMICK root tag → hexagon + bot icon
+    const gimmickNodes = tagNodesG.filter((d) => d.isRoot === true);
+    gimmickNodes.append('polygon')
       .attr('points', hexPoints(24))
       .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
       .attr('stroke', '#FFFFFF').attr('stroke-width', 1.5)
-      .style('filter', 'url(#glow)');
-    rootNodes.each(function () {
+      .style('filter', 'url(#glow)').style('cursor', 'pointer');
+    gimmickNodes.each(function () {
       const iconG = d3.select(this).append('g')
         .attr('transform', 'translate(-10,-10) scale(0.85)')
         .style('pointer-events', 'none');
       const svgNS = 'http://www.w3.org/2000/svg';
       const paths = ['M12 8V4H8', 'M2 14h2', 'M20 14h2', 'M15 13v2', 'M9 13v2'];
-      paths.forEach((d) => {
+      paths.forEach((pd) => {
         const p = document.createElementNS(svgNS, 'path');
-        p.setAttribute('d', d);
+        p.setAttribute('d', pd);
         p.setAttribute('fill', 'none');
         p.setAttribute('stroke', '#FFFFFF');
         p.setAttribute('stroke-width', '2');
@@ -729,23 +802,23 @@ export default function GraphPage() {
       rect.setAttribute('stroke-linejoin', 'round');
       iconG.node()!.appendChild(rect);
     });
-    rootNodes.append('text')
+    gimmickNodes.append('text')
       .text('GIMMICK')
       .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', '#4B5563')
       .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
 
-    // Tag nodes (circle with usage-based radius)
-    const tagNodesG = node.filter((d) => d.type === 'tag');
-    tagNodesG.append('circle')
+    // Regular tag nodes → circle with usage-based radius
+    const regularTagsG = tagNodesG.filter((d) => d.isRoot !== true);
+    regularTagsG.append('circle')
       .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
       .attr('fill', (d) => d.color || '#3B82F6').attr('fill-opacity', 0.15)
       .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 2.5)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
-    tagNodesG.append('text')
+    regularTagsG.append('text')
       .text((d) => d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label)
       .attr('text-anchor', 'middle').attr('dy', '-0.2em').attr('fill', '#F5F5F5')
       .attr('font-size', '11px').attr('font-weight', '700').style('pointer-events', 'none');
-    tagNodesG.append('text')
+    regularTagsG.append('text')
       .text((d) => `${d.usageCount || d.tileCount || 0} tile`)
       .attr('text-anchor', 'middle').attr('dy', '1.2em').attr('fill', '#6B7280')
       .attr('font-size', '9px').style('pointer-events', 'none');
@@ -807,6 +880,14 @@ export default function GraphPage() {
       }
     });
 
+    // Click on tile nodes → mark as read in notification store
+    node.filter((d) => d.type === 'tile')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        const tileId = d.id.replace('tile-', '');
+        markRead(tileId);
+      });
+
     // Right-click context menu on sparks and tiles
     node.filter((d) => d.type === 'spark' || d.type === 'tile')
       .on('contextmenu', (event, d) => {
@@ -816,6 +897,18 @@ export default function GraphPage() {
         const rawId = d.type === 'spark' ? d.id.replace('spark-', '') : d.id.replace('tile-', '');
         setContextMenu({ x: px, y: py, type: d.type as 'spark' | 'tile', id: rawId, label: d.label });
       });
+
+    // Right-click context menu on tags
+    tagNodesG.on('contextmenu', (event, d) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const [px, py] = d3.pointer(event, containerRef.current);
+      const rawId = d.tagId || d.id.replace('tag-', '');
+      setContextMenu({ x: px, y: py, type: 'tag', id: rawId, label: d.label, color: d.color });
+      setTagRenameValue(d.label);
+      setTagRenaming(false);
+      setTagColorPicking(false);
+    });
 
     // Hover: tooltip + highlight
     node.on('mouseenter', function (event, d) {
@@ -841,7 +934,7 @@ export default function GraphPage() {
             ) : (
               <>
                 <p className="text-white text-sm font-medium mb-1">
-                  {d.type === 'root' ? 'Root' : d.type === 'tile' ? 'Tile' : typeLabels[d.sparkType || ''] || 'Spark'}
+                  {d.type === 'tile' ? 'Tile' : typeLabels[d.sparkType || ''] || 'Spark'}
                 </p>
                 <p className="text-zinc-300 text-xs">{d.label}</p>
                 {d.type === 'tile' && d.sparkCount != null && (
@@ -907,23 +1000,20 @@ export default function GraphPage() {
       }).attr('fill-opacity', 1).attr('fill', '#F5F5F5');
     });
 
-    node.on('mouseleave', function () {
-      setTooltip(null);
+    // ─── Reset link styles helper ───
+    const resetLinkStyles = () => {
       node.style('opacity', 1);
       linkOther
         .attr('stroke', (l) => {
-          if (l.linkType === 'root-tag') return '#528BFF';
           if (l.linkType === 'tag-tile') return '#6B7280';
           if (l.linkType === 'tile-spark') return '#4B5563';
           return '#3E3E42';
         })
         .attr('stroke-width', (l) => {
-          if (l.linkType === 'root-tag') return 1.5;
           if (l.linkType === 'tag-tile') return 2;
           return 1.5;
         })
         .attr('stroke-opacity', (l) => {
-          if (l.linkType === 'root-tag') return 0.4;
           if (l.linkType === 'tag-tile') return 0.7;
           return 0.6;
         });
@@ -937,6 +1027,11 @@ export default function GraphPage() {
         .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
         .attr('stroke-opacity', 0.5);
       linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
+    };
+
+    node.on('mouseleave', function () {
+      setTooltip(null);
+      resetLinkStyles();
     });
 
     // ─── Tick ───
@@ -968,39 +1063,11 @@ export default function GraphPage() {
       setFilterDropdownOpen(false);
       setTagDropdownOpen(false);
       if (linkModeRef.current) { setLinkSource(null); setLinkMode(false); }
-      // Reset all highlights
-      node.style('opacity', 1);
-      linkOther
-        .attr('stroke', (l) => {
-          if (l.linkType === 'root-tag') return '#528BFF';
-          if (l.linkType === 'tag-tile') return '#6B7280';
-          if (l.linkType === 'tile-spark') return '#4B5563';
-          return '#3E3E42';
-        })
-        .attr('stroke-width', (l) => {
-          if (l.linkType === 'root-tag') return 1.5;
-          if (l.linkType === 'tag-tile') return 2;
-          return 1.5;
-        })
-        .attr('stroke-opacity', (l) => {
-          if (l.linkType === 'root-tag') return 0.4;
-          if (l.linkType === 'tag-tile') return 0.7;
-          return 0.6;
-        });
-      linkCo
-        .attr('stroke', (l) => {
-          const src = typeof l.source === 'string'
-            ? nodes.find((n) => n.id === (l.source as string))
-            : (l.source as GraphNode);
-          return src?.color || '#8B5CF6';
-        })
-        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
-        .attr('stroke-opacity', 0.5);
-      linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
+      resetLinkStyles();
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, queryClient]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1318,7 +1385,7 @@ export default function GraphPage() {
 
             <svg ref={svgRef} className="w-full h-full" />
 
-            {/* Zoom controls */}
+            {/* Zoom controls + physics toggle */}
             <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
               <Button variant="outline" size="icon" onClick={handleZoomIn}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
@@ -1332,7 +1399,144 @@ export default function GraphPage() {
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
                 <Maximize2 className="h-4 w-4" />
               </Button>
+              <Button variant="outline" size="icon"
+                onClick={() => setShowPhysicsPanel((p) => !p)}
+                className={cn(
+                  'h-9 w-9',
+                  showPhysicsPanel
+                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30'
+                    : 'bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300'
+                )}>
+                <SlidersHorizontal className="h-4 w-4" />
+              </Button>
             </div>
+
+            {/* Physics console panel */}
+            {showPhysicsPanel && (
+              <div className="absolute bottom-4 left-16 z-20 bg-zinc-900/95 border border-zinc-700 rounded-lg shadow-2xl p-4 w-72 max-h-[calc(100%-2rem)] overflow-y-auto backdrop-blur-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
+                    <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" />
+                    Physics Console
+                  </h3>
+                  <button
+                    onClick={() => setPhysics(defaultPhysics)}
+                    className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                  >
+                    Reset
+                  </button>
+                </div>
+
+                {/* Charge */}
+                <div className="mb-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Repulsione</p>
+                  {([
+                    ['chargeTag', 'Tag', -800, 0],
+                    ['chargeTile', 'Tile', -600, 0],
+                    ['chargeSpark', 'Spark', -400, 0],
+                    ['chargeMax', 'Max dist', 200, 1500],
+                  ] as const).map(([key, label, min, max]) => (
+                    <div key={key} className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                      <input
+                        type="range"
+                        min={min} max={max} step={key === 'chargeMax' ? 50 : 10}
+                        value={physics[key]}
+                        onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="flex-1 h-1 accent-blue-500"
+                      />
+                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Links */}
+                <div className="mb-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Link distance</p>
+                  {([
+                    ['linkCoDist', 'Co-occ', 50, 500],
+                    ['linkTagTile', 'Tag→Tile', 40, 300],
+                    ['linkTileSpark', 'Tile→Spark', 20, 200],
+                  ] as const).map(([key, label, min, max]) => (
+                    <div key={key} className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                      <input
+                        type="range"
+                        min={min} max={max} step={5}
+                        value={physics[key]}
+                        onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="flex-1 h-1 accent-blue-500"
+                      />
+                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Link strength */}
+                <div className="mb-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Link strength</p>
+                  {([
+                    ['linkCoStrength', 'Co-occ', 0, 1],
+                    ['linkTagTileStrength', 'Tag→Tile', 0, 1],
+                  ] as const).map(([key, label, min, max]) => (
+                    <div key={key} className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                      <input
+                        type="range"
+                        min={min} max={max} step={0.05}
+                        value={physics[key]}
+                        onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="flex-1 h-1 accent-blue-500"
+                      />
+                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Collision */}
+                <div className="mb-3">
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Collisione</p>
+                  {([
+                    ['collisionTag', 'Tag', 10, 100],
+                    ['collisionTile', 'Tile', 10, 100],
+                    ['collisionSpark', 'Spark', 5, 60],
+                  ] as const).map(([key, label, min, max]) => (
+                    <div key={key} className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                      <input
+                        type="range"
+                        min={min} max={max} step={2}
+                        value={physics[key]}
+                        onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="flex-1 h-1 accent-blue-500"
+                      />
+                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* General */}
+                <div>
+                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Generale</p>
+                  {([
+                    ['centerStrength', 'Centro', 0, 0.1],
+                    ['velocityDecay', 'Friction', 0.1, 0.8],
+                  ] as const).map(([key, label, min, max]) => (
+                    <div key={key} className="flex items-center gap-2 mb-1">
+                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                      <input
+                        type="range"
+                        min={min} max={max} step={0.01}
+                        value={physics[key]}
+                        onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                        className="flex-1 h-1 accent-blue-500"
+                      />
+                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Tooltip */}
             {tooltip && (
@@ -1344,36 +1548,118 @@ export default function GraphPage() {
               </div>
             )}
 
-            {/* Context menu (right-click on spark/tile) */}
+            {/* Context menu (right-click on spark/tile/tag) */}
             {contextMenu && (
               <div
-                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[160px]"
+                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[180px]"
                 style={{ left: contextMenu.x, top: contextMenu.y }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <p className="px-3 py-1.5 text-xs text-zinc-400 truncate border-b border-zinc-700">
-                  {contextMenu.type === 'tile' ? 'Tile' : 'Spark'}: {contextMenu.label}
+                  {contextMenu.type === 'tag' ? 'Tag' : contextMenu.type === 'tile' ? 'Tile' : 'Spark'}: {contextMenu.label}
                 </p>
-                <button
-                  className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
-                  onClick={async () => {
-                    try {
-                      if (contextMenu.type === 'spark') {
-                        await sparksApi.delete(contextMenu.id);
-                      } else {
-                        await tilesApi.delete(contextMenu.id);
+
+                {contextMenu.type === 'tag' ? (
+                  <>
+                    {/* Rename */}
+                    {tagRenaming ? (
+                      <div className="px-3 py-2 flex items-center gap-1.5">
+                        <Input
+                          value={tagRenameValue}
+                          onChange={(e) => setTagRenameValue(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && tagRenameValue.trim()) {
+                              updateTagMutation.mutate({ id: contextMenu.id, updates: { name: tagRenameValue.trim() } });
+                            }
+                          }}
+                          className="h-7 text-xs bg-zinc-900 border-zinc-700 text-white flex-1"
+                          autoFocus
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                          onClick={() => {
+                            if (tagRenameValue.trim()) {
+                              updateTagMutation.mutate({ id: contextMenu.id, updates: { name: tagRenameValue.trim() } });
+                            }
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <button
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
+                        onClick={() => setTagRenaming(true)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Rinomina
+                      </button>
+                    )}
+
+                    {/* Color picker */}
+                    {tagColorPicking ? (
+                      <div className="px-3 py-2 flex flex-wrap gap-1.5">
+                        {TAG_COLORS.map((color) => (
+                          <button
+                            key={color}
+                            className="w-5 h-5 rounded-full transition-transform hover:scale-125"
+                            style={{
+                              backgroundColor: color,
+                              boxShadow: contextMenu.color === color ? `0 0 0 2px ${color}80` : 'none',
+                            }}
+                            onClick={() => {
+                              updateTagMutation.mutate({ id: contextMenu.id, updates: { color } });
+                            }}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <button
+                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
+                        onClick={() => setTagColorPicking(true)}
+                      >
+                        <Palette className="h-3.5 w-3.5" />
+                        Cambia colore
+                      </button>
+                    )}
+
+                    <div className="border-t border-zinc-700 my-0.5" />
+
+                    {/* Delete */}
+                    <button
+                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
+                      onClick={() => {
+                        deleteMutation.mutate(contextMenu.id);
+                        setContextMenu(null);
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Elimina tag
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
+                    onClick={async () => {
+                      try {
+                        if (contextMenu.type === 'spark') {
+                          await sparksApi.delete(contextMenu.id);
+                        } else {
+                          await tilesApi.delete(contextMenu.id);
+                        }
+                        queryClient.invalidateQueries({ queryKey: ['graph-data'] });
+                        toast.success(`${contextMenu.type === 'tile' ? 'Tile' : 'Spark'} eliminato`);
+                      } catch {
+                        toast.error('Errore durante l\'eliminazione');
                       }
-                      queryClient.invalidateQueries({ queryKey: ['graph-data'] });
-                      toast.success(`${contextMenu.type === 'tile' ? 'Tile' : 'Spark'} eliminato`);
-                    } catch {
-                      toast.error('Errore durante l\'eliminazione');
-                    }
-                    setContextMenu(null);
-                  }}
-                >
-                  <Trash2 className="h-3.5 w-3.5" />
-                  Elimina
-                </button>
+                      setContextMenu(null);
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    Elimina
+                  </button>
+                )}
               </div>
             )}
 

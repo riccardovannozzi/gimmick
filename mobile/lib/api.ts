@@ -1,4 +1,4 @@
-import type { Spark, BufferItem, Tile } from '@/types';
+import type { Spark, BufferItem, Tile, Tag } from '@/types';
 import Constants from 'expo-constants';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
@@ -369,6 +369,21 @@ export const tilesApi = {
   },
 };
 
+// ============ Tags API ============
+
+export const tagsApi = {
+  async list() {
+    return apiRequest<Tag[]>('/api/tags');
+  },
+
+  async tagTiles(tagId: string, tileIds: string[]) {
+    return apiRequest(`/api/tags/${tagId}/tiles`, {
+      method: 'POST',
+      body: JSON.stringify({ tile_ids: tileIds }),
+    });
+  },
+};
+
 // ============ Chat API ============
 
 export const chatApi = {
@@ -505,7 +520,8 @@ function getFileType(fileName: string): string {
  * When multiple items are uploaded together, they are grouped into a Tile
  */
 export async function uploadBufferItems(
-  items: BufferItem[]
+  items: BufferItem[],
+  tagIds?: string[]
 ): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile }> {
   const results: Spark[] = [];
   const errors: string[] = [];
@@ -516,6 +532,12 @@ export async function uploadBufferItems(
     const tileResult = await tilesApi.create();
     if (tileResult.success && tileResult.data) {
       tile = tileResult.data;
+      // Tag the tile with selected tags
+      if (tagIds && tagIds.length > 0) {
+        for (const tagId of tagIds) {
+          await tagsApi.tagTiles(tagId, [tile.id]).catch(() => {});
+        }
+      }
     } else {
       // Continue without tile if creation fails
       console.warn('Failed to create tile:', tileResult.error);
@@ -571,6 +593,13 @@ export async function uploadBufferItems(
           error instanceof Error ? error.message : 'Unknown error'
         }`
       );
+    }
+  }
+
+  // For single item uploads, tag the auto-created tile
+  if (!tile && tagIds && tagIds.length > 0 && results.length > 0 && results[0].tile_id) {
+    for (const tagId of tagIds) {
+      await tagsApi.tagTiles(tagId, [results[0].tile_id]).catch(() => {});
     }
   }
 
