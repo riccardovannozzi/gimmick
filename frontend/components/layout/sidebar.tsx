@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useQuery } from '@tanstack/react-query';
 import {
   FileText,
   LayoutGrid,
@@ -18,6 +20,8 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { useAuthStore } from '@/store/auth-store';
+import { useTileNotificationStore } from '@/store/tile-notification-store';
+import { tilesApi } from '@/lib/api';
 
 const navigation = [
   { name: 'Analytics', href: '/', icon: BarChart3 },
@@ -38,11 +42,38 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuthStore();
 
+  // ─── New tiles notification ───
+  const { lastSeen, readIds, dismissAll } = useTileNotificationStore();
+
+  const { data: tilesData } = useQuery({
+    queryKey: ['tiles-poll'],
+    queryFn: () => tilesApi.list({ limit: 100 }),
+    refetchInterval: 30000,
+  });
+
+  const tileTotal = tilesData?.pagination?.total ?? null;
+  const newCount = useMemo(() => {
+    if (!tilesData?.data) return 0;
+    return tilesData.data.filter(
+      (t) => new Date(t.created_at) > new Date(lastSeen) && !readIds.includes(t.id)
+    ).length;
+  }, [tilesData, lastSeen, readIds]);
+
   return (
     <div className="flex h-full w-64 flex-col bg-zinc-950 border-r border-zinc-800">
-      {/* Logo */}
-      <div className="flex h-16 items-center px-6">
+      {/* Logo + notification */}
+      <div className="flex h-16 items-center px-6 gap-3">
         <span className="text-xl font-bold text-white">Gimmick</span>
+        {newCount > 0 && (
+          <Link
+            href="/tiles"
+            onClick={dismissAll}
+            className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-400/40 text-red-400 text-sm font-semibold animate-pulse hover:bg-red-500/30 transition-colors"
+          >
+            <LayoutGrid className="h-4 w-4" />
+            {newCount}
+          </Link>
+        )}
       </div>
 
       <Separator className="bg-zinc-800" />

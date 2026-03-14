@@ -65,6 +65,21 @@ export interface Spark {
 }
 
 /**
+ * Tag - Label for organizing tiles
+ */
+export interface Tag {
+  id: string;
+  user_id: string;
+  name: string;
+  slug?: string;
+  color?: string;
+  aliases?: string[];
+  usage_count?: number;
+  is_root?: boolean;
+  created_at: string;
+}
+
+/**
  * Upload Result - Result of uploading a buffer item
  */
 export interface UploadResult {

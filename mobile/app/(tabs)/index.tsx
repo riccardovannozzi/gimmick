@@ -1,16 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles, Check } from 'lucide-react-native';
+import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles, Check, Tag } from 'lucide-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
-import { uploadBufferItems, chatApi } from '@/lib/api';
+import { uploadBufferItems, chatApi, tagsApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, SparkType } from '@/types';
+import type { BufferItem, SparkType, Tag as TagType } from '@/types';
 
 type ChatMessage = {
   id: string;
@@ -206,6 +206,37 @@ export default function HomeScreen() {
   const [editText, setEditText] = useState('');
   const [chatMode, setChatMode] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [tagModalOpen, setTagModalOpen] = useState(false);
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [availableTags, setAvailableTags] = useState<TagType[]>([]);
+
+  useEffect(() => {
+    if (tagModalOpen) {
+      // Ensure tokens are synced before fetching
+      const state = useAuthStore.getState();
+      if (state.accessToken && state.refreshToken) {
+        const { setTokens } = require('@/lib/api');
+        setTokens({
+          access_token: state.accessToken,
+          refresh_token: state.refreshToken,
+          expires_at: 0,
+        });
+      }
+      tagsApi.list().then((res) => {
+        console.log('[Tags] result:', JSON.stringify(res).slice(0, 300));
+        if (res.success && res.data) setAvailableTags(res.data);
+      }).catch((err) => console.log('[Tags] error:', err));
+    }
+  }, [tagModalOpen]);
+
+  const toggleTag = (tagId: string) => {
+    setSelectedTagIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  };
 
   const handleCapture = (route: string) => {
     router.push(route as any);
@@ -305,10 +336,11 @@ export default function HomeScreen() {
     }
     setUploading(true);
     try {
-      const result = await uploadBufferItems(items);
+      const result = await uploadBufferItems(items, selectedTagIds.size > 0 ? Array.from(selectedTagIds) : undefined);
       if (result.success) {
         toast.success(`${result.results.length} items uploaded!`);
         clearBuffer();
+        setSelectedTagIds(new Set());
       } else {
         const successCount = result.results.length;
         const errorCount = result.errors.length;
@@ -545,22 +577,60 @@ export default function HomeScreen() {
                   </Text>
                 </TouchableOpacity>
                 {bufferCount > 0 && (
-                  <TouchableOpacity
-                    onPress={handleSend}
-                    disabled={isUploading}
-                    activeOpacity={0.7}
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 28,
-                      backgroundColor: colors.surfaceVariant,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      opacity: isUploading ? 0.6 : 1,
-                    }}
-                  >
-                    <Send size={22} color={colors.onAccent} />
-                  </TouchableOpacity>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => setTagModalOpen(true)}
+                      activeOpacity={0.7}
+                      style={{
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: selectedTagIds.size > 0 ? `${colors.accent}30` : colors.surfaceVariant,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderWidth: selectedTagIds.size > 0 ? 1.5 : 0,
+                        borderColor: colors.accent,
+                      }}
+                    >
+                      <Tag size={20} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
+                      {selectedTagIds.size > 0 && (
+                        <View
+                          style={{
+                            position: 'absolute',
+                            top: -2,
+                            right: -2,
+                            minWidth: 18,
+                            height: 18,
+                            borderRadius: 9,
+                            backgroundColor: colors.accent,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            paddingHorizontal: 4,
+                          }}
+                        >
+                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
+                            {selectedTagIds.size}
+                          </Text>
+                        </View>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleSend}
+                      disabled={isUploading}
+                      activeOpacity={0.7}
+                      style={{
+                        width: 56,
+                        height: 56,
+                        borderRadius: 28,
+                        backgroundColor: colors.surfaceVariant,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        opacity: isUploading ? 0.6 : 1,
+                      }}
+                    >
+                      <Send size={22} color={colors.onAccent} />
+                    </TouchableOpacity>
+                  </View>
                 )}
               </View>
             </View>
@@ -707,6 +777,112 @@ export default function HomeScreen() {
               )}
             </KeyboardAvoidingView>
           </SafeAreaWrapper>
+        </Modal>
+
+        {/* Tag Selection Modal */}
+        <Modal
+          visible={tagModalOpen}
+          animationType="slide"
+          transparent
+          onRequestClose={() => setTagModalOpen(false)}
+        >
+          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+            <View
+              style={{
+                backgroundColor: colors.background2,
+                borderTopLeftRadius: 20,
+                borderTopRightRadius: 20,
+                maxHeight: '60%',
+                paddingBottom: insets.bottom + 16,
+              }}
+            >
+              {/* Header */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 20,
+                  paddingVertical: 16,
+                  borderBottomWidth: 1,
+                  borderBottomColor: colors.border,
+                }}
+              >
+                <Text style={{ fontSize: 17, fontWeight: '600', color: colors.primary }}>
+                  Seleziona Tag
+                </Text>
+                <TouchableOpacity onPress={() => setTagModalOpen(false)}>
+                  <X size={22} color={colors.secondary} />
+                </TouchableOpacity>
+              </View>
+
+              <Text style={{ color: colors.tertiary, fontSize: 13, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
+                Opzionale — senza selezione verrà usato il tag Gimmick
+              </Text>
+
+              {/* Tag list */}
+              <ScrollView style={{ paddingHorizontal: 20 }}>
+                {availableTags.filter((t) => !t.is_root).length === 0 && (
+                  <Text style={{ color: colors.tertiary, fontSize: 14, textAlign: 'center', paddingVertical: 20 }}>
+                    {availableTags.length === 0 ? 'Caricamento tag...' : 'Nessun tag personalizzato'}
+                  </Text>
+                )}
+                {availableTags.filter((t) => !t.is_root).map((tag) => {
+                  const isSelected = selectedTagIds.has(tag.id);
+                  return (
+                    <TouchableOpacity
+                      key={tag.id}
+                      onPress={() => toggleTag(tag.id)}
+                      activeOpacity={0.7}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingVertical: 12,
+                        paddingHorizontal: 12,
+                        borderRadius: 10,
+                        marginBottom: 4,
+                        backgroundColor: isSelected ? `${tag.color || colors.accent}15` : 'transparent',
+                      }}
+                    >
+                      <View
+                        style={{
+                          width: 12,
+                          height: 12,
+                          borderRadius: 6,
+                          backgroundColor: tag.color || colors.accent,
+                          marginRight: 12,
+                        }}
+                      />
+                      <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
+                        {tag.name}
+                      </Text>
+                      {isSelected && (
+                        <Check size={18} color={tag.color || colors.accent} strokeWidth={2.5} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              {/* Done button */}
+              <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
+                <TouchableOpacity
+                  onPress={() => setTagModalOpen(false)}
+                  activeOpacity={0.7}
+                  style={{
+                    backgroundColor: colors.accent,
+                    borderRadius: 12,
+                    paddingVertical: 14,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
+                    {selectedTagIds.size > 0 ? `Conferma (${selectedTagIds.size})` : 'Chiudi'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
         </Modal>
       </View>
     </View>

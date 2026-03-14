@@ -42,10 +42,10 @@ tilesRouter.get(
       };
       const offset = (page - 1) * limit;
 
-      // Get tiles with memo count and tags
+      // Get tiles with sparks and tags
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, sparks(count), tile_tags(tag_id, tags(id, name, color))', { count: 'exact' })
+        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, color))', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -54,14 +54,47 @@ tilesRouter.get(
         throw error;
       }
 
-      // Transform data to include memo_count and tags
-      const tilesWithCount = data?.map((tile: any) => ({
-        ...tile,
-        spark_count: tile.sparks?.[0]?.count || 0,
-        sparks: undefined,
-        tags: (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean),
-        tile_tags: undefined,
-      }));
+      // Get user's root tag (GIMMICK)
+      const { data: rootTag } = await supabaseAdmin
+        .from('tags')
+        .select('id, name, color')
+        .eq('user_id', req.user!.id)
+        .eq('is_root', true)
+        .single();
+
+      // Find tiles without any tags and auto-assign GIMMICK
+      if (rootTag && data) {
+        const untaggedIds = data
+          .filter((tile: any) => !tile.tile_tags || tile.tile_tags.length === 0)
+          .map((tile: any) => tile.id);
+
+        if (untaggedIds.length > 0) {
+          const rows = untaggedIds.map((tile_id: string) => ({
+            tile_id,
+            tag_id: rootTag.id,
+          }));
+          await supabaseAdmin
+            .from('tile_tags')
+            .upsert(rows, { onConflict: 'tag_id,tile_id' });
+        }
+      }
+
+      // Transform data to include spark_count, sparks preview, and tags
+      const tilesWithCount = data?.map((tile: any) => {
+        const sparks = Array.isArray(tile.sparks) ? tile.sparks : [];
+        const tags = (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
+        // If no tags, inject root tag
+        if (tags.length === 0 && rootTag) {
+          tags.push({ id: rootTag.id, name: rootTag.name, color: rootTag.color });
+        }
+        return {
+          ...tile,
+          spark_count: sparks.length,
+          sparks,
+          tags,
+          tile_tags: undefined,
+        };
+      });
 
       res.json({
         success: true,

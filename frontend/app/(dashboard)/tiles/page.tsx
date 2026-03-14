@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, Fragment, useRef, useEffect } from 'react';
+import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LayoutGrid, Trash2, ChevronDown, ChevronRight, FileText, Image, Mic, Film, File, X, Check, Tag as TagIcon } from 'lucide-react';
+import { LayoutGrid, Trash2, FileText, Image as ImageIcon, Mic, Film, File as FileIcon, Paperclip, X, Check, CheckCheck, Tag as TagIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -16,18 +16,20 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { tilesApi, tagsApi } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
+import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { SparkViewer } from '@/components/spark/spark-viewer';
 import type { Spark, SparkType, Tile, Tag } from '@/types';
 
 const typeIcons: Record<SparkType, typeof FileText> = {
-  photo: Image,
-  image: Image,
+  photo: ImageIcon,
+  image: ImageIcon,
   video: Film,
   audio_recording: Mic,
   text: FileText,
-  file: File,
+  file: FileIcon,
 };
 
 const typeIconColors: Record<SparkType, string> = {
@@ -120,30 +122,163 @@ function TagDropdown({
   );
 }
 
+// ─── Spark thumbnail (loads signed URL for images) ───
+function SparkThumbnail({ path }: { path: string }) {
+  const [url, setUrl] = useState<string | null>(null);
+  useEffect(() => {
+    uploadApi.getSignedUrl(path).then((res) => {
+      if (res.success && res.data) setUrl(res.data.url);
+    }).catch(() => {});
+  }, [path]);
+  if (!url) return <div className="h-8 w-8 rounded bg-zinc-700 animate-pulse shrink-0" />;
+  return (
+    <img
+      src={url}
+      alt=""
+      className="h-8 w-8 rounded object-cover shrink-0"
+    />
+  );
+}
+
+// ─── Spark chip (inline preview per spark) ───
+function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: string; storage_path?: string; file_name?: string } }) {
+  const t = spark.type;
+
+  // Photo / Image → small thumbnail
+  if (t === 'photo' || t === 'image') {
+    const thumbPath = spark.storage_path;
+    if (thumbPath) return <SparkThumbnail path={thumbPath} />;
+    return (
+      <div className="h-8 w-8 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+        <ImageIcon className="h-3.5 w-3.5 text-blue-400" />
+      </div>
+    );
+  }
+
+  // Video → icon
+  if (t === 'video') {
+    return (
+      <div className="h-8 w-8 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
+        <Film className="h-3.5 w-3.5 text-orange-400" />
+      </div>
+    );
+  }
+
+  // Audio → icon
+  if (t === 'audio_recording') {
+    return (
+      <div className="h-8 w-8 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+        <Mic className="h-3.5 w-3.5 text-red-400" />
+      </div>
+    );
+  }
+
+  // Text → excerpt
+  if (t === 'text' && spark.content) {
+    return (
+      <div className="px-2 py-1 rounded bg-purple-500/10 border border-purple-500/20 shrink-0 max-w-[200px]">
+        <p className="text-[11px] text-purple-300/80 line-clamp-2 leading-tight">
+          {spark.content}
+        </p>
+      </div>
+    );
+  }
+
+  // File → attachment icon + name
+  if (t === 'file') {
+    return (
+      <div className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px]">
+        <Paperclip className="h-3 w-3 text-yellow-400 shrink-0" />
+        <span className="text-[11px] text-yellow-300/80 truncate">
+          {spark.file_name || 'file'}
+        </span>
+      </div>
+    );
+  }
+
+  // Fallback
+  return (
+    <div className="h-8 w-8 rounded bg-zinc-700/50 border border-zinc-600 flex items-center justify-center shrink-0">
+      <FileText className="h-3.5 w-3.5 text-zinc-400" />
+    </div>
+  );
+}
+
+// ─── Resizable column header ───
+function ResizableHead({
+  children,
+  width,
+  onResize,
+  className,
+}: {
+  children?: React.ReactNode;
+  width: number;
+  onResize: (w: number) => void;
+  className?: string;
+}) {
+  const startX = useRef(0);
+  const startW = useRef(0);
+
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startX.current = e.clientX;
+      startW.current = width;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const delta = ev.clientX - startX.current;
+        onResize(Math.max(40, startW.current + delta));
+      };
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [width, onResize]
+  );
+
+  return (
+    <TableHead className={cn('relative', className)} style={{ width, minWidth: width, maxWidth: width }}>
+      <span className="truncate">{children}</span>
+      <div
+        onMouseDown={onMouseDown}
+        className="absolute top-0 bottom-0 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
+        style={{ right: -2, width: 5 }}
+      />
+    </TableHead>
+  );
+}
+
 function TileRow({
   tile,
   selected,
   selectedIds,
   allTags,
+  colWidths,
   onSelect,
-  onMemoClick,
+  onSparkClick,
 }: {
   tile: Tile;
   selected: boolean;
   selectedIds: Set<string>;
   allTags: Tag[];
+  colWidths: { title: number; sparks: number; tags: number };
   onSelect: (id: string, checked: boolean) => void;
-  onMemoClick: (spark: Spark) => void;
+  onSparkClick: (spark: Spark) => void;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const queryClient = useQueryClient();
-
-  const { data: tileDetail } = useQuery({
-    queryKey: ['tile', tile.id],
-    queryFn: () => tilesApi.get(tile.id),
-    enabled: expanded,
-  });
+  const markRead = useTileNotificationStore((s) => s.markRead);
+  const lastSeen = useTileNotificationStore((s) => s.lastSeen);
+  const readIds = useTileNotificationStore((s) => s.readIds);
+  const isUnread = new Date(tile.created_at) > new Date(lastSeen) && !readIds.includes(tile.id);
 
   const deleteMutation = useMutation({
     mutationFn: tilesApi.delete,
@@ -154,18 +289,20 @@ function TileRow({
     onError: () => toast.error("Errore durante l'eliminazione"),
   });
 
-  const sparks = tileDetail?.data?.sparks || [];
-
   return (
     <Fragment>
-      <TableRow className="border-zinc-800 cursor-pointer" onClick={() => {
-        if (selectedIds.size > 0) {
-          onSelect(tile.id, !selected);
-        } else {
-          setExpanded(!expanded);
-        }
-      }}>
-        <TableCell className="w-10">
+      <TableRow
+        className="border-zinc-800 cursor-pointer h-12"
+        style={{ height: 48, maxHeight: 48 }}
+        onClick={() => {
+          if (selectedIds.size > 0) {
+            onSelect(tile.id, !selected);
+          } else {
+            if (isUnread) markRead(tile.id);
+          }
+        }}
+      >
+        <TableCell className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(tile.id, !selected); }}
             className={`h-4 w-4 rounded flex items-center justify-center border transition-colors ${
@@ -177,19 +314,32 @@ function TileRow({
             {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
           </button>
         </TableCell>
-        <TableCell className="w-8">
-          {expanded ? (
-            <ChevronDown className="h-4 w-4 text-zinc-400" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-zinc-400" />
-          )}
-        </TableCell>
-        <TableCell className="text-white font-medium">
+        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', isUnread ? 'text-red-400' : 'text-white')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
           {tile.title || `Tile ${tile.id.slice(0, 8)}`}
         </TableCell>
-        <TableCell>
+        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, minWidth: colWidths.sparks, maxWidth: colWidths.sparks }}>
+          {tile.sparks && tile.sparks.length > 0 ? (
+            <div className="flex gap-1.5 items-center overflow-hidden">
+              {tile.sparks.map((spark) => (
+                <button
+                  key={spark.id}
+                  className="hover:opacity-80 hover:scale-105 transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onSparkClick(spark as Spark);
+                  }}
+                >
+                  <SparkChip spark={spark} />
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="text-zinc-600 text-sm">—</span>
+          )}
+        </TableCell>
+        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.tags, minWidth: colWidths.tags, maxWidth: colWidths.tags }}>
           {tile.tags && tile.tags.length > 0 ? (
-            <div className="flex flex-wrap gap-1">
+            <div className="flex gap-1 overflow-hidden">
               {tile.tags.map((tag) => (
                 <Badge
                   key={tag.id}
@@ -208,7 +358,7 @@ function TileRow({
             <span className="text-zinc-600 text-sm">—</span>
           )}
         </TableCell>
-        <TableCell className="w-10">
+        <TableCell className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
           <div className="relative">
             <Button
               variant="ghost"
@@ -230,11 +380,10 @@ function TileRow({
             />
           </div>
         </TableCell>
-        <TableCell className="text-zinc-400">{tile.spark_count || 0}</TableCell>
-        <TableCell className="text-zinc-400 text-sm">
+        <TableCell className="text-zinc-400 text-xs border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
         </TableCell>
-        <TableCell className="text-right">
+        <TableCell className="text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }}>
           <Button
             variant="ghost"
             size="icon"
@@ -248,38 +397,6 @@ function TileRow({
           </Button>
         </TableCell>
       </TableRow>
-
-      {expanded && (
-        <TableRow className="border-zinc-800 hover:bg-transparent">
-          <TableCell colSpan={8} className="p-0">
-            <div className="bg-zinc-800/30 px-6 py-3 space-y-1.5">
-              {sparks.length === 0 ? (
-                <p className="text-sm text-zinc-500 py-2">Caricamento...</p>
-              ) : (
-                sparks.map((spark) => {
-                  const Icon = typeIcons[spark.type] || FileText;
-                  const color = typeIconColors[spark.type] || 'text-zinc-400';
-                  return (
-                    <button
-                      key={spark.id}
-                      className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-zinc-700/50 transition-colors w-full text-left"
-                      onClick={() => onMemoClick(spark)}
-                    >
-                      <Icon className={`h-4 w-4 ${color}`} />
-                      <span className="text-sm text-white flex-1 truncate">
-                        {spark.file_name || spark.content?.substring(0, 50) || spark.type}
-                      </span>
-                      <Badge className="text-xs bg-zinc-700 text-zinc-300">
-                        {typeLabels[spark.type]}
-                      </Badge>
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </TableCell>
-        </TableRow>
-      )}
     </Fragment>
   );
 }
@@ -290,6 +407,18 @@ export default function TilesPage() {
   const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
+
+  // Column widths (resizable)
+  const [colWidths, setColWidths] = useState({
+    title: 260,
+    sparks: 380,
+    tags: 160,
+  });
+  const setColWidth = useCallback(
+    (col: keyof typeof colWidths, w: number) =>
+      setColWidths((prev) => ({ ...prev, [col]: w })),
+    []
+  );
 
   const { data, isLoading } = useQuery({
     queryKey: ['tiles', { page }],
@@ -365,6 +494,20 @@ export default function TilesPage() {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => {
+                const { markRead } = useTileNotificationStore.getState();
+                selectedIds.forEach((id) => markRead(id));
+                setSelectedIds(new Set());
+                toast.success(`${selectedIds.size} tile segnat${selectedIds.size === 1 ? 'o' : 'i'} come lett${selectedIds.size === 1 ? 'o' : 'i'}`);
+              }}
+              className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/50 h-8 px-3"
+            >
+              <CheckCheck className="h-4 w-4 mr-1.5" />
+              Segna come letti
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setSelectedIds(new Set())}
               className="text-zinc-400 hover:text-zinc-300 h-8 px-2"
             >
@@ -414,35 +557,32 @@ export default function TilesPage() {
           </div>
         ) : (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="border-zinc-800 hover:bg-transparent">
-                  <TableHead className="w-10">
-                    <button
-                      onClick={() => handleSelectAll(!allSelected)}
-                      className={`h-4 w-4 rounded flex items-center justify-center border transition-colors ${
-                        allSelected
-                          ? 'bg-blue-500 border-blue-500'
-                          : someSelected
-                            ? 'bg-blue-500/50 border-blue-500'
-                            : 'bg-transparent border-zinc-300'
-                      }`}
-                    >
-                      {(allSelected || someSelected) && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-                    </button>
-                  </TableHead>
-                  <TableHead className="text-zinc-400 w-8" />
-                  <TableHead className="text-zinc-400">Titolo</TableHead>
-                  <TableHead className="text-zinc-400">Tags</TableHead>
-                  <TableHead className="text-zinc-400 w-10" />
-                  <TableHead className="text-zinc-400 w-20">Spark</TableHead>
-                  <TableHead className="text-zinc-400 w-28">Data</TableHead>
-                  <TableHead className="text-zinc-400 text-right w-16" />
-                </TableRow>
-              </TableHeader>
-            </Table>
-            <div className="flex-1 overflow-y-auto">
-              <Table>
+            <div className="flex-1 overflow-auto">
+              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.sparks + colWidths.tags + 40 + 40 + 80 + 56, minWidth: colWidths.title + colWidths.sparks + colWidths.tags + 40 + 40 + 80 + 56 }}>
+                <TableHeader className="sticky top-0 z-10 bg-zinc-900">
+                  <TableRow className="border-zinc-800 hover:bg-transparent">
+                    <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
+                      <button
+                        onClick={() => handleSelectAll(!allSelected)}
+                        className={`h-4 w-4 rounded flex items-center justify-center border transition-colors ${
+                          allSelected
+                            ? 'bg-blue-500 border-blue-500'
+                            : someSelected
+                              ? 'bg-blue-500/50 border-blue-500'
+                              : 'bg-transparent border-zinc-300'
+                        }`}
+                      >
+                        {(allSelected || someSelected) && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                      </button>
+                    </TableHead>
+                    <ResizableHead width={colWidths.title} onResize={(w) => setColWidth('title', w)} className="text-zinc-400 border-r border-zinc-800">Titolo</ResizableHead>
+                    <ResizableHead width={colWidths.sparks} onResize={(w) => setColWidth('sparks', w)} className="text-zinc-400 text-left border-r border-zinc-800">Sparks</ResizableHead>
+                    <ResizableHead width={colWidths.tags} onResize={(w) => setColWidth('tags', w)} className="text-zinc-400 text-left border-r border-zinc-800">Tags</ResizableHead>
+                    <TableHead className="text-zinc-400 border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }} />
+                    <TableHead className="text-zinc-400 border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>Data</TableHead>
+                    <TableHead className="text-zinc-400 text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }} />
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {tiles.map((tile) => (
                     <TileRow
@@ -451,8 +591,9 @@ export default function TilesPage() {
                       selected={selectedIds.has(tile.id)}
                       selectedIds={selectedIds}
                       allTags={allTags}
+                      colWidths={colWidths}
                       onSelect={handleSelect}
-                      onMemoClick={setSelectedMemo}
+                      onSparkClick={setSelectedMemo}
                     />
                   ))}
                 </TableBody>
