@@ -62,11 +62,13 @@ calendarRouter.get(
         tag_id?: string;
       };
 
+      // Fetch events (is_event=true) AND deadline tiles (action_type='deadline' with start_at)
       let query = supabaseAdmin
         .from('tiles')
         .select('*, sparks(count), tile_tags(tag_id, tags(id, name, color))')
         .eq('user_id', req.user!.id)
-        .eq('is_event', true)
+        .or('is_event.eq.true,action_type.eq.deadline')
+        .not('start_at', 'is', null)
         .gte('start_at', start.toISOString())
         .lte('start_at', end.toISOString())
         .order('start_at', { ascending: true });
@@ -142,6 +144,8 @@ calendarRouter.post(
         start_at: finalStartAt,
         end_at: finalEndAt,
         is_event: true,
+        action_type: 'event',
+        action_type_reviewed: true,
         updated_at: new Date().toISOString(),
       };
       if (title) updateData.title = title;
@@ -197,6 +201,8 @@ calendarRouter.post(
           start_at: finalStartAt,
           end_at: finalEndAt,
           is_event: true,
+          action_type: 'event',
+          action_type_reviewed: true,
         })
         .select()
         .single();
@@ -323,6 +329,8 @@ calendarRouter.delete(
           start_at: null,
           end_at: null,
           is_event: false,
+          action_type: 'none',
+          action_type_reviewed: true,
           updated_at: new Date().toISOString(),
         })
         .eq('id', id)

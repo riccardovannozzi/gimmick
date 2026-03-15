@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -202,7 +202,7 @@ export const tilesApi = {
 
   async graph() {
     return apiRequest<{
-      tiles: { id: string; title?: string; description?: string; created_at: string }[];
+      tiles: { id: string; title?: string; description?: string; created_at: string; action_type?: ActionType }[];
       sparks: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
       tags: { id: string; name: string; color?: string; created_at: string; tile_ids: string[] }[];
     }>('/api/tiles/graph');
@@ -215,7 +215,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string }) {
+  async update(id: string, updates: { title?: string; description?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

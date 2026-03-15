@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { supabaseAdmin } from '../config/supabase.js';
-import type { Spark, SparkMetadata } from '../types/index.js';
+import type { Spark, SparkMetadata, ActionType } from '../types/index.js';
 
 const anthropic = new Anthropic();
 const openai = new OpenAI();
@@ -176,6 +176,11 @@ export async function processNewSpark(sparkId: string): Promise<void> {
           console.error(`[Indexing] Date extraction failed for tile ${spark.tile_id}:`, err);
         });
       }
+
+      // GTD action type classification
+      await classifyActionType(spark.tile_id).catch((err) => {
+        console.error(`[Indexing] Action type classification failed for tile ${spark.tile_id}:`, err);
+      });
     }
   } catch (err) {
     console.error(`[Indexing] Failed for spark ${sparkId}:`, err);
@@ -541,6 +546,107 @@ ${summaries.slice(0, 2000)}`,
 // ---------------------------------------------------------------------------
 
 /**
+ * Classify tile action type using GTD methodology.
+ * Called after tile metadata and date extraction are complete.
+ */
+async function classifyActionType(tileId: string): Promise<void> {
+  const { data: tile } = await supabaseAdmin
+    .from('tiles')
+    .select('id, title, description, action_type_reviewed, action_type, start_at, is_event')
+    .eq('id', tileId)
+    .single();
+
+  if (!tile) return;
+  if (tile.action_type_reviewed) return; // User already decided
+
+  // Gather text from tile + spark summaries
+  const { data: sparks } = await supabaseAdmin
+    .from('sparks')
+    .select('metadata, content, type')
+    .eq('tile_id', tileId)
+    .eq('ai_status', 'completed');
+
+  const textParts: string[] = [];
+  if (tile.title) textParts.push(`Titolo: ${tile.title}`);
+  if (tile.description) textParts.push(`Descrizione: ${tile.description}`);
+  for (const s of sparks || []) {
+    const meta = s.metadata as SparkMetadata;
+    if (meta?.summary) textParts.push(meta.summary);
+    if (s.content) textParts.push(s.content.slice(0, 500));
+  }
+
+  if (textParts.length === 0) return;
+
+  const content = textParts.join('\n').slice(0, 2000);
+
+  const response = await anthropic.messages.create({
+    model: CLAUDE_MODEL,
+    max_tokens: 150,
+    messages: [{
+      role: 'user',
+      content: `Sei un assistente di produttività che classifica note e attività secondo la metodologia GTD.
+
+Analizza il contenuto e restituisci SOLO un oggetto JSON:
+{"action_type": "none" | "anytime" | "deadline" | "event", "confidence": 0.0-1.0}
+
+Definizioni:
+- "none": appunto, riferimento, conoscenza pura. NON richiede alcuna azione futura.
+- "anytime": azione da compiere appena possibile, senza vincolo temporale preciso.
+- "deadline": azione da completare ENTRO una data limite (parole: "entro", "prima di", "scadenza").
+- "event": accade A una data/ora specifica (parole: orari espliciti, "riunione", "appuntamento").
+
+Regole:
+- Se ambiguo tra "none" e "anytime", scegli "none".
+- Se presente un orario specifico, preferisci "event".
+- Se solo una data senza orario implica scadenza, preferisci "deadline".
+- Confidence alta (>0.85) solo quando il segnale è chiaro.
+
+Contenuto:
+${content}`,
+    }],
+  });
+
+  const text = response.content[0].type === 'text' ? response.content[0].text.trim() : '';
+  if (!text) return;
+
+  try {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return;
+
+    const parsed = JSON.parse(match[0]);
+    const actionType = parsed.action_type as ActionType;
+    const confidence = typeof parsed.confidence === 'number' ? parsed.confidence : 0;
+
+    if (!['none', 'anytime', 'deadline', 'event'].includes(actionType)) return;
+
+    const updates: Record<string, unknown> = {
+      action_type_ai: actionType,
+      action_type_confidence: confidence,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Auto-apply if high confidence
+    if (confidence >= 0.85) {
+      updates.action_type = actionType;
+
+      // Sync with event fields
+      if (actionType === 'event' && !tile.is_event && tile.start_at) {
+        updates.is_event = true;
+      }
+    }
+
+    await supabaseAdmin
+      .from('tiles')
+      .update(updates)
+      .eq('id', tileId);
+
+    console.log(`[Indexing] Action type for tile ${tileId}: ${actionType} (confidence: ${confidence})`);
+  } catch (err) {
+    console.error('[Indexing] Action type parse failed:', err);
+  }
+}
+
+/**
  * Extract date/time from spark content and save to tile if confidence is high.
  * Called after indexing text and audio_recording sparks.
  */
@@ -610,6 +716,7 @@ Rules:
           start_at: startAt,
           end_at: endAt,
           is_event: true,
+          action_type: 'event',
           updated_at: new Date().toISOString(),
         })
         .eq('id', tileId);

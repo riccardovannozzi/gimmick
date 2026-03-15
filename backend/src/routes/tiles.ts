@@ -4,7 +4,9 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
-import type { AuthenticatedRequest, Tile } from '../types/index.js';
+import type { AuthenticatedRequest, Tile, ActionType } from '../types/index.js';
+
+const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
 
 export const tilesRouter = Router();
 
@@ -20,6 +22,11 @@ const createTileSchema = z.object({
 const updateTileSchema = z.object({
   title: z.string().optional(),
   description: z.string().optional(),
+  action_type: z.enum(ACTION_TYPES).optional(),
+  is_event: z.boolean().optional(),
+  all_day: z.boolean().optional(),
+  start_at: z.string().nullable().optional(),
+  end_at: z.string().nullable().optional(),
 });
 
 const querySchema = z.object({
@@ -121,7 +128,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all tiles
     const { data: tiles, error: tilesError } = await supabaseAdmin
       .from('tiles')
-      .select('id, title, description, created_at')
+      .select('id, title, description, created_at, action_type')
       .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 
@@ -272,13 +279,33 @@ tilesRouter.patch(
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
+      const updates: Record<string, unknown> = { ...req.body };
+
+      // Sync action_type ↔ is_event
+      if (updates.action_type) {
+        updates.action_type_reviewed = true;
+        if (updates.action_type === 'event') {
+          updates.is_event = true;
+        } else if (updates.action_type === 'none' || updates.action_type === 'anytime') {
+          // Changing to none/anytime → clear date fields
+          updates.is_event = false;
+          updates.all_day = false;
+          updates.start_at = null;
+          updates.end_at = null;
+        } else if (updates.action_type === 'deadline') {
+          updates.is_event = false;
+        }
+      }
+      if (updates.is_event === true && !updates.action_type) {
+        updates.action_type = 'event';
+        updates.action_type_reviewed = true;
+      }
+
+      updates.updated_at = new Date().toISOString();
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
-        .update({
-          ...req.body,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updates)
         .eq('id', id)
         .eq('user_id', req.user!.id)
         .select()
