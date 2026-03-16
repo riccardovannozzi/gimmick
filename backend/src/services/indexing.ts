@@ -396,17 +396,17 @@ async function generateTagsAndSummary(
     messages: [
       {
         role: 'user',
-        content: `Analyze this ${sparkType} content and return ONLY valid JSON (no markdown, no backticks):
-{"tags": ["tag1", "tag2", ...], "summary": "One sentence summary"}
+        content: `Analizza questo contenuto (${sparkType}) e rispondi SOLO con JSON valido (no markdown, no backtick):
+{"tags": ["tag1", "tag2", ...], "summary": "Riassunto in una frase"}
 
-Rules:
-- Generate up to ${maxTags} tags based on content richness (this content has ~${wordCount} words)
-- Include ONLY tags that reflect actual topics present in the content
-- No redundant, generic, or filler tags
-- Tags in the same language as the content
-- Summary: 1-2 concise sentences in Italian
+Regole:
+- Genera fino a ${maxTags} tag in base alla ricchezza del contenuto (questo contenuto ha ~${wordCount} parole)
+- Includi SOLO tag che riflettono argomenti realmente presenti nel contenuto
+- Niente tag ridondanti, generici o di riempimento
+- Tag nella stessa lingua del contenuto
+- Summary: 1-2 frasi concise in italiano
 
-Content:
+Contenuto:
 ${text}`,
       },
     ],
@@ -507,10 +507,10 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     messages: [
       {
         role: 'user',
-        content: `This is a collection of ${sparks.length} sparks. Generate a short title (max 5 words) and description (1 sentence) for this collection. Return ONLY valid JSON:
+        content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) e una descrizione (1 frase) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
 {"title": "...", "description": "..."}
 
-Spark summaries:
+Riassunti degli spark:
 ${summaries.slice(0, 2000)}`,
       },
     ],
@@ -671,25 +671,25 @@ async function tryExtractEventDate(tileId: string, textContent: string): Promise
     messages: [
       {
         role: 'user',
-        content: `Current date/time: ${isoNow}
+        content: `Data/ora corrente: ${isoNow}
 
-Analyze this content and determine if it mentions a specific date and/or time for an event, appointment, meeting, deadline, etc.
+Analizza questo contenuto e determina se menziona una data e/o ora specifica per un evento, appuntamento, riunione, scadenza, ecc.
 
-Content:
+Contenuto:
 ${textContent.slice(0, 2000)}
 
-Return ONLY valid JSON:
+Rispondi SOLO con JSON valido:
 {"start_at": "ISO_DATETIME_OR_NULL", "end_at": "ISO_DATETIME_OR_NULL", "confidence": 0.0}
 
-Rules:
-- confidence: 0.0 to 1.0 — how certain you are that a specific event date is mentioned
-- Use ISO 8601 with Europe/Rome timezone (e.g. 2026-03-15T14:00:00+01:00)
-- If only a date is mentioned (no time), default to 09:00
-- If no end time, set end_at 1 hour after start_at
-- If NO date/time is found at all, return {"start_at": null, "end_at": null, "confidence": 0.0}
-- "domani alle 15" = tomorrow at 15:00, confidence ~0.9
-- "forse la prossima settimana" = low confidence ~0.3
-- Explicit dates like "15 marzo alle 14:30" = confidence ~0.95`,
+Regole:
+- confidence: da 0.0 a 1.0 — quanto sei certo che venga menzionata una data specifica
+- Usa ISO 8601 con fuso orario Europe/Rome (es. 2026-03-15T14:00:00+01:00)
+- Se viene menzionata solo una data (senza ora), usa 09:00 come default
+- Se non c'è un'ora di fine, imposta end_at a 1 ora dopo start_at
+- Se NON viene trovata alcuna data/ora, rispondi {"start_at": null, "end_at": null, "confidence": 0.0}
+- "domani alle 15" = domani alle 15:00, confidence ~0.9
+- "forse la prossima settimana" = bassa confidence ~0.3
+- Date esplicite come "15 marzo alle 14:30" = confidence ~0.95`,
       },
     ],
   });

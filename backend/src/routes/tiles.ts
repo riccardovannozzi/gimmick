@@ -27,6 +27,7 @@ const updateTileSchema = z.object({
   all_day: z.boolean().optional(),
   start_at: z.string().nullable().optional(),
   end_at: z.string().nullable().optional(),
+  is_completed: z.boolean().optional(),
 });
 
 const querySchema = z.object({
