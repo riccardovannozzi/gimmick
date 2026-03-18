@@ -172,18 +172,21 @@ export default function CalendarPage() {
     }
 
     return filtered.map((tile: Tile) => {
+      const isDeadline = tile.action_type === 'deadline' && !tile.is_event;
       const tagColor = tile.tags?.[0]?.color;
       return {
         id: tile.id,
-        title: tile.title || 'Senza titolo',
+        title: isDeadline ? `\u23F0 ${tile.title || 'Scadenza'}` : (tile.title || 'Senza titolo'),
         start: tile.start_at!,
-        end: tile.end_at || undefined,
-        backgroundColor: tagColor || defaultEventColor,
-        borderColor: tagColor || defaultEventColor,
+        end: isDeadline ? undefined : (tile.end_at || undefined),
+        allDay: isDeadline,
+        backgroundColor: isDeadline ? '#F59E0B' : (tagColor || defaultEventColor),
+        borderColor: isDeadline ? '#D97706' : (tagColor || defaultEventColor),
         extendedProps: {
           description: tile.description,
           spark_count: tile.spark_count || 0,
           tags: tile.tags || [],
+          isDeadline,
         },
       };
     });

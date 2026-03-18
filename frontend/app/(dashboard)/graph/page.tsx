@@ -99,7 +99,15 @@ interface GraphNode extends d3.SimulationNodeDatum {
   tagId?: string;
   usageCount?: number;
   isRoot?: boolean;
+  actionType?: string;
 }
+
+const ACTION_TYPE_COLORS: Record<string, string> = {
+  none: '#528BFF',
+  anytime: '#22C55E',
+  deadline: '#F59E0B',
+  event: '#8B5CF6',
+};
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode;
@@ -411,6 +419,7 @@ export default function GraphPage() {
           type: 'tile',
           label: tile.title || 'Tile senza titolo',
           sparkCount: sparkCounts.get(tile.id) || 0,
+          actionType: tile.action_type || 'none',
         });
         links.push({ source: `tag-${selectedTag.id}`, target: `tile-${tile.id}`, linkType: 'tag-tile' });
       });
@@ -508,6 +517,7 @@ export default function GraphPage() {
             type: 'tile',
             label: tile.title || 'Tile senza titolo',
             sparkCount: sparkCounts.get(tile.id) || 0,
+            actionType: tile.action_type || 'none',
           });
           tileNodeIds.add(nodeId);
         });
@@ -830,7 +840,8 @@ export default function GraphPage() {
       .attr('width', tileSize).attr('height', tileSize)
       .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
       .attr('rx', 6).attr('ry', 6)
-      .attr('fill', '#528BFF').attr('fill-opacity', 0.2).attr('stroke', '#528BFF')
+      .attr('fill', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF').attr('fill-opacity', 0.2)
+      .attr('stroke', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF')
       .attr('stroke-width', 2).style('filter', 'url(#glow)').style('cursor', 'pointer');
     node.filter((d) => d.type === 'tile')
       .append('text').text((d) => d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label)

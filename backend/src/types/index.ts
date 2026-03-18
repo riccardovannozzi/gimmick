@@ -7,6 +7,9 @@ export interface AuthenticatedRequest extends Request {
   accessToken?: string;
 }
 
+// Action type for GTD classification
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+
 // Spark types (formerly MemoType)
 export type SparkType =
   | 'photo'
@@ -25,6 +28,12 @@ export interface Tile {
   start_at?: string;
   end_at?: string;
   is_event?: boolean;
+  all_day?: boolean;
+  action_type: ActionType;
+  action_type_ai?: ActionType;
+  action_type_confidence?: number;
+  action_type_reviewed: boolean;
+  is_completed: boolean;
   created_at: string;
   updated_at: string;
   spark_count?: number;

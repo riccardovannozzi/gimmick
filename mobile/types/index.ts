@@ -30,6 +30,11 @@ export interface BufferItem {
 }
 
 /**
+ * Action type for GTD classification
+ */
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+
+/**
  * Tile - Group of related sparks
  */
 export interface Tile {
@@ -37,6 +42,14 @@ export interface Tile {
   user_id: string;
   title?: string;
   description?: string;
+  start_at?: string;
+  end_at?: string;
+  is_event?: boolean;
+  all_day?: boolean;
+  action_type?: ActionType;
+  action_type_ai?: ActionType;
+  action_type_confidence?: number;
+  action_type_reviewed?: boolean;
   created_at: string;
   updated_at: string;
   spark_count?: number;

@@ -357,7 +357,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string }) {
+  async update(id: string, updates: { title?: string; description?: string; action_type?: string; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
