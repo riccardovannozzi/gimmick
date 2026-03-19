@@ -324,14 +324,14 @@ export const tagsApi = {
     return apiRequest<Tag[]>('/api/tags');
   },
 
-  async create(tag: { name: string; color?: string; aliases?: string[] }) {
+  async create(tag: { name: string; color?: string; aliases?: string[]; tag_type?: string }) {
     return apiRequest<Tag>('/api/tags', {
       method: 'POST',
       body: JSON.stringify(tag),
     });
   },
 
-  async update(id: string, updates: { name?: string; color?: string; aliases?: string[] }) {
+  async update(id: string, updates: { name?: string; color?: string; aliases?: string[]; tag_type?: string }) {
     return apiRequest<Tag>(`/api/tags/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

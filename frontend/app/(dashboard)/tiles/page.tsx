@@ -22,7 +22,7 @@ import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { SparkViewer } from '@/components/spark/spark-viewer';
-import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
+import type { Spark, SparkType, Tile, Tag, ActionType, TagType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 
 const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof Pin; color: string; label: string }> = {
@@ -30,6 +30,14 @@ const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof Pin; color: string; l
   anytime: { icon: Zap, color: 'text-green-400', label: 'Da fare' },
   deadline: { icon: Clock, color: 'text-amber-400', label: 'Scadenza' },
   event: { icon: Calendar, color: 'text-blue-400', label: 'Evento' },
+};
+
+const TAG_TYPE_EMOJI: Record<TagType, string> = {
+  project: '\u{1F3D7}\uFE0F',
+  person: '\u{1F464}',
+  context: '\u{1F30D}',
+  place: '\u{1F4CD}',
+  topic: '\u{1F3F7}\uFE0F',
 };
 
 const SPARK_TYPE_OPTIONS: { value: SparkType; label: string }[] = [
@@ -812,7 +820,7 @@ function TileRow({
                       borderColor: tag.color ? `${tag.color}40` : undefined,
                     }}
                   >
-                    {tag.name}
+                    {TAG_TYPE_EMOJI[(tag as { tag_type?: TagType }).tag_type || 'topic']} {tag.name}
                   </Badge>
                 ))}
               </div>

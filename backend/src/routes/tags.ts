@@ -11,16 +11,20 @@ export const tagsRouter = Router();
 
 tagsRouter.use(authenticate);
 
+const tagTypeEnum = z.enum(['project', 'person', 'context', 'place', 'topic']);
+
 const createTagSchema = z.object({
   name: z.string().min(1).max(50),
   color: z.string().max(7).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
+  tag_type: tagTypeEnum.default('topic'),
 });
 
 const updateTagSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   color: z.string().max(7).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
+  tag_type: tagTypeEnum.optional(),
 });
 
 // ─── Static routes (before :id params) ───────────────────────
@@ -54,13 +58,13 @@ tagsRouter.post(
   validate(createTagSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { name, color, aliases } = req.body;
+      const { name, color, aliases, tag_type } = req.body;
 
       const slug = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
 
       const { data, error } = await supabaseAdmin
         .from('tags')
-        .insert({ name, color, slug, aliases: aliases || [], user_id: req.user!.id })
+        .insert({ name, color, slug, aliases: aliases || [], tag_type: tag_type || 'topic', user_id: req.user!.id })
         .select()
         .single();
 
@@ -194,6 +198,19 @@ tagsRouter.patch(
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
+
+      // Block tag_type change on root GIMMICK tag
+      if (req.body.tag_type) {
+        const { data: existing } = await supabaseAdmin
+          .from('tags')
+          .select('is_root')
+          .eq('id', id)
+          .eq('user_id', req.user!.id)
+          .single();
+        if (existing?.is_root) {
+          return res.status(403).json({ success: false, error: 'Cannot change tag_type on root tag' });
+        }
+      }
 
       // If name is being updated, also update slug
       const updates = { ...req.body };

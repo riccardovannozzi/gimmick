@@ -29,7 +29,7 @@ export interface Tile {
   updated_at: string;
   spark_count?: number;
   sparks?: Spark[];
-  tags?: { id: string; name: string; color?: string }[];
+  tags?: { id: string; name: string; color?: string; tag_type?: TagType }[];
 }
 
 // Spark entity
@@ -78,6 +78,9 @@ export interface PaginatedResponse<T> {
   };
 }
 
+// Tag type classification
+export type TagType = 'project' | 'person' | 'context' | 'place' | 'topic';
+
 // Tag entity
 export interface Tag {
   id: string;
@@ -85,6 +88,7 @@ export interface Tag {
   name: string;
   slug?: string;
   color?: string;
+  tag_type: TagType;
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;

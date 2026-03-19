@@ -10,7 +10,15 @@ import { uploadBufferItems, chatApi, tagsApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, SparkType, Tag as TagType } from '@/types';
+import type { BufferItem, SparkType, Tag as TagInterface, TagType as TagTypeEnum } from '@/types';
+
+const TAG_TYPE_EMOJI: Record<TagTypeEnum, string> = {
+  project: '\u{1F3D7}\uFE0F',
+  person: '\u{1F464}',
+  context: '\u{1F30D}',
+  place: '\u{1F4CD}',
+  topic: '\u{1F3F7}\uFE0F',
+};
 
 type ChatMessage = {
   id: string;
@@ -208,7 +216,7 @@ export default function HomeScreen() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [tagModalOpen, setTagModalOpen] = useState(false);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [availableTags, setAvailableTags] = useState<TagType[]>([]);
+  const [availableTags, setAvailableTags] = useState<TagInterface[]>([]);
 
   useEffect(() => {
     if (tagModalOpen) {
@@ -854,7 +862,7 @@ export default function HomeScreen() {
                         }}
                       />
                       <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
-                        {tag.name}
+                        {TAG_TYPE_EMOJI[tag.tag_type || 'topic']} {tag.name}
                       </Text>
                       {isSelected && (
                         <Check size={18} color={tag.color || colors.accent} strokeWidth={2.5} />

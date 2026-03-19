@@ -106,6 +106,9 @@ export interface UpdateSparkDto {
   metadata?: Record<string, unknown>;
 }
 
+// Tag type classification
+export type TagType = 'project' | 'person' | 'context' | 'place' | 'topic';
+
 // Tag entity
 export interface Tag {
   id: string;
@@ -113,6 +116,7 @@ export interface Tag {
   name: string;
   slug?: string;
   color?: string;
+  tag_type: TagType;
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;

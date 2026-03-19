@@ -16,30 +16,93 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { cn } from '@/lib/utils';
 import { tagsApi } from '@/lib/api';
-import type { Tag } from '@/types';
+import type { Tag, TagType } from '@/types';
 
 const TAG_COLORS = [
   '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
   '#F59E0B', '#22C55E', '#06B6D4', '#F97316',
 ];
 
+const TAG_TYPE_EMOJI: Record<TagType, string> = {
+  project: '\u{1F3D7}\uFE0F',
+  person: '\u{1F464}',
+  context: '\u{1F30D}',
+  place: '\u{1F4CD}',
+  topic: '\u{1F3F7}\uFE0F',
+};
+
+const TAG_TYPE_LABEL: Record<TagType, string> = {
+  project: 'Progetto',
+  person: 'Persona',
+  context: 'Contesto',
+  place: 'Luogo',
+  topic: 'Tema',
+};
+
+const TAG_TYPES: TagType[] = ['project', 'person', 'context', 'place', 'topic'];
+
+const FILTER_OPTIONS: { value: TagType | 'all'; label: string }[] = [
+  { value: 'all', label: 'Tutti' },
+  { value: 'project', label: '\u{1F3D7}\uFE0F Progetti' },
+  { value: 'person', label: '\u{1F464} Persone' },
+  { value: 'context', label: '\u{1F30D} Contesti' },
+  { value: 'place', label: '\u{1F4CD} Luoghi' },
+  { value: 'topic', label: '\u{1F3F7}\uFE0F Temi' },
+];
+
+function TagTypePills({
+  value,
+  onChange,
+  size = 'md',
+}: {
+  value: TagType;
+  onChange: (t: TagType) => void;
+  size?: 'sm' | 'md';
+}) {
+  return (
+    <div className="flex gap-1.5 flex-wrap">
+      {TAG_TYPES.map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onChange(t)}
+          className={cn(
+            'rounded-full border transition-all font-medium',
+            size === 'sm' ? 'px-2 py-0.5 text-[11px]' : 'px-3 py-1 text-xs',
+            value === t
+              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+              : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+          )}
+        >
+          {TAG_TYPE_EMOJI[t]} {TAG_TYPE_LABEL[t]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export default function TagsPage() {
   const queryClient = useQueryClient();
   const [newTagName, setNewTagName] = useState('');
   const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
   const [newTagAliases, setNewTagAliases] = useState('');
+  const [newTagType, setNewTagType] = useState<TagType>('topic');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editColor, setEditColor] = useState('');
   const [editAliases, setEditAliases] = useState('');
+  const [editTagType, setEditTagType] = useState<TagType>('topic');
+  const [filterTagType, setFilterTagType] = useState<TagType | 'all'>('all');
 
   const { data: tagsResult, isLoading } = useQuery({
     queryKey: ['tags'],
     queryFn: () => tagsApi.list(),
   });
 
-  const tags = tagsResult?.data || [];
+  const allTags = tagsResult?.data || [];
+  const tags = filterTagType === 'all' ? allTags : allTags.filter((t) => (t.tag_type || 'topic') === filterTagType);
 
   const createMutation = useMutation({
     mutationFn: tagsApi.create,
@@ -47,13 +110,14 @@ export default function TagsPage() {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
       setNewTagName('');
       setNewTagAliases('');
+      setNewTagType('topic');
       toast.success('Tag creato');
     },
     onError: () => toast.error('Errore nella creazione del tag'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: { name?: string; color?: string; aliases?: string[] } }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: { name?: string; color?: string; aliases?: string[]; tag_type?: TagType } }) =>
       tagsApi.update(id, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tags'] });
@@ -78,7 +142,7 @@ export default function TagsPage() {
   const handleCreate = () => {
     const name = newTagName.trim();
     if (!name) return;
-    createMutation.mutate({ name, color: newTagColor, aliases: parseAliases(newTagAliases) });
+    createMutation.mutate({ name, color: newTagColor, aliases: parseAliases(newTagAliases), tag_type: newTagType });
   };
 
   const startEdit = (tag: Tag) => {
@@ -86,13 +150,14 @@ export default function TagsPage() {
     setEditName(tag.name);
     setEditColor(tag.color || TAG_COLORS[0]);
     setEditAliases((tag.aliases || []).join(', '));
+    setEditTagType(tag.tag_type || 'topic');
   };
 
   const confirmEdit = () => {
     if (!editingId || !editName.trim()) return;
     updateMutation.mutate({
       id: editingId,
-      updates: { name: editName.trim(), color: editColor, aliases: parseAliases(editAliases) },
+      updates: { name: editName.trim(), color: editColor, aliases: parseAliases(editAliases), tag_type: editTagType },
     });
   };
 
@@ -130,29 +195,55 @@ export default function TagsPage() {
               Crea
             </Button>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-zinc-500">Colore:</span>
-            <div className="flex gap-2">
-              {TAG_COLORS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setNewTagColor(color)}
-                  className="w-6 h-6 rounded-full transition-transform"
-                  style={{
-                    backgroundColor: color,
-                    transform: newTagColor === color ? 'scale(1.25)' : 'scale(1)',
-                    boxShadow: newTagColor === color ? `0 0 0 2px ${color}40` : 'none',
-                  }}
-                />
-              ))}
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-zinc-500">Colore:</span>
+              <div className="flex gap-2">
+                {TAG_COLORS.map((color) => (
+                  <button
+                    key={color}
+                    onClick={() => setNewTagColor(color)}
+                    className="w-6 h-6 rounded-full transition-transform"
+                    style={{
+                      backgroundColor: color,
+                      transform: newTagColor === color ? 'scale(1.25)' : 'scale(1)',
+                      boxShadow: newTagColor === color ? `0 0 0 2px ${color}40` : 'none',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            <div className="h-4 border-l border-zinc-700" />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">Tipo:</span>
+              <TagTypePills value={newTagType} onChange={setNewTagType} size="sm" />
             </div>
           </div>
         </div>
 
-        {/* Tags info */}
-        <div className="flex items-center gap-2 text-zinc-400">
-          <TagIcon className="h-5 w-5" />
-          <span className="text-sm">{tags.length} tags</span>
+        {/* Tags info + filter */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 text-zinc-400">
+            <TagIcon className="h-5 w-5" />
+            <span className="text-sm">{allTags.length} tags</span>
+          </div>
+          <div className="flex-1" />
+          <div className="flex gap-1.5">
+            {FILTER_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                onClick={() => setFilterTagType(opt.value)}
+                className={cn(
+                  'px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
+                  filterTagType === opt.value
+                    ? 'bg-zinc-800 border-zinc-600 text-white'
+                    : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-zinc-400'
+                )}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Tags table */}
@@ -161,10 +252,14 @@ export default function TagsPage() {
         ) : tags.length === 0 ? (
           <div className="text-center py-16">
             <TagIcon className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
-            <p className="text-zinc-400">Nessun tag creato</p>
-            <p className="text-sm text-zinc-500 mt-1">
-              Crea il primo tag per organizzare le tue tiles
+            <p className="text-zinc-400">
+              {filterTagType === 'all' ? 'Nessun tag creato' : 'Nessun tag di questo tipo'}
             </p>
+            {filterTagType === 'all' && (
+              <p className="text-sm text-zinc-500 mt-1">
+                Crea il primo tag per organizzare le tue tiles
+              </p>
+            )}
           </div>
         ) : (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
@@ -172,6 +267,7 @@ export default function TagsPage() {
               <TableHeader>
                 <TableRow className="border-zinc-800 hover:bg-transparent">
                   <TableHead className="text-zinc-400 w-10">Colore</TableHead>
+                  <TableHead className="text-zinc-400 w-12">Tipo</TableHead>
                   <TableHead className="text-zinc-400">Nome</TableHead>
                   <TableHead className="text-zinc-400">Alias</TableHead>
                   <TableHead className="text-zinc-400">Data</TableHead>
@@ -201,6 +297,11 @@ export default function TagsPage() {
                                 />
                               ))}
                             </div>
+                          </TableCell>
+                          <TableCell>
+                            {!tag.is_root && (
+                              <TagTypePills value={editTagType} onChange={setEditTagType} size="sm" />
+                            )}
                           </TableCell>
                           <TableCell>
                             <Input
@@ -256,6 +357,9 @@ export default function TagsPage() {
                               style={{ backgroundColor: tag.color || TAG_COLORS[0] }}
                             />
                           </TableCell>
+                          <TableCell className="text-center" title={TAG_TYPE_LABEL[tag.tag_type || 'topic']}>
+                            {TAG_TYPE_EMOJI[tag.tag_type || 'topic']}
+                          </TableCell>
                           <TableCell className="text-white font-medium">{tag.name}</TableCell>
                           <TableCell>
                             {tag.aliases && tag.aliases.length > 0 ? (
@@ -270,7 +374,7 @@ export default function TagsPage() {
                                 ))}
                               </div>
                             ) : (
-                              <span className="text-zinc-500 text-sm">—</span>
+                              <span className="text-zinc-500 text-sm">&mdash;</span>
                             )}
                           </TableCell>
                           <TableCell className="text-zinc-400 text-sm">

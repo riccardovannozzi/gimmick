@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -19,6 +20,8 @@ import {
   Tag as TagIcon,
   Trash2,
   Calendar as CalendarIcon,
+  ChevronDown,
+  Filter,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,6 +60,121 @@ const emptyModal: EventModalState = {
   autoDetect: true,
   tagIds: [],
 };
+
+function TagFilterDropdown({
+  tags,
+  selectedTagId,
+  onSelect,
+}: {
+  tags: Tag[];
+  selectedTagId: string | null;
+  onSelect: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: 0, left: 0 });
+
+  const selectedTag = tags.find((t) => t.id === selectedTagId);
+
+  // Close on outside click / scroll — only attach when open
+  // Use useRef + useCallback to keep stable references
+  const closeDropdown = useCallback(() => setOpen(false), []);
+
+  const onMouseDown = useCallback((e: MouseEvent) => {
+    // Check bounding rect to include scrollbar area (not just DOM children)
+    if (dropdownRef.current) {
+      const rect = dropdownRef.current.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) return;
+    }
+    if (triggerRef.current && triggerRef.current.contains(e.target as Node)) return;
+    closeDropdown();
+  }, [closeDropdown]);
+
+  const onScroll = useCallback((e: Event) => {
+    // Ignore scroll events inside the dropdown itself
+    if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) return;
+    closeDropdown();
+  }, [closeDropdown]);
+
+  useEffect(() => {
+    if (!open) return;
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open, onMouseDown, onScroll]);
+
+  const handleToggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setPos({ top: rect.bottom + 4, left: rect.left });
+    }
+    setOpen(!open);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        onClick={handleToggle}
+        className={cn(
+          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+          selectedTagId
+            ? 'text-white'
+            : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
+        )}
+        style={selectedTag ? {
+          backgroundColor: `${selectedTag.color || '#3B82F6'}20`,
+          borderColor: `${selectedTag.color || '#3B82F6'}60`,
+        } : undefined}
+      >
+        <Filter className="h-3.5 w-3.5" />
+        {selectedTag ? selectedTag.name : 'Filtra per tag'}
+        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+      </button>
+
+      {open && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed w-48 max-h-64 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1"
+          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+        >
+          <button
+            className={cn(
+              'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
+              !selectedTagId && 'bg-zinc-800'
+            )}
+            onClick={() => { onSelect(null); setOpen(false); }}
+          >
+            <span className="text-zinc-300">Tutti</span>
+            {!selectedTagId && <span className="ml-auto text-blue-400 text-[10px]">&#10003;</span>}
+          </button>
+          {tags.map((tag) => {
+            const isActive = selectedTagId === tag.id;
+            return (
+              <button
+                key={tag.id}
+                className={cn(
+                  'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
+                  isActive && 'bg-zinc-800'
+                )}
+                onClick={() => { onSelect(isActive ? null : tag.id); setOpen(false); }}
+              >
+                <TagIcon className="h-3 w-3 flex-shrink-0" style={{ color: tag.color || '#3B82F6' }} />
+                <span className="text-zinc-300 truncate">{tag.name}</span>
+                {isActive && <span className="ml-auto text-blue-400 text-[10px]">&#10003;</span>}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
 
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null);
@@ -382,39 +500,12 @@ export default function CalendarPage() {
 
       {/* Toolbar */}
       <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
-        {/* Tag filters */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setSelectedTagId(null)}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-              !selectedTagId
-                ? 'bg-zinc-800 border-zinc-600 text-white'
-                : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
-            )}
-          >
-            Tutti
-          </button>
-          {tags.map((tag: Tag) => (
-            <button
-              key={tag.id}
-              onClick={() => setSelectedTagId(selectedTagId === tag.id ? null : tag.id)}
-              className={cn(
-                'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                selectedTagId === tag.id
-                  ? 'text-white'
-                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
-              )}
-              style={selectedTagId === tag.id ? {
-                backgroundColor: `${tag.color || '#3B82F6'}20`,
-                borderColor: `${tag.color || '#3B82F6'}60`,
-              } : undefined}
-            >
-              <TagIcon className="h-3 w-3" style={{ color: tag.color || '#3B82F6' }} />
-              {tag.name}
-            </button>
-          ))}
-        </div>
+        {/* Tag filter dropdown */}
+        <TagFilterDropdown
+          tags={tags}
+          selectedTagId={selectedTagId}
+          onSelect={setSelectedTagId}
+        />
 
         <div className="flex-1" />
 
@@ -453,7 +544,7 @@ export default function CalendarPage() {
           className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 text-xs"
         >
           <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
-          Schedule Tile
+          Pianifica Tile
         </Button>
         <Button
           size="sm"
@@ -467,7 +558,7 @@ export default function CalendarPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
         >
           <Plus className="h-3.5 w-3.5 mr-1.5" />
-          New Tile
+          Nuovo Evento
         </Button>
       </div>
 
