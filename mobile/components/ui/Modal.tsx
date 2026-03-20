@@ -7,7 +7,7 @@ import {
   TouchableWithoutFeedback,
   ModalProps as RNModalProps,
 } from 'react-native';
-import { X } from 'lucide-react-native';
+import { IconX } from '@tabler/icons-react-native';
 import { useThemeColors } from '@/lib/theme';
 
 interface ModalProps extends RNModalProps {
@@ -53,7 +53,7 @@ export function Modal({
                       className="p-1"
                       hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
-                      <X size={24} color={colors.secondary} />
+                      <IconX size={24} color={colors.secondary} />
                     </TouchableOpacity>
                   )}
                 </View>

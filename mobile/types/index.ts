@@ -78,9 +78,18 @@ export interface Spark {
 }
 
 /**
- * Tag type classification
+ * Tag type entity (dynamic, user-managed)
  */
-export type TagType = 'project' | 'person' | 'context' | 'place' | 'topic';
+export interface TagTypeEntity {
+  id: string;
+  user_id: string;
+  slug: string;
+  name: string;
+  emoji: string;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+}
 
 /**
  * Tag - Label for organizing tiles
@@ -90,8 +99,7 @@ export interface Tag {
   user_id: string;
   name: string;
   slug?: string;
-  color?: string;
-  tag_type: TagType;
+  tag_type: string;
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;

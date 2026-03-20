@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { Clock, FileText, Image, Mic, Film, File, Trash2, Circle, Zap, Calendar } from 'lucide-react-native';
+import { IconClock, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconTrash, IconCircle, IconBolt, IconCalendar } from '@tabler/icons-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { sparksApi, tilesApi } from '@/lib/api';
@@ -13,13 +13,13 @@ import type { Spark, Tile, ActionType } from '@/types';
 
 // ============ Spark helpers ============
 
-const typeIcons: Record<string, typeof FileText> = {
-  photo: Image,
-  image: Image,
-  video: Film,
-  audio_recording: Mic,
-  text: FileText,
-  file: File,
+const typeIcons: Record<string, typeof IconFileText> = {
+  photo: IconPhoto,
+  image: IconPhoto,
+  video: IconMovie,
+  audio_recording: IconMicrophone,
+  text: IconFileText,
+  file: IconFile,
 };
 
 const typeColors: Record<string, string> = {
@@ -103,7 +103,7 @@ function groupByDate<T extends { created_at: string }>(items: T[]): { title: str
 // ============ SparkItem ============
 
 function SparkItem({ spark, onDelete, colors }: { spark: Spark; onDelete: (id: string) => void; colors: any }) {
-  const Icon = typeIcons[spark.type] || FileText;
+  const Icon = typeIcons[spark.type] || IconFileText;
   const iconColor = typeColors[spark.type] || colors.secondary;
 
   return (
@@ -140,7 +140,7 @@ function SparkItem({ spark, onDelete, colors }: { spark: Spark; onDelete: (id: s
         onPress={() => onDelete(spark.id)}
         style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
       >
-        <Trash2 size={18} color={colors.tertiary} />
+        <IconTrash size={18} color={colors.tertiary} />
       </TouchableOpacity>
     </View>
   );
@@ -410,7 +410,7 @@ export default function HistoryScreen() {
                 alignItems: 'center', justifyContent: 'center', marginBottom: 16,
               }}
             >
-              <Clock size={36} color={colors.tertiary} />
+              <IconClock size={36} color={colors.tertiary} />
             </View>
             <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, textAlign: 'center', marginBottom: 8 }}>
               {viewMode === 'sparks' ? 'Nessuno spark' : 'Nessun tile'}

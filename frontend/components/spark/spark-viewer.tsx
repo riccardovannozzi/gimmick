@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Mic, File, Download, Loader2, AlertCircle } from 'lucide-react';
+import { IconMicrophone, IconFile, IconDownload, IconLoader2, IconAlertCircle } from '@tabler/icons-react';
 import { uploadApi } from '@/lib/api';
 import { typeColors, typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
 import { cn } from '@/lib/utils';
@@ -66,7 +66,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
     if (loading) {
       return (
         <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
-          <Loader2 className="h-8 w-8 animate-spin mb-3" />
+          <IconLoader2 className="h-8 w-8 animate-spin mb-3" />
           <p>Caricamento...</p>
         </div>
       );
@@ -75,7 +75,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
     if (error) {
       return (
         <div className="flex flex-col items-center justify-center py-12 text-red-400">
-          <AlertCircle className="h-8 w-8 mb-3" />
+          <IconAlertCircle className="h-8 w-8 mb-3" />
           <p>{error}</p>
         </div>
       );
@@ -110,7 +110,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
       case 'audio_recording':
         return (
           <div className="flex flex-col items-center gap-4 py-8">
-            <Mic className="h-16 w-16 text-zinc-500" />
+            <IconMicrophone className="h-16 w-16 text-zinc-500" />
             <audio src={signedUrl!} controls className="w-full" />
             {spark.duration != null && (
               <p className="text-sm text-zinc-400">
@@ -132,7 +132,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
       case 'file':
         return (
           <div className="flex flex-col items-center gap-4 py-8">
-            <File className="h-16 w-16 text-zinc-500" />
+            <IconFile className="h-16 w-16 text-zinc-500" />
             <div className="text-center space-y-1">
               <p className="text-white font-medium">{spark.file_name || 'File'}</p>
               {spark.mime_type && (
@@ -145,7 +145,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             {signedUrl && (
               <Button asChild className="bg-blue-600 hover:bg-blue-700">
                 <a href={signedUrl} download={spark.file_name} target="_blank" rel="noopener noreferrer">
-                  <Download className="mr-2 h-4 w-4" />
+                  <IconDownload className="mr-2 h-4 w-4" />
                   Scarica
                 </a>
               </Button>

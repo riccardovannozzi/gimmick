@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -204,7 +204,7 @@ export const tilesApi = {
     return apiRequest<{
       tiles: { id: string; title?: string; description?: string; created_at: string; action_type?: ActionType }[];
       sparks: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
-      tags: { id: string; name: string; color?: string; created_at: string; tile_ids: string[] }[];
+      tags: { id: string; name: string; created_at: string; tile_ids: string[] }[];
     }>('/api/tiles/graph');
   },
 
@@ -324,14 +324,14 @@ export const tagsApi = {
     return apiRequest<Tag[]>('/api/tags');
   },
 
-  async create(tag: { name: string; color?: string; aliases?: string[]; tag_type?: string }) {
+  async create(tag: { name: string; aliases?: string[]; tag_type?: string }) {
     return apiRequest<Tag>('/api/tags', {
       method: 'POST',
       body: JSON.stringify(tag),
     });
   },
 
-  async update(id: string, updates: { name?: string; color?: string; aliases?: string[]; tag_type?: string }) {
+  async update(id: string, updates: { name?: string; aliases?: string[]; tag_type?: string }) {
     return apiRequest<Tag>(`/api/tags/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -443,6 +443,45 @@ export const calendarApi = {
     return apiRequest<Tile[]>('/api/calendar/ai-filter', {
       method: 'POST',
       body: JSON.stringify({ query, start, end }),
+    });
+  },
+};
+
+// ============ Tag Types API ============
+export const tagTypesApi = {
+  async list() {
+    return apiRequest<TagTypeEntity[]>('/api/tag-types');
+  },
+
+  async create(data: { name: string; emoji?: string }) {
+    return apiRequest<TagTypeEntity>('/api/tag-types', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; emoji?: string; sort_order?: number }) {
+    return apiRequest<TagTypeEntity>(`/api/tag-types/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tag-types/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Settings API ============
+export const settingsApi = {
+  async get<T = unknown>(key: string) {
+    return apiRequest<T>(`/api/settings/${key}`);
+  },
+
+  async set(key: string, value: unknown) {
+    return apiRequest(`/api/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
     });
   },
 };

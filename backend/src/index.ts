@@ -12,6 +12,8 @@ import { uploadRouter } from './routes/upload.js';
 import { chatRouter } from './routes/chat.js';
 import { tagsRouter } from './routes/tags.js';
 import { calendarRouter } from './routes/calendar.js';
+import { settingsRouter } from './routes/settings.js';
+import { tagTypesRouter } from './routes/tag-types.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -58,6 +60,8 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/calendar', calendarRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/tag-types', tagTypesRouter);
 
 // Error handling
 app.use(notFoundHandler);

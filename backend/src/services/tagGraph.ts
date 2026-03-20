@@ -6,7 +6,6 @@ export interface TagNode {
   id: string;
   name: string;
   slug: string;
-  color?: string;
   usage_count: number;
   is_root?: boolean;
 }
@@ -145,7 +144,7 @@ export async function getTagGraph(userId: string): Promise<TagGraph> {
   const [nodesResult, edgesResult] = await Promise.all([
     supabaseAdmin
       .from('tags')
-      .select('id, name, slug, color, usage_count, is_root')
+      .select('id, name, slug, usage_count, is_root')
       .eq('user_id', userId)
       .order('name'),
     supabaseAdmin
@@ -184,7 +183,7 @@ export async function getRelatedTags(
 
   const { data: tags } = await supabaseAdmin
     .from('tags')
-    .select('id, name, slug, color, usage_count')
+    .select('id, name, slug, usage_count')
     .in('id', relatedIds);
 
   if (!tags) return [];

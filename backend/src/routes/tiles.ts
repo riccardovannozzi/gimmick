@@ -53,7 +53,7 @@ tilesRouter.get(
       // Get tiles with sparks and tags
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, color))', { count: 'exact' })
+        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, tag_type))', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -65,7 +65,7 @@ tilesRouter.get(
       // Get user's root tag (GIMMICK)
       const { data: rootTag } = await supabaseAdmin
         .from('tags')
-        .select('id, name, color')
+        .select('id, name')
         .eq('user_id', req.user!.id)
         .eq('is_root', true)
         .single();
@@ -93,7 +93,7 @@ tilesRouter.get(
         const tags = (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
         // If no tags, inject root tag
         if (tags.length === 0 && rootTag) {
-          tags.push({ id: rootTag.id, name: rootTag.name, color: rootTag.color });
+          tags.push({ id: rootTag.id, name: rootTag.name });
         }
         return {
           ...tile,
@@ -147,7 +147,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all tags with their tile associations
     const { data: tags, error: tagsError } = await supabaseAdmin
       .from('tags')
-      .select('id, name, color, created_at, tile_tags(tile_id)')
+      .select('id, name, tag_type, created_at, tile_tags(tile_id)')
       .eq('user_id', req.user!.id)
       .order('name');
 

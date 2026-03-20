@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { X, Mic } from 'lucide-react-native';
+import { IconX, IconMicrophone } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useThemeColors } from '@/lib/theme';
 
@@ -15,7 +15,7 @@ export default function AudioEditorScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
           <TouchableOpacity onPress={() => router.back()}>
-            <X size={24} color={colors.secondary} />
+            <IconX size={24} color={colors.secondary} />
           </TouchableOpacity>
           <Text className="text-primary text-lg font-semibold">Editor Audio</Text>
           <View className="w-6" />
@@ -24,7 +24,7 @@ export default function AudioEditorScreen() {
         {/* Content - Placeholder */}
         <View className="flex-1 items-center justify-center px-8">
           <View className="w-20 h-20 rounded-full bg-background-2 items-center justify-center mb-4">
-            <Mic size={40} color={colors.secondary} />
+            <IconMicrophone size={40} color={colors.secondary} />
           </View>
           <Text className="text-primary text-lg font-medium text-center mb-2">
             Editor in arrivo

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { X, RefreshCw, Circle, Square } from 'lucide-react-native';
+import { IconX, IconRefresh, IconCircle, IconSquare } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { File } from 'expo-file-system/next';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
@@ -192,7 +192,7 @@ export default function VideoCaptureScreen() {
             className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
             disabled={isRecording}
           >
-            <X size={24} color="#fff" />
+            <IconX size={24} color="#fff" />
           </TouchableOpacity>
 
           {/* Recording indicator & timer */}
@@ -249,7 +249,7 @@ export default function VideoCaptureScreen() {
             disabled={isRecording}
             style={{ opacity: isRecording ? 0.5 : 1 }}
           >
-            <RefreshCw size={28} color="#fff" />
+            <IconRefresh size={28} color="#fff" />
           </TouchableOpacity>
         </View>
 

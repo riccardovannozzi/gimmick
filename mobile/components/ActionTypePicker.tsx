@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform } from 'react-native';
 import BottomSheet, { BottomSheetBackdrop, BottomSheetView } from '@gorhom/bottom-sheet';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { Clock, Calendar, Check, X } from 'lucide-react-native';
+import { IconClock, IconCalendar, IconCheck, IconX } from '@tabler/icons-react-native';
 import { useThemeColors } from '@/lib/theme';
 import type { ActionType } from '@/types';
 
@@ -126,16 +126,16 @@ export function ActionTypePicker({
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {mode === 'deadline' ? (
-              <Clock size={20} color="#FBBF24" />
+              <IconClock size={20} color="#FBBF24" />
             ) : (
-              <Calendar size={20} color="#60A5FA" />
+              <IconCalendar size={20} color="#60A5FA" />
             )}
             <Text style={{ fontSize: 17, fontWeight: '600', color: colors.primary }}>
               {mode === 'deadline' ? 'Scadenza' : 'Evento'}
             </Text>
           </View>
           <TouchableOpacity onPress={onCancel} hitSlop={8}>
-            <X size={20} color={colors.tertiary} />
+            <IconX size={20} color={colors.tertiary} />
           </TouchableOpacity>
         </View>
 
@@ -196,7 +196,7 @@ export function ActionTypePicker({
                   justifyContent: 'center',
                 }}
               >
-                {allDay && <Check size={14} color="#fff" />}
+                {allDay && <IconCheck size={14} color="#fff" />}
               </View>
               <Text style={{ fontSize: 14, color: colors.primary }}>Tutto il giorno</Text>
             </TouchableOpacity>

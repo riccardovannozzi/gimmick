@@ -7,7 +7,7 @@ import {
   Image,
   Alert,
 } from 'react-native';
-import { Send, X, Camera, Paperclip } from 'lucide-react-native';
+import { IconSend, IconX, IconCamera, IconPaperclip } from '@tabler/icons-react-native';
 import NiPenToSquare from '@/assets/icons/ni-pen-to-square.svg';
 import NiMicrophone from '@/assets/icons/ni-microphone.svg';
 import NiCameraReels from '@/assets/icons/ni-camera-reels.svg';
@@ -51,9 +51,9 @@ function getItemIcon(type: SparkType, size = 20) {
     case 'audio_recording':
       return <NiMicrophone width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'file':
-      return <Paperclip size={size} color={color} strokeWidth={1.8} />;
+      return <IconPaperclip size={size} color={color} stroke={1.8} />;
     case 'photo':
-      return <Camera size={size} color={color} strokeWidth={1.8} />;
+      return <IconCamera size={size} color={color} stroke={1.8} />;
     case 'video':
       return <NiCameraReels width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'image':
@@ -142,7 +142,7 @@ function BufferThumbnail({
             {label}
           </Text>
           <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={18} color={colors.secondary} strokeWidth={2} />
+            <IconX size={18} color={colors.secondary} stroke={2} />
           </TouchableOpacity>
         </View>
 
@@ -178,7 +178,7 @@ function BufferThumbnail({
             {label}
           </Text>
           <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <X size={18} color={colors.secondary} strokeWidth={2} />
+            <IconX size={18} color={colors.secondary} stroke={2} />
           </TouchableOpacity>
         </View>
 
@@ -227,7 +227,7 @@ function BufferThumbnail({
           {label}
         </Text>
         <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <X size={18} color={colors.secondary} strokeWidth={2} />
+          <IconX size={18} color={colors.secondary} stroke={2} />
         </TouchableOpacity>
       </View>
 
@@ -304,7 +304,7 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
                 backgroundColor: colors.accent,
               }}
             >
-              <Send size={20} color={colors.onAccent} />
+              <IconSend size={20} color={colors.onAccent} />
               <View
                 className="absolute -top-2 -right-2 rounded-full min-w-6 h-6 items-center justify-center px-1"
                 style={{ backgroundColor: colors.error }}
@@ -364,7 +364,7 @@ export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps
           marginLeft: 12,
         }}
       >
-        <Send size={20} color={count > 0 ? colors.onAccent : colors.secondary} />
+        <IconSend size={20} color={count > 0 ? colors.onAccent : colors.secondary} />
         {count > 0 && (
           <View
             className="absolute -top-1 -right-1 rounded-full min-w-5 h-5 items-center justify-center px-1"

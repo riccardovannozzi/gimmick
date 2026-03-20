@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Camera, Video, Images, PenSquare, Mic, Paperclip, X, Send, Upload } from 'lucide-react';
+import { IconCamera, IconVideo, IconPhoto, IconEdit, IconMicrophone, IconPaperclip, IconX, IconSend, IconUpload } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -29,12 +29,12 @@ const captureColorsBg = {
 } as const;
 
 const captureOptions = [
-  { id: 'photo', label: 'PHOTO', icon: Camera, color: captureColors.photo, bg: captureColorsBg.photo, accept: 'image/*', sparkType: 'photo' as const },
-  { id: 'video', label: 'VIDEO', icon: Video, color: captureColors.video, bg: captureColorsBg.video, accept: 'video/*', sparkType: 'video' as const },
-  { id: 'gallery', label: 'GALLERY', icon: Images, color: captureColors.gallery, bg: captureColorsBg.gallery, accept: 'image/*', sparkType: 'image' as const },
-  { id: 'text', label: 'TEXT', icon: PenSquare, color: captureColors.text, bg: captureColorsBg.text, accept: null, sparkType: 'text' as const },
-  { id: 'voice', label: 'VOICE', icon: Mic, color: captureColors.voice, bg: captureColorsBg.voice, accept: 'audio/*', sparkType: 'audio_recording' as const },
-  { id: 'file', label: 'FILE', icon: Paperclip, color: captureColors.file, bg: captureColorsBg.file, accept: '*/*', sparkType: 'file' as const },
+  { id: 'photo', label: 'PHOTO', icon: IconCamera, color: captureColors.photo, bg: captureColorsBg.photo, accept: 'image/*', sparkType: 'photo' as const },
+  { id: 'video', label: 'VIDEO', icon: IconVideo, color: captureColors.video, bg: captureColorsBg.video, accept: 'video/*', sparkType: 'video' as const },
+  { id: 'gallery', label: 'GALLERY', icon: IconPhoto, color: captureColors.gallery, bg: captureColorsBg.gallery, accept: 'image/*', sparkType: 'image' as const },
+  { id: 'text', label: 'TEXT', icon: IconEdit, color: captureColors.text, bg: captureColorsBg.text, accept: null, sparkType: 'text' as const },
+  { id: 'voice', label: 'VOICE', icon: IconMicrophone, color: captureColors.voice, bg: captureColorsBg.voice, accept: 'audio/*', sparkType: 'audio_recording' as const },
+  { id: 'file', label: 'FILE', icon: IconPaperclip, color: captureColors.file, bg: captureColorsBg.file, accept: '*/*', sparkType: 'file' as const },
 ] as const;
 
 interface PendingFile {
@@ -177,7 +177,7 @@ export default function CapturePage() {
                 <Icon
                   size={24}
                   color={option.color}
-                  strokeWidth={1.6}
+                  stroke={1.6}
                 />
                 <span
                   className="text-[10px] font-semibold mt-2 tracking-wide"
@@ -225,7 +225,7 @@ export default function CapturePage() {
                   disabled={!textContent.trim() || createSparkMutation.isPending}
                   className="bg-[#6FCF97] hover:bg-[#5CB882] text-black"
                 >
-                  <Send className="mr-2 h-4 w-4" />
+                  <IconSend className="mr-2 h-4 w-4" />
                   {createSparkMutation.isPending ? 'Salvando...' : 'Salva'}
                 </Button>
               </div>
@@ -273,7 +273,7 @@ export default function CapturePage() {
                         className="h-12 w-12 flex items-center justify-center rounded-lg"
                         style={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
                       >
-                        {option && <option.icon size={20} color={option.color} strokeWidth={1.4} />}
+                        {option && <option.icon size={20} color={option.color} stroke={1.4} />}
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -294,7 +294,7 @@ export default function CapturePage() {
                       onClick={() => removeFile(index)}
                       className="text-zinc-500 hover:text-red-400 transition-colors p-1"
                     >
-                      <X className="h-4 w-4" />
+                      <IconX className="h-4 w-4" />
                     </button>
                   </div>
                 );
@@ -306,7 +306,7 @@ export default function CapturePage() {
               disabled={isUploading}
               className="w-full bg-[#AB9FF2] hover:bg-[#9A8DE0] text-black font-semibold"
             >
-              <Upload className="mr-2 h-4 w-4" />
+              <IconUpload className="mr-2 h-4 w-4" />
               {isUploading
                 ? 'Caricamento in corso...'
                 : `Carica ${pendingFiles.length} file`}

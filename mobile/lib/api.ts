@@ -485,6 +485,20 @@ export const uploadApi = {
   },
 };
 
+// ============ Settings API ============
+export const settingsApi = {
+  async get<T = unknown>(key: string): Promise<ApiResponse<T>> {
+    return apiRequest<T>(`/api/settings/${key}`);
+  },
+
+  async set(key: string, value: unknown): Promise<ApiResponse> {
+    return apiRequest(`/api/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    });
+  },
+};
+
 /**
  * Helper to get MIME type from filename
  */

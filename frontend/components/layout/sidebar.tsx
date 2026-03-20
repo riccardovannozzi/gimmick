@@ -5,17 +5,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import {
-  FileText,
-  LayoutGrid,
-  PlusCircle,
-  Settings,
-  BarChart3,
-  Share2,
-  Calendar,
-  LogOut,
-  Bot,
-  Tag,
-} from 'lucide-react';
+  IconFileText,
+  IconLayoutGrid,
+  IconCirclePlus,
+  IconSettings,
+  IconChartBar,
+  IconShare,
+  IconCalendar,
+  IconLogout,
+  IconRobot,
+  IconTag,
+} from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -24,14 +24,14 @@ import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { tilesApi } from '@/lib/api';
 
 const navigation = [
-  { name: 'Analytics', href: '/', icon: BarChart3 },
-  { name: 'Sparks', href: '/sparks', icon: FileText },
-  { name: 'Tiles', href: '/tiles', icon: LayoutGrid },
-  { name: 'Tags', href: '/tags', icon: Tag },
-  { name: 'Cattura', href: '/capture', icon: PlusCircle },
-  { name: 'Calendario', href: '/calendar', icon: Calendar },
-  { name: 'Graph', href: '/graph', icon: Share2 },
-  { name: 'Impostazioni', href: '/settings', icon: Settings },
+  { name: 'Analytics', href: '/', icon: IconChartBar },
+  { name: 'Sparks', href: '/sparks', icon: IconFileText },
+  { name: 'Tiles', href: '/tiles', icon: IconLayoutGrid },
+  { name: 'Tags', href: '/tags', icon: IconTag },
+  { name: 'Cattura', href: '/capture', icon: IconCirclePlus },
+  { name: 'Calendario', href: '/calendar', icon: IconCalendar },
+  { name: 'Graph', href: '/graph', icon: IconShare },
+  { name: 'Impostazioni', href: '/settings', icon: IconSettings },
 ];
 
 interface SidebarProps {
@@ -70,7 +70,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
             onClick={dismissAll}
             className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-500/20 border border-red-400/40 text-red-400 text-sm font-semibold animate-pulse hover:bg-red-500/30 transition-colors"
           >
-            <LayoutGrid className="h-4 w-4" />
+            <IconLayoutGrid className="h-4 w-4" />
             {newCount}
           </Link>
         )}
@@ -106,7 +106,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
           onClick={onOpenChat}
           className="w-full justify-start gap-3 bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20"
         >
-          <Bot className="h-5 w-5" />
+          <IconRobot className="h-5 w-5" />
           Ask Gimmick
         </Button>
       </div>
@@ -125,7 +125,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
           className="w-full justify-start text-zinc-400 hover:text-white hover:bg-zinc-800"
           onClick={() => signOut()}
         >
-          <LogOut className="mr-2 h-4 w-4" />
+          <IconLogout className="mr-2 h-4 w-4" />
           Logout
         </Button>
       </div>

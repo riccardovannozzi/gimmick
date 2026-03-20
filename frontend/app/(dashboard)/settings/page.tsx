@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { User, Bell, Shield, Palette, LogOut } from 'lucide-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,13 +12,72 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
+import { useActionColorsQuery } from '@/store/action-colors-store';
+import { GIMMICK_PALETTE, getColorName } from '@/lib/palette';
+import type { ActionType } from '@/types';
+
+const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[] = [
+  { type: 'none', label: 'Appunto', icon: IconPin },
+  { type: 'anytime', label: 'Da fare', icon: IconBolt },
+  { type: 'deadline', label: 'Scadenza', icon: IconClock },
+  { type: 'event', label: 'Evento', icon: IconCalendar },
+];
+
+function ColorPickerGrid({
+  selectedColor,
+  onSelect,
+}: {
+  selectedColor: string;
+  onSelect: (hex: string) => void;
+}) {
+  return (
+    <div className="inline-grid grid-cols-5 rounded-md overflow-hidden" style={{ gap: 2 }}>
+      {GIMMICK_PALETTE.map((color) => {
+        const isSelected = color.hex.toLowerCase() === selectedColor.toLowerCase();
+        return (
+          <button
+            key={color.id}
+            onClick={() => onSelect(color.hex)}
+            title={color.name}
+            className="w-8 h-8 relative"
+            style={{ backgroundColor: color.hex }}
+          >
+            {isSelected && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-3 h-3 rounded-full bg-white shadow-sm" style={{ boxShadow: '0 0 3px rgba(0,0,0,0.5)' }} />
+              </div>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, signOut } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
+  const [pickerAction, setPickerAction] = useState<ActionType | null>(null);
+  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const { actionColors, updateActionColor } = useActionColorsQuery();
+
+  useEffect(() => {
+    if (!pickerAction) return;
+    const handleClick = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setPickerAction(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [pickerAction]);
 
   const handleLogout = async () => {
     await signOut();
@@ -29,14 +89,12 @@ export default function SettingsPage() {
     <div className="flex flex-col h-full">
       <Header title="Impostazioni" />
 
-      <div className="flex-1 p-6 space-y-6 max-w-3xl overflow-y-auto">
+      <div className="flex-1 p-6 space-y-6 overflow-y-auto">
         {/* Profile Section */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center">
-                <User className="h-5 w-5 text-white" />
-              </div>
+              <IconUser className="h-5 w-5 text-zinc-400" />
               <div>
                 <CardTitle className="text-white">Profilo</CardTitle>
                 <CardDescription className="text-zinc-400">
@@ -62,13 +120,54 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {/* Action Colors Section */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <IconPalette className="h-5 w-5 text-zinc-400" />
+              <div>
+                <CardTitle className="text-white">Colori delle azioni</CardTitle>
+                <CardDescription className="text-zinc-400">
+                  Associa un colore a ogni tipo di azione
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-1">
+            {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
+              const color = actionColors[type];
+              return (
+                <button
+                  key={type}
+                  ref={(el) => { triggerRefs.current[type] = el; }}
+                  onClick={() => {
+                    const el = triggerRefs.current[type];
+                    if (el) {
+                      const rect = el.getBoundingClientRect();
+                      setPickerPos({ top: rect.bottom + 4, left: rect.left });
+                    }
+                    setPickerAction(pickerAction === type ? null : type);
+                  }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg hover:bg-zinc-800/60 transition-colors text-left"
+                >
+                  <div
+                    className="w-5 h-5 rounded-full border border-white/20 shrink-0"
+                    style={{ backgroundColor: color }}
+                  />
+                  <ActionIcon className="h-4 w-4 text-zinc-400 shrink-0" />
+                  <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
+                  <span className="text-xs text-zinc-500">{getColorName(color)}</span>
+                </button>
+              );
+            })}
+          </CardContent>
+        </Card>
+
         {/* Notifications Section */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-purple-600 flex items-center justify-center">
-                <Bell className="h-5 w-5 text-white" />
-              </div>
+              <IconBell className="h-5 w-5 text-zinc-400" />
               <div>
                 <CardTitle className="text-white">Notifiche</CardTitle>
                 <CardDescription className="text-zinc-400">
@@ -114,9 +213,7 @@ export default function SettingsPage() {
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-green-600 flex items-center justify-center">
-                <Palette className="h-5 w-5 text-white" />
-              </div>
+              <IconPalette className="h-5 w-5 text-zinc-400" />
               <div>
                 <CardTitle className="text-white">Aspetto</CardTitle>
                 <CardDescription className="text-zinc-400">
@@ -144,9 +241,7 @@ export default function SettingsPage() {
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-red-600 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
+              <IconShield className="h-5 w-5 text-zinc-400" />
               <div>
                 <CardTitle className="text-white">Sicurezza</CardTitle>
                 <CardDescription className="text-zinc-400">
@@ -166,13 +261,32 @@ export default function SettingsPage() {
                 onClick={handleLogout}
                 className="w-full"
               >
-                <LogOut className="mr-2 h-4 w-4" />
+                <IconLogout className="mr-2 h-4 w-4" />
                 Logout
               </Button>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Color picker popup */}
+      {pickerAction && createPortal(
+        <div
+          ref={pickerRef}
+          className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl p-3"
+          style={{ top: pickerPos.top, left: pickerPos.left, zIndex: 9999 }}
+        >
+          <ColorPickerGrid
+            selectedColor={actionColors[pickerAction]}
+            onSelect={(hex) => {
+              updateActionColor(pickerAction, hex);
+              setPickerAction(null);
+              toast.success('Colore aggiornato');
+            }}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

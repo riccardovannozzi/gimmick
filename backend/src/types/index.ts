@@ -106,8 +106,17 @@ export interface UpdateSparkDto {
   metadata?: Record<string, unknown>;
 }
 
-// Tag type classification
-export type TagType = 'project' | 'person' | 'context' | 'place' | 'topic';
+// Tag type entity (dynamic, user-managed)
+export interface TagTypeEntity {
+  id: string;
+  user_id: string;
+  slug: string;
+  name: string;
+  emoji: string;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+}
 
 // Tag entity
 export interface Tag {
@@ -115,8 +124,7 @@ export interface Tag {
   user_id: string;
   name: string;
   slug?: string;
-  color?: string;
-  tag_type: TagType;
+  tag_type: string;
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;

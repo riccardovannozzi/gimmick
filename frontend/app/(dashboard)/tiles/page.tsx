@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LayoutGrid, Trash2, FileText, Image as ImageIcon, Mic, Film, File as FileIcon, Paperclip, X, Check, CheckCheck, Pin, Zap, Clock, Calendar, Sparkles, ChevronDown, CircleCheck, Circle as CircleIcon, Filter, Search } from 'lucide-react';
+import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -20,24 +20,18 @@ import {
 import { cn } from '@/lib/utils';
 import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
+import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { SparkViewer } from '@/components/spark/spark-viewer';
-import type { Spark, SparkType, Tile, Tag, ActionType, TagType } from '@/types';
+import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
+import { useTagTypes } from '@/store/tag-types-store';
 
-const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof Pin; color: string; label: string }> = {
-  none: { icon: Pin, color: 'text-pink-400', label: 'Appunto' },
-  anytime: { icon: Zap, color: 'text-green-400', label: 'Da fare' },
-  deadline: { icon: Clock, color: 'text-amber-400', label: 'Scadenza' },
-  event: { icon: Calendar, color: 'text-blue-400', label: 'Evento' },
-};
-
-const TAG_TYPE_EMOJI: Record<TagType, string> = {
-  project: '\u{1F3D7}\uFE0F',
-  person: '\u{1F464}',
-  context: '\u{1F30D}',
-  place: '\u{1F4CD}',
-  topic: '\u{1F3F7}\uFE0F',
+const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
+  none: { icon: IconPin, label: 'Appunto' },
+  anytime: { icon: IconBolt, label: 'Da fare' },
+  deadline: { icon: IconClock, label: 'Scadenza' },
+  event: { icon: IconCalendar, label: 'Evento' },
 };
 
 const SPARK_TYPE_OPTIONS: { value: SparkType; label: string }[] = [
@@ -153,7 +147,7 @@ function FilterableHead({
         className="flex items-center gap-1 w-full text-left"
       >
         <span className="truncate">{label}</span>
-        <Filter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
+        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
       </button>
       <div
         onMouseDown={onMouseDown}
@@ -282,11 +276,13 @@ function InlineActionDropdown({
     setPickerMode(null);
   };
 
+  const actionColors = useActionColors();
   const at = tile.action_type || 'none';
   const cfg = ACTION_TYPE_BADGE[at];
   const Icon = cfg.icon;
+  const atColor = actionColors[at];
   const subtitle = formatActionSubtitle(tile);
-  const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai;
+  const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
 
   const showPortal = open || pickerMode;
 
@@ -298,10 +294,10 @@ function InlineActionDropdown({
         className="flex flex-col items-start gap-0 w-full text-left"
       >
         <div className="flex items-center gap-1">
-          <Icon className={cn('h-3 w-3', cfg.color)} />
-          <span className={cn('text-xs', cfg.color)}>{cfg.label}</span>
-          <ChevronDown className="h-3 w-3 text-zinc-500" />
-          {hasAiHint && <Sparkles className="h-2.5 w-2.5 text-purple-400" />}
+          <Icon className="h-3 w-3" style={{ color: atColor }} />
+          <span className="text-xs" style={{ color: atColor }}>{cfg.label}</span>
+          <IconChevronDown className="h-3 w-3 text-zinc-500" />
+          {hasAiHint && <IconSparkles className="h-2.5 w-2.5 text-purple-400" />}
         </div>
         {subtitle && (
           <span className="text-[11px] text-zinc-500 leading-tight truncate max-w-full">
@@ -334,9 +330,9 @@ function InlineActionDropdown({
                       handleSelectOption(opt);
                     }}
                   >
-                    <OptIcon className={cn('h-3.5 w-3.5', optCfg.color)} />
+                    <OptIcon className="h-3.5 w-3.5" style={{ color: actionColors[opt] }} />
                     <span className="text-zinc-300">{optCfg.label}</span>
-                    {isActive && <Check className="h-3 w-3 text-blue-400 ml-auto" />}
+                    {isActive && <IconCheck className="h-3 w-3 text-blue-400 ml-auto" />}
                   </button>
                 );
               })}
@@ -347,7 +343,7 @@ function InlineActionDropdown({
           {pickerMode === 'deadline' && (
             <div className="w-56 p-3 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <IconClock className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-xs font-medium text-amber-400">Scadenza</span>
               </div>
               <label className="text-[11px] text-zinc-500">Data</label>
@@ -371,7 +367,7 @@ function InlineActionDropdown({
           {pickerMode === 'event' && (
             <div className="w-60 p-3 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                <IconCalendar className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-medium text-blue-400">Evento</span>
               </div>
               <label className="text-[11px] text-zinc-500">Data</label>
@@ -430,13 +426,13 @@ function InlineActionDropdown({
   );
 }
 
-const typeIcons: Record<SparkType, typeof FileText> = {
-  photo: ImageIcon,
-  image: ImageIcon,
-  video: Film,
-  audio_recording: Mic,
-  text: FileText,
-  file: FileIcon,
+const typeIcons: Record<SparkType, typeof IconFileText> = {
+  photo: IconPhoto,
+  image: IconPhoto,
+  video: IconMovie,
+  audio_recording: IconMicrophone,
+  text: IconFileText,
+  file: IconFile,
 };
 
 const typeIconColors: Record<SparkType, string> = {
@@ -540,10 +536,10 @@ function TagDropdown({
             >
               <div
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: tag.color || '#3B82F6' }}
+                style={{ backgroundColor: '#94A3B8' }}
               />
               <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-              {isAssigned && <Check className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
+              {isAssigned && <IconCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
             </button>
           );
         })
@@ -581,7 +577,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
     if (thumbPath) return <SparkThumbnail path={thumbPath} />;
     return (
       <div className="h-8 w-8 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
-        <ImageIcon className="h-3.5 w-3.5 text-blue-400" />
+        <IconPhoto className="h-3.5 w-3.5 text-blue-400" />
       </div>
     );
   }
@@ -590,7 +586,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   if (t === 'video') {
     return (
       <div className="h-8 w-8 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
-        <Film className="h-3.5 w-3.5 text-orange-400" />
+        <IconMovie className="h-3.5 w-3.5 text-orange-400" />
       </div>
     );
   }
@@ -599,7 +595,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   if (t === 'audio_recording') {
     return (
       <div className="h-8 w-8 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-        <Mic className="h-3.5 w-3.5 text-red-400" />
+        <IconMicrophone className="h-3.5 w-3.5 text-red-400" />
       </div>
     );
   }
@@ -619,7 +615,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   if (t === 'file') {
     return (
       <div className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px]">
-        <Paperclip className="h-3 w-3 text-yellow-400 shrink-0" />
+        <IconPaperclip className="h-3 w-3 text-yellow-400 shrink-0" />
         <span className="text-[11px] text-yellow-300/80 truncate">
           {spark.file_name || 'file'}
         </span>
@@ -630,7 +626,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Fallback
   return (
     <div className="h-8 w-8 rounded bg-zinc-700/50 border border-zinc-600 flex items-center justify-center shrink-0">
-      <FileText className="h-3.5 w-3.5 text-zinc-400" />
+      <IconFileText className="h-3.5 w-3.5 text-zinc-400" />
     </div>
   );
 }
@@ -698,6 +694,7 @@ function TileRow({
   onTileClick,
   onActionTypeChange,
   onToggleCompleted,
+  getEmoji,
 }: {
   tile: Tile;
   selected: boolean;
@@ -709,6 +706,7 @@ function TileRow({
   onTileClick: (tile: Tile) => void;
   onActionTypeChange: (tileId: string, data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
   onToggleCompleted: (tileId: string, completed: boolean) => void;
+  getEmoji: (slug: string) => string;
 }) {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagCellRef = useRef<HTMLDivElement>(null);
@@ -751,7 +749,7 @@ function TileRow({
                 : 'bg-transparent border-zinc-600 opacity-0 group-hover/row:opacity-100'
             )}
           >
-            {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+            {selected && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
           </button>
         </TableCell>
         <TableCell
@@ -764,9 +762,9 @@ function TileRow({
         >
           <div className="flex items-center justify-center">
             {tile.is_completed ? (
-              <CircleCheck className="h-4 w-4 text-green-500" />
+              <IconCircleCheck className="h-4 w-4 text-green-500" />
             ) : (
-              <CircleIcon className="h-4 w-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
+              <IconCircle className="h-4 w-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
             )}
           </div>
         </TableCell>
@@ -815,12 +813,12 @@ function TileRow({
                     key={tag.id}
                     className="text-xs px-1.5 py-0"
                     style={{
-                      backgroundColor: tag.color ? `${tag.color}20` : undefined,
-                      color: tag.color || undefined,
-                      borderColor: tag.color ? `${tag.color}40` : undefined,
+                      backgroundColor: '#94A3B820',
+                      color: '#94A3B8',
+                      borderColor: '#94A3B840',
                     }}
                   >
-                    {TAG_TYPE_EMOJI[(tag as { tag_type?: TagType }).tag_type || 'topic']} {tag.name}
+                    {getEmoji((tag as { tag_type?: string }).tag_type || 'topic')} {tag.name}
                   </Badge>
                 ))}
               </div>
@@ -850,7 +848,7 @@ function TileRow({
               deleteMutation.mutate(tile.id);
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <IconTrash className="h-3.5 w-3.5" />
           </Button>
         </TableCell>
       </TableRow>
@@ -860,6 +858,8 @@ function TileRow({
 
 export default function TilesPage() {
   const queryClient = useQueryClient();
+  const actionColors = useActionColors();
+  const { getEmoji } = useTagTypes();
   const [page, setPage] = useState(1);
   const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
@@ -1034,7 +1034,7 @@ export default function TilesPage() {
               }}
               className="text-red-400 hover:text-red-300 hover:bg-red-950/50 h-8 px-3"
             >
-              <Trash2 className="h-4 w-4 mr-1.5" />
+              <IconTrash className="h-4 w-4 mr-1.5" />
               Elimina ({selectedIds.size})
             </Button>
             <Button
@@ -1048,7 +1048,7 @@ export default function TilesPage() {
               }}
               className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/50 h-8 px-3"
             >
-              <CheckCheck className="h-4 w-4 mr-1.5" />
+              <IconChecks className="h-4 w-4 mr-1.5" />
               Segna come letti
             </Button>
             <Button
@@ -1057,7 +1057,7 @@ export default function TilesPage() {
               onClick={() => setSelectedIds(new Set())}
               className="text-zinc-400 hover:text-zinc-300 h-8 px-2"
             >
-              <X className="h-4 w-4" />
+              <IconX className="h-4 w-4" />
             </Button>
           </div>
         ) : undefined}
@@ -1076,7 +1076,7 @@ export default function TilesPage() {
               onClick={clearFilter}
               className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 h-7 px-2"
             >
-              <X className="h-3.5 w-3.5 mr-1" />
+              <IconX className="h-3.5 w-3.5 mr-1" />
               Rimuovi filtro
             </Button>
           </div>
@@ -1084,7 +1084,7 @@ export default function TilesPage() {
 
         {/* Tile count + active filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <LayoutGrid className="h-5 w-5 text-zinc-400" />
+          <IconLayoutGrid className="h-5 w-5 text-zinc-400" />
           <span className="text-sm text-zinc-400">
             {tiles.length}{pagination?.total ? ` / ${pagination.total}` : ''} tiles
           </span>
@@ -1111,7 +1111,7 @@ export default function TilesPage() {
           <p className="text-center text-zinc-400 py-8">Caricamento...</p>
         ) : tiles.length === 0 ? (
           <div className="text-center py-16">
-            <LayoutGrid className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
+            <IconLayoutGrid className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
             <p className="text-zinc-400">Nessun tile trovato</p>
             <p className="text-sm text-zinc-500 mt-1">
               I tiles vengono creati automaticamente quando invii più memo insieme
@@ -1134,7 +1134,7 @@ export default function TilesPage() {
                               : 'bg-transparent border-zinc-300'
                         }`}
                       >
-                        {(allSelected || someSelected) && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                        {(allSelected || someSelected) && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
                       </button>
                     </TableHead>
                     <TableHead
@@ -1146,7 +1146,7 @@ export default function TilesPage() {
                         onClick={() => setOpenFilter(openFilter === 'completed' ? null : 'completed')}
                         className="flex items-center justify-center w-full"
                       >
-                        <Filter className={cn('h-3 w-3 transition-colors', completedFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
+                        <IconFilter className={cn('h-3 w-3 transition-colors', completedFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
                     <FilterableHead
@@ -1199,7 +1199,7 @@ export default function TilesPage() {
                         className="flex items-center gap-1 w-full text-left"
                       >
                         <span className="truncate">Data</span>
-                        <Filter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
+                        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
                     <TableHead className="text-zinc-400 text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }} />
@@ -1219,6 +1219,7 @@ export default function TilesPage() {
                       onTileClick={setSelectedTile}
                       onActionTypeChange={handleActionTypeChange}
                       onToggleCompleted={handleToggleCompleted}
+                      getEmoji={getEmoji}
                     />
                   ))}
                 </TableBody>
@@ -1267,11 +1268,11 @@ export default function TilesPage() {
               className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', completedFilter === val ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
               onClick={() => setCompletedFilter(val)}
             >
-              {val === 'done' && <CircleCheck className="h-3.5 w-3.5 text-green-500" />}
-              {val === 'todo' && <CircleIcon className="h-3.5 w-3.5 text-zinc-500" />}
-              {val === 'all' && <CircleIcon className="h-3.5 w-3.5 text-zinc-600" />}
+              {val === 'done' && <IconCircleCheck className="h-3.5 w-3.5 text-green-500" />}
+              {val === 'todo' && <IconCircle className="h-3.5 w-3.5 text-zinc-500" />}
+              {val === 'all' && <IconCircle className="h-3.5 w-3.5 text-zinc-600" />}
               <span className="text-zinc-300 flex-1">{label}</span>
-              {completedFilter === val && <Check className="h-3 w-3 text-blue-400" />}
+              {completedFilter === val && <IconCheck className="h-3 w-3 text-blue-400" />}
             </button>
           ))}
         </div>
@@ -1281,7 +1282,7 @@ export default function TilesPage() {
         <div className="w-48 flex flex-col gap-2">
           <label className="text-[11px] text-zinc-500">Cerca nel titolo</label>
           <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5">
-            <Search className="h-3 w-3 text-zinc-500 shrink-0" />
+            <IconSearch className="h-3 w-3 text-zinc-500 shrink-0" />
             <input
               type="text"
               value={titleFilter}
@@ -1292,7 +1293,7 @@ export default function TilesPage() {
             />
             {titleFilter && (
               <button onClick={() => setTitleFilter('')} className="text-zinc-500 hover:text-zinc-300">
-                <X className="h-3 w-3" />
+                <IconX className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -1318,9 +1319,9 @@ export default function TilesPage() {
                   });
                 }}
               >
-                <Icon className={cn('h-3.5 w-3.5', cfg.color)} />
+                <Icon className="h-3.5 w-3.5" style={{ color: actionColors[at] }} />
                 <span className="text-zinc-300 flex-1">{cfg.label}</span>
-                {active && <Check className="h-3 w-3 text-blue-400" />}
+                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
               </button>
             );
           })}
@@ -1348,7 +1349,7 @@ export default function TilesPage() {
               >
                 <TypeIcon className={cn('h-3.5 w-3.5', iconColor)} />
                 <span className="text-zinc-300 flex-1">{opt.label}</span>
-                {active && <Check className="h-3 w-3 text-blue-400" />}
+                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
               </button>
             );
           })}
@@ -1375,9 +1376,9 @@ export default function TilesPage() {
                     });
                   }}
                 >
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tag.color || '#3B82F6' }} />
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#94A3B8' }} />
                   <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-                  {active && <Check className="h-3 w-3 text-blue-400" />}
+                  {active && <IconCheck className="h-3 w-3 text-blue-400" />}
                 </button>
               );
             })

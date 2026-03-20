@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, FlashMode } from 'expo-camera';
 import { useRouter } from 'expo-router';
-import { X, RefreshCw, Zap, ZapOff, Circle } from 'lucide-react-native';
+import { IconX, IconRefresh, IconBolt, IconBoltOff, IconCircle } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
@@ -126,7 +126,7 @@ export default function PhotoCaptureScreen() {
             onPress={handleClose}
             className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
           >
-            <X size={24} color="#fff" />
+            <IconX size={24} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -134,9 +134,9 @@ export default function PhotoCaptureScreen() {
             className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
           >
             {flash === 'on' ? (
-              <Zap size={24} color={colors.warning} />
+              <IconBolt size={24} color={colors.warning} />
             ) : (
-              <ZapOff size={24} color="#fff" />
+              <IconBoltOff size={24} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
@@ -166,7 +166,7 @@ export default function PhotoCaptureScreen() {
             onPress={toggleFacing}
             className="w-16 h-16 rounded-full bg-black/50 items-center justify-center"
           >
-            <RefreshCw size={28} color="#fff" />
+            <IconRefresh size={28} color="#fff" />
           </TouchableOpacity>
         </View>
       </CameraView>

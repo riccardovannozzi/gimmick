@@ -5,30 +5,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
 import { sparksApi, tilesApi, tagsApi, uploadApi } from '@/lib/api';
-import {
-  Loader2,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  Tag as TagIcon,
-  Plus,
-  X,
-  Trash2,
-  Link as LinkIcon,
-  Pencil,
-  Eye,
-  Settings2,
-  ChevronDown,
-  Filter,
-  SlidersHorizontal,
-  Palette,
-} from 'lucide-react';
+import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
-import type { TagNode, TagEdge } from '@/types';
+import { useActionColors } from '@/store/action-colors-store';
+import type { TagNode, TagEdge, ActionType } from '@/types';
 
 // ─── Content filter types ───
 type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'text' | 'file';
@@ -61,10 +45,8 @@ const typeLabels: Record<string, string> = {
   file: 'File',
 };
 
-const TAG_COLORS = [
-  '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
-  '#F59E0B', '#22C55E', '#06B6D4', '#F97316',
-];
+// Default tag node color (tag colors removed from entities)
+const TAG_NODE_COLOR = '#94A3B8';
 
 // ─── Physics defaults ───
 const defaultPhysics = {
@@ -102,12 +84,7 @@ interface GraphNode extends d3.SimulationNodeDatum {
   actionType?: string;
 }
 
-const ACTION_TYPE_COLORS: Record<string, string> = {
-  none: '#528BFF',
-  anytime: '#22C55E',
-  deadline: '#F59E0B',
-  event: '#8B5CF6',
-};
+// ACTION_TYPE_COLORS is now dynamic — loaded from useActionColors() hook inside the component
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode;
@@ -124,6 +101,7 @@ export default function GraphPage() {
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
+  const ACTION_TYPE_COLORS = useActionColors();
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -141,7 +119,6 @@ export default function GraphPage() {
   } | null>(null);
   const [tagRenameValue, setTagRenameValue] = useState('');
   const [tagRenaming, setTagRenaming] = useState(false);
-  const [tagColorPicking, setTagColorPicking] = useState(false);
 
   // Physics console
   const [showPhysicsPanel, setShowPhysicsPanel] = useState(false);
@@ -165,7 +142,7 @@ export default function GraphPage() {
 
   // Tag management
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [newTagColor] = useState(TAG_NODE_COLOR);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -239,7 +216,6 @@ export default function GraphPage() {
       queryClient.invalidateQueries({ queryKey: ['graph-data'] });
       setContextMenu(null);
       setTagRenaming(false);
-      setTagColorPicking(false);
       toast.success('Tag aggiornato');
     },
   });
@@ -303,8 +279,8 @@ export default function GraphPage() {
   const handleCreateTag = useCallback(() => {
     const name = newTagName.trim();
     if (!name) return;
-    createMutation.mutate({ name, color: newTagColor });
-  }, [newTagName, newTagColor, createMutation]);
+    createMutation.mutate({ name });
+  }, [newTagName, createMutation]);
 
   const handleZoomIn = useCallback(() => {
     if (svgRef.current && zoomRef.current)
@@ -369,7 +345,7 @@ export default function GraphPage() {
         id: `tag-${selectedTag.id}`,
         type: 'tag',
         label: selectedTag.name,
-        color: selectedTag.color || '#3B82F6',
+        color: TAG_NODE_COLOR,
         fx: width / 2,
         fy: height / 2,
         tileCount: selectedTag.tile_ids.length,
@@ -397,7 +373,7 @@ export default function GraphPage() {
           id: `tag-${otherTagId}`,
           type: 'tag',
           label: otherTag.name,
-          color: otherTag.color || '#3B82F6',
+          color: TAG_NODE_COLOR,
           tagId: otherTagId,
           usageCount: otherTag.usage_count || 0,
           tileCount: graphTags.find((gt) => gt.id === otherTagId)?.tile_ids.length || 0,
@@ -455,7 +431,7 @@ export default function GraphPage() {
           id: `tag-${t.id}`,
           type: 'tag',
           label: t.name,
-          color: t.color || '#3B82F6',
+          color: TAG_NODE_COLOR,
           tagId: t.id,
           usageCount: t.usage_count || 0,
           isRoot: t.is_root || false,
@@ -473,7 +449,7 @@ export default function GraphPage() {
             id: `tag-${tag.id}`,
             type: 'tag',
             label: tag.name,
-            color: tag.color || '#3B82F6',
+            color: TAG_NODE_COLOR,
             tagId: tag.id,
             tileCount: tag.tile_ids.length,
           };
@@ -840,8 +816,8 @@ export default function GraphPage() {
       .attr('width', tileSize).attr('height', tileSize)
       .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
       .attr('rx', 6).attr('ry', 6)
-      .attr('fill', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF').attr('fill-opacity', 0.2)
-      .attr('stroke', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF')
+      .attr('fill', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF').attr('fill-opacity', 0.2)
+      .attr('stroke', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF')
       .attr('stroke-width', 2).style('filter', 'url(#glow)').style('cursor', 'pointer');
     node.filter((d) => d.type === 'tile')
       .append('text').text((d) => d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label)
@@ -918,7 +894,6 @@ export default function GraphPage() {
       setContextMenu({ x: px, y: py, type: 'tag', id: rawId, label: d.label, color: d.color });
       setTagRenameValue(d.label);
       setTagRenaming(false);
-      setTagColorPicking(false);
     });
 
     // Hover: tooltip + highlight
@@ -1078,7 +1053,7 @@ export default function GraphPage() {
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1103,7 +1078,7 @@ export default function GraphPage() {
                 : 'text-zinc-400 hover:text-zinc-300'
             )}
           >
-            <Eye className="h-3.5 w-3.5" />
+            <IconEye className="h-3.5 w-3.5" />
             Navigate
           </button>
           <button
@@ -1115,7 +1090,7 @@ export default function GraphPage() {
                 : 'text-zinc-400 hover:text-zinc-300'
             )}
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <IconSettings2 className="h-3.5 w-3.5" />
             Edit Tag
           </button>
         </div>
@@ -1130,12 +1105,12 @@ export default function GraphPage() {
                 onClick={() => { setFilterDropdownOpen((p) => !p); setTagDropdownOpen(false); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-750 transition-all h-8"
               >
-                <Filter className="h-3.5 w-3.5" />
+                <IconFilter className="h-3.5 w-3.5" />
                 Filtri
                 {activeFilters.size < filterConfig.length && (
                   <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 rounded-full">{activeFilters.size}</span>
                 )}
-                <ChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown className="h-3 w-3 ml-1" />
               </button>
               {filterDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px]">
@@ -1178,11 +1153,11 @@ export default function GraphPage() {
                     : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
                 )}
               >
-                <TagIcon className="h-3.5 w-3.5" />
+                <IconTag className="h-3.5 w-3.5" />
                 {selectedTagId
                   ? graphData?.tags?.find((t) => t.id === selectedTagId)?.name || 'Tag'
                   : 'Tag'}
-                <ChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown className="h-3 w-3 ml-1" />
               </button>
               {tagDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[300px] overflow-y-auto">
@@ -1205,7 +1180,7 @@ export default function GraphPage() {
                         selectedTagId === tag.id ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
                       )}
                     >
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color || '#3B82F6' }} />
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TAG_NODE_COLOR }} />
                       {tag.name}
                       <span className="ml-auto text-[10px] text-zinc-600">{tag.tile_ids.length}</span>
                     </button>
@@ -1220,7 +1195,7 @@ export default function GraphPage() {
                 onClick={() => setSelectedTagId(null)}
                 className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
               >
-                <X className="h-3 w-3" />
+                <IconX className="h-3 w-3" />
               </button>
             )}
           </>
@@ -1235,27 +1210,13 @@ export default function GraphPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
                 className="h-8 w-40 bg-zinc-800 border-zinc-700 text-white text-xs placeholder:text-zinc-500"
               />
-              <div className="flex gap-1">
-                {TAG_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setNewTagColor(color)}
-                    className="w-4 h-4 rounded-full transition-transform"
-                    style={{
-                      backgroundColor: color,
-                      transform: newTagColor === color ? 'scale(1.3)' : 'scale(1)',
-                      boxShadow: newTagColor === color ? `0 0 0 2px ${color}50` : 'none',
-                    }}
-                  />
-                ))}
-              </div>
               <Button
                 size="sm"
                 onClick={handleCreateTag}
                 disabled={!newTagName.trim() || createMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" />
+                <IconPlus className="h-3.5 w-3.5 mr-1" />
                 Crea
               </Button>
             </div>
@@ -1274,7 +1235,7 @@ export default function GraphPage() {
                   : 'bg-zinc-800 border-zinc-700 text-zinc-400'
               )}
             >
-              <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+              <IconLink className="h-3.5 w-3.5 mr-1.5" />
               {linkMode ? 'Collegamento attivo' : 'Collega tag'}
             </Button>
 
@@ -1286,7 +1247,7 @@ export default function GraphPage() {
                 onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
                 className="text-xs h-8 text-red-400 border-red-900 hover:bg-red-950"
               >
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                <IconTrash className="h-3.5 w-3.5 mr-1.5" />
                 Elimina &quot;{selectedTagForDelete.name}&quot;
               </Button>
             )}
@@ -1369,7 +1330,7 @@ export default function GraphPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
+            <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1383,13 +1344,13 @@ export default function GraphPage() {
             {/* Link mode indicator */}
             {linkMode && (
               <div className="absolute top-4 left-4 z-20 bg-blue-600/20 border border-blue-500/40 rounded-lg px-4 py-2 text-sm text-blue-300 flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
+                <IconLink className="h-4 w-4" />
                 {linkSource ? 'Clicca il tag di destinazione' : 'Clicca il primo tag da collegare'}
                 <button
                   onClick={() => { setLinkMode(false); setLinkSource(null); }}
                   className="ml-2 text-blue-400 hover:text-white"
                 >
-                  <X className="h-4 w-4" />
+                  <IconX className="h-4 w-4" />
                 </button>
               </div>
             )}
@@ -1400,15 +1361,15 @@ export default function GraphPage() {
             <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
               <Button variant="outline" size="icon" onClick={handleZoomIn}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <ZoomIn className="h-4 w-4" />
+                <IconZoomIn className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={handleZoomOut}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <ZoomOut className="h-4 w-4" />
+                <IconZoomOut className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={handleFit}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <Maximize2 className="h-4 w-4" />
+                <IconMaximize className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon"
                 onClick={() => setShowPhysicsPanel((p) => !p)}
@@ -1418,7 +1379,7 @@ export default function GraphPage() {
                     ? 'bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30'
                     : 'bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300'
                 )}>
-                <SlidersHorizontal className="h-4 w-4" />
+                <IconAdjustmentsHorizontal className="h-4 w-4" />
               </Button>
             </div>
 
@@ -1427,7 +1388,7 @@ export default function GraphPage() {
               <div className="absolute bottom-4 left-16 z-20 bg-zinc-900/95 border border-zinc-700 rounded-lg shadow-2xl p-4 w-72 max-h-[calc(100%-2rem)] overflow-y-auto backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" />
+                    <IconAdjustmentsHorizontal className="h-3.5 w-3.5 text-blue-400" />
                     Physics Console
                   </h3>
                   <button
@@ -1595,7 +1556,7 @@ export default function GraphPage() {
                             }
                           }}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <IconPencil className="h-3 w-3" />
                         </Button>
                       </div>
                     ) : (
@@ -1603,35 +1564,8 @@ export default function GraphPage() {
                         className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
                         onClick={() => setTagRenaming(true)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <IconPencil className="h-3.5 w-3.5" />
                         Rinomina
-                      </button>
-                    )}
-
-                    {/* Color picker */}
-                    {tagColorPicking ? (
-                      <div className="px-3 py-2 flex flex-wrap gap-1.5">
-                        {TAG_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            className="w-5 h-5 rounded-full transition-transform hover:scale-125"
-                            style={{
-                              backgroundColor: color,
-                              boxShadow: contextMenu.color === color ? `0 0 0 2px ${color}80` : 'none',
-                            }}
-                            onClick={() => {
-                              updateTagMutation.mutate({ id: contextMenu.id, updates: { color } });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <button
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
-                        onClick={() => setTagColorPicking(true)}
-                      >
-                        <Palette className="h-3.5 w-3.5" />
-                        Cambia colore
                       </button>
                     )}
 
@@ -1645,7 +1579,7 @@ export default function GraphPage() {
                         setContextMenu(null);
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <IconTrash className="h-3.5 w-3.5" />
                       Elimina tag
                     </button>
                   </>
@@ -1667,7 +1601,7 @@ export default function GraphPage() {
                       setContextMenu(null);
                     }}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <IconTrash className="h-3.5 w-3.5" />
                     Elimina
                   </button>
                 )}
@@ -1711,7 +1645,7 @@ export default function GraphPage() {
                       }).catch(() => toast.error('Errore'));
                     }}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <IconPencil className="h-3 w-3" />
                   </Button>
                 </div>
                 <div className="flex justify-between items-center">
@@ -1727,7 +1661,7 @@ export default function GraphPage() {
                       }).catch(() => toast.error('Errore'));
                     }}
                   >
-                    <Trash2 className="h-3 w-3 mr-1" />
+                    <IconTrash className="h-3 w-3 mr-1" />
                     Elimina
                   </Button>
                   <Button

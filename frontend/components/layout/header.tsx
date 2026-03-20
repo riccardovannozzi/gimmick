@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, Search } from 'lucide-react';
+import { IconBell, IconSearch } from '@tabler/icons-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
@@ -32,9 +32,9 @@ export function Header({ title, actions }: HeaderProps) {
       {/* Right side */}
       <div className="flex items-center gap-4">
         {actions}
-        {/* Search */}
+        {/* IconSearch */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+          <IconSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
           <Input
             placeholder="Cerca..."
             className="w-64 bg-zinc-900 border-zinc-800 pl-9 text-white placeholder:text-zinc-500"
@@ -43,7 +43,7 @@ export function Header({ title, actions }: HeaderProps) {
 
         {/* Notifications */}
         <Button variant="ghost" size="icon" className="text-zinc-400 hover:text-white">
-          <Bell className="h-5 w-5" />
+          <IconBell className="h-5 w-5" />
         </Button>
 
         {/* User menu */}

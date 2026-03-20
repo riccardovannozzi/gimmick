@@ -45,7 +45,6 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
       user_id: data.user.id,
       name: 'GIMMICK',
       is_root: true,
-      color: '#528BFF',
       slug: 'gimmick',
     });
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { X, Check } from 'lucide-react-native';
+import { IconX, IconCheck } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
@@ -53,7 +53,7 @@ export default function TextCaptureScreen() {
               justifyContent: 'center',
             }}
           >
-            <X size={26} color="#FFFFFF" />
+            <IconX size={26} color="#FFFFFF" />
           </TouchableOpacity>
 
           <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>New note</Text>
@@ -65,7 +65,7 @@ export default function TextCaptureScreen() {
               text.trim() ? 'bg-success' : 'bg-border'
             }`}
           >
-            <Check size={26} color={text.trim() ? '#fff' : colors.secondary} />
+            <IconCheck size={26} color={text.trim() ? '#fff' : colors.secondary} />
           </TouchableOpacity>
         </View>
 

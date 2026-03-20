@@ -1,14 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import { Home, LayoutGrid, Settings } from 'lucide-react-native';
+import { IconHome, IconLayoutGrid, IconSettings } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/lib/theme';
 
 const tabs = [
-  { name: 'index', path: '/', label: 'Home', icon: Home },
-  { name: 'history', path: '/history', label: 'Tiles', icon: LayoutGrid },
-  { name: 'settings', path: '/settings', label: 'Settings', icon: Settings },
+  { name: 'index', path: '/', label: 'Home', icon: IconHome },
+  { name: 'history', path: '/history', label: 'Tiles', icon: IconLayoutGrid },
+  { name: 'settings', path: '/settings', label: 'Settings', icon: IconSettings },
 ] as const;
 
 function TopNav() {
@@ -50,7 +50,7 @@ function TopNav() {
             <Icon
               size={30}
               color={isActive ? colors.primary : colors.tertiary}
-              strokeWidth={isActive ? 2 : 1.5}
+              stroke={isActive ? 2 : 1.5}
             />
             {isActive && (
               <Text

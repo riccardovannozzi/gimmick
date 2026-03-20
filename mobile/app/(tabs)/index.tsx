@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { X, Save, Send, Mic, Camera, Video, Images, PenSquare, Paperclip, Sparkles, Check, Tag } from 'lucide-react-native';
+import { IconX, IconDeviceFloppy, IconSend, IconMicrophone, IconCamera, IconVideo, IconPhotos, IconEdit, IconPaperclip, IconSparkles, IconCheck, IconTag } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
@@ -10,9 +10,9 @@ import { uploadBufferItems, chatApi, tagsApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, SparkType, Tag as TagInterface, TagType as TagTypeEnum } from '@/types';
+import type { BufferItem, SparkType, Tag as TagInterface } from '@/types';
 
-const TAG_TYPE_EMOJI: Record<TagTypeEnum, string> = {
+const TAG_TYPE_EMOJI: Record<string, string> = {
   project: '\u{1F3D7}\uFE0F',
   person: '\u{1F464}',
   context: '\u{1F30D}',
@@ -39,12 +39,12 @@ const buttonToSparkTypes: Record<string, SparkType[]> = {
 };
 
 const captureOptions = [
-  { id: 'photo', label: 'PHOTO', icon: <Camera />, color: captureColors.photo, bg: captureColorsBg.photo, route: '/capture/photo' },
-  { id: 'video', label: 'VIDEO', icon: <Video />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
-  { id: 'gallery', label: 'GALLERY', icon: <Images />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
-  { id: 'text', label: 'TEXT', icon: <PenSquare />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
-  { id: 'voice', label: 'REC', icon: <Mic />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
-  { id: 'file', label: 'FILE', icon: <Paperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
+  { id: 'photo', label: 'PHOTO', icon: <IconCamera />, color: captureColors.photo, bg: captureColorsBg.photo, route: '/capture/photo' },
+  { id: 'video', label: 'VIDEO', icon: <IconVideo />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
+  { id: 'gallery', label: 'GALLERY', icon: <IconPhotos />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
+  { id: 'text', label: 'TEXT', icon: <IconEdit />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
+  { id: 'voice', label: 'REC', icon: <IconMicrophone />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
+  { id: 'file', label: 'FILE', icon: <IconPaperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
 ] as const;
 
 function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferItem; index: number; onRemove: () => void; onPress?: () => void; colors: any }) {
@@ -132,7 +132,7 @@ function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferIte
               justifyContent: 'center',
             }}
           >
-            <X size={14} color={colors.secondary} strokeWidth={2.5} />
+            <IconX size={14} color={colors.secondary} stroke={2.5} />
           </TouchableOpacity>
         </View>
         <RNImage
@@ -191,7 +191,7 @@ function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferIte
           marginLeft: 8,
         }}
       >
-        <X size={14} color={colors.secondary} strokeWidth={2.5} />
+        <IconX size={14} color={colors.secondary} stroke={2.5} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -408,12 +408,12 @@ export default function HomeScreen() {
                 borderBottomColor: colors.border,
               }}
             >
-              <Sparkles size={22} color={colors.accent} />
+              <IconSparkles size={22} color={colors.accent} />
               <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, marginLeft: 10, flex: 1 }}>
                 AI Assistant
               </Text>
               <TouchableOpacity onPress={toggleChatMode}>
-                <X size={22} color={colors.secondary} />
+                <IconX size={22} color={colors.secondary} />
               </TouchableOpacity>
             </View>
 
@@ -426,7 +426,7 @@ export default function HomeScreen() {
               contentContainerStyle={{ paddingVertical: 8 }}
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center py-20">
-                  <Sparkles size={48} color={colors.border} strokeWidth={1} />
+                  <IconSparkles size={48} color={colors.border} stroke={1} />
                   <Text style={{ color: colors.tertiary, fontSize: 15, marginTop: 12 }}>
                     Ask me anything
                   </Text>
@@ -479,7 +479,7 @@ export default function HomeScreen() {
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
                         size: 42,
                         color: option.color,
-                        strokeWidth: 1.4,
+                        stroke: 1.4,
                       })}
                       <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
@@ -534,7 +534,7 @@ export default function HomeScreen() {
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
                         size: 42,
                         color: option.color,
-                        strokeWidth: 1.4,
+                        stroke: 1.4,
                       })}
                       <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
@@ -579,7 +579,7 @@ export default function HomeScreen() {
                     paddingVertical: 18,
                   }}
                 >
-                  <Sparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
+                  <IconSparkles size={22} color="#FFFFFF" stroke={1.8} />
                   <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
                     ASK GIMMICK
                   </Text>
@@ -600,7 +600,7 @@ export default function HomeScreen() {
                         borderColor: colors.accent,
                       }}
                     >
-                      <Tag size={20} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
+                      <IconTag size={20} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
                       {selectedTagIds.size > 0 && (
                         <View
                           style={{
@@ -636,7 +636,7 @@ export default function HomeScreen() {
                         opacity: isUploading ? 0.6 : 1,
                       }}
                     >
-                      <Send size={22} color={colors.onAccent} />
+                      <IconSend size={22} color={colors.onAccent} />
                     </TouchableOpacity>
                   </View>
                 )}
@@ -714,7 +714,7 @@ export default function HomeScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <X size={26} color="#FFFFFF" />
+                  <IconX size={26} color="#FFFFFF" />
                 </TouchableOpacity>
 
                 <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>
@@ -733,7 +733,7 @@ export default function HomeScreen() {
                       justifyContent: 'center',
                     }}
                   >
-                    <Check size={26} color={editText.trim() ? '#fff' : colors.secondary} />
+                    <IconCheck size={26} color={editText.trim() ? '#fff' : colors.secondary} />
                   </TouchableOpacity>
                 ) : (
                   <View style={{ width: 56 }} />
@@ -820,7 +820,7 @@ export default function HomeScreen() {
                   Seleziona Tag
                 </Text>
                 <TouchableOpacity onPress={() => setTagModalOpen(false)}>
-                  <X size={22} color={colors.secondary} />
+                  <IconX size={22} color={colors.secondary} />
                 </TouchableOpacity>
               </View>
 
@@ -849,7 +849,7 @@ export default function HomeScreen() {
                         paddingHorizontal: 12,
                         borderRadius: 10,
                         marginBottom: 4,
-                        backgroundColor: isSelected ? `${tag.color || colors.accent}15` : 'transparent',
+                        backgroundColor: isSelected ? `${colors.accent}15` : 'transparent',
                       }}
                     >
                       <View
@@ -857,7 +857,7 @@ export default function HomeScreen() {
                           width: 12,
                           height: 12,
                           borderRadius: 6,
-                          backgroundColor: tag.color || colors.accent,
+                          backgroundColor: colors.accent,
                           marginRight: 12,
                         }}
                       />
@@ -865,7 +865,7 @@ export default function HomeScreen() {
                         {TAG_TYPE_EMOJI[tag.tag_type || 'topic']} {tag.name}
                       </Text>
                       {isSelected && (
-                        <Check size={18} color={tag.color || colors.accent} strokeWidth={2.5} />
+                        <IconCheck size={18} color={colors.accent} stroke={2.5} />
                       )}
                     </TouchableOpacity>
                   );

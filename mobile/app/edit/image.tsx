@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { X, ImageIcon } from 'lucide-react-native';
+import { IconX, IconPhoto } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useThemeColors } from '@/lib/theme';
 
@@ -15,7 +15,7 @@ export default function ImageEditorScreen() {
         {/* Header */}
         <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
           <TouchableOpacity onPress={() => router.back()}>
-            <X size={24} color={colors.secondary} />
+            <IconX size={24} color={colors.secondary} />
           </TouchableOpacity>
           <Text className="text-primary text-lg font-semibold">Editor Immagine</Text>
           <View className="w-6" />
@@ -24,7 +24,7 @@ export default function ImageEditorScreen() {
         {/* Content - Placeholder */}
         <View className="flex-1 items-center justify-center px-8">
           <View className="w-20 h-20 rounded-full bg-background-2 items-center justify-center mb-4">
-            <ImageIcon size={40} color={colors.secondary} />
+            <IconPhoto size={40} color={colors.secondary} />
           </View>
           <Text className="text-primary text-lg font-medium text-center mb-2">
             Editor in arrivo

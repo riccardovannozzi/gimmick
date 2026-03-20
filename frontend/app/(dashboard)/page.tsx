@@ -1,16 +1,16 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { FileText, LayoutGrid, TrendingUp } from 'lucide-react';
+import { IconFileText, IconLayoutGrid, IconTrendingUp } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { sparksApi, tilesApi } from '@/lib/api';
 import type { SparkType } from '@/types';
 
 const statConfig = [
-  { name: 'Tiles', icon: LayoutGrid, color: 'text-blue-500', key: 'tiles' },
-  { name: 'Sparks', icon: FileText, color: 'text-zinc-300', key: 'sparks' },
-  { name: 'Spazio Utilizzato', icon: TrendingUp, color: 'text-green-500', key: 'size' },
+  { name: 'Tiles', icon: IconLayoutGrid, color: 'text-blue-500', key: 'tiles' },
+  { name: 'Sparks', icon: IconFileText, color: 'text-zinc-300', key: 'sparks' },
+  { name: 'Spazio Utilizzato', icon: IconTrendingUp, color: 'text-green-500', key: 'size' },
 ] as const;
 
 const typeLabels: Record<SparkType, string> = {
@@ -196,7 +196,7 @@ export default function AnalyticsPage() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-zinc-700 flex items-center justify-center">
-                        <FileText className="h-5 w-5 text-zinc-400" />
+                        <IconFileText className="h-5 w-5 text-zinc-400" />
                       </div>
                       <div>
                         <p className="text-sm font-medium text-white">

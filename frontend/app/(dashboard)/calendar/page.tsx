@@ -12,17 +12,7 @@ import type { EventInput, EventDropArg, DateSelectArg, EventClickArg } from '@fu
 import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import {
-  Loader2,
-  Plus,
-  X,
-  Sparkles,
-  Tag as TagIcon,
-  Trash2,
-  Calendar as CalendarIcon,
-  ChevronDown,
-  Filter,
-} from 'lucide-react';
+import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChevronDown, IconFilter } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse } from '@/types';
@@ -127,13 +117,13 @@ function TagFilterDropdown({
             : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
         )}
         style={selectedTag ? {
-          backgroundColor: `${selectedTag.color || '#3B82F6'}20`,
-          borderColor: `${selectedTag.color || '#3B82F6'}60`,
+          backgroundColor: `${'#94A3B8'}20`,
+          borderColor: `${'#94A3B8'}60`,
         } : undefined}
       >
-        <Filter className="h-3.5 w-3.5" />
+        <IconFilter className="h-3.5 w-3.5" />
         {selectedTag ? selectedTag.name : 'Filtra per tag'}
-        <ChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
+        <IconChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && createPortal(
@@ -163,7 +153,7 @@ function TagFilterDropdown({
                 )}
                 onClick={() => { onSelect(isActive ? null : tag.id); setOpen(false); }}
               >
-                <TagIcon className="h-3 w-3 flex-shrink-0" style={{ color: tag.color || '#3B82F6' }} />
+                <IconTag className="h-3 w-3 flex-shrink-0" style={{ color: '#94A3B8' }} />
                 <span className="text-zinc-300 truncate">{tag.name}</span>
                 {isActive && <span className="ml-auto text-blue-400 text-[10px]">&#10003;</span>}
               </button>
@@ -291,15 +281,14 @@ export default function CalendarPage() {
 
     return filtered.map((tile: Tile) => {
       const isDeadline = tile.action_type === 'deadline' && !tile.is_event;
-      const tagColor = tile.tags?.[0]?.color;
       return {
         id: tile.id,
         title: isDeadline ? `\u23F0 ${tile.title || 'Scadenza'}` : (tile.title || 'Senza titolo'),
         start: tile.start_at!,
         end: isDeadline ? undefined : (tile.end_at || undefined),
         allDay: isDeadline,
-        backgroundColor: isDeadline ? '#F59E0B' : (tagColor || defaultEventColor),
-        borderColor: isDeadline ? '#D97706' : (tagColor || defaultEventColor),
+        backgroundColor: isDeadline ? '#F59E0B' : defaultEventColor,
+        borderColor: isDeadline ? '#D97706' : defaultEventColor,
         extendedProps: {
           description: tile.description,
           spark_count: tile.spark_count || 0,
@@ -522,14 +511,14 @@ export default function CalendarPage() {
             />
             {aiFilterActive ? (
               <button onClick={clearAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-                <X className="h-3.5 w-3.5 text-zinc-400" />
+                <IconX className="h-3.5 w-3.5 text-zinc-400" />
               </button>
             ) : (
               <button onClick={handleAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
                 {aiLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
+                  <IconLoader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
                 ) : (
-                  <Sparkles className="h-3.5 w-3.5 text-zinc-400" />
+                  <IconSparkles className="h-3.5 w-3.5 text-zinc-400" />
                 )}
               </button>
             )}
@@ -543,7 +532,7 @@ export default function CalendarPage() {
           onClick={() => setShowTilePicker(true)}
           className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 text-xs"
         >
-          <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
+          <IconCalendar className="h-3.5 w-3.5 mr-1.5" />
           Pianifica Tile
         </Button>
         <Button
@@ -557,7 +546,7 @@ export default function CalendarPage() {
           })}
           className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
         >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
+          <IconPlus className="h-3.5 w-3.5 mr-1.5" />
           Nuovo Evento
         </Button>
       </div>
@@ -623,7 +612,7 @@ export default function CalendarPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
+            <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : (
           <FullCalendar
@@ -681,7 +670,7 @@ export default function CalendarPage() {
                 {modal.mode === 'create' ? 'Nuovo Evento' : 'Modifica Evento'}
               </h2>
               <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
-                <X className="h-5 w-5" />
+                <IconX className="h-5 w-5" />
               </button>
             </div>
 
@@ -758,14 +747,14 @@ export default function CalendarPage() {
                           style={
                             selected
                               ? {
-                                  backgroundColor: `${tag.color || '#3B82F6'}25`,
-                                  borderColor: `${tag.color || '#3B82F6'}70`,
-                                  color: tag.color || '#3B82F6',
+                                  backgroundColor: `${'#94A3B8'}25`,
+                                  borderColor: `${'#94A3B8'}70`,
+                                  color: '#94A3B8',
                                 }
                               : undefined
                           }
                         >
-                          <TagIcon className="h-3 w-3" style={selected ? { color: tag.color || '#3B82F6' } : undefined} />
+                          <IconTag className="h-3 w-3" style={selected ? { color: '#94A3B8' } : undefined} />
                           {tag.name}
                         </button>
                       );
@@ -782,7 +771,7 @@ export default function CalendarPage() {
                     onChange={(e) => setModal({ ...modal, autoDetect: e.target.checked })}
                     className="rounded border-zinc-600"
                   />
-                  <Sparkles className="h-4 w-4 text-blue-400" />
+                  <IconSparkles className="h-4 w-4 text-blue-400" />
                   Rileva data/ora dal contenuto con AI
                 </label>
               )}
@@ -795,7 +784,7 @@ export default function CalendarPage() {
                     onClick={() => unscheduleMutation.mutate(modal.tileId!)}
                     className="text-red-400 border-red-900 hover:bg-red-950 text-xs"
                   >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    <IconTrash className="h-3.5 w-3.5 mr-1" />
                     Rimuovi
                   </Button>
                 )}
@@ -815,7 +804,7 @@ export default function CalendarPage() {
                   className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
                 >
                   {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    <IconLoader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
                   )}
                   {modal.mode === 'create' ? 'Crea' : 'Salva'}
                 </Button>
@@ -835,7 +824,7 @@ export default function CalendarPage() {
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-white font-semibold">Schedula un Tile</h2>
               <button onClick={() => setShowTilePicker(false)} className="text-zinc-400 hover:text-white">
-                <X className="h-5 w-5" />
+                <IconX className="h-5 w-5" />
               </button>
             </div>
 

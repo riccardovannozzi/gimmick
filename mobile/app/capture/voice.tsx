@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
-import { X, Mic, Square, Play, Pause } from 'lucide-react-native';
+import { IconX, IconMicrophone, IconSquare, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
@@ -211,7 +211,7 @@ export default function VoiceCaptureScreen() {
             justifyContent: 'center',
           }}
         >
-          <X size={26} color="#FFFFFF" />
+          <IconX size={26} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -239,9 +239,9 @@ export default function VoiceCaptureScreen() {
             }`}
           >
             {isRecording ? (
-              <Square size={36} color="#fff" fill="#fff" />
+              <IconSquare size={36} color="#fff" fill="#fff" />
             ) : (
-              <Mic size={40} color="#fff" />
+              <IconMicrophone size={40} color="#fff" />
             )}
           </TouchableOpacity>
         )}
@@ -253,9 +253,9 @@ export default function VoiceCaptureScreen() {
             className="w-24 h-24 rounded-full bg-accent items-center justify-center"
           >
             {isPlaying ? (
-              <Pause size={36} color="#fff" />
+              <IconPlayerPause size={36} color="#fff" />
             ) : (
-              <Play size={36} color="#fff" style={{ marginLeft: 4 }} />
+              <IconPlayerPlay size={36} color="#fff" style={{ marginLeft: 4 }} />
             )}
           </TouchableOpacity>
         )}
