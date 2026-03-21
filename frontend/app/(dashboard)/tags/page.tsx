@@ -665,8 +665,8 @@ export default function TagsPage() {
               <Table style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.type + colWidths.alias + 96, minWidth: colWidths.name + colWidths.type + colWidths.alias + 96 }}>
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900">
                   <TableRow className="border-zinc-800 hover:bg-transparent">
-                    <FilterableHead label="Nome" width={colWidths.name} onResize={(w) => setColWidth('name', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={!!nameFilter} filterOpen={openFilter === 'name'} onToggleFilter={() => toggleFilter('name')} headRef={nameHeadRef} />
-                    <FilterableHead label="Tipo" width={colWidths.type} onResize={(w) => setColWidth('type', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={typeFilter.size > 0} filterOpen={openFilter === 'type'} onToggleFilter={() => toggleFilter('type')} headRef={typeHeadRef} />
+                    <FilterableHead label="Name" width={colWidths.name} onResize={(w) => setColWidth('name', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={!!nameFilter} filterOpen={openFilter === 'name'} onToggleFilter={() => toggleFilter('name')} headRef={nameHeadRef} />
+                    <FilterableHead label="Type" width={colWidths.type} onResize={(w) => setColWidth('type', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={typeFilter.size > 0} filterOpen={openFilter === 'type'} onToggleFilter={() => toggleFilter('type')} headRef={typeHeadRef} />
                     <FilterableHead label="Alias" width={colWidths.alias} onResize={(w) => setColWidth('alias', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={!!aliasFilter} filterOpen={openFilter === 'alias'} onToggleFilter={() => toggleFilter('alias')} headRef={aliasHeadRef} />
 
                     <TableHead className="border-r border-zinc-800" style={{ width: 96, minWidth: 96, maxWidth: 96 }} />

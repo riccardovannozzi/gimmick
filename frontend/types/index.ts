@@ -25,6 +25,9 @@ export interface Tile {
   action_type_confidence?: number;
   action_type_reviewed?: boolean;
   is_completed?: boolean;
+  is_cta?: boolean;
+  color?: string;
+  sort_order?: number;
   created_at: string;
   updated_at: string;
   spark_count?: number;

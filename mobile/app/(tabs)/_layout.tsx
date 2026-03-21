@@ -1,12 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Tabs, usePathname, useRouter } from 'expo-router';
-import { IconHome, IconLayoutGrid, IconSettings } from '@tabler/icons-react-native';
+import { IconHome, IconLayoutGrid, IconSettings, IconTimeline } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/lib/theme';
 
 const tabs = [
   { name: 'index', path: '/', label: 'Home', icon: IconHome },
+  { name: 'tileview', path: '/tileview', label: 'Timeline', icon: IconTimeline },
   { name: 'history', path: '/history', label: 'Tiles', icon: IconLayoutGrid },
   { name: 'settings', path: '/settings', label: 'Settings', icon: IconSettings },
 ] as const;
@@ -84,6 +85,7 @@ export default function TabsLayout() {
         }}
       >
         <Tabs.Screen name="index" />
+        <Tabs.Screen name="tileview" />
         <Tabs.Screen name="history" />
         <Tabs.Screen name="settings" />
       </Tabs>

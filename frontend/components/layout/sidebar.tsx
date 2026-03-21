@@ -15,6 +15,7 @@ import {
   IconLogout,
   IconRobot,
   IconTag,
+  IconTimeline,
 } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const navigation = [
   { name: 'Analytics', href: '/', icon: IconChartBar },
   { name: 'Sparks', href: '/sparks', icon: IconFileText },
   { name: 'Tiles', href: '/tiles', icon: IconLayoutGrid },
+  { name: 'Timeline', href: '/tileview', icon: IconTimeline },
   { name: 'Tags', href: '/tags', icon: IconTag },
   { name: 'Cattura', href: '/capture', icon: IconCirclePlus },
   { name: 'Calendario', href: '/calendar', icon: IconCalendar },
