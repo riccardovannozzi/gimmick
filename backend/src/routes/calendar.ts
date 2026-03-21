@@ -65,7 +65,7 @@ calendarRouter.get(
       // Fetch events (is_event=true) AND deadline tiles (action_type='deadline' with start_at)
       let query = supabaseAdmin
         .from('tiles')
-        .select('*, sparks(count), tile_tags(tag_id, tags(id, name, color))')
+        .select('*, sparks(count), tile_tags(tag_id, tags(id, name))')
         .eq('user_id', req.user!.id)
         .or('is_event.eq.true,action_type.eq.deadline')
         .not('start_at', 'is', null)

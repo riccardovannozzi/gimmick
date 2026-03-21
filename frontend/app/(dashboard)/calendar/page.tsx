@@ -173,8 +173,8 @@ export default function CalendarPage() {
   // Current visible range
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
     const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 4, 0);
     return { start: start.toISOString(), end: end.toISOString() };
   });
 
@@ -195,6 +195,7 @@ export default function CalendarPage() {
   const { data: eventsData, isLoading } = useQuery({
     queryKey: ['calendar-events', dateRange.start, dateRange.end, selectedTagId],
     queryFn: () => calendarApi.events(dateRange.start, dateRange.end, selectedTagId || undefined),
+    staleTime: 2 * 60 * 1000,
   });
 
   // Fetch tags for filter
@@ -299,11 +300,18 @@ export default function CalendarPage() {
     });
   }, [events, aiFilterIds]);
 
-  // Handle date range changes
+  // Handle date range changes — only refetch if navigating outside cached range
   const handleDatesSet = useCallback((arg: { start: Date; end: Date }) => {
-    setDateRange({
-      start: arg.start.toISOString(),
-      end: arg.end.toISOString(),
+    setDateRange((prev) => {
+      const prevStart = new Date(prev.start);
+      const prevEnd = new Date(prev.end);
+      if (arg.start >= prevStart && arg.end <= prevEnd) return prev; // still within cached range
+      // Expand range: 3 months before and after the visible range
+      const newStart = new Date(arg.start);
+      newStart.setMonth(newStart.getMonth() - 3);
+      const newEnd = new Date(arg.end);
+      newEnd.setMonth(newEnd.getMonth() + 3);
+      return { start: newStart.toISOString(), end: newEnd.toISOString() };
     });
   }, []);
 
