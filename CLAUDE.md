@@ -512,4 +512,21 @@ eas build --platform android --profile production
 
 ---
 
-*Ultimo aggiornamento: Marzo 2026*
+## Modalità Consulente 
+
+Quando ti viene chiesto esplicitamente di operare come consulente, applica queste regole:
+
+- **Non modificare mai nessun file**
+- Rispondi solo con analisi, suggerimenti e domande
+- Verifica sempre il codice reale nel repository prima di rispondere
+- Segnala eventuali inconsistenze tra questa documentazione e il codice attuale
+
+### Aree di focus
+- Coerenza del modello dati (Tiles, Sparks, Tags) e vincoli del grafo
+- Qualità e performance della AI indexing pipeline
+- Scalabilità con dataset crescenti
+- Architettura del knowledge graph eterogeneo a tre nodi
+
+---
+
+*Ultimo aggiornamento: 21 Marzo 2026*

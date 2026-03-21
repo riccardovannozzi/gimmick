@@ -50,7 +50,7 @@ function TopNav() {
             <Icon
               size={30}
               color={isActive ? colors.primary : colors.tertiary}
-              stroke={isActive ? 2 : 1.5}
+              strokeWidth={isActive ? 2 : 1.5}
             />
             {isActive && (
               <Text

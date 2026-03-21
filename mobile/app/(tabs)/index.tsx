@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { IconX, IconDeviceFloppy, IconSend, IconMicrophone, IconCamera, IconVideo, IconPhotos, IconEdit, IconPaperclip, IconSparkles, IconCheck, IconTag } from '@tabler/icons-react-native';
+import { IconX, IconDeviceFloppy, IconSend, IconMicrophone, IconCamera, IconVideo, IconPhoto, IconEdit, IconPaperclip, IconSparkles, IconCheck, IconTag } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
@@ -41,7 +41,7 @@ const buttonToSparkTypes: Record<string, SparkType[]> = {
 const captureOptions = [
   { id: 'photo', label: 'PHOTO', icon: <IconCamera />, color: captureColors.photo, bg: captureColorsBg.photo, route: '/capture/photo' },
   { id: 'video', label: 'VIDEO', icon: <IconVideo />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
-  { id: 'gallery', label: 'GALLERY', icon: <IconPhotos />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
+  { id: 'gallery', label: 'GALLERY', icon: <IconPhoto />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
   { id: 'text', label: 'TEXT', icon: <IconEdit />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
   { id: 'voice', label: 'REC', icon: <IconMicrophone />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
   { id: 'file', label: 'FILE', icon: <IconPaperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
@@ -132,7 +132,7 @@ function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferIte
               justifyContent: 'center',
             }}
           >
-            <IconX size={14} color={colors.secondary} stroke={2.5} />
+            <IconX size={14} color={colors.secondary} strokeWidth={2.5} />
           </TouchableOpacity>
         </View>
         <RNImage
@@ -191,7 +191,7 @@ function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferIte
           marginLeft: 8,
         }}
       >
-        <IconX size={14} color={colors.secondary} stroke={2.5} />
+        <IconX size={14} color={colors.secondary} strokeWidth={2.5} />
       </TouchableOpacity>
     </TouchableOpacity>
   );
@@ -426,7 +426,7 @@ export default function HomeScreen() {
               contentContainerStyle={{ paddingVertical: 8 }}
               ListEmptyComponent={
                 <View className="flex-1 items-center justify-center py-20">
-                  <IconSparkles size={48} color={colors.border} stroke={1} />
+                  <IconSparkles size={48} color={colors.border} strokeWidth={1} />
                   <Text style={{ color: colors.tertiary, fontSize: 15, marginTop: 12 }}>
                     Ask me anything
                   </Text>
@@ -479,7 +479,7 @@ export default function HomeScreen() {
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
                         size: 42,
                         color: option.color,
-                        stroke: 1.4,
+                        strokeWidth: 1.4,
                       })}
                       <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
@@ -534,7 +534,7 @@ export default function HomeScreen() {
                       {React.cloneElement(option.icon as React.ReactElement<any>, {
                         size: 42,
                         color: option.color,
-                        stroke: 1.4,
+                        strokeWidth: 1.4,
                       })}
                       <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
                         {option.label}
@@ -579,7 +579,7 @@ export default function HomeScreen() {
                     paddingVertical: 18,
                   }}
                 >
-                  <IconSparkles size={22} color="#FFFFFF" stroke={1.8} />
+                  <IconSparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
                   <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
                     ASK GIMMICK
                   </Text>
@@ -865,7 +865,7 @@ export default function HomeScreen() {
                         {TAG_TYPE_EMOJI[tag.tag_type || 'topic']} {tag.name}
                       </Text>
                       {isSelected && (
-                        <IconCheck size={18} color={colors.accent} stroke={2.5} />
+                        <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
                       )}
                     </TouchableOpacity>
                   );

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
-import { sparksApi, tilesApi, tagsApi, uploadApi } from '@/lib/api';
+import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { useTagTypes } from '@/store/tag-types-store';
 import type { TagNode, TagEdge, ActionType } from '@/types';
 
 // ─── Content filter types ───
@@ -64,6 +65,7 @@ const defaultPhysics = {
   collisionSpark: 24,
   centerStrength: 0.02,
   velocityDecay: 0.3,
+  linkWidth: 2,
 };
 
 // ─── Node / Link types ───
@@ -82,6 +84,7 @@ interface GraphNode extends d3.SimulationNodeDatum {
   usageCount?: number;
   isRoot?: boolean;
   actionType?: string;
+  tagType?: string;
 }
 
 // ACTION_TYPE_COLORS is now dynamic — loaded from useActionColors() hook inside the component
@@ -102,6 +105,7 @@ export default function GraphPage() {
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
   const ACTION_TYPE_COLORS = useActionColors();
+  const { tagTypes: tagTypeEntities, getEmoji: getTagTypeEmoji } = useTagTypes();
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -125,6 +129,13 @@ export default function GraphPage() {
   const [physics, setPhysics] = useState(defaultPhysics);
   const physicsRef = useRef(physics);
   physicsRef.current = physics;
+
+  // Load saved physics from settings
+  useEffect(() => {
+    settingsApi.get<typeof defaultPhysics>('graph_physics').then((res) => {
+      if (res.data) setPhysics({ ...defaultPhysics, ...res.data });
+    }).catch(() => {});
+  }, []);
 
   // Toolbar mode
   const [toolbarMode, setToolbarMode] = useState<'navigate' | 'edit'>('navigate');
@@ -423,6 +434,12 @@ export default function GraphPage() {
         if (tagNodes.length === 0 && filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) return;
       }
 
+      // Build tag_type lookup from allTags
+      const tagTypeMap = new Map<string, string>();
+      for (const tag of allTags) {
+        tagTypeMap.set(tag.id, tag.tag_type || 'topic');
+      }
+
       // Tag nodes from tagGraph (include GIMMICK root as a regular tag node)
       const tagNodeMap = new Map<string, GraphNode>();
       let gimmickNodeId: string | null = null;
@@ -436,6 +453,7 @@ export default function GraphPage() {
           usageCount: t.usage_count || 0,
           isRoot: t.is_root || false,
           tileCount: 0,
+          tagType: tagTypeMap.get(t.id) || 'topic',
         };
         tagNodeMap.set(t.id, node);
         nodes.push(node);
@@ -452,6 +470,7 @@ export default function GraphPage() {
             color: TAG_NODE_COLOR,
             tagId: tag.id,
             tileCount: tag.tile_ids.length,
+            tagType: tagTypeMap.get(tag.id) || 'topic',
           };
           tagNodeMap.set(tag.id, node);
           nodes.push(node);
@@ -665,7 +684,7 @@ export default function GraphPage() {
           : (l.source as GraphNode);
         return src?.color || '#8B5CF6';
       })
-      .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
+      .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
       .attr('stroke-opacity', 0.5)
       .style('pointer-events', 'none');
 
@@ -759,10 +778,14 @@ export default function GraphPage() {
 
     // GIMMICK root tag → hexagon + bot icon
     const gimmickNodes = tagNodesG.filter((d) => d.isRoot === true);
+    // Opaque background for GIMMICK to hide edges
+    gimmickNodes.append('polygon')
+      .attr('points', hexPoints(24))
+      .attr('fill', '#0C0C0E');
     gimmickNodes.append('polygon')
       .attr('points', hexPoints(24))
       .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
-      .attr('stroke', '#FFFFFF').attr('stroke-width', 1.5)
+      .attr('stroke', '#FFFFFF').attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
     gimmickNodes.each(function () {
       const iconG = d3.select(this).append('g')
@@ -793,24 +816,69 @@ export default function GraphPage() {
       .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', '#4B5563')
       .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
 
-    // Regular tag nodes → circle with usage-based radius
+    // Build tag type emoji lookup from fetched tag type entities
+    const tagTypeEmojiMap: Record<string, string> = {};
+    for (const tt of tagTypeEntities) {
+      tagTypeEmojiMap[tt.slug] = tt.emoji;
+    }
+
+    // Regular tag nodes → circle with usage-based radius + tag type icon
     const regularTagsG = tagNodesG.filter((d) => d.isRoot !== true);
+    // Background circle (opaque) to hide edges passing under
+    regularTagsG.append('circle')
+      .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
+      .attr('fill', '#0C0C0E')
+      .style('cursor', 'pointer');
+    // Visible circle
     regularTagsG.append('circle')
       .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
       .attr('fill', (d) => d.color || '#3B82F6').attr('fill-opacity', 0.15)
-      .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 2.5)
+      .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
+    // Tag type icon via foreignObject (renders Tabler icon or emoji)
+    regularTagsG.each(function (d) {
+      const emoji = tagTypeEmojiMap[d.tagType || 'topic'] || '';
+      const g = d3.select(this);
+      const iconSize = 20;
+      if (emoji && emoji.startsWith('Icon')) {
+        // Render Tabler SVG icon via foreignObject + ReactDOM
+        const fo = g.append('foreignObject')
+          .attr('x', -iconSize / 2).attr('y', -iconSize - 2).attr('width', iconSize).attr('height', iconSize)
+          .style('pointer-events', 'none').style('overflow', 'visible');
+        const container = fo.append('xhtml:div')
+          .style('width', `${iconSize}px`).style('height', `${iconSize}px`)
+          .style('display', 'flex').style('align-items', 'center').style('justify-content', 'center');
+        // Dynamically render the Tabler icon
+        const TablerIcons = require('@tabler/icons-react');
+        const IconComp = TablerIcons[emoji];
+        if (IconComp) {
+          const React = require('react');
+          const { createRoot } = require('react-dom/client');
+          const root = createRoot(container.node());
+          root.render(React.createElement(IconComp, { size: iconSize, color: '#D1D5DB', strokeWidth: 1.5 }));
+        }
+      } else if (emoji) {
+        g.append('text')
+          .text(emoji)
+          .attr('text-anchor', 'middle').attr('dy', '-0.6em')
+          .attr('font-size', '16px').style('pointer-events', 'none');
+      }
+    });
+    // Tag name label
     regularTagsG.append('text')
       .text((d) => d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label)
-      .attr('text-anchor', 'middle').attr('dy', '-0.2em').attr('fill', '#F5F5F5')
+      .attr('text-anchor', 'middle').attr('dy', '1em').attr('fill', '#F5F5F5')
       .attr('font-size', '11px').attr('font-weight', '700').style('pointer-events', 'none');
-    regularTagsG.append('text')
-      .text((d) => `${d.usageCount || d.tileCount || 0} tile`)
-      .attr('text-anchor', 'middle').attr('dy', '1.2em').attr('fill', '#6B7280')
-      .attr('font-size', '9px').style('pointer-events', 'none');
 
     // Tile nodes (square shape)
     const tileSize = (d: GraphNode) => 2 * (18 + Math.min((d.sparkCount || 0) * 2, 16));
+    // Opaque background to hide edges
+    node.filter((d) => d.type === 'tile')
+      .append('rect')
+      .attr('width', tileSize).attr('height', tileSize)
+      .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
+      .attr('rx', 6).attr('ry', 6)
+      .attr('fill', '#0C0C0E');
     node.filter((d) => d.type === 'tile')
       .append('rect')
       .attr('width', tileSize).attr('height', tileSize)
@@ -818,18 +886,21 @@ export default function GraphPage() {
       .attr('rx', 6).attr('ry', 6)
       .attr('fill', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF').attr('fill-opacity', 0.2)
       .attr('stroke', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF')
-      .attr('stroke-width', 2).style('filter', 'url(#glow)').style('cursor', 'pointer');
+      .attr('stroke-width', 1).style('filter', 'url(#glow)').style('cursor', 'pointer');
     node.filter((d) => d.type === 'tile')
       .append('text').text((d) => d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label)
       .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', '#F5F5F5')
       .attr('font-size', '11px').attr('font-weight', '600').style('pointer-events', 'none');
 
-    // Spark nodes
+    // Spark nodes — opaque background + visible circle
+    node.filter((d) => d.type === 'spark')
+      .append('circle').attr('r', 12)
+      .attr('fill', '#0C0C0E');
     node.filter((d) => d.type === 'spark')
       .append('circle').attr('r', 12)
       .attr('fill', (d) => typeColors[d.sparkType || ''] || '#6B7280').attr('fill-opacity', 0.3)
       .attr('stroke', (d) => typeColors[d.sparkType || ''] || '#6B7280')
-      .attr('stroke-width', 1.5).style('cursor', 'pointer');
+      .attr('stroke-width', 0.8).style('cursor', 'pointer');
     node.filter((d) => d.type === 'spark')
       .append('text')
       .text((d) => {
@@ -972,13 +1043,13 @@ export default function GraphPage() {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 2);
+      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 1.5);
       linkCo.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
       }).attr('stroke-opacity', 0.9).attr('stroke', d.color || '#528BFF')
-        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)));
+        .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)));
       linkCoLabel.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
@@ -1010,7 +1081,7 @@ export default function GraphPage() {
             : (l.source as GraphNode);
           return src?.color || '#8B5CF6';
         })
-        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
+        .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
         .attr('stroke-opacity', 0.5);
       linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
     };
@@ -1053,7 +1124,7 @@ export default function GraphPage() {
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1391,12 +1462,24 @@ export default function GraphPage() {
                     <IconAdjustmentsHorizontal className="h-3.5 w-3.5 text-blue-400" />
                     Physics Console
                   </h3>
-                  <button
-                    onClick={() => setPhysics(defaultPhysics)}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
-                  >
-                    Reset
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => {
+                        settingsApi.set('graph_physics', physics).then(() => {
+                          toast.success('Configurazione salvata');
+                        }).catch(() => toast.error('Errore nel salvataggio'));
+                      }}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                    >
+                      Salva
+                    </button>
+                    <button
+                      onClick={() => setPhysics(defaultPhysics)}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 {/* Charge */}
@@ -1405,7 +1488,7 @@ export default function GraphPage() {
                   {([
                     ['chargeTag', 'Tag', -800, 0],
                     ['chargeTile', 'Tile', -600, 0],
-                    ['chargeSpark', 'Spark', -400, 0],
+                    ['chargeSpark', 'Spark', -400, 100],
                     ['chargeMax', 'Max dist', 200, 1500],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
@@ -1428,7 +1511,7 @@ export default function GraphPage() {
                   {([
                     ['linkCoDist', 'Co-occ', 50, 500],
                     ['linkTagTile', 'Tag→Tile', 40, 300],
-                    ['linkTileSpark', 'Tile→Spark', 20, 200],
+                    ['linkTileSpark', 'Tile→Spark', 0, 200],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
@@ -1471,7 +1554,7 @@ export default function GraphPage() {
                   {([
                     ['collisionTag', 'Tag', 10, 100],
                     ['collisionTile', 'Tile', 10, 100],
-                    ['collisionSpark', 'Spark', 5, 60],
+                    ['collisionSpark', 'Spark', 0, 60],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
@@ -1493,6 +1576,7 @@ export default function GraphPage() {
                   {([
                     ['centerStrength', 'Centro', 0, 0.1],
                     ['velocityDecay', 'Friction', 0.1, 0.8],
+                    ['linkWidth', 'Archi', 0.5, 6],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>

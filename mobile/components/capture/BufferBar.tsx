@@ -51,9 +51,9 @@ function getItemIcon(type: SparkType, size = 20) {
     case 'audio_recording':
       return <NiMicrophone width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'file':
-      return <IconPaperclip size={size} color={color} stroke={1.8} />;
+      return <IconPaperclip size={size} color={color} strokeWidth={1.8} />;
     case 'photo':
-      return <IconCamera size={size} color={color} stroke={1.8} />;
+      return <IconCamera size={size} color={color} strokeWidth={1.8} />;
     case 'video':
       return <NiCameraReels width={size} height={size} stroke={color} strokeWidth={1.8} />;
     case 'image':
@@ -142,7 +142,7 @@ function BufferThumbnail({
             {label}
           </Text>
           <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <IconX size={18} color={colors.secondary} stroke={2} />
+            <IconX size={18} color={colors.secondary} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -178,7 +178,7 @@ function BufferThumbnail({
             {label}
           </Text>
           <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <IconX size={18} color={colors.secondary} stroke={2} />
+            <IconX size={18} color={colors.secondary} strokeWidth={2} />
           </TouchableOpacity>
         </View>
 
@@ -227,7 +227,7 @@ function BufferThumbnail({
           {label}
         </Text>
         <TouchableOpacity onPress={handleRemove} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <IconX size={18} color={colors.secondary} stroke={2} />
+          <IconX size={18} color={colors.secondary} strokeWidth={2} />
         </TouchableOpacity>
       </View>
 
