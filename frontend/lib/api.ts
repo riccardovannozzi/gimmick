@@ -453,14 +453,14 @@ export const tagTypesApi = {
     return apiRequest<TagTypeEntity[]>('/api/tag-types');
   },
 
-  async create(data: { name: string; emoji?: string }) {
+  async create(data: { name: string; emoji?: string; color?: string }) {
     return apiRequest<TagTypeEntity>('/api/tag-types', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async update(id: string, updates: { name?: string; emoji?: string; sort_order?: number }) {
+  async update(id: string, updates: { name?: string; emoji?: string; color?: string | null; sort_order?: number }) {
     return apiRequest<TagTypeEntity>(`/api/tag-types/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

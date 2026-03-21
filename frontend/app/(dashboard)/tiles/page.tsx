@@ -4,6 +4,7 @@ import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'rea
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -26,6 +27,15 @@ import { SparkViewer } from '@/components/spark/spark-viewer';
 import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { useTagTypes } from '@/store/tag-types-store';
+
+// Helper: render emoji string or Tabler icon component
+function TagTypeIcon({ emoji, size = 16 }: { emoji: string; size?: number }) {
+  if (emoji.startsWith('Icon')) {
+    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>)[emoji];
+    if (Comp) return <Comp size={size} className="text-zinc-300" />;
+  }
+  return <span style={{ fontSize: size * 0.8 }}>{emoji}</span>;
+}
 
 const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
   none: { icon: IconPin, label: 'Appunto' },
@@ -457,15 +467,20 @@ function TagDropdown({
   allTags: Tag[];
   open: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLDivElement | null>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const { getEmoji: getTypeEmoji, getColor: getTypeColor } = useTagTypes();
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
   const tagMutation = useMutation({
     mutationFn: async ({ tagId, action }: { tagId: string; action: 'add' | 'remove' }) => {
       if (action === 'add') {
+        // Single-tag mode: remove all existing tags first, then add the new one
+        for (const existingTag of tileTags) {
+          await Promise.all(tileIds.map((id) => tagsApi.untagTile(existingTag.id, id)));
+        }
         return tagsApi.tagTiles(tagId, tileIds);
       } else {
         await Promise.all(tileIds.map((id) => tagsApi.untagTile(tagId, id)));
@@ -473,6 +488,7 @@ function TagDropdown({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tiles'] });
+      onClose();
     },
     onError: () => toast.error('Errore aggiornamento tag'),
   });
@@ -528,7 +544,7 @@ function TagDropdown({
           return (
             <button
               key={tag.id}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-800 transition-colors"
+              className={cn('flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors', isAssigned && 'bg-zinc-800')}
               onClick={(e) => {
                 e.stopPropagation();
                 tagMutation.mutate({ tagId: tag.id, action: isAssigned ? 'remove' : 'add' });
@@ -536,10 +552,11 @@ function TagDropdown({
             >
               <div
                 className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: '#94A3B8' }}
+                style={{ backgroundColor: getTypeColor(tag.tag_type || 'topic') || '#94A3B8' }}
               />
+              <TagTypeIcon emoji={getTypeEmoji(tag.tag_type || 'topic')} size={14} />
               <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-              {isAssigned && <IconCheck className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
+              {isAssigned && <IconCheck className="h-3 w-3 text-blue-400 shrink-0" />}
             </button>
           );
         })
@@ -695,6 +712,7 @@ function TileRow({
   onActionTypeChange,
   onToggleCompleted,
   getEmoji,
+  getColor,
 }: {
   tile: Tile;
   selected: boolean;
@@ -707,9 +725,10 @@ function TileRow({
   onActionTypeChange: (tileId: string, data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
   onToggleCompleted: (tileId: string, completed: boolean) => void;
   getEmoji: (slug: string) => string;
+  getColor: (slug: string) => string | undefined;
 }) {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
-  const tagCellRef = useRef<HTMLDivElement>(null);
+  const tagCellRef = useRef<HTMLTableCellElement>(null);
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
   const lastSeen = useTileNotificationStore((s) => s.lastSeen);
@@ -798,42 +817,34 @@ function TileRow({
           )}
         </TableCell>
         <TableCell
-          className="border-r border-zinc-800 overflow-hidden py-1 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+          ref={tagCellRef}
+          className="border-r border-zinc-800 overflow-visible py-1 cursor-pointer hover:bg-zinc-800/50 transition-colors"
           style={{ width: colWidths.tags, minWidth: colWidths.tags, maxWidth: colWidths.tags }}
           onClick={(e) => {
             e.stopPropagation();
             setTagDropdownOpen(!tagDropdownOpen);
           }}
         >
-          <div ref={tagCellRef} className="relative">
+          <div className="flex items-center gap-1.5">
             {tile.tags && tile.tags.length > 0 ? (
-              <div className="flex gap-1 overflow-hidden">
-                {tile.tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    className="text-xs px-1.5 py-0"
-                    style={{
-                      backgroundColor: '#94A3B820',
-                      color: '#94A3B8',
-                      borderColor: '#94A3B840',
-                    }}
-                  >
-                    {getEmoji((tag as { tag_type?: string }).tag_type || 'topic')} {tag.name}
-                  </Badge>
-                ))}
-              </div>
+              <>
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getColor((tile.tags[0] as { tag_type?: string }).tag_type || 'topic') || '#94A3B8' }} />
+                <TagTypeIcon emoji={getEmoji((tile.tags[0] as { tag_type?: string }).tag_type || 'topic')} size={13} />
+                <span className="text-xs text-zinc-300 truncate flex-1">{tile.tags[0].name}</span>
+              </>
             ) : (
-              <span className="text-zinc-600 text-sm">—</span>
+              <span className="text-zinc-600 text-xs flex-1">—</span>
             )}
-            <TagDropdown
-              tileIds={selected && selectedIds.size > 1 ? Array.from(selectedIds) : [tile.id]}
-              tileTags={tile.tags || []}
-              allTags={allTags}
-              open={tagDropdownOpen}
-              onClose={() => setTagDropdownOpen(false)}
-              anchorRef={tagCellRef}
-            />
+            <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />
           </div>
+          <TagDropdown
+            tileIds={selected && selectedIds.size > 1 ? Array.from(selectedIds) : [tile.id]}
+            tileTags={tile.tags || []}
+            allTags={allTags}
+            open={tagDropdownOpen}
+            onClose={() => setTagDropdownOpen(false)}
+            anchorRef={tagCellRef}
+          />
         </TableCell>
         <TableCell className="text-zinc-400 text-xs border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
@@ -859,7 +870,7 @@ function TileRow({
 export default function TilesPage() {
   const queryClient = useQueryClient();
   const actionColors = useActionColors();
-  const { getEmoji } = useTagTypes();
+  const { getEmoji, getColor } = useTagTypes();
   const [page, setPage] = useState(1);
   const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
@@ -1220,6 +1231,7 @@ export default function TilesPage() {
                       onActionTypeChange={handleActionTypeChange}
                       onToggleCompleted={handleToggleCompleted}
                       getEmoji={getEmoji}
+                      getColor={getColor}
                     />
                   ))}
                 </TableBody>

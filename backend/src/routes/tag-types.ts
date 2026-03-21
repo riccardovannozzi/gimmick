@@ -12,11 +12,13 @@ tagTypesRouter.use(authenticate);
 const createSchema = z.object({
   name: z.string().min(1).max(30),
   emoji: z.string().min(1).max(50).default('IconTag'),
+  color: z.string().max(7).optional(),
 });
 
 const updateSchema = z.object({
   name: z.string().min(1).max(30).optional(),
   emoji: z.string().min(1).max(50).optional(),
+  color: z.string().max(7).optional().nullable(),
   sort_order: z.number().int().optional(),
 });
 
@@ -47,7 +49,7 @@ tagTypesRouter.post(
   validate(createSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { name, emoji } = req.body;
+      const { name, emoji, color } = req.body;
       const slug = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
 
       // Get next sort_order
@@ -62,7 +64,7 @@ tagTypesRouter.post(
 
       const { data, error } = await supabaseAdmin
         .from('tag_types')
-        .insert({ user_id: req.user!.id, slug, name, emoji, sort_order: nextOrder, is_default: false })
+        .insert({ user_id: req.user!.id, slug, name, emoji, color: color || null, sort_order: nextOrder, is_default: false })
         .select()
         .single();
 

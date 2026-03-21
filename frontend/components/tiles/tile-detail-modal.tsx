@@ -211,12 +211,11 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                   <button
                     key={tag.id}
                     onClick={() => {
-                      setSelectedTagIds((prev) => {
-                        const next = new Set(prev);
-                        if (isSelected) next.delete(tag.id);
-                        else next.add(tag.id);
-                        return next;
-                      });
+                      if (isSelected) {
+                        setSelectedTagIds(new Set());
+                      } else {
+                        setSelectedTagIds(new Set([tag.id]));
+                      }
                     }}
                     className={cn(
                       'px-2 py-0.5 rounded-full text-xs border transition-all',

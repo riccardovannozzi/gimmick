@@ -30,6 +30,7 @@ import {
 import { cn } from '@/lib/utils';
 import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
+import { GIMMICK_PALETTE } from '@/lib/palette';
 import type { Tag, TagTypeEntity } from '@/types';
 
 // ─── Filter Popup ────────────────────────────────────────────
@@ -147,6 +148,48 @@ function FilterableHead({
   );
 }
 
+// ─── Color Dot Picker (opens Dialog with palette grid) ───────
+function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="w-9 h-9 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex items-center justify-center shrink-0"
+        style={{ backgroundColor: `${value}20` }}
+      >
+        <div className="w-5 h-5 rounded-full" style={{ backgroundColor: value }} />
+      </button>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-[220px] p-4">
+          <DialogHeader>
+            <DialogTitle className="text-white text-sm">Scegli colore</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-5 gap-[2px]">
+            {GIMMICK_PALETTE.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                title={c.name}
+                onClick={() => { onChange(c.hex); setOpen(false); }}
+                className="w-9 h-9 rounded-sm transition-transform hover:scale-110"
+                style={{
+                  backgroundColor: c.hex,
+                  outline: value === c.hex ? '2px solid #fff' : 'none',
+                  outlineOffset: '-2px',
+                }}
+              />
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 // ─── Tag Type Picker (reusable pills) ────────────────────────
 function TagTypePills({
   value,
@@ -203,12 +246,14 @@ function TagTypesModal({
   const { tagTypes } = useTagTypes();
   const [newName, setNewName] = useState('');
   const [newEmoji, setNewEmoji] = useState('IconTag');
+  const [newColor, setNewColor] = useState('#94A3B8');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editEmoji, setEditEmoji] = useState('');
+  const [editColor, setEditColor] = useState('');
 
   const createMutation = useMutation({
-    mutationFn: async (data: { name: string; emoji?: string }) => {
+    mutationFn: async (data: { name: string; emoji?: string; color?: string }) => {
       const res = await tagTypesApi.create(data);
       if (!res.success) throw new Error(res.error || 'Errore');
       return res;
@@ -217,13 +262,14 @@ function TagTypesModal({
       queryClient.invalidateQueries({ queryKey: ['tag-types'] });
       setNewName('');
       setNewEmoji('IconTag');
+      setNewColor('#94A3B8');
       toast.success('Tipo creato');
     },
     onError: (e: Error) => toast.error(e.message || 'Errore nella creazione'),
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; emoji?: string } }) => {
+    mutationFn: async ({ id, updates }: { id: string; updates: { name?: string; emoji?: string; color?: string } }) => {
       const res = await tagTypesApi.update(id, updates);
       if (!res.success) throw new Error(res.error || 'Errore');
       return res;
@@ -252,7 +298,7 @@ function TagTypesModal({
   const handleCreate = () => {
     const name = newName.trim();
     if (!name) return;
-    createMutation.mutate({ name, emoji: newEmoji });
+    createMutation.mutate({ name, emoji: newEmoji, color: newColor });
   };
 
   return (
@@ -270,6 +316,10 @@ function TagTypesModal({
           <div>
             <Label className="text-zinc-500 text-[11px]">Icona</Label>
             <IconPicker value={newEmoji} onChange={setNewEmoji} />
+          </div>
+          <div>
+            <Label className="text-zinc-500 text-[11px]">Colore</Label>
+            <ColorDotPicker value={newColor} onChange={setNewColor} />
           </div>
           <div className="flex-1">
             <Label className="text-zinc-500 text-[11px]">Nome</Label>
@@ -298,11 +348,12 @@ function TagTypesModal({
               {editingId === tt.id ? (
                 <div className="flex items-center gap-2">
                   <IconPicker value={editEmoji} onChange={setEditEmoji} />
+                  <ColorDotPicker value={editColor} onChange={setEditColor} />
                   <Input
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     onKeyDown={(e) => {
-                      if (e.key === 'Enter') updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji } });
+                      if (e.key === 'Enter') updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } });
                       if (e.key === 'Escape') setEditingId(null);
                     }}
                     className="h-7 flex-1 bg-zinc-700 border-zinc-600 text-white text-sm"
@@ -312,7 +363,7 @@ function TagTypesModal({
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 text-green-400 hover:text-green-300 shrink-0"
-                    onClick={() => updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji } })}
+                    onClick={() => updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } })}
                   >
                     <IconCheck className="h-3.5 w-3.5" />
                   </Button>
@@ -328,6 +379,7 @@ function TagTypesModal({
               ) : (
                 <div className="flex items-center gap-2">
                   <span className="w-8 text-center flex items-center justify-center"><TagTypeIcon emoji={tt.emoji} size={18} /></span>
+                  <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: tt.color || '#94A3B8' }} />
                   <span className="text-sm text-white flex-1">{tt.name}</span>
                   <Button
                     variant="ghost"
@@ -337,6 +389,7 @@ function TagTypesModal({
                       setEditingId(tt.id);
                       setEditName(tt.name);
                       setEditEmoji(tt.emoji);
+                      setEditColor(tt.color || '#94A3B8');
                     }}
                   >
                     <IconPencil className="h-3.5 w-3.5" />
@@ -362,7 +415,7 @@ function TagTypesModal({
 // ─── Main Tags Page ──────────────────────────────────────────
 export default function TagsPage() {
   const queryClient = useQueryClient();
-  const { tagTypes, getEmoji, getName } = useTagTypes();
+  const { tagTypes, getEmoji, getName, getColor } = useTagTypes();
   const [createOpen, setCreateOpen] = useState(false);
   const [typesOpen, setTypesOpen] = useState(false);
   const [newTagName, setNewTagName] = useState('');
@@ -378,7 +431,7 @@ export default function TagsPage() {
   const [aliasPopupPos, setAliasPopupPos] = useState({ top: 0, left: 0 });
 
   // Column widths (resizable)
-  const [colWidths, setColWidths] = useState({ type: 80, name: 200, alias: 200 });
+  const [colWidths, setColWidths] = useState({ type: 200, name: 200, alias: 200 });
   const setColWidth = useCallback(
     (col: keyof typeof colWidths, w: number) => setColWidths((prev) => ({ ...prev, [col]: w })),
     []
@@ -656,7 +709,8 @@ export default function TagsPage() {
                           startEditType(tag, e.currentTarget);
                         }}
                       >
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getColor(tag.tag_type || 'topic') || '#94A3B8' }} />
                           <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} />
                           <span className="text-xs text-zinc-400 truncate flex-1">{getName(tag.tag_type || 'topic')}</span>
                           {!tag.is_root && <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />}
@@ -769,6 +823,7 @@ export default function TagsPage() {
                 )}
                 onClick={() => commitType(editingCell.id, t.slug)}
               >
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.color || '#94A3B8' }} />
                 <TagTypeIcon emoji={t.emoji} size={14} />
                 <span className="text-zinc-300 flex-1">{t.name}</span>
                 {isActive && <IconCheck className="h-3 w-3 text-blue-400" />}

@@ -113,6 +113,7 @@ export interface TagTypeEntity {
   slug: string;
   name: string;
   emoji: string;
+  color?: string;
   sort_order: number;
   is_default: boolean;
   created_at: string;

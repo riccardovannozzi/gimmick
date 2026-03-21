@@ -24,5 +24,9 @@ export function useTagTypes() {
     return tagTypes.find((t) => t.slug === slug)?.name ?? slug;
   };
 
-  return { tagTypes, getEmoji, getName, isLoading };
+  const getColor = (slug: string): string | undefined => {
+    return tagTypes.find((t) => t.slug === slug)?.color ?? undefined;
+  };
+
+  return { tagTypes, getEmoji, getName, getColor, isLoading };
 }
