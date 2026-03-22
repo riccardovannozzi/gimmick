@@ -40,6 +40,10 @@ function formatDay(dateStr: string): string {
   return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
 }
 
+function isSunday(dateStr: string): boolean {
+  return new Date(dateStr).getDay() === 0;
+}
+
 function formatTime(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
@@ -866,6 +870,7 @@ function TimelineBands({
   onTileClick,
   selectedTagIds,
   resolveShape,
+  containerHeight,
 }: {
   events: Tile[];
   deadlines: Tile[];
@@ -875,6 +880,7 @@ function TimelineBands({
   onTileClick?: (id: string) => void;
   selectedTagIds?: Set<string>;
   resolveShape: (tile: Tile) => PatternShape;
+  containerHeight?: number;
 }) {
   const queryClient = useQueryClient();
   const days = useMemo(() => generateDays(30, 60), []);
@@ -920,7 +926,6 @@ function TimelineBands({
   }, [dragTileId, allTiles, moveMutation]);
 
   const TILE_FULL = 96;
-  const TILE_HALF = 48;
 
   const renderTile = (tile: Tile, type: 'event' | 'deadline', tileSize: number = TILE_FULL) => {
     const tileColor = getTagColor(tile);
@@ -998,70 +1003,97 @@ function TimelineBands({
         </div>
       </div>
 
-      <div ref={scrollRef} className="overflow-x-auto">
-        <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
-          {/* Date + tiles rows */}
-          <div className="flex">
-            {days.map((day) => {
-              const todayFlag = isToday(day);
-              const isDragOver = overDay === day && dragTileId !== null;
-              const eventTiles = groupedEvents[day] || [];
-              const deadlineTiles = groupedDeadlines[day] || [];
-              const dayOfMonth = getDayOfMonth(day);
-              const isFirstOfMonth = dayOfMonth === 1;
+      {(() => {
+        const GAP = 2;
+        const HEADER_H = 44; // month row + date row approx
+        // Each band gets half the remaining height after headers
+        const bandH = containerHeight ? Math.max(TILE_FULL + 4, Math.floor((containerHeight - HEADER_H) / 2)) : TILE_FULL + 4;
+        const rowsPerBand = Math.max(1, Math.floor(bandH / (TILE_FULL + GAP)));
 
-              // Calculate tile size and column width
-              // 1 tile → 96px full, 2-4 tiles → 48px in 2×2 grid, 5+ → 48px expand width
-              const maxTiles = Math.max(eventTiles.length, deadlineTiles.length);
-              const tileSize = maxTiles <= 1 ? TILE_FULL : TILE_HALF;
-              const gap = 2;
-              let colWidth: number;
-              if (maxTiles <= 1) colWidth = TILE_FULL + 4;
-              else if (maxTiles <= 4) colWidth = 2 * (TILE_HALF + gap) + 2; // 2 columns grid
-              else colWidth = Math.ceil(maxTiles / 2) * (TILE_HALF + gap) + 2; // expand
-              colWidth = Math.max(colWidth, COL_W);
+        // Precalculate column widths based on tiles and available rows
+        const colWidths = days.map((day) => {
+          const ev = (groupedEvents[day] || []).length;
+          const dl = (groupedDeadlines[day] || []).length;
+          const maxT = Math.max(ev, dl);
+          const cols = Math.ceil(maxT / rowsPerBand);
+          return Math.max(COL_W, cols * (TILE_FULL + GAP) + 4);
+        });
 
-              return (
-                <div
-                  key={day}
-                  ref={todayFlag ? todayRef : undefined}
-                  className={cn(
-                    'flex flex-col shrink-0 transition-colors',
-                    isDragOver && 'bg-blue-500/10 ring-1 ring-blue-500/30 rounded-sm',
-                    isFirstOfMonth && 'border-l border-zinc-700'
-                  )}
-                  style={{ width: colWidth, minWidth: COL_W }}
-                  onDragOver={(e) => { e.preventDefault(); setOverDay(day); }}
-                  onDragLeave={() => setOverDay(null)}
-                  onDrop={(e) => { e.preventDefault(); handleDrop(day); }}
-                >
-                  {/* Month label on first day */}
-                  {isFirstOfMonth && (
-                    <div className="text-[9px] text-zinc-400 font-semibold capitalize text-center py-0.5 border-b border-zinc-700 bg-zinc-900/50">
-                      {getMonthLabel(day)}
+        // Build month spans with accumulated widths
+        const monthSpans: { label: string; width: number }[] = [];
+        let curMonth = '';
+        days.forEach((day, i) => {
+          const m = getMonthLabel(day);
+          if (m !== curMonth) {
+            monthSpans.push({ label: m, width: colWidths[i] });
+            curMonth = m;
+          } else {
+            monthSpans[monthSpans.length - 1].width += colWidths[i];
+          }
+        });
+
+        return (
+          <div ref={scrollRef} className="overflow-x-auto">
+            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+              {/* Month row */}
+              <div className="flex">
+                {monthSpans.map((span, i) => (
+                  <div
+                    key={`m-${i}`}
+                    className="text-[9px] text-zinc-400 font-semibold capitalize text-center py-0.5 border-b border-zinc-700"
+                    style={{ width: span.width }}
+                  >
+                    {span.label}
+                  </div>
+                ))}
+              </div>
+
+              {/* Date + tiles rows */}
+              <div className="flex">
+                {days.map((day, i) => {
+                  const todayFlag = isToday(day);
+                  const isDragOver = overDay === day && dragTileId !== null;
+                  const eventTiles = groupedEvents[day] || [];
+                  const deadlineTiles = groupedDeadlines[day] || [];
+                  const isFirstOfMonth = getDayOfMonth(day) === 1;
+
+                  return (
+                    <div
+                      key={day}
+                      ref={todayFlag ? todayRef : undefined}
+                      className={cn(
+                        'flex flex-col shrink-0 transition-colors',
+                        isDragOver && 'bg-blue-500/10 ring-1 ring-blue-500/30 rounded-sm',
+                        isFirstOfMonth && 'border-l border-zinc-700'
+                      )}
+                      style={{ width: colWidths[i], minWidth: COL_W }}
+                      onDragOver={(e) => { e.preventDefault(); setOverDay(day); }}
+                      onDragLeave={() => setOverDay(null)}
+                      onDrop={(e) => { e.preventDefault(); handleDrop(day); }}
+                    >
+                      {/* Date header */}
+                      <div className={cn(
+                        'text-[10px] uppercase tracking-wider text-center px-1 py-1 border-b',
+                        todayFlag ? 'text-white font-semibold border-blue-500 bg-blue-500/10' : isSunday(day) ? 'text-red-400 border-zinc-800' : 'text-zinc-500 border-zinc-800'
+                      )}>
+                        {formatDay(day)}
+                      </div>
+                      {/* Events row */}
+                      <div className="flex flex-wrap content-start items-start border-b border-zinc-800/50 p-0.5 overflow-hidden" style={{ height: bandH, gap: GAP }}>
+                        {eventTiles.map((t) => renderTile(t, 'event'))}
+                      </div>
+                      {/* Deadlines row */}
+                      <div className="flex flex-wrap content-start items-start p-0.5 overflow-hidden" style={{ height: bandH, gap: GAP }}>
+                        {deadlineTiles.map((t) => renderTile(t, 'deadline'))}
+                      </div>
                     </div>
-                  )}
-                  {/* Date header */}
-                  <div className={cn(
-                    'text-[10px] uppercase tracking-wider text-center px-1 py-1 border-b',
-                    todayFlag ? 'text-white font-semibold border-blue-500 bg-blue-500/10' : 'text-zinc-500 border-zinc-800'
-                  )}>
-                    {formatDay(day)}
-                  </div>
-                  {/* Events row — fixed height, wraps into grid */}
-                  <div className="flex flex-wrap content-start items-start border-b border-zinc-800/50 p-0.5 overflow-hidden" style={{ height: TILE_FULL + 4, gap }}>
-                    {eventTiles.map((t) => renderTile(t, 'event', tileSize))}
-                  </div>
-                  {/* Deadlines row — fixed height, wraps into grid */}
-                  <div className="flex flex-wrap content-start items-start p-0.5 overflow-hidden" style={{ height: TILE_FULL + 4, gap }}>
-                    {deadlineTiles.map((t) => renderTile(t, 'deadline', tileSize))}
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1079,6 +1111,24 @@ export default function TileViewPage() {
   const { doneShape, ctaShape, getActionTypeShape } = usePatterns();
   const [splitPercent, setSplitPercent] = useState(50);
   const splitDragging = useRef(false);
+  // Height in px for the timeline section. Default: 2 rows of tiles (96*2) + headers (~44) + padding
+  const [timelineSectionH, setTimelineSectionH] = useState(240);
+  const vSplitDragging = useRef(false);
+  const vContainerRef = useRef<HTMLDivElement>(null);
+  const [timelineHeight, setTimelineHeight] = useState(0);
+  const timelineRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = timelineRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setTimelineHeight(entry.contentRect.height);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -1139,15 +1189,15 @@ export default function TileViewPage() {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Main content */}
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-hidden flex flex-col">
           {isLoading ? (
             <div className="flex items-center justify-center h-full">
               <span className="text-zinc-400">Caricamento...</span>
             </div>
           ) : (
-            <div className="py-4 divide-y divide-zinc-800">
+            <div ref={vContainerRef} className="flex flex-col flex-1">
               {/* Events + Deadlines — shared timeline */}
-              <div className="py-4">
+              <div ref={timelineRef} className="overflow-auto shrink-0" style={{ height: timelineSectionH }}>
                 <TimelineBands
                   events={events}
                   deadlines={deadlines}
@@ -1157,11 +1207,54 @@ export default function TileViewPage() {
                   onTileClick={handleTileClick}
                   selectedTagIds={selectedTagIds}
                   resolveShape={resolveShape}
+                  containerHeight={timelineHeight}
                 />
               </div>
 
+              {/* Vertical resize handle */}
+              <div
+                className="h-px cursor-row-resize group shrink-0 relative flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  vSplitDragging.current = true;
+                  const container = vContainerRef.current;
+                  if (!container) return;
+                  const startY = e.clientY;
+                  const startH = timelineSectionH;
+                  let rafId = 0;
+                  const onMove = (ev: MouseEvent) => {
+                    if (!vSplitDragging.current) return;
+                    cancelAnimationFrame(rafId);
+                    rafId = requestAnimationFrame(() => {
+                      const diff = ev.clientY - startY;
+                      const newH = Math.max(100, startH + diff);
+                      setTimelineSectionH(newH);
+                    });
+                  };
+                  const onUp = () => {
+                    vSplitDragging.current = false;
+                    cancelAnimationFrame(rafId);
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.body.style.cursor = '';
+                    document.body.style.userSelect = '';
+                  };
+                  document.body.style.cursor = 'row-resize';
+                  document.body.style.userSelect = 'none';
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                }}
+              >
+                {/* Grip handle */}
+                <div className="absolute top-1/2 -translate-y-1/2 h-3 w-8 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors flex items-center justify-center gap-0.5 z-10">
+                  <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                  <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                  <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                </div>
+              </div>
+
               {/* Band 3 — Todos + Notes side by side */}
-              <div className="py-4 flex" style={{ minHeight: 200 }}>
+              <div className="flex flex-1 overflow-auto">
                 {/* Left: Da fare */}
                 <div style={{ width: `${splitPercent}%` }} className="overflow-hidden">
                   <BandHeader color={BAND_COLORS.todos} label="DA FARE" icon={IconChecklist} badge={`${activeTodos} attivi`} />
@@ -1170,22 +1263,28 @@ export default function TileViewPage() {
 
                 {/* Resize handle */}
                 <div
-                  className="w-1 cursor-col-resize hover:bg-blue-500/40 bg-zinc-800 transition-colors shrink-0"
+                  className="w-px cursor-col-resize group shrink-0 relative flex items-center justify-center bg-zinc-800 hover:bg-zinc-700 transition-colors"
                   onMouseDown={(e) => {
                     e.preventDefault();
                     splitDragging.current = true;
-                    const container = (e.target as HTMLElement).parentElement!;
+                    const container = (e.target as HTMLElement).closest('.flex.flex-1') as HTMLElement;
+                    if (!container) return;
                     const startX = e.clientX;
                     const startPercent = splitPercent;
                     const containerWidth = container.offsetWidth;
+                    let rafId = 0;
                     const onMove = (ev: MouseEvent) => {
                       if (!splitDragging.current) return;
-                      const diff = ev.clientX - startX;
-                      const newPercent = Math.max(20, Math.min(80, startPercent + (diff / containerWidth) * 100));
-                      setSplitPercent(newPercent);
+                      cancelAnimationFrame(rafId);
+                      rafId = requestAnimationFrame(() => {
+                        const diff = ev.clientX - startX;
+                        const newPercent = Math.max(20, Math.min(80, startPercent + (diff / containerWidth) * 100));
+                        setSplitPercent(newPercent);
+                      });
                     };
                     const onUp = () => {
                       splitDragging.current = false;
+                      cancelAnimationFrame(rafId);
                       document.removeEventListener('mousemove', onMove);
                       document.removeEventListener('mouseup', onUp);
                       document.body.style.cursor = '';
@@ -1196,7 +1295,14 @@ export default function TileViewPage() {
                     document.addEventListener('mousemove', onMove);
                     document.addEventListener('mouseup', onUp);
                   }}
-                />
+                >
+                  {/* Grip handle */}
+                  <div className="absolute left-1/2 -translate-x-1/2 w-3 h-8 rounded-full bg-zinc-700 group-hover:bg-zinc-500 transition-colors flex flex-col items-center justify-center gap-0.5">
+                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                    <div className="w-0.5 h-0.5 rounded-full bg-zinc-400" />
+                  </div>
+                </div>
 
                 {/* Right: Appunti */}
                 <div style={{ width: `${100 - splitPercent}%` }} className="overflow-hidden">
