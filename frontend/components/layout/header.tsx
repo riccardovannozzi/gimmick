@@ -6,10 +6,10 @@ import {
   IconBell,
   IconSearch,
   IconSettings,
-  IconFileText,
+  IconSparkles,
   IconLayoutGrid,
   IconTag,
-  IconTimeline,
+  IconApps,
   IconCalendar,
   IconShare,
 } from '@tabler/icons-react';
@@ -26,13 +26,13 @@ import { useAuthStore } from '@/store/auth-store';
 import { cn } from '@/lib/utils';
 
 const TAB_GROUP_DATA = [
-  { name: 'Sparks', href: '/sparks', icon: IconFileText },
+  { name: 'Sparks', href: '/sparks', icon: IconSparkles },
   { name: 'Tiles', href: '/tiles', icon: IconLayoutGrid },
   { name: 'Tags', href: '/tags', icon: IconTag },
 ];
 
 const TAB_GROUP_VIEWS = [
-  { name: 'Timeline', href: '/tileview', icon: IconTimeline },
+  { name: 'Tileview', href: '/tileview', icon: IconApps },
   { name: 'Calendar', href: '/calendar', icon: IconCalendar },
   { name: 'Graph', href: '/graph', icon: IconShare },
 ];

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar, IconBrush } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,6 +16,7 @@ import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useActionColorsQuery } from '@/store/action-colors-store';
 import { GIMMICK_PALETTE, getColorName } from '@/lib/palette';
+import { PatternsModal } from '@/components/patterns/patterns-modal';
 import type { ActionType } from '@/types';
 
 const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[] = [
@@ -62,6 +63,7 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
   const [pickerAction, setPickerAction] = useState<ActionType | null>(null);
+  const [patternsOpen, setPatternsOpen] = useState(false);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -160,6 +162,30 @@ export default function SettingsPage() {
                 </button>
               );
             })}
+          </CardContent>
+        </Card>
+
+        {/* Patterns Section */}
+        <Card className="bg-zinc-900 border-zinc-800">
+          <CardHeader>
+            <div className="flex items-center gap-3">
+              <IconBrush className="h-5 w-5 text-zinc-400" />
+              <div>
+                <CardTitle className="text-white">Patterns</CardTitle>
+                <CardDescription className="text-zinc-400">
+                  Gestisci i pattern visivi dei tile
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <Button
+              variant="outline"
+              className="border-zinc-700 text-zinc-300"
+              onClick={() => setPatternsOpen(true)}
+            >
+              Gestisci patterns
+            </Button>
           </CardContent>
         </Card>
 
@@ -268,6 +294,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Patterns modal */}
+      <PatternsModal open={patternsOpen} onOpenChange={setPatternsOpen} />
 
       {/* Color picker popup */}
       {pickerAction && createPortal(

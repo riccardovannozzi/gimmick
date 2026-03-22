@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -469,6 +469,31 @@ export const tagTypesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tag-types/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Patterns API ============
+export const patternsApi = {
+  async list() {
+    return apiRequest<Pattern[]>('/api/patterns');
+  },
+
+  async create(data: { name: string; shape: string; action_type?: string | null }) {
+    return apiRequest<Pattern>('/api/patterns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; shape?: string; action_type?: string | null }) {
+    return apiRequest<Pattern>(`/api/patterns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/patterns/${id}`, { method: 'DELETE' });
   },
 };
 

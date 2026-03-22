@@ -129,6 +129,20 @@ export interface TagGraph {
   edges: TagEdge[];
 }
 
+// Pattern shapes
+export type PatternShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows';
+
+// Pattern entity
+export interface Pattern {
+  id: string;
+  user_id: string;
+  category: 'system' | 'custom';
+  name: string;
+  shape: PatternShape;
+  action_type?: string;
+  created_at: string;
+}
+
 // Auth Tokens
 export interface AuthTokens {
   access_token: string;
