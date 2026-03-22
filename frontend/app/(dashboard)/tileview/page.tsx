@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { tilesApi, sparksApi, uploadApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
+import { useTagFilterStore } from '@/store/tag-filter-store';
 import { cn } from '@/lib/utils';
 import type { Tile, Spark } from '@/types';
 
@@ -166,6 +167,7 @@ function TileSquare({
   tagIcon,
   tagName,
   selected,
+  dimmed,
   onClick,
   sparkCounts,
 }: {
@@ -178,6 +180,7 @@ function TileSquare({
   tagIcon?: string;
   tagName?: string;
   selected?: boolean;
+  dimmed?: boolean;
   onClick?: () => void;
   sparkCounts?: Record<string, number>;
 }) {
@@ -187,9 +190,10 @@ function TileSquare({
     <div
       onClick={onClick}
       className={cn(
-        'relative w-24 h-24 rounded-sm overflow-hidden shrink-0 cursor-pointer hover:scale-105 transition-transform',
+        'relative w-24 h-24 rounded-sm overflow-hidden shrink-0 cursor-pointer hover:scale-105 transition-all duration-200',
         completed && 'opacity-50',
-        selected && 'ring-2 ring-blue-500'
+        selected && 'ring-2 ring-blue-500',
+        dimmed && !selected && 'opacity-20 saturate-0'
       )}
       style={{
         border: highlight ? '1.5px solid #E24B4A' : '0.5px solid #3f3f46',
@@ -270,6 +274,7 @@ function HorizontalBand({
   getTagInfo,
   selectedId,
   onTileClick,
+  selectedTagIds,
 }: {
   tiles: Tile[];
   dateField: 'start_at' | 'end_at';
@@ -278,6 +283,7 @@ function HorizontalBand({
   getTagInfo: (tile: Tile) => { icon: string; name: string };
   selectedId?: string | null;
   onTileClick?: (id: string) => void;
+  selectedTagIds?: Set<string>;
 }) {
   const days = useMemo(() => generateDays(14), []);
   const grouped = useMemo(() => groupByDay(tiles, dateField), [tiles, dateField]);
@@ -321,6 +327,7 @@ function HorizontalBand({
                     tagIcon={info.icon}
                     tagName={info.name}
                     selected={selectedId === tile.id}
+                    dimmed={isTileDimmed(tile, selectedTagIds || new Set())}
                     onClick={() => onTileClick?.(tile.id)}
                     sparkCounts={getSparkCounts(tile)}
                   />
@@ -342,6 +349,7 @@ function TodoBand({
   draggable = false,
   selectedId,
   onTileClick,
+  selectedTagIds,
 }: {
   tiles: Tile[];
   getTagColor: (tile: Tile) => string;
@@ -349,6 +357,7 @@ function TodoBand({
   draggable?: boolean;
   selectedId?: string | null;
   onTileClick?: (id: string) => void;
+  selectedTagIds?: Set<string>;
 }) {
   const queryClient = useQueryClient();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -435,6 +444,7 @@ function TodoBand({
                 tagIcon={info.icon}
                 tagName={info.name}
                 selected={selectedId === tile.id}
+                dimmed={isTileDimmed(tile, selectedTagIds || new Set())}
                 onClick={() => onTileClick?.(tile.id)}
                 sparkCounts={getSparkCounts(tile)}
               />
@@ -884,8 +894,15 @@ function SparkEditor({
 }
 
 // ─── Main Page ───
+function isTileDimmed(tile: Tile, selectedTagIds: Set<string>): boolean {
+  if (selectedTagIds.size === 0) return false;
+  const tileTagIds = (tile.tags || []).map((t) => t.id);
+  return !tileTagIds.some((id) => selectedTagIds.has(id));
+}
+
 export default function TileViewPage() {
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+  const { selectedTagIds } = useTagFilterStore();
   const [splitPercent, setSplitPercent] = useState(50);
   const splitDragging = useRef(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -960,6 +977,7 @@ export default function TileViewPage() {
                   getTagInfo={getTagInfo}
                   selectedId={selectedTileId}
                   onTileClick={handleTileClick}
+                  selectedTagIds={selectedTagIds}
                 />
               </div>
 
@@ -974,6 +992,7 @@ export default function TileViewPage() {
                   getTagInfo={getTagInfo}
                   selectedId={selectedTileId}
                   onTileClick={handleTileClick}
+                  selectedTagIds={selectedTagIds}
                 />
               </div>
 
@@ -982,7 +1001,7 @@ export default function TileViewPage() {
                 {/* Left: Da fare */}
                 <div style={{ width: `${splitPercent}%` }} className="overflow-hidden">
                   <BandHeader color={BAND_COLORS.todos} label="DA FARE" icon={IconChecklist} badge={`${activeTodos} attivi`} />
-                  <TodoBand tiles={todos} getTagColor={getTagColor} getTagInfo={getTagInfo} draggable selectedId={selectedTileId} onTileClick={handleTileClick} />
+                  <TodoBand tiles={todos} getTagColor={getTagColor} getTagInfo={getTagInfo} draggable selectedId={selectedTileId} onTileClick={handleTileClick} selectedTagIds={selectedTagIds} />
                 </div>
 
                 {/* Resize handle */}
@@ -1018,7 +1037,7 @@ export default function TileViewPage() {
                 {/* Right: Appunti */}
                 <div style={{ width: `${100 - splitPercent}%` }} className="overflow-hidden">
                   <BandHeader color="#64748B" label="APPUNTI" icon={IconNote} badge={`${notes.length}`} />
-                  <TodoBand tiles={notes} getTagColor={getTagColor} getTagInfo={getTagInfo} draggable selectedId={selectedTileId} onTileClick={handleTileClick} />
+                  <TodoBand tiles={notes} getTagColor={getTagColor} getTagInfo={getTagInfo} draggable selectedId={selectedTileId} onTileClick={handleTileClick} selectedTagIds={selectedTagIds} />
                 </div>
               </div>
             </div>
