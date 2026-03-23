@@ -215,7 +215,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; sort_order?: number }) {
+  async update(id: string, updates: { title?: string; description?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; pattern_id?: string | null; sort_order?: number }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

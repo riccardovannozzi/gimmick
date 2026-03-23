@@ -29,6 +29,7 @@ const updateTileSchema = z.object({
   end_at: z.string().nullable().optional(),
   is_completed: z.boolean().optional(),
   is_cta: z.boolean().optional(),
+  pattern_id: z.string().uuid().nullable().optional(),
   sort_order: z.number().int().optional(),
 });
 

@@ -38,6 +38,7 @@ interface EventModalState {
   endAt: string;
   autoDetect: boolean;
   tagIds: string[];
+  actionType: string;
 }
 
 const emptyModal: EventModalState = {
@@ -49,7 +50,15 @@ const emptyModal: EventModalState = {
   endAt: '',
   autoDetect: true,
   tagIds: [],
+  actionType: 'event',
 };
+
+const ACTION_OPTIONS = [
+  { value: 'none', label: 'Appunto' },
+  { value: 'anytime', label: 'Da fare' },
+  { value: 'deadline', label: 'Scadenza' },
+  { value: 'event', label: 'Evento' },
+] as const;
 
 function TagFilterDropdown({
   tags,
@@ -255,7 +264,7 @@ export default function CalendarPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string } }) =>
+    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string; action_type?: string } }) =>
       calendarApi.updateEvent(params.id, params.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -354,6 +363,7 @@ export default function CalendarPage() {
       endAt: end.toISOString(),
       autoDetect: false,
       tagIds: [],
+      actionType: 'event',
     });
   }, []);
 
@@ -371,6 +381,7 @@ export default function CalendarPage() {
       endAt: tile.end_at || '',
       autoDetect: false,
       tagIds: (tile.tags || []).map((t) => t.id),
+      actionType: tile.action_type || 'event',
     });
   }, [events]);
 
@@ -445,6 +456,7 @@ export default function CalendarPage() {
           description: modal.description,
           start_at: modal.startAt,
           end_at: modal.endAt,
+          action_type: modal.actionType,
         },
       });
     }
@@ -488,6 +500,7 @@ export default function CalendarPage() {
       endAt: '',
       autoDetect: true,
       tagIds: [],
+      actionType: tile.action_type || 'event',
     });
   }, []);
 
@@ -704,6 +717,28 @@ export default function CalendarPage() {
                   rows={3}
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 resize-none"
                 />
+              </div>
+
+              {/* Action type selector */}
+              <div>
+                <label className="text-xs text-zinc-400 mb-1.5 block">Tipo azione</label>
+                <div className="flex gap-1.5">
+                  {ACTION_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setModal({ ...modal, actionType: opt.value })}
+                      className={cn(
+                        'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
+                        modal.actionType === opt.value
+                          ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                          : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">

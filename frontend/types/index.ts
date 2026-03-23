@@ -26,6 +26,7 @@ export interface Tile {
   action_type_reviewed?: boolean;
   is_completed?: boolean;
   is_cta?: boolean;
+  pattern_id?: string;
   color?: string;
   sort_order?: number;
   created_at: string;

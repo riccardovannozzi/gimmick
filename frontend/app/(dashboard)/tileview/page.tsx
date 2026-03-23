@@ -447,6 +447,7 @@ function TileSidebar({
   onToggle: () => void;
 }) {
   const queryClient = useQueryClient();
+  const { customPatterns, doneShape, ctaShape } = usePatterns();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -473,8 +474,8 @@ function TileSidebar({
   }, [tile?.id, tile?.title, tile?.description]);
 
   const updateTileMutation = useMutation({
-    mutationFn: (updates: { title?: string; description?: string }) =>
-      tilesApi.update(tileId!, updates),
+    mutationFn: (updates: Record<string, unknown>) =>
+      tilesApi.update(tileId!, updates as Parameters<typeof tilesApi.update>[1]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tile-detail', tileId] });
       queryClient.invalidateQueries({ queryKey: ['tiles-tileview'] });
@@ -633,6 +634,51 @@ function TileSidebar({
                   {tile.tags.map((tag) => (
                     <span key={tag.id} className="text-[11px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">{tag.name}</span>
                   ))}
+                </div>
+              )}
+
+              {/* Done + CTA toggles */}
+              <div className="flex gap-3">
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!tile.is_completed}
+                    onChange={(e) => {
+                      updateTileMutation.mutate({ is_completed: e.target.checked });
+                    }}
+                    className="accent-green-500 w-3.5 h-3.5"
+                  />
+                  <span className="text-[11px] text-zinc-400">Done</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!tile.is_cta}
+                    onChange={(e) => {
+                      updateTileMutation.mutate({ is_cta: e.target.checked });
+                    }}
+                    className="accent-amber-500 w-3.5 h-3.5"
+                  />
+                  <span className="text-[11px] text-zinc-400">Call to action</span>
+                </label>
+              </div>
+
+              {/* Custom pattern dropdown */}
+              {customPatterns.length > 0 && (
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
+                  <select
+                    value={tile.pattern_id || ''}
+                    onChange={(e) => {
+                      updateTileMutation.mutate({ pattern_id: e.target.value || null });
+                    }}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="">Nessuno</option>
+                    {customPatterns.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 
@@ -1062,7 +1108,7 @@ function TimelineBands({
                       key={day}
                       ref={todayFlag ? todayRef : undefined}
                       className={cn(
-                        'flex flex-col shrink-0 transition-colors',
+                        'flex flex-col shrink-0 transition-colors border-r border-blue-900/40',
                         isDragOver && 'bg-blue-500/10 ring-1 ring-blue-500/30 rounded-sm',
                         isFirstOfMonth && 'border-l border-zinc-700'
                       )}
@@ -1073,8 +1119,8 @@ function TimelineBands({
                     >
                       {/* Date header */}
                       <div className={cn(
-                        'text-[10px] uppercase tracking-wider text-center px-1 py-1 border-b',
-                        todayFlag ? 'text-white font-semibold border-blue-500 bg-blue-500/10' : isSunday(day) ? 'text-red-400 border-zinc-800' : 'text-zinc-500 border-zinc-800'
+                        'text-[10px] uppercase tracking-wider text-center px-1 py-1 border-b border-r border-r-blue-900/40',
+                        todayFlag ? 'text-white font-semibold border-b-blue-500 bg-blue-500/10' : isSunday(day) ? 'text-red-400 border-b-zinc-800' : 'text-zinc-500 border-b-zinc-800'
                       )}>
                         {formatDay(day)}
                       </div>
@@ -1108,27 +1154,14 @@ function isTileDimmed(tile: Tile, selectedTagIds: Set<string>): boolean {
 export default function TileViewPage() {
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
   const { selectedTagIds } = useTagFilterStore();
-  const { doneShape, ctaShape, getActionTypeShape } = usePatterns();
+  const { doneShape, ctaShape, getActionTypeShape, customPatterns } = usePatterns();
   const [splitPercent, setSplitPercent] = useState(50);
   const splitDragging = useRef(false);
   // Height in px for the timeline section. Default: 2 rows of tiles (96*2) + headers (~44) + padding
   const [timelineSectionH, setTimelineSectionH] = useState(240);
   const vSplitDragging = useRef(false);
   const vContainerRef = useRef<HTMLDivElement>(null);
-  const [timelineHeight, setTimelineHeight] = useState(0);
   const timelineRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = timelineRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        setTimelineHeight(entry.contentRect.height);
-      }
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -1173,10 +1206,15 @@ export default function TileViewPage() {
   const activeTodos = todos.filter((t) => !t.is_completed).length;
 
   const resolveShape = useCallback((tile: Tile): PatternShape => {
+    // Priority: Done > CTA > Custom pattern > action_type default
     if (tile.is_completed) return doneShape;
     if (tile.is_cta) return ctaShape;
+    if (tile.pattern_id) {
+      const custom = customPatterns.find((p) => p.id === tile.pattern_id);
+      if (custom) return custom.shape as PatternShape;
+    }
     return getActionTypeShape(tile.action_type || 'none');
-  }, [doneShape, ctaShape, getActionTypeShape]);
+  }, [doneShape, ctaShape, customPatterns, getActionTypeShape]);
 
   const handleTileClick = useCallback((id: string) => {
     setSelectedTileId(id);
@@ -1197,7 +1235,7 @@ export default function TileViewPage() {
           ) : (
             <div ref={vContainerRef} className="flex flex-col flex-1">
               {/* Events + Deadlines — shared timeline */}
-              <div ref={timelineRef} className="overflow-auto shrink-0" style={{ height: timelineSectionH }}>
+              <div ref={timelineRef} className="overflow-x-auto overflow-y-hidden shrink-0" style={{ height: timelineSectionH }}>
                 <TimelineBands
                   events={events}
                   deadlines={deadlines}
@@ -1207,7 +1245,7 @@ export default function TileViewPage() {
                   onTileClick={handleTileClick}
                   selectedTagIds={selectedTagIds}
                   resolveShape={resolveShape}
-                  containerHeight={timelineHeight}
+                  containerHeight={timelineSectionH}
                 />
               </div>
 
