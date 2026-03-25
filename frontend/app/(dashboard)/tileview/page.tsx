@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconCalendarEvent, IconClock, IconChecklist, IconNote, IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconPhoto, IconVideo, IconMicrophone, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconCamera, IconEdit, IconPaperclip } from '@tabler/icons-react';
+import { IconCalendarEvent, IconClock, IconHourglass, IconChecklist, IconNote, IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconPhoto, IconVideo, IconMicrophone, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconCamera, IconEdit, IconPaperclip } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { tilesApi, sparksApi, uploadApi } from '@/lib/api';
@@ -909,6 +909,7 @@ function SparkEditor({
 // ─── Timeline Bands (shared date header for Events + Deadlines) ───
 function TimelineBands({
   events,
+  allDayEvents,
   deadlines,
   getTagColor,
   getTagInfo,
@@ -919,6 +920,7 @@ function TimelineBands({
   containerHeight,
 }: {
   events: Tile[];
+  allDayEvents: Tile[];
   deadlines: Tile[];
   getTagColor: (tile: Tile) => string;
   getTagInfo: (tile: Tile) => { icon: string; name: string };
@@ -931,11 +933,24 @@ function TimelineBands({
   const queryClient = useQueryClient();
   const days = useMemo(() => generateDays(30, 60), []);
   const groupedEvents = useMemo(() => groupByDay(events, 'start_at'), [events]);
+  const groupedAllDay = useMemo(() => groupByDay(allDayEvents, 'start_at'), [allDayEvents]);
   const groupedDeadlines = useMemo(() => groupByDay(deadlines, 'start_at'), [deadlines]);
   const [dragTileId, setDragTileId] = useState<string | null>(null);
   const [overDay, setOverDay] = useState<string | null>(null);
 
-  const allTiles = useMemo(() => [...events, ...deadlines], [events, deadlines]);
+  // Row order state
+  type BandKey = 'scheduled' | 'allday' | 'deadline';
+  const [bandOrder, setBandOrder] = useState<BandKey[]>(['scheduled', 'allday', 'deadline']);
+  const [dragBand, setDragBand] = useState<BandKey | null>(null);
+  const [overBand, setOverBand] = useState<BandKey | null>(null);
+
+  const BAND_LABELS: Record<BandKey, { lines: string[]; Icon: typeof IconClock }> = {
+    scheduled: { lines: ['Timed'], Icon: IconClock },
+    allday: { lines: ['All', 'day'], Icon: IconCalendarEvent },
+    deadline: { lines: ['Dead', 'line'], Icon: IconHourglass },
+  };
+
+  const allTiles = useMemo(() => [...events, ...allDayEvents, ...deadlines], [events, allDayEvents, deadlines]);
 
   const moveMutation = useMutation({
     mutationFn: async ({ tileId, newDay }: { tileId: string; newDay: string }) => {
@@ -1022,6 +1037,8 @@ function TimelineBands({
   // Auto-scroll to today on mount
   const scrollRef = useRef<HTMLDivElement>(null);
   const todayRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(0);
   useEffect(() => {
     if (todayRef.current && scrollRef.current) {
       const container = scrollRef.current;
@@ -1030,37 +1047,43 @@ function TimelineBands({
     }
   }, [days]);
 
+  // Measure header height (month row + date row) for label column alignment
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const measure = () => {
+      const scroll = scrollRef.current;
+      if (!scroll) return;
+      // First column's first child after the month row is the date+tiles flex
+      // The date header is the first child of each day column
+      const monthRow = headerRef.current;
+      const firstDayCol = scroll.querySelector('[data-day-col]');
+      const dateHeader = firstDayCol?.firstElementChild;
+      const mH = monthRow?.offsetHeight || 0;
+      const dH = (dateHeader as HTMLElement)?.offsetHeight || 0;
+      setHeaderH(mH + dH);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (headerRef.current) ro.observe(headerRef.current);
+    return () => ro.disconnect();
+  }, []);
+
   // Column width per day (minimum)
   const COL_W = 56;
 
   return (
     <div>
-      {/* Row labels on the left */}
-      <div className="flex items-center gap-4 px-3 mb-1">
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: BAND_COLORS.events }} />
-          <IconCalendarEvent className="h-3 w-3" style={{ color: BAND_COLORS.events }} />
-          <span className="text-[10px] font-bold tracking-widest text-zinc-400">EVENTI</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: BAND_COLORS.deadlines }} />
-          <IconClock className="h-3 w-3" style={{ color: BAND_COLORS.deadlines }} />
-          <span className="text-[10px] font-bold tracking-widest text-zinc-400">SCADENZE</span>
-        </div>
-      </div>
-
       {(() => {
         const GAP = 2;
-        const HEADER_H = 44; // month row + date row approx
-        // Each band gets half the remaining height after headers
-        const bandH = containerHeight ? Math.max(TILE_FULL + 4, Math.floor((containerHeight - HEADER_H) / 2)) : TILE_FULL + 4;
-        const rowsPerBand = Math.max(1, Math.floor(bandH / (TILE_FULL + GAP)));
+        const bandH = TILE_FULL + 8; // tile height + 4px margin top + 4px margin bottom
+        const rowsPerBand = 1;
 
         // Precalculate column widths based on tiles and available rows
         const colWidths = days.map((day) => {
           const ev = (groupedEvents[day] || []).length;
+          const ad = (groupedAllDay[day] || []).length;
           const dl = (groupedDeadlines[day] || []).length;
-          const maxT = Math.max(ev, dl);
+          const maxT = Math.max(ev, ad, dl);
           const cols = Math.ceil(maxT / rowsPerBand);
           return Math.max(COL_W, cols * (TILE_FULL + GAP) + 4);
         });
@@ -1078,28 +1101,82 @@ function TimelineBands({
           }
         });
 
-        return (
-          <div ref={scrollRef} className="overflow-x-auto">
-            <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
-              {/* Month row */}
-              <div className="flex">
-                {monthSpans.map((span, i) => (
-                  <div
-                    key={`m-${i}`}
-                    className="text-[9px] text-zinc-400 font-semibold capitalize text-center py-0.5 border-b border-zinc-700"
-                    style={{ width: span.width }}
-                  >
-                    {span.label}
-                  </div>
-                ))}
-              </div>
+        const LABEL_W = 56;
 
-              {/* Date + tiles rows */}
-              <div className="flex">
+        return (
+          <div className="flex h-full">
+            {/* Fixed label column */}
+            <div className="shrink-0 flex flex-col" style={{ width: LABEL_W }}>
+              {/* Spacer — measured from actual header height */}
+              <div style={{ height: headerH }} />
+              {/* Row labels — draggable to reorder */}
+              {bandOrder.map((key) => {
+                const isDragging = dragBand === key;
+                const isOver = overBand === key && dragBand !== key;
+                return (
+                  <div
+                    key={key}
+                    draggable
+                    onDragStart={() => setDragBand(key)}
+                    onDragOver={(e) => { e.preventDefault(); setOverBand(key); }}
+                    onDragLeave={() => setOverBand(null)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (dragBand && dragBand !== key) {
+                        setBandOrder((prev) => {
+                          const next = [...prev];
+                          const fromIdx = next.indexOf(dragBand);
+                          const toIdx = next.indexOf(key);
+                          next.splice(fromIdx, 1);
+                          next.splice(toIdx, 0, dragBand);
+                          return next;
+                        });
+                      }
+                      setDragBand(null);
+                      setOverBand(null);
+                    }}
+                    onDragEnd={() => { setDragBand(null); setOverBand(null); }}
+                    className={cn(
+                      'flex items-center justify-center border-b border-r border-zinc-700 text-[9px] font-semibold tracking-wider text-zinc-500 uppercase cursor-grab transition-all',
+                      isDragging && 'opacity-30',
+                      isOver && 'border-t-2 border-t-blue-500',
+                      key === 'scheduled' && 'bg-blue-950/50',
+                      key === 'allday' && 'bg-amber-950/40',
+                      key === 'deadline' && 'bg-red-950/50',
+                    )}
+                    style={{ height: bandH }}
+                  >
+                    <div className="flex flex-col items-center gap-0.5">
+                      {(() => { const { Icon } = BAND_LABELS[key]; return <Icon className="h-3.5 w-3.5 text-zinc-500" />; })()}
+                      <span className="text-center leading-tight">{BAND_LABELS[key].lines.map((line, li) => <span key={li} className="block">{line}</span>)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Scrollable timeline */}
+            <div ref={scrollRef} className="overflow-x-auto flex-1">
+              <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+                {/* Month row */}
+                <div ref={headerRef} className="flex">
+                  {monthSpans.map((span, i) => (
+                    <div
+                      key={`m-${i}`}
+                      className="text-[9px] text-zinc-400 font-semibold capitalize text-center py-0.5 border-b border-zinc-700"
+                      style={{ width: span.width }}
+                    >
+                      {span.label}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Date + tiles rows */}
+                <div className="flex">
                 {days.map((day, i) => {
                   const todayFlag = isToday(day);
                   const isDragOver = overDay === day && dragTileId !== null;
                   const eventTiles = groupedEvents[day] || [];
+                  const allDayTiles = groupedAllDay[day] || [];
                   const deadlineTiles = groupedDeadlines[day] || [];
                   const isFirstOfMonth = getDayOfMonth(day) === 1;
 
@@ -1107,6 +1184,7 @@ function TimelineBands({
                     <div
                       key={day}
                       ref={todayFlag ? todayRef : undefined}
+                      data-day-col=""
                       className={cn(
                         'flex flex-col shrink-0 transition-colors border-r border-blue-900/40',
                         isDragOver && 'bg-blue-500/10 ring-1 ring-blue-500/30 rounded-sm',
@@ -1124,19 +1202,27 @@ function TimelineBands({
                       )}>
                         {formatDay(day)}
                       </div>
-                      {/* Events row */}
-                      <div className="flex flex-wrap content-start items-start border-b border-zinc-800/50 p-0.5 overflow-hidden" style={{ height: bandH, gap: GAP }}>
-                        {eventTiles.map((t) => renderTile(t, 'event'))}
-                      </div>
-                      {/* Deadlines row */}
-                      <div className="flex flex-wrap content-start items-start p-0.5 overflow-hidden" style={{ height: bandH, gap: GAP }}>
-                        {deadlineTiles.map((t) => renderTile(t, 'deadline'))}
-                      </div>
+                      {/* Tile rows — order follows bandOrder */}
+                      {bandOrder.map((key, bandIdx) => {
+                        const tiles = key === 'scheduled' ? eventTiles : key === 'allday' ? allDayTiles : deadlineTiles;
+                        const renderType = key === 'deadline' ? 'deadline' : 'event';
+                        const isLast = bandIdx === bandOrder.length - 1;
+                        return (
+                          <div
+                            key={key}
+                            className={cn('relative flex flex-wrap content-start items-start p-0.5 overflow-hidden', !isLast && 'border-b border-zinc-800/50', key === 'deadline' && 'bg-red-950/30', key === 'scheduled' && 'bg-blue-950/30', key === 'allday' && 'bg-amber-950/20')}
+                            style={{ height: bandH, gap: GAP }}
+                          >
+                            {tiles.map((t) => renderTile(t, renderType))}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
               </div>
             </div>
+          </div>
           </div>
         );
       })()}
@@ -1158,7 +1244,7 @@ export default function TileViewPage() {
   const [splitPercent, setSplitPercent] = useState(50);
   const splitDragging = useRef(false);
   // Height in px for the timeline section. Default: 2 rows of tiles (96*2) + headers (~44) + padding
-  const [timelineSectionH, setTimelineSectionH] = useState(240);
+  const [timelineSectionH, setTimelineSectionH] = useState(358); // 46 header + 3 bands × 104px
   const vSplitDragging = useRef(false);
   const vContainerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -1189,18 +1275,22 @@ export default function TileViewPage() {
 
   const allTiles = data?.data || [];
 
-  const { events, deadlines, todos, notes } = useMemo(() => {
+  const { events, allDayEvents, deadlines, todos, notes } = useMemo(() => {
     const events: Tile[] = [];
+    const allDayEvents: Tile[] = [];
     const deadlines: Tile[] = [];
     const todos: Tile[] = [];
     const notes: Tile[] = [];
     allTiles.forEach((t) => {
-      if (t.action_type === 'event') events.push(t);
+      if (t.action_type === 'event') {
+        if (t.all_day) allDayEvents.push(t);
+        else events.push(t);
+      }
       else if (t.action_type === 'deadline') deadlines.push(t);
       else if (t.action_type === 'anytime') todos.push(t);
       else notes.push(t);
     });
-    return { events, deadlines, todos, notes };
+    return { events, allDayEvents, deadlines, todos, notes };
   }, [allTiles]);
 
   const activeTodos = todos.filter((t) => !t.is_completed).length;
@@ -1238,6 +1328,7 @@ export default function TileViewPage() {
               <div ref={timelineRef} className="overflow-x-auto overflow-y-hidden shrink-0" style={{ height: timelineSectionH }}>
                 <TimelineBands
                   events={events}
+                  allDayEvents={allDayEvents}
                   deadlines={deadlines}
                   getTagColor={getTagColor}
                   getTagInfo={getTagInfo}
@@ -1260,13 +1351,20 @@ export default function TileViewPage() {
                   const startY = e.clientY;
                   const startH = timelineSectionH;
                   let rafId = 0;
+                  const ROW_H = 96 + 8; // 104px per row (tile + margins)
+                  const HEADER_TOTAL = 46; // month row + date row
+                  const NUM_BANDS = 3;
+                  const minH = HEADER_TOTAL + ROW_H * NUM_BANDS; // 1 row per band
                   const onMove = (ev: MouseEvent) => {
                     if (!vSplitDragging.current) return;
                     cancelAnimationFrame(rafId);
                     rafId = requestAnimationFrame(() => {
                       const diff = ev.clientY - startY;
-                      const newH = Math.max(100, startH + diff);
-                      setTimelineSectionH(newH);
+                      const rawH = Math.max(minH, startH + diff);
+                      // Snap to row increments: each band grows by ROW_H simultaneously
+                      const rowsPerBand = Math.max(1, Math.round((rawH - HEADER_TOTAL) / (ROW_H * NUM_BANDS)));
+                      const snappedH = HEADER_TOTAL + rowsPerBand * ROW_H * NUM_BANDS;
+                      setTimelineSectionH(snappedH);
                     });
                   };
                   const onUp = () => {

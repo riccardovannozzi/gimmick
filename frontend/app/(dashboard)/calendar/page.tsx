@@ -16,9 +16,9 @@ import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCal
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse } from '@/types';
+import { useTagTypes } from '@/store/tag-types-store';
 
-// Map tag colors for events
-const defaultEventColor = '#528BFF';
+const FALLBACK_COLOR = '#888780';
 
 /** Convert ISO string to datetime-local input value (local time) */
 function toLocalDatetimeValue(iso: string): string {
@@ -34,6 +34,7 @@ interface EventModalState {
   tileId?: string;
   title: string;
   description: string;
+  allDay: boolean;
   startAt: string;
   endAt: string;
   autoDetect: boolean;
@@ -46,6 +47,7 @@ const emptyModal: EventModalState = {
   mode: 'create',
   title: '',
   description: '',
+  allDay: false,
   startAt: '',
   endAt: '',
   autoDetect: true,
@@ -178,6 +180,16 @@ function TagFilterDropdown({
 export default function CalendarPage() {
   const calendarRef = useRef<FullCalendar>(null);
   const queryClient = useQueryClient();
+  const { getColor: getTypeColor } = useTagTypes();
+
+  const getTagColor = (tile: Tile): string => {
+    const tagType = tile.tags?.[0]?.tag_type || '';
+    if (tagType) {
+      const c = getTypeColor(tagType);
+      if (c) return c;
+    }
+    return FALLBACK_COLOR;
+  };
 
   // Current visible range
   const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
@@ -264,7 +276,7 @@ export default function CalendarPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string; action_type?: string } }) =>
+    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string; action_type?: string; all_day?: boolean } }) =>
       calendarApi.updateEvent(params.id, params.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -291,14 +303,15 @@ export default function CalendarPage() {
 
     return filtered.map((tile: Tile) => {
       const isDeadline = tile.action_type === 'deadline' && !tile.is_event;
+      const tagColor = getTagColor(tile);
       return {
         id: tile.id,
         title: isDeadline ? `\u23F0 ${tile.title || 'Scadenza'}` : (tile.title || 'Senza titolo'),
         start: tile.start_at!,
         end: isDeadline ? undefined : (tile.end_at || undefined),
-        allDay: isDeadline,
-        backgroundColor: isDeadline ? '#F59E0B' : defaultEventColor,
-        borderColor: isDeadline ? '#D97706' : defaultEventColor,
+        allDay: isDeadline || tile.all_day || false,
+        backgroundColor: tagColor,
+        borderColor: tagColor,
         extendedProps: {
           description: tile.description,
           spark_count: tile.spark_count || 0,
@@ -359,6 +372,7 @@ export default function CalendarPage() {
       mode: 'create',
       title: '',
       description: '',
+      allDay: info.allDay,
       startAt: start.toISOString(),
       endAt: end.toISOString(),
       autoDetect: false,
@@ -377,6 +391,7 @@ export default function CalendarPage() {
       tileId: tile.id,
       title: tile.title || '',
       description: tile.description || '',
+      allDay: tile.all_day || false,
       startAt: tile.start_at || '',
       endAt: tile.end_at || '',
       autoDetect: false,
@@ -449,14 +464,22 @@ export default function CalendarPage() {
         await syncTags(modal.tileId, toAdd);
       }
 
+      const startAt = modal.allDay && modal.startAt
+        ? new Date(new Date(modal.startAt).setHours(0, 0, 0, 0)).toISOString()
+        : modal.startAt;
+      const endAt = modal.allDay && modal.startAt
+        ? new Date(new Date(modal.startAt).setHours(23, 59, 59, 0)).toISOString()
+        : modal.endAt;
+
       updateMutation.mutate({
         id: modal.tileId,
         updates: {
           title: modal.title,
           description: modal.description,
-          start_at: modal.startAt,
-          end_at: modal.endAt,
+          start_at: startAt,
+          end_at: endAt,
           action_type: modal.actionType,
+          all_day: modal.allDay,
         },
       });
     }
@@ -496,6 +519,7 @@ export default function CalendarPage() {
       tileId: tile.id,
       title: tile.title || '',
       description: tile.description || '',
+      allDay: tile.all_day || false,
       startAt: '',
       endAt: '',
       autoDetect: true,
@@ -741,25 +765,44 @@ export default function CalendarPage() {
                 </div>
               </div>
 
+              {/* All day toggle */}
+              <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="checkbox"
+                  checked={modal.allDay}
+                  onChange={(e) => setModal({ ...modal, allDay: e.target.checked })}
+                  className="accent-blue-500 w-4 h-4"
+                />
+                <span className="text-sm text-zinc-300">Tutto il giorno</span>
+              </label>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-zinc-400 mb-1 block">Inizio</label>
                   <input
-                    type="datetime-local"
-                    value={toLocalDatetimeValue(modal.startAt)}
-                    onChange={(e) => setModal({ ...modal, startAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                    type={modal.allDay ? 'date' : 'datetime-local'}
+                    value={modal.allDay ? toLocalDatetimeValue(modal.startAt).slice(0, 10) : toLocalDatetimeValue(modal.startAt)}
+                    onChange={(e) => {
+                      if (modal.allDay) {
+                        setModal({ ...modal, startAt: e.target.value ? new Date(`${e.target.value}T00:00:00`).toISOString() : '' });
+                      } else {
+                        setModal({ ...modal, startAt: e.target.value ? new Date(e.target.value).toISOString() : '' });
+                      }
+                    }}
                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Fine</label>
-                  <input
-                    type="datetime-local"
-                    value={toLocalDatetimeValue(modal.endAt)}
-                    onChange={(e) => setModal({ ...modal, endAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                </div>
+                {!modal.allDay && (
+                  <div>
+                    <label className="text-xs text-zinc-400 mb-1 block">Fine</label>
+                    <input
+                      type="datetime-local"
+                      value={toLocalDatetimeValue(modal.endAt)}
+                      onChange={(e) => setModal({ ...modal, endAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Tag picker */}

@@ -426,6 +426,8 @@ export const calendarApi = {
     description?: string;
     start_at?: string;
     end_at?: string;
+    action_type?: string;
+    all_day?: boolean;
   }) {
     return apiRequest<Tile>(`/api/calendar/events/${id}`, {
       method: 'PATCH',

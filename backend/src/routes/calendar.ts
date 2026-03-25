@@ -65,7 +65,7 @@ calendarRouter.get(
       // Fetch events (is_event=true) AND deadline tiles (action_type='deadline' with start_at)
       let query = supabaseAdmin
         .from('tiles')
-        .select('*, sparks(count), tile_tags(tag_id, tags(id, name))')
+        .select('*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type))')
         .eq('user_id', req.user!.id)
         .or('is_event.eq.true,action_type.eq.deadline')
         .not('start_at', 'is', null)
@@ -286,7 +286,7 @@ calendarRouter.patch(
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
-      const { title, description, start_at, end_at } = req.body;
+      const { title, description, start_at, end_at, action_type, all_day } = req.body;
 
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -295,6 +295,12 @@ calendarRouter.patch(
       if (description !== undefined) updateData.description = description;
       if (start_at) updateData.start_at = start_at;
       if (end_at) updateData.end_at = end_at;
+      if (action_type !== undefined) {
+        updateData.action_type = action_type;
+        updateData.action_type_reviewed = true;
+        updateData.is_event = action_type === 'event';
+      }
+      if (all_day !== undefined) updateData.all_day = all_day;
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
