@@ -447,7 +447,7 @@ function TileSidebar({
   onToggle: () => void;
 }) {
   const queryClient = useQueryClient();
-  const { customPatterns, doneShape, ctaShape } = usePatterns();
+  const { customPatterns } = usePatterns();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -917,7 +917,7 @@ function TimelineBands({
   onTileClick,
   selectedTagIds,
   resolveShape,
-  containerHeight,
+  sectionHeight,
 }: {
   events: Tile[];
   allDayEvents: Tile[];
@@ -928,7 +928,7 @@ function TimelineBands({
   onTileClick?: (id: string) => void;
   selectedTagIds?: Set<string>;
   resolveShape: (tile: Tile) => PatternShape;
-  containerHeight?: number;
+  sectionHeight: number;
 }) {
   const queryClient = useQueryClient();
   const days = useMemo(() => generateDays(30, 60), []);
@@ -1075,8 +1075,12 @@ function TimelineBands({
     <div>
       {(() => {
         const GAP = 2;
-        const bandH = TILE_FULL + 8; // tile height + 4px margin top + 4px margin bottom
-        const rowsPerBand = 1;
+        const HEADER_TOTAL = 46; // month row + date row
+        const NUM_BANDS = 3;
+        const ROW_H = TILE_FULL + 4; // 100px per row (tile + 2px margin top + 2px margin bottom)
+        // Calculate how many rows fit based on timelineSectionH
+        const rowsPerBand = Math.max(1, Math.min(3, Math.round((sectionHeight - HEADER_TOTAL) / (ROW_H * NUM_BANDS))));
+        const bandH = rowsPerBand * ROW_H;
 
         // Precalculate column widths based on tiles and available rows
         const colWidths = days.map((day) => {
@@ -1144,7 +1148,7 @@ function TimelineBands({
                       key === 'allday' && 'bg-amber-950/40',
                       key === 'deadline' && 'bg-red-950/50',
                     )}
-                    style={{ height: bandH }}
+                    style={{ height: bandH, maxHeight: bandH }}
                   >
                     <div className="flex flex-col items-center gap-0.5">
                       {(() => { const { Icon } = BAND_LABELS[key]; return <Icon className="h-3.5 w-3.5 text-zinc-500" />; })()}
@@ -1210,8 +1214,8 @@ function TimelineBands({
                         return (
                           <div
                             key={key}
-                            className={cn('relative flex flex-wrap content-start items-start p-0.5 overflow-hidden', !isLast && 'border-b border-zinc-800/50', key === 'deadline' && 'bg-red-950/30', key === 'scheduled' && 'bg-blue-950/30', key === 'allday' && 'bg-amber-950/20')}
-                            style={{ height: bandH, gap: GAP }}
+                            className={cn('relative flex flex-wrap content-start items-start px-0.5 overflow-hidden box-border', !isLast && 'border-b border-zinc-800/50', key === 'deadline' && 'bg-red-950/30', key === 'scheduled' && 'bg-blue-950/30', key === 'allday' && 'bg-amber-950/20')}
+                            style={{ height: bandH, maxHeight: bandH, gap: GAP, paddingTop: 2, paddingBottom: 2 }}
                           >
                             {tiles.map((t) => renderTile(t, renderType))}
                           </div>
@@ -1244,7 +1248,7 @@ export default function TileViewPage() {
   const [splitPercent, setSplitPercent] = useState(50);
   const splitDragging = useRef(false);
   // Height in px for the timeline section. Default: 2 rows of tiles (96*2) + headers (~44) + padding
-  const [timelineSectionH, setTimelineSectionH] = useState(358); // 46 header + 3 bands × 104px
+  const [timelineSectionH, setTimelineSectionH] = useState(646); // 46 header + 3 bands × 2 rows × 100px
   const vSplitDragging = useRef(false);
   const vContainerRef = useRef<HTMLDivElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
@@ -1336,7 +1340,7 @@ export default function TileViewPage() {
                   onTileClick={handleTileClick}
                   selectedTagIds={selectedTagIds}
                   resolveShape={resolveShape}
-                  containerHeight={timelineSectionH}
+                  sectionHeight={timelineSectionH}
                 />
               </div>
 
@@ -1351,18 +1355,21 @@ export default function TileViewPage() {
                   const startY = e.clientY;
                   const startH = timelineSectionH;
                   let rafId = 0;
-                  const ROW_H = 96 + 8; // 104px per row (tile + margins)
+                  const ROW_H = 96 + 4; // 100px per row (tile + 2px margin top + 2px margin bottom)
                   const HEADER_TOTAL = 46; // month row + date row
                   const NUM_BANDS = 3;
-                  const minH = HEADER_TOTAL + ROW_H * NUM_BANDS; // 1 row per band
+                  const MIN_ROWS = 1;
+                  const MAX_ROWS = 3;
+                  const minH = HEADER_TOTAL + ROW_H * NUM_BANDS * MIN_ROWS;
+                  const maxH = HEADER_TOTAL + ROW_H * NUM_BANDS * MAX_ROWS;
                   const onMove = (ev: MouseEvent) => {
                     if (!vSplitDragging.current) return;
                     cancelAnimationFrame(rafId);
                     rafId = requestAnimationFrame(() => {
                       const diff = ev.clientY - startY;
-                      const rawH = Math.max(minH, startH + diff);
+                      const rawH = Math.max(minH, Math.min(maxH, startH + diff));
                       // Snap to row increments: each band grows by ROW_H simultaneously
-                      const rowsPerBand = Math.max(1, Math.round((rawH - HEADER_TOTAL) / (ROW_H * NUM_BANDS)));
+                      const rowsPerBand = Math.max(MIN_ROWS, Math.min(MAX_ROWS, Math.round((rawH - HEADER_TOTAL) / (ROW_H * NUM_BANDS))));
                       const snappedH = HEADER_TOTAL + rowsPerBand * ROW_H * NUM_BANDS;
                       setTimelineSectionH(snappedH);
                     });
