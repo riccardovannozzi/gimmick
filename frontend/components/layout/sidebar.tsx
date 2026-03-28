@@ -56,7 +56,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   const hasFilter = selectedTagIds.size > 0;
 
   return (
-    <div className="flex h-full w-48 flex-col bg-zinc-950 border-r border-zinc-800">
+    <div className="flex h-full w-48 flex-col border-r border-zinc-800" style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
       {/* Logo + notification */}
       <div className="flex h-12 items-center px-3 gap-2 shrink-0">
         <span className="text-lg font-bold text-white">Gimmick</span>

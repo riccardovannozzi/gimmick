@@ -1,24 +1,29 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useCallback, useMemo, useState } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import multiMonthPlugin from '@fullcalendar/multimonth';
-import type { EventInput, EventDropArg, DateSelectArg, EventClickArg } from '@fullcalendar/core';
-import type { EventResizeDoneArg } from '@fullcalendar/interaction';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChevronDown, IconFilter } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconHourglass, IconCalendarEvent, IconClock } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Tile, Tag, ApiResponse } from '@/types';
+import type { Tile, Tag, ApiResponse, PatternShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
+import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { BAND_COLORS, isTileDimmed, isToday, isSunday, formatTime, generateWeekDays, groupByDay, formatWeekRange, deadlineSubtitle } from '@/lib/tile-helpers';
+import { usePatterns } from '@/store/patterns-store';
+import { useTagFilterStore } from '@/store/tag-filter-store';
+import { useStatusIcons } from '@/store/status-icons-store';
 
 const FALLBACK_COLOR = '#888780';
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+
+function StatusIconRender({ iconName, size = 18 }: { iconName: string; size?: number }) {
+  const Comp = AllIcons[iconName];
+  if (!Comp) return null;
+  return <Comp size={size} className="text-zinc-300" />;
+}
 
 /** Convert ISO string to datetime-local input value (local time) */
 function toLocalDatetimeValue(iso: string): string {
@@ -62,125 +67,40 @@ const ACTION_OPTIONS = [
   { value: 'event', label: 'Evento' },
 ] as const;
 
-function TagFilterDropdown({
-  tags,
-  selectedTagId,
-  onSelect,
-}: {
-  tags: Tag[];
-  selectedTagId: string | null;
-  onSelect: (id: string | null) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
 
-  const selectedTag = tags.find((t) => t.id === selectedTagId);
-
-  // Close on outside click / scroll — only attach when open
-  // Use useRef + useCallback to keep stable references
-  const closeDropdown = useCallback(() => setOpen(false), []);
-
-  const onMouseDown = useCallback((e: MouseEvent) => {
-    // Check bounding rect to include scrollbar area (not just DOM children)
-    if (dropdownRef.current) {
-      const rect = dropdownRef.current.getBoundingClientRect();
-      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) return;
-    }
-    if (triggerRef.current && triggerRef.current.contains(e.target as Node)) return;
-    closeDropdown();
-  }, [closeDropdown]);
-
-  const onScroll = useCallback((e: Event) => {
-    // Ignore scroll events inside the dropdown itself
-    if (dropdownRef.current && dropdownRef.current.contains(e.target as Node)) return;
-    closeDropdown();
-  }, [closeDropdown]);
-
-  useEffect(() => {
-    if (!open) return;
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('scroll', onScroll, true);
-    return () => {
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('scroll', onScroll, true);
-    };
-  }, [open, onMouseDown, onScroll]);
-
-  const handleToggle = () => {
-    if (!open && triggerRef.current) {
-      const rect = triggerRef.current.getBoundingClientRect();
-      setPos({ top: rect.bottom + 4, left: rect.left });
-    }
-    setOpen(!open);
-  };
-
-  return (
-    <div className="relative">
-      <button
-        ref={triggerRef}
-        onClick={handleToggle}
-        className={cn(
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-          selectedTagId
-            ? 'text-white'
-            : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
-        )}
-        style={selectedTag ? {
-          backgroundColor: `${'#94A3B8'}20`,
-          borderColor: `${'#94A3B8'}60`,
-        } : undefined}
-      >
-        <IconFilter className="h-3.5 w-3.5" />
-        {selectedTag ? selectedTag.name : 'Filtra per tag'}
-        <IconChevronDown className={cn('h-3 w-3 transition-transform', open && 'rotate-180')} />
-      </button>
-
-      {open && createPortal(
-        <div
-          ref={dropdownRef}
-          className="fixed w-48 max-h-64 overflow-y-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1"
-          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
-        >
-          <button
-            className={cn(
-              'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
-              !selectedTagId && 'bg-zinc-800'
-            )}
-            onClick={() => { onSelect(null); setOpen(false); }}
-          >
-            <span className="text-zinc-300">Tutti</span>
-            {!selectedTagId && <span className="ml-auto text-blue-400 text-[10px]">&#10003;</span>}
-          </button>
-          {tags.map((tag) => {
-            const isActive = selectedTagId === tag.id;
-            return (
-              <button
-                key={tag.id}
-                className={cn(
-                  'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
-                  isActive && 'bg-zinc-800'
-                )}
-                onClick={() => { onSelect(isActive ? null : tag.id); setOpen(false); }}
-              >
-                <IconTag className="h-3 w-3 flex-shrink-0" style={{ color: '#94A3B8' }} />
-                <span className="text-zinc-300 truncate">{tag.name}</span>
-                {isActive && <span className="ml-auto text-blue-400 text-[10px]">&#10003;</span>}
-              </button>
-            );
-          })}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
+function InlinePattern({ shape, color }: { shape: PatternShape; color: string }) {
+  const o = 0.7;
+  switch (shape) {
+    case 'solid': return null;
+    case 'diagonal_ltr': return <><defs><pattern id="il-ltr" patternUnits="userSpaceOnUse" width={20} height={20} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-ltr)" /></>;
+    case 'diagonal_rtl': return <><defs><pattern id="il-rtl" patternUnits="userSpaceOnUse" width={20} height={20} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-rtl)" /></>;
+    case 'vertical': return <><defs><pattern id="il-vert" patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-vert)" /></>;
+    case 'bubble': return <><circle cx={18} cy={14} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={58} cy={10} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.1} /><circle cx={40} cy={30} r={11} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={62} cy={38} r={9} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={35} cy={56} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.05} /></>;
+    default: return null;
+  }
 }
 
+const GUTTER_W = 42;
+const SLOT_H = 40; // px per hour slot
+const START_HOUR = 6;
+const END_HOUR = 22;
+const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
+
 export default function CalendarPage() {
-  const calendarRef = useRef<FullCalendar>(null);
   const queryClient = useQueryClient();
-  const { getColor: getTypeColor } = useTagTypes();
+  const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+  const { selectedTagIds } = useTagFilterStore();
+  const getIconForTile = useStatusIcons((s) => s.getIconForTile);
+  const { doneShape, getActionTypeShape, customPatterns } = usePatterns();
+
+  const resolveShape = useCallback((tile: Tile): PatternShape => {
+    if (tile.is_completed) return doneShape;
+    if (tile.pattern_id) {
+      const custom = customPatterns.find((p) => p.id === tile.pattern_id);
+      if (custom) return custom.shape as PatternShape;
+    }
+    return getActionTypeShape(tile.action_type || 'none');
+  }, [doneShape, customPatterns, getActionTypeShape]);
 
   const getTagColor = (tile: Tile): string => {
     const tagType = tile.tags?.[0]?.tag_type || '';
@@ -191,13 +111,18 @@ export default function CalendarPage() {
     return FALLBACK_COLOR;
   };
 
-  // Current visible range
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 4, 0);
+  // Week navigation
+  const [weekOffset, setWeekOffset] = useState(0);
+  const days = useMemo(() => generateWeekDays(weekOffset), [weekOffset]);
+
+  // Date range for fetching (covers visible week + buffer)
+  const dateRange = useMemo(() => {
+    const start = new Date(days[0]);
+    start.setMonth(start.getMonth() - 2);
+    const end = new Date(days[days.length - 1]);
+    end.setMonth(end.getMonth() + 2);
     return { start: start.toISOString(), end: end.toISOString() };
-  });
+  }, [days]);
 
   // Filters
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -208,6 +133,10 @@ export default function CalendarPage() {
 
   // Modal
   const [modal, setModal] = useState<EventModalState>(emptyModal);
+
+  // Sidebar
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Schedule from existing tile
   const [showTilePicker, setShowTilePicker] = useState(false);
@@ -235,6 +164,33 @@ export default function CalendarPage() {
   const events = eventsData?.data || [];
   const tags = (tagsData as ApiResponse<Tag[]>)?.data || [];
   const unscheduledTiles = (tilesData?.data || []).filter((t: Tile) => !t.is_event);
+
+  // Tiles for left panels
+  const { data: allTilesData } = useQuery({
+    queryKey: ['tiles-calendar'],
+    queryFn: () => tilesApi.list({ limit: 100 }),
+    staleTime: 60_000,
+  });
+  const allTiles = allTilesData?.data || [];
+
+  const { todos, notes } = useMemo(() => {
+    const todos: Tile[] = [];
+    const notes: Tile[] = [];
+    allTiles.forEach((t) => {
+      if (t.action_type === 'anytime') todos.push(t);
+      else if (t.action_type === 'none') notes.push(t);
+    });
+    return { todos, notes };
+  }, [allTiles]);
+
+  const activeTodos = todos.filter((t) => !t.is_completed).length;
+
+  const getTagInfo = (tile: Tile): { icon: string; name: string } => {
+    const tag = tile.tags?.[0];
+    if (!tag) return { icon: '', name: '' };
+    const tagType = tag.tag_type || '';
+    return { icon: tagType ? getTypeEmoji(tagType) : '', name: tag.name };
+  };
 
   // Reschedule mutation (drag-and-drop)
   const rescheduleMutation = useMutation({
@@ -294,111 +250,94 @@ export default function CalendarPage() {
     },
   });
 
-  // Convert tiles to FullCalendar events
-  const calendarEvents: EventInput[] = useMemo(() => {
+  // Categorize calendar events into lanes
+  const filteredEvents = useMemo(() => {
     let filtered = events;
     if (aiFilterIds) {
       filtered = events.filter((e: Tile) => aiFilterIds.has(e.id));
     }
-
-    return filtered.map((tile: Tile) => {
-      const isDeadline = tile.action_type === 'deadline' && !tile.is_event;
-      const tagColor = getTagColor(tile);
-      return {
-        id: tile.id,
-        title: isDeadline ? `\u23F0 ${tile.title || 'Scadenza'}` : (tile.title || 'Senza titolo'),
-        start: tile.start_at!,
-        end: isDeadline ? undefined : (tile.end_at || undefined),
-        allDay: isDeadline || tile.all_day || false,
-        backgroundColor: tagColor,
-        borderColor: tagColor,
-        extendedProps: {
-          description: tile.description,
-          spark_count: tile.spark_count || 0,
-          tags: tile.tags || [],
-          isDeadline,
-        },
-      };
-    });
+    return filtered;
   }, [events, aiFilterIds]);
 
-  // Handle date range changes — only refetch if navigating outside cached range
-  const handleDatesSet = useCallback((arg: { start: Date; end: Date }) => {
-    setDateRange((prev) => {
-      const prevStart = new Date(prev.start);
-      const prevEnd = new Date(prev.end);
-      if (arg.start >= prevStart && arg.end <= prevEnd) return prev; // still within cached range
-      // Expand range: 3 months before and after the visible range
-      const newStart = new Date(arg.start);
-      newStart.setMonth(newStart.getMonth() - 3);
-      const newEnd = new Date(arg.end);
-      newEnd.setMonth(newEnd.getMonth() + 3);
-      return { start: newStart.toISOString(), end: newEnd.toISOString() };
+  const { calDeadlines, calAllDay, calTimed } = useMemo(() => {
+    const calDeadlines: Tile[] = [];
+    const calAllDay: Tile[] = [];
+    const calTimed: Tile[] = [];
+    filteredEvents.forEach((t) => {
+      if (t.action_type === 'deadline') calDeadlines.push(t);
+      else if (t.all_day) calAllDay.push(t);
+      else calTimed.push(t);
     });
-  }, []);
+    return { calDeadlines, calAllDay, calTimed };
+  }, [filteredEvents]);
 
-  // Handle drag-and-drop
-  const handleEventDrop = useCallback((info: EventDropArg) => {
-    const { event } = info;
-    rescheduleMutation.mutate({
-      id: event.id,
-      start_at: event.start!.toISOString(),
-      end_at: event.end?.toISOString(),
+  const groupedDeadlines = useMemo(() => groupByDay(calDeadlines, 'end_at'), [calDeadlines]);
+  const groupedAllDay = useMemo(() => groupByDay(calAllDay, 'start_at'), [calAllDay]);
+  // Group timed events by day for absolute positioning
+  const timedByDay = useMemo(() => {
+    const groups: Record<string, Tile[]> = {};
+    calTimed.forEach((t) => {
+      if (!t.start_at) return;
+      const d = new Date(t.start_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
     });
-  }, [rescheduleMutation]);
+    return groups;
+  }, [calTimed]);
 
-  // Handle event resize
-  const handleEventResize = useCallback((info: EventResizeDoneArg) => {
-    const { event } = info;
-    rescheduleMutation.mutate({
-      id: event.id,
-      start_at: event.start!.toISOString(),
-      end_at: event.end?.toISOString(),
-    });
-  }, [rescheduleMutation]);
+  // Handle click on a calendar tile (open edit modal + sidebar)
+  const handleCalTileClick = useCallback((tile: Tile) => {
+    setSelectedTileId(tile.id);
+    if (!sidebarOpen) setSidebarOpen(true);
+  }, [sidebarOpen]);
 
-  // Handle click on empty slot (create new event)
-  const handleDateSelect = useCallback((info: DateSelectArg) => {
-    // Use Date objects (not strings) to ensure proper ISO format in all views
-    const start = info.start;
-    const end = info.end;
-    // If from dayGrid (all-day), default to 09:00-10:00
-    if (info.allDay) {
-      start.setHours(9, 0, 0, 0);
-      end.setTime(start.getTime() + 3600000);
-    }
-    setModal({
-      open: true,
-      mode: 'create',
-      title: '',
-      description: '',
-      allDay: info.allDay,
-      startAt: start.toISOString(),
-      endAt: end.toISOString(),
-      autoDetect: false,
-      tagIds: [],
-      actionType: 'event',
-    });
-  }, []);
-
-  // Handle click on existing event (edit)
-  const handleEventClick = useCallback((info: EventClickArg) => {
-    const tile = events.find((e: Tile) => e.id === info.event.id);
-    if (!tile) return;
-    setModal({
-      open: true,
-      mode: 'edit',
-      tileId: tile.id,
-      title: tile.title || '',
-      description: tile.description || '',
-      allDay: tile.all_day || false,
-      startAt: tile.start_at || '',
-      endAt: tile.end_at || '',
-      autoDetect: false,
-      tagIds: (tile.tags || []).map((t) => t.id),
-      actionType: tile.action_type || 'event',
-    });
-  }, [events]);
+  function renderCalTile(tile: Tile, subtitle?: string) {
+    const color = getTagColor(tile);
+    const info = getTagInfo(tile);
+    const shape = resolveShape(tile);
+    const statusIcon = getIconForTile(tile.id);
+    const isHighlight = tile.action_type === 'deadline' && tile.end_at ? isToday(tile.end_at) : false;
+    return (
+      <div
+        key={tile.id}
+        className={cn(
+          'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+          selectedTileId === tile.id && 'ring-2 ring-blue-500',
+          isTileDimmed(tile, selectedTagIds) && 'opacity-20 saturate-0',
+          tile.is_completed && 'opacity-50',
+        )}
+        style={{
+          backgroundColor: 'rgba(24, 24, 27, 0.5)',
+          borderColor: isHighlight ? '#E24B4A' : `${color}60`,
+          minWidth: 56,
+          minHeight: 40,
+        }}
+        onClick={() => handleCalTileClick(tile)}
+      >
+        <div className="flex relative" style={{ minHeight: 'inherit' }}>
+          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+          <div className="px-1.5 py-1 min-w-0 flex-1">
+            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+            <span className={cn('text-[9px] text-zinc-400 font-semibold block truncate', tile.is_completed && 'line-through')}>{tile.title || 'Senza titolo'}</span>
+            {subtitle && <span className="text-[7px] text-zinc-500 block truncate">{subtitle}</span>}
+          </div>
+          {statusIcon && (
+            <div className="shrink-0 flex items-center justify-center pr-1">
+              <StatusIconRender iconName={statusIcon.icon} />
+            </div>
+          )}
+          {shape !== 'solid' && (
+            <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
+              <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+                <InlinePattern shape={shape} color={color} />
+              </svg>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // Sync tags for a tile: add missing, remove extra
   const syncTags = useCallback(async (tileId: string, tagIds: string[]) => {
@@ -532,45 +471,150 @@ export default function CalendarPage() {
     <div className="flex flex-col h-full">
       <Header title="Calendario" />
 
-      {/* Toolbar */}
-      <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
-        {/* Tag filter dropdown */}
-        <TagFilterDropdown
-          tags={tags}
-          selectedTagId={selectedTagId}
-          onSelect={setSelectedTagId}
-        />
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* 2 — COLONNA NOTES */}
+        <div className="shrink-0 w-44 border-r border-zinc-800 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#64748B' }} />
+            <IconNote className="h-3.5 w-3.5" style={{ color: '#64748B' }} />
+            <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
+            <span className="text-[10px] text-zinc-500 ml-auto">{notes.length}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {notes.map((t) => {
+              const color = getTagColor(t);
+              const info = getTagInfo(t);
+              const shape = resolveShape(t);
+              const si = getIconForTile(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+                    selectedTileId === t.id && 'ring-2 ring-blue-500',
+                    isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
+                  )}
+                  style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 40 }}
+                  onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                >
+                  <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                    <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                    <div className="px-1.5 py-1 min-w-0 flex-1">
+                      {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                      <span className="text-[9px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                    </div>
+                    {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                    {shape !== 'solid' && (
+                      <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
+                        <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+                          <InlinePattern shape={shape} color={color} />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {notes.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun appunto</span>}
+          </div>
+        </div>
+
+        {/* 3 — COLONNA TODO */}
+        <div className="shrink-0 w-44 border-r border-zinc-800 flex flex-col overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800">
+            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: BAND_COLORS.todos }} />
+            <IconChecklist className="h-3.5 w-3.5" style={{ color: BAND_COLORS.todos }} />
+            <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
+            <span className="text-[10px] text-zinc-500 ml-auto">{activeTodos} attivi</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+            {todos.sort((a, b) => {
+              if (a.is_completed && !b.is_completed) return 1;
+              if (!a.is_completed && b.is_completed) return -1;
+              return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+            }).map((t) => {
+              const color = getTagColor(t);
+              const info = getTagInfo(t);
+              const shape = resolveShape(t);
+              const si = getIconForTile(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className={cn(
+                    'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+                    selectedTileId === t.id && 'ring-2 ring-blue-500',
+                    isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0',
+                    t.is_completed && 'opacity-50',
+                  )}
+                  style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 40 }}
+                  onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                >
+                  <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                    <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                    <div className="px-1.5 py-1 min-w-0 flex-1">
+                      {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                      <span className={cn('text-[9px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
+                    </div>
+                    {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                    {shape !== 'solid' && (
+                      <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
+                        <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+                          <InlinePattern shape={shape} color={color} />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {todos.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun task</span>}
+          </div>
+        </div>
+
+        {/* 4 — PANNELLO CALENDAR */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+
+      {/* Toolbar — week nav + AI filter + buttons */}
+      <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 bg-zinc-900 shrink-0">
+        <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+          <IconChevronLeft size={16} />
+        </button>
+        <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+          <IconChevronRight size={16} />
+        </button>
+        <button onClick={() => setWeekOffset(0)} className="px-2 py-0.5 rounded text-xs text-zinc-400 hover:bg-zinc-800 border border-zinc-700">
+          Oggi
+        </button>
+        <span className="text-sm text-zinc-300 font-medium capitalize">{formatWeekRange(days)}</span>
 
         <div className="flex-1" />
 
         {/* AI filter */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAiFilter()}
-              placeholder="Filtra con AI..."
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 w-48 pr-8"
-            />
-            {aiFilterActive ? (
-              <button onClick={clearAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-                <IconX className="h-3.5 w-3.5 text-zinc-400" />
-              </button>
-            ) : (
-              <button onClick={handleAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-                {aiLoading ? (
-                  <IconLoader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
-                ) : (
-                  <IconSparkles className="h-3.5 w-3.5 text-zinc-400" />
-                )}
-              </button>
-            )}
-          </div>
+        <div className="relative">
+          <input
+            type="text"
+            value={aiQuery}
+            onChange={(e) => setAiQuery(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleAiFilter()}
+            placeholder="Filtra con AI..."
+            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 w-40 pr-8"
+          />
+          {aiFilterActive ? (
+            <button onClick={clearAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
+              <IconX className="h-3.5 w-3.5 text-zinc-400" />
+            </button>
+          ) : (
+            <button onClick={handleAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
+              {aiLoading ? (
+                <IconLoader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
+              ) : (
+                <IconSparkles className="h-3.5 w-3.5 text-zinc-400" />
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Add event buttons */}
         <Button
           variant="outline"
           size="sm"
@@ -578,7 +622,7 @@ export default function CalendarPage() {
           className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 text-xs"
         >
           <IconCalendar className="h-3.5 w-3.5 mr-1.5" />
-          Pianifica Tile
+          Pianifica
         </Button>
         <Button
           size="sm"
@@ -592,114 +636,153 @@ export default function CalendarPage() {
           className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
         >
           <IconPlus className="h-3.5 w-3.5 mr-1.5" />
-          Nuovo Evento
+          Nuovo
         </Button>
       </div>
 
-      {/* Calendar */}
-      <div className="flex-1 p-4 overflow-auto calendar-dark">
-        <style jsx global>{`
-          .calendar-dark .fc {
-            --fc-border-color: #3E3E42;
-            --fc-button-bg-color: #27272a;
-            --fc-button-border-color: #3E3E42;
-            --fc-button-hover-bg-color: #3f3f46;
-            --fc-button-hover-border-color: #52525b;
-            --fc-button-active-bg-color: #528BFF;
-            --fc-button-active-border-color: #528BFF;
-            --fc-button-text-color: #d4d4d8;
-            --fc-today-bg-color: rgba(82, 139, 255, 0.08);
-            --fc-neutral-bg-color: #18181b;
-            --fc-page-bg-color: #09090b;
-            --fc-event-bg-color: #528BFF;
-            --fc-event-border-color: #528BFF;
-            --fc-event-text-color: #fff;
-            --fc-highlight-color: rgba(82, 139, 255, 0.15);
-            --fc-now-indicator-color: #EF4444;
-            color: #d4d4d8;
-            font-size: 13px;
-          }
-          .calendar-dark .fc .fc-col-header-cell {
-            background-color: #18181b;
-            padding: 8px 0;
-          }
-          .calendar-dark .fc .fc-timegrid-slot {
-            height: 40px;
-          }
-          .calendar-dark .fc .fc-daygrid-day-number,
-          .calendar-dark .fc .fc-col-header-cell-cushion {
-            color: #a1a1aa;
-            text-decoration: none;
-          }
-          .calendar-dark .fc .fc-event {
-            border-radius: 4px;
-            padding: 2px 4px;
-            cursor: pointer;
-            font-size: 12px;
-          }
-          .calendar-dark .fc .fc-toolbar-title {
-            color: #f4f4f5;
-            font-size: 18px;
-          }
-          .calendar-dark .fc .fc-button {
-            font-size: 12px;
-            padding: 4px 12px;
-            border-radius: 6px;
-          }
-          .calendar-dark .fc .fc-scrollgrid {
-            border-radius: 8px;
-            overflow: hidden;
-          }
-          .calendar-dark .fc .fc-daygrid-day.fc-day-today {
-            background-color: rgba(82, 139, 255, 0.06);
-          }
-        `}</style>
-
+      {/* Calendar grid */}
+      <div className="flex-1 overflow-y-auto">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : (
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, multiMonthPlugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'timeGridDay,timeGridWeek,dayGridMonth,multiMonthYear',
-            }}
-            buttonText={{
-              today: 'Oggi',
-              day: 'Giorno',
-              week: 'Settimana',
-              month: 'Mese',
-              year: 'Anno',
-            }}
-            locale="it"
-            firstDay={1}
-            nowIndicator={true}
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            eventResizableFromStart={true}
-            events={calendarEvents}
-            datesSet={handleDatesSet}
-            eventDrop={handleEventDrop}
-            eventResize={handleEventResize}
-            select={handleDateSelect}
-            eventClick={handleEventClick}
-            height="100%"
-            allDaySlot={true}
-            allDayText="Tutto il giorno"
-            slotMinTime="00:00:00"
-            slotMaxTime="24:00:00"
-            slotDuration="00:30:00"
-            scrollTime="08:00:00"
-            expandRows={true}
-            stickyHeaderDates={true}
-            dayMaxEventRows={4}
-          />
+          <>
+            {/* Day headers */}
+            <div className="flex sticky top-0 z-10 bg-zinc-900">
+              <div style={{ width: GUTTER_W }} className="border-b border-r border-zinc-800 shrink-0" />
+              {days.map((day) => {
+                const d = new Date(day);
+                const weekday = d.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase();
+                const dayNum = d.getDate();
+                return (
+                  <div key={day} className={cn('flex-1 text-center py-1 border-b border-r border-zinc-800', isToday(day) && 'bg-blue-500/10')}>
+                    <div className={cn('text-[9px] uppercase tracking-wider', isToday(day) ? 'text-blue-400' : isSunday(day) ? 'text-red-400' : 'text-zinc-500')}>
+                      {weekday}
+                    </div>
+                    <div className={cn('text-sm font-medium', isToday(day) ? 'text-blue-400' : 'text-zinc-300')}>
+                      {dayNum}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* LANE DEADLINE */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-red-950/30 border-b border-zinc-800">
+              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              <IconHourglass size={12} className="text-amber-600/80" />
+              <span className="text-[9px] font-bold tracking-widest text-amber-600/80">DEADLINE</span>
+            </div>
+            <div className="flex border-b border-zinc-800">
+              <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
+              {days.map((day) => {
+                const tiles = groupedDeadlines[day] || [];
+                return (
+                  <div key={day} className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5')} style={{ minHeight: 46 }}>
+                    {tiles.map((t) => renderCalTile(t, deadlineSubtitle(t)))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* LANE ALL DAY */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-amber-950/20 border-b border-zinc-800">
+              <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
+              <IconCalendarEvent size={12} className="text-green-600/80" />
+              <span className="text-[9px] font-bold tracking-widest text-green-600/80">ALL DAY</span>
+            </div>
+            <div className="flex border-b border-zinc-800">
+              <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
+              {days.map((day) => {
+                const tiles = groupedAllDay[day] || [];
+                return (
+                  <div key={day} className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5')} style={{ minHeight: 46 }}>
+                    {tiles.map((t) => renderCalTile(t))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* LANE TIMED header */}
+            <div className="flex items-center gap-2 px-2 py-1 bg-blue-950/30 border-b border-zinc-800">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+              <IconClock size={12} className="text-blue-500/80" />
+              <span className="text-[9px] font-bold tracking-widest text-blue-500/80">TIMED</span>
+            </div>
+
+            {/* LANE TIMED — continuous time grid */}
+            <div className="flex">
+              {/* Time gutter */}
+              <div className="shrink-0" style={{ width: GUTTER_W }}>
+                {HOURS.map((h) => (
+                  <div key={h} className="border-r border-b border-zinc-800 bg-zinc-900/50 flex items-start justify-end pr-1" style={{ height: SLOT_H }}>
+                    <span className="text-[8px] text-zinc-600 -translate-y-1.5">{String(h).padStart(2, '0')}:00</span>
+                  </div>
+                ))}
+              </div>
+              {/* Day columns with absolutely positioned events */}
+              {days.map((day) => {
+                const tiles = timedByDay[day] || [];
+                return (
+                  <div key={day} className={cn('flex-1 border-r border-zinc-800 relative', isToday(day) && 'bg-blue-500/5')}>
+                    {/* Slot grid lines */}
+                    {HOURS.map((h) => (
+                      <div key={h} className="border-b border-zinc-800" style={{ height: SLOT_H }} />
+                    ))}
+                    {/* Events positioned absolutely */}
+                    {tiles.map((t) => {
+                      const start = new Date(t.start_at!);
+                      const end = t.end_at ? new Date(t.end_at) : new Date(start.getTime() + 3600000);
+                      const startMin = start.getHours() * 60 + start.getMinutes();
+                      const endMin = end.getHours() * 60 + end.getMinutes();
+                      const durationMin = Math.max(30, endMin - startMin);
+                      const topPx = ((startMin - START_HOUR * 60) / 60) * SLOT_H;
+                      const heightPx = (durationMin / 60) * SLOT_H;
+                      const info = getTagInfo(t);
+                      const color = getTagColor(t);
+                      const shape = resolveShape(t);
+                      const si = getIconForTile(t.id);
+                      return (
+                        <div
+                          key={t.id}
+                          className={cn(
+                            'absolute left-0.5 right-0.5 rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+                            selectedTileId === t.id && 'ring-2 ring-blue-500',
+                            isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
+                          )}
+                          style={{
+                            top: topPx,
+                            height: Math.max(40, heightPx),
+                            backgroundColor: 'rgb(24, 24, 27)',
+                            borderColor: `${color}60`,
+                          }}
+                          onClick={() => handleCalTileClick(t)}
+                        >
+                          <div className="flex h-full">
+                            <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                            <div className="px-1 py-0.5 min-w-0 flex-1">
+                              {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                              <span className="text-[9px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                              <span className="text-[7px] text-zinc-500">{formatTime(t.start_at!)}{t.end_at ? ` - ${formatTime(t.end_at)}` : ''}</span>
+                            </div>
+                            {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                            {shape !== 'solid' && (
+                              <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
+                                <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+                                  <InlinePattern shape={shape} color={color} />
+                                </svg>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
 
@@ -944,6 +1027,16 @@ export default function CalendarPage() {
           </div>
         </div>
       )}
+      </div>{/* end PANNELLO CALENDAR */}
+
+      {/* 5 — SIDEBAR DESTRA */}
+      <TileSidebar
+        tileId={selectedTileId}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        invalidateKeys={['calendar-events', 'tiles-calendar']}
+      />
+      </div>{/* end flex row */}
     </div>
   );
 }

@@ -88,6 +88,17 @@ function PatternSvg({ shape, color }: { shape: PatternShape; color: string }) {
           <polyline points="30,38 18,46 30,54" fill="none" stroke={color} strokeWidth={4} strokeOpacity={0.25} strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
+    case 'vertical':
+      return (
+        <svg className={svgClass} viewBox="0 0 80 68" preserveAspectRatio="none">
+          <defs>
+            <pattern id="prev-vert" patternUnits="userSpaceOnUse" width={16} height={20}>
+              <line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={0.18} />
+            </pattern>
+          </defs>
+          <rect width={80} height={68} fill="url(#prev-vert)" />
+        </svg>
+      );
     default:
       return null;
   }
@@ -128,13 +139,14 @@ export const SHAPE_LABELS: Record<PatternShape, string> = {
   solid: 'Solid',
   diagonal_ltr: 'Diagonal /',
   diagonal_rtl: 'Diagonal \\',
+  vertical: 'Vertical',
+  bubble: 'Bubble',
   square: 'Square',
   target: 'Target',
   cross: 'Cross',
-  bubble: 'Bubble',
   question: '?',
   exclamation: '!',
   arrows: 'Arrows',
 };
 
-export const ALL_SHAPES: PatternShape[] = ['solid', 'diagonal_ltr', 'diagonal_rtl', 'square', 'target', 'cross', 'bubble', 'question', 'exclamation', 'arrows'];
+export const ALL_SHAPES: PatternShape[] = ['solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble'];

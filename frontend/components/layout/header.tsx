@@ -9,10 +9,8 @@ import {
   IconSparkles,
   IconLayoutGrid,
   IconTag,
-  IconApps,
   IconCalendar,
   IconShare,
-  IconLayoutColumns,
 } from '@tabler/icons-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -33,8 +31,6 @@ const TAB_GROUP_DATA = [
 ];
 
 const TAB_GROUP_VIEWS = [
-  { name: 'Tileview', href: '/tileview', icon: IconApps },
-  { name: 'Centro', href: '/command-center', icon: IconLayoutColumns },
   { name: 'Calendar', href: '/calendar', icon: IconCalendar },
   { name: 'Graph', href: '/graph', icon: IconShare },
 ];

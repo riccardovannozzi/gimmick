@@ -460,6 +460,23 @@ sparks/{user_id}/files/{filename}
 
 ---
 
+## Nomenclatura Pannelli UI
+
+Nomi standard per i pannelli dell'app (da sinistra a destra):
+
+| # | Nome | Contenuto |
+|---|------|-----------|
+| 1 | **SIDEBAR SINISTRA** | Tag |
+| 2 | **COLONNA NOTES** | Appunti |
+| 3 | **COLONNA TODO** | Tile da fare |
+| 4 | **PANNELLO CALENDAR** | Calendario settimanale |
+| 4.1 | — LANE DEADLINE | Tile con scadenza |
+| 4.2 | — LANE ALL DAY | Eventi giornata intera |
+| 4.3 | — LANE TIMED | Eventi con orario (fasce orarie) |
+| 5 | **SIDEBAR DESTRA** | Dettaglio tile (TileSidebar) |
+
+---
+
 ## Pattern e Convenzioni
 
 ### Naming Conventions

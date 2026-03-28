@@ -3,11 +3,21 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
-import { tilesApi, sparksApi, uploadApi } from '@/lib/api';
+import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
+import type { Tag } from '@/types';
 import { usePatterns } from '@/store/patterns-store';
 import { cn } from '@/lib/utils';
+import { useStatusIcons } from '@/store/status-icons-store';
 import type { Tile, Spark } from '@/types';
+
+function toLocalInput(iso: string): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 const SPARK_ICONS: Record<string, typeof IconFile> = {
   photo: IconCamera,
@@ -17,6 +27,149 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
   text: IconFileText,
   file: IconFile,
 };
+
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+
+function StatusIconPicker({ tileId }: { tileId: string }) {
+  const { icons, tileIcons, assignIcon } = useStatusIcons();
+  const [open, setOpen] = useState(false);
+  const currentIconId = tileIcons[tileId] || '';
+  const current = icons.find((i) => i.id === currentIconId);
+  const CurrentComp = current?.icon ? AllIcons[current.icon] : null;
+
+  if (icons.length === 0) return null;
+
+  return (
+    <div className="relative">
+      <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+      <button
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+      >
+        {CurrentComp ? (
+          <>
+            <CurrentComp size={14} className="text-zinc-200 shrink-0" />
+            <span className="truncate flex-1 text-left">{current!.name}</span>
+          </>
+        ) : (
+          <span className="text-zinc-500 flex-1 text-left">Nessuno</span>
+        )}
+        <svg className={cn('h-3 w-3 text-zinc-500 shrink-0 transition-transform', open && 'rotate-180')} viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
+          <button
+            onClick={() => { assignIcon(tileId, null); setOpen(false); }}
+            className={cn(
+              'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+              !currentIconId && 'bg-zinc-700/30'
+            )}
+          >
+            <span className="w-4 h-4 flex items-center justify-center text-zinc-500">—</span>
+            <span className="text-zinc-400">Nessuno</span>
+          </button>
+          {icons.map((icon) => {
+            const Comp = AllIcons[icon.icon];
+            const selected = currentIconId === icon.id;
+            return (
+              <button
+                key={icon.id}
+                onClick={() => { assignIcon(tileId, icon.id); setOpen(false); }}
+                className={cn(
+                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+                  selected && 'bg-zinc-700/30'
+                )}
+              >
+                {Comp && <Comp size={14} className="text-zinc-200 shrink-0" />}
+                <span className="text-zinc-300 truncate">{icon.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TagPicker({ tileId, tileTags, onChanged }: { tileId: string; tileTags: { id: string; name: string }[]; onChanged: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [toggling, setToggling] = useState<string | null>(null);
+
+  const { data: tagsData } = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsApi.list(),
+    staleTime: 60_000,
+  });
+  const allTags: Tag[] = (tagsData as { data?: Tag[] })?.data || [];
+  const tileTagIds = new Set(tileTags.map((t) => t.id));
+
+  const handleToggle = async (tag: Tag) => {
+    setToggling(tag.id);
+    const isAssigned = tileTagIds.has(tag.id);
+    try {
+      if (isAssigned) {
+        await tagsApi.untagTile(tag.id, tileId);
+      } else {
+        await tagsApi.tagTiles(tag.id, [tileId]);
+      }
+      onChanged();
+    } catch (err) {
+      console.error('Tag toggle failed:', err);
+    } finally {
+      setToggling(null);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <label className="text-[11px] text-zinc-500 mb-1 block">Tags</label>
+      <div
+        className="flex flex-wrap gap-1 min-h-[28px] bg-zinc-800/60 border border-zinc-700 rounded px-1.5 py-1 cursor-pointer hover:border-zinc-600 transition-colors"
+        onClick={() => setOpen(!open)}
+      >
+        {tileTags.length > 0 ? (
+          tileTags.map((tag) => (
+            <span key={tag.id} className="text-[10px] bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded">{tag.name}</span>
+          ))
+        ) : (
+          <span className="text-[10px] text-zinc-500">Seleziona tag...</span>
+        )}
+      </div>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-64 overflow-y-auto py-1">
+          {allTags.length === 0 ? (
+            <p className="text-xs text-zinc-500 text-center py-3">Nessun tag</p>
+          ) : (
+            allTags.map((tag) => {
+              const assigned = tileTagIds.has(tag.id);
+              const busy = toggling === tag.id;
+              return (
+                <button
+                  key={tag.id}
+                  disabled={busy}
+                  onClick={() => handleToggle(tag)}
+                  className={cn(
+                    'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+                    assigned && 'bg-zinc-700/30',
+                    busy && 'opacity-50'
+                  )}
+                >
+                  <div className={cn(
+                    'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
+                    assigned ? 'bg-blue-600 border-blue-500' : 'border-zinc-600'
+                  )}>
+                    {assigned && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                  </div>
+                  <span className={cn('truncate', assigned ? 'text-zinc-200' : 'text-zinc-400')}>{tag.name}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function SparkEditor({
   spark,
@@ -146,7 +299,7 @@ export function TileSidebar({
   tileId,
   open,
   onToggle,
-  invalidateKeys = ['tiles-tileview'],
+  invalidateKeys = ['tiles-calendar'],
 }: {
   tileId: string | null;
   open: boolean;
@@ -311,37 +464,139 @@ export function TileSidebar({
                 />
               </div>
 
-              <div className="space-y-1 text-[11px] text-zinc-500">
-                {tile.action_type && tile.action_type !== 'none' && (
-                  <div>Azione: <span className="text-zinc-300">{tile.action_type}</span></div>
-                )}
-                {tile.start_at && (
-                  <div>Inizio: <span className="text-zinc-300">{new Date(tile.start_at).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
-                )}
-                {tile.end_at && (
-                  <div>Fine: <span className="text-zinc-300">{new Date(tile.end_at).toLocaleString('it-IT', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
-                )}
-                <div>Creato: <span className="text-zinc-300">{new Date(tile.created_at).toLocaleDateString('it-IT')}</span></div>
+              {/* Type selector */}
+              <div>
+                <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
+                <div className="flex flex-wrap gap-1">
+                  {([
+                    { value: 'none', label: 'NOTES' },
+                    { value: 'anytime', label: 'TO DO' },
+                    { value: 'deadline', label: 'DEADLINE' },
+                    { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
+                    { value: 'event', label: 'TIMED', extra: { all_day: false } },
+                  ] as const).map((opt) => {
+                    const isActive = opt.value === 'event'
+                      ? tile.action_type === 'event' && (opt.extra.all_day ? !!tile.all_day : !tile.all_day)
+                      : tile.action_type === opt.value;
+                    return (
+                      <button
+                        key={opt.label}
+                        onClick={() => {
+                          const updates: Record<string, unknown> = { action_type: opt.value };
+                          if (opt.value === 'event') {
+                            updates.all_day = opt.extra.all_day;
+                            updates.is_event = true;
+                          } else {
+                            updates.is_event = false;
+                            updates.all_day = false;
+                          }
+                          updateTileMutation.mutate(updates);
+                        }}
+                        className={cn(
+                          'px-2 py-1 rounded text-[10px] font-medium border transition-all',
+                          isActive
+                            ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
+                            : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                        )}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {tile.tags && tile.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1">
-                  {tile.tags.map((tag) => (
-                    <span key={tag.id} className="text-[11px] bg-zinc-800 text-zinc-300 px-1.5 py-0.5 rounded">{tag.name}</span>
-                  ))}
-                </div>
-              )}
+              {/* Date/time fields — shown for deadline, all day, timed */}
+              {(tile.action_type === 'deadline' || tile.action_type === 'event') && (() => {
+                const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
+                const dateVal = dateRef ? toLocalInput(dateRef).slice(0, 10) : '';
+                const startTime = tile.start_at ? toLocalInput(tile.start_at).slice(11, 16) : '';
+                const endTime = tile.end_at ? toLocalInput(tile.end_at).slice(11, 16) : '';
+                const isTimed = tile.action_type === 'event' && !tile.all_day;
 
+                const updateDate = (newDate: string) => {
+                  if (!newDate) return;
+                  if (tile.action_type === 'deadline') {
+                    updateTileMutation.mutate({ end_at: new Date(`${newDate}T${endTime || '23:59'}`).toISOString() });
+                  } else if (isTimed) {
+                    const updates: Record<string, string> = {
+                      start_at: new Date(`${newDate}T${startTime || '09:00'}`).toISOString(),
+                    };
+                    if (endTime) updates.end_at = new Date(`${newDate}T${endTime}`).toISOString();
+                    updateTileMutation.mutate(updates);
+                  } else {
+                    updateTileMutation.mutate({
+                      start_at: new Date(`${newDate}T00:00:00`).toISOString(),
+                      end_at: new Date(`${newDate}T23:59:59`).toISOString(),
+                    });
+                  }
+                };
+
+                return (
+                  <div className="space-y-2">
+                    {/* Date */}
+                    <div>
+                      <label className="text-[11px] text-zinc-500 mb-0.5 block">
+                        {tile.action_type === 'deadline' ? 'Scadenza' : 'Data'}
+                      </label>
+                      <input
+                        type="date"
+                        value={dateVal}
+                        onChange={(e) => updateDate(e.target.value)}
+                        className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    {/* Start/End time — only for timed */}
+                    {isTimed && (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Inizio</label>
+                          <input
+                            type="time"
+                            value={startTime}
+                            onChange={(e) => {
+                              if (!e.target.value || !dateVal) return;
+                              updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${e.target.value}`).toISOString() });
+                            }}
+                            className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Fine</label>
+                          <input
+                            type="time"
+                            value={endTime}
+                            onChange={(e) => {
+                              if (!e.target.value || !dateVal) return;
+                              updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${e.target.value}`).toISOString() });
+                            }}
+                            className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Tags */}
+              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} />
+
+              {/* Done */}
               <div className="flex gap-3">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input type="checkbox" checked={!!tile.is_completed} onChange={(e) => updateTileMutation.mutate({ is_completed: e.target.checked })} className="accent-green-500 w-3.5 h-3.5" />
                   <span className="text-[11px] text-zinc-400">Done</span>
                 </label>
-                <label className="flex items-center gap-1.5 cursor-pointer">
-                  <input type="checkbox" checked={!!tile.is_cta} onChange={(e) => updateTileMutation.mutate({ is_cta: e.target.checked })} className="accent-amber-500 w-3.5 h-3.5" />
-                  <span className="text-[11px] text-zinc-400">Call to action</span>
-                </label>
               </div>
+
+              {/* Creato */}
+              <div className="text-[11px] text-zinc-500">
+                Creato: <span className="text-zinc-300">{new Date(tile.created_at).toLocaleDateString('it-IT')}</span>
+              </div>
+
+              {/* Status Icon */}
+              <StatusIconPicker tileId={tile.id} />
 
               {customPatterns.length > 0 && (
                 <div>

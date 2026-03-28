@@ -711,7 +711,6 @@ function TileRow({
   onTileClick,
   onActionTypeChange,
   onToggleCompleted,
-  onToggleCta,
   getEmoji,
   getColor,
 }: {
@@ -725,7 +724,6 @@ function TileRow({
   onTileClick: (tile: Tile) => void;
   onActionTypeChange: (tileId: string, data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
   onToggleCompleted: (tileId: string, completed: boolean) => void;
-  onToggleCta: (tileId: string, isCta: boolean) => void;
   getEmoji: (slug: string) => string;
   getColor: (slug: string) => string | undefined;
 }) {
@@ -797,22 +795,6 @@ function TileRow({
             tile={tile}
             onUpdate={(data) => onActionTypeChange(tile.id, data)}
           />
-        </TableCell>
-        <TableCell
-          className="border-r border-zinc-800 cursor-pointer"
-          style={{ width: 60, minWidth: 60, maxWidth: 60 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCta(tile.id, !tile.is_cta);
-          }}
-        >
-          <div className="flex items-center justify-center">
-            {tile.is_cta ? (
-              <IconTarget className="h-4 w-4 text-amber-500" />
-            ) : (
-              <IconFocus className="h-4 w-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
-            )}
-          </div>
         </TableCell>
         <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, minWidth: colWidths.sparks, maxWidth: colWidths.sparks }}>
           {tile.sparks && tile.sparks.length > 0 ? (
@@ -903,7 +885,6 @@ export default function TilesPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [completedFilter, setCompletedFilter] = useState<'all' | 'done' | 'todo'>('all');
-  const [ctaFilter, setCtaFilter] = useState<'all' | 'on' | 'off'>('all');
 
   // Filter popup open state
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -913,7 +894,6 @@ export default function TilesPage() {
   const tagsHeadRef = useRef<HTMLTableCellElement>(null);
   const dateHeadRef = useRef<HTMLTableCellElement>(null);
   const completedHeadRef = useRef<HTMLTableCellElement>(null);
-  const ctaHeadRef = useRef<HTMLTableCellElement>(null);
 
   // Column widths (resizable)
   const [colWidths, setColWidths] = useState({
@@ -978,26 +958,6 @@ export default function TilesPage() {
     completedMutation.mutate({ tileId, completed });
   }, [completedMutation]);
 
-  const ctaMutation = useMutation({
-    mutationFn: async ({ tileId, isCta }: { tileId: string; isCta: boolean }) => {
-      const result = await tilesApi.update(tileId, { is_cta: isCta });
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onMutate: async ({ tileId, isCta }) => {
-      await queryClient.cancelQueries({ queryKey: ['tiles'] });
-      queryClient.setQueryData(['tiles', { page }], (old: any) => {
-        if (!old?.data) return old;
-        return { ...old, data: old.data.map((t: Tile) => t.id === tileId ? { ...t, is_cta: isCta } : t) };
-      });
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
-  });
-
-  const handleToggleCta = useCallback((tileId: string, isCta: boolean) => {
-    ctaMutation.mutate({ tileId, isCta });
-  }, [ctaMutation]);
-
   const allTags = tagsResult?.data || [];
   const allTiles = data?.data || [];
   const pagination = data?.pagination;
@@ -1034,13 +994,8 @@ export default function TilesPage() {
     } else if (completedFilter === 'todo') {
       result = result.filter((t) => !t.is_completed);
     }
-    if (ctaFilter === 'on') {
-      result = result.filter((t) => t.is_cta);
-    } else if (ctaFilter === 'off') {
-      result = result.filter((t) => !t.is_cta);
-    }
     return result;
-  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo, completedFilter, ctaFilter]);
+  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo, completedFilter]);
 
   const allSelected = tiles.length > 0 && tiles.every((t) => selectedIds.has(t.id));
   const someSelected = tiles.some((t) => selectedIds.has(t.id));
@@ -1226,19 +1181,6 @@ export default function TilesPage() {
                       onToggleFilter={() => setOpenFilter(openFilter === 'action' ? null : 'action')}
                       headRef={actionHeadRef}
                     />
-                    <TableHead
-                      ref={ctaHeadRef}
-                      className="border-r border-zinc-800 text-zinc-400"
-                      style={{ width: 60, minWidth: 60, maxWidth: 60 }}
-                    >
-                      <button
-                        onClick={() => setOpenFilter(openFilter === 'cta' ? null : 'cta')}
-                        className="flex items-center gap-1 w-full text-left"
-                      >
-                        <span className="text-[10px] truncate">CTA</span>
-                        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', ctaFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
-                      </button>
-                    </TableHead>
                     <FilterableHead
                       label="Sparks"
                       width={colWidths.sparks}
@@ -1289,7 +1231,6 @@ export default function TilesPage() {
                       onTileClick={setSelectedTile}
                       onActionTypeChange={handleActionTypeChange}
                       onToggleCompleted={handleToggleCompleted}
-                      onToggleCta={handleToggleCta}
                       getEmoji={getEmoji}
                       getColor={getColor}
                     />
@@ -1345,25 +1286,6 @@ export default function TilesPage() {
               {val === 'all' && <IconCircle className="h-3.5 w-3.5 text-zinc-600" />}
               <span className="text-zinc-300 flex-1">{label}</span>
               {completedFilter === val && <IconCheck className="h-3 w-3 text-blue-400" />}
-            </button>
-          ))}
-        </div>
-      </FilterPopup>
-
-      <FilterPopup anchorRef={ctaHeadRef} open={openFilter === 'cta'} onClose={() => setOpenFilter(null)}>
-        <div className="w-36 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Call to action</label>
-          {([['all', 'Tutti'], ['on', 'Attivi'], ['off', 'Non attivi']] as const).map(([val, label]) => (
-            <button
-              key={val}
-              className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', ctaFilter === val ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
-              onClick={() => setCtaFilter(val)}
-            >
-              {val === 'on' && <IconCircleCheck className="h-3.5 w-3.5 text-amber-500" />}
-              {val === 'off' && <IconCircle className="h-3.5 w-3.5 text-zinc-500" />}
-              {val === 'all' && <IconCircle className="h-3.5 w-3.5 text-zinc-600" />}
-              <span className="text-zinc-300 flex-1">{label}</span>
-              {ctaFilter === val && <IconCheck className="h-3 w-3 text-blue-400" />}
             </button>
           ))}
         </div>

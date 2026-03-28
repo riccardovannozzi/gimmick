@@ -131,7 +131,7 @@ export interface TagGraph {
 }
 
 // Pattern shapes
-export type PatternShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows';
+export type PatternShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows' | 'vertical';
 
 // Pattern entity
 export interface Pattern {

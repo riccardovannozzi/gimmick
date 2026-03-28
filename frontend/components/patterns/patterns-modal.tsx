@@ -36,7 +36,7 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
   });
 
   const patterns = data?.data || [];
-  const systemPatterns = patterns.filter((p) => p.category === 'system');
+  const systemPatterns = patterns.filter((p) => p.category === 'system' && p.name !== 'Call to action');
   const customPatterns = patterns.filter((p) => p.category === 'custom');
 
   const deleteMutation = useMutation({
@@ -61,7 +61,6 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
 
   const systemDescriptions: Record<string, string> = {
     Done: 'Applicato al completamento',
-    'Call to action': 'Assegnato manualmente',
   };
 
   return (
@@ -92,13 +91,16 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
                       </div>
                       <span className="text-[11px] text-zinc-500">{systemDescriptions[p.name] || ''}</span>
                     </div>
-                    <button
-                      onClick={() => openPicker('edit', p)}
-                      className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
-                    >
-                      {SHAPE_LABELS[p.shape]}
-                      <IconChevronRight className="h-3 w-3" />
-                    </button>
+                    <div className="flex items-center gap-10">
+                      <button
+                        onClick={() => openPicker('edit', p)}
+                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        Edit
+                        <IconChevronRight className="h-3 w-3" />
+                      </button>
+                      <div className="w-[22px]" />
+                    </div>
                   </div>
                 ))}
               </div>
@@ -122,7 +124,7 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
                 </button>
 
                 {customPatterns.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50 group">
+                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
                     <PatternPreview shape={p.shape} size={40} />
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-white">{p.name}</span>
@@ -131,23 +133,25 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
                         {p.action_type && <span className="ml-1 text-blue-400">→ {p.action_type}</span>}
                       </div>
                     </div>
-                    <button
-                      onClick={() => openPicker('edit', p)}
-                      className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
-                    >
-                      {SHAPE_LABELS[p.shape]}
-                      <IconChevronRight className="h-3 w-3" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Eliminare il pattern "${p.name}"?`)) {
-                          deleteMutation.mutate(p.id);
-                        }
-                      }}
-                      className="text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <IconX className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-10">
+                      <button
+                        onClick={() => openPicker('edit', p)}
+                        className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
+                      >
+                        Edit
+                        <IconChevronRight className="h-3 w-3" />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Eliminare il pattern "${p.name}"?`)) {
+                            deleteMutation.mutate(p.id);
+                          }
+                        }}
+                        className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
+                      >
+                        <IconX className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
