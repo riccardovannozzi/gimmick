@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useRef, DragEvent } from 'react';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconHourglass, IconCalendarEvent, IconClock } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconHourglass, IconCalendarEvent, IconClock, IconArrowsSort, IconFilter, IconLayoutList } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -15,6 +15,7 @@ import { BAND_COLORS, isTileDimmed, isToday, isSunday, formatTime, generateWeekD
 import { usePatterns } from '@/store/patterns-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useStatusIcons } from '@/store/status-icons-store';
+import { useActionColors } from '@/store/action-colors-store';
 
 const FALLBACK_COLOR = '#888780';
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
@@ -68,13 +69,15 @@ const ACTION_OPTIONS = [
 ] as const;
 
 
+let _patId = 0;
 function InlinePattern({ shape, color }: { shape: PatternShape; color: string }) {
-  const o = 0.7;
+  const o = 0.2;
+  const id = useMemo(() => `il-${++_patId}`, []);
   switch (shape) {
     case 'solid': return null;
-    case 'diagonal_ltr': return <><defs><pattern id="il-ltr" patternUnits="userSpaceOnUse" width={20} height={20} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-ltr)" /></>;
-    case 'diagonal_rtl': return <><defs><pattern id="il-rtl" patternUnits="userSpaceOnUse" width={20} height={20} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-rtl)" /></>;
-    case 'vertical': return <><defs><pattern id="il-vert" patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width={80} height={68} fill="url(#il-vert)" /></>;
+    case 'diagonal_ltr': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
+    case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
+    case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
     case 'bubble': return <><circle cx={18} cy={14} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={58} cy={10} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.1} /><circle cx={40} cy={30} r={11} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={62} cy={38} r={9} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={35} cy={56} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.05} /></>;
     default: return null;
   }
@@ -89,16 +92,23 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR
 export default function CalendarPage() {
   const queryClient = useQueryClient();
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+  const actionColors = useActionColors();
   const { selectedTagIds } = useTagFilterStore();
-  const getIconForTile = useStatusIcons((s) => s.getIconForTile);
+  const statusIcons = useStatusIcons((s) => s.icons);
+  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
+  const getIconForTile = useCallback((tileId: string) => {
+    const iconId = statusTileIcons[tileId];
+    if (!iconId) return null;
+    return statusIcons.find((i) => i.id === iconId) || null;
+  }, [statusIcons, statusTileIcons]);
   const { doneShape, getActionTypeShape, customPatterns } = usePatterns();
 
   const resolveShape = useCallback((tile: Tile): PatternShape => {
-    if (tile.is_completed) return doneShape;
     if (tile.pattern_id) {
       const custom = customPatterns.find((p) => p.id === tile.pattern_id);
       if (custom) return custom.shape as PatternShape;
     }
+    if (tile.is_completed) return doneShape;
     return getActionTypeShape(tile.action_type || 'none');
   }, [doneShape, customPatterns, getActionTypeShape]);
 
@@ -140,6 +150,24 @@ export default function CalendarPage() {
 
   // Schedule from existing tile
   const [showTilePicker, setShowTilePicker] = useState(false);
+
+  // Notes column controls
+  type NotesSort = 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
+  type NotesFilter = 'all' | 'status' | 'pattern';
+  type NotesGroup = 'none' | 'date' | 'tag';
+  const [notesSort, setNotesSort] = useState<NotesSort>('date_desc');
+  const [notesFilter, setNotesFilter] = useState<NotesFilter>('all');
+  const [notesGroup, setNotesGroup] = useState<NotesGroup>('none');
+  const [notesMenuOpen, setNotesMenuOpen] = useState<'sort' | 'filter' | 'group' | null>(null);
+
+  // Todo column controls
+  type TodoSort = 'order' | 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
+  type TodoFilter = 'all' | 'active' | 'completed' | 'pattern';
+  type TodoGroup = 'none' | 'date' | 'tag';
+  const [todoSort, setTodoSort] = useState<TodoSort>('order');
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>('all');
+  const [todoGroup, setTodoGroup] = useState<TodoGroup>('none');
+  const [todoMenuOpen, setTodoMenuOpen] = useState<'sort' | 'filter' | 'group' | null>(null);
 
   // Fetch events
   const { data: eventsData, isLoading } = useQuery({
@@ -184,6 +212,82 @@ export default function CalendarPage() {
   }, [allTiles]);
 
   const activeTodos = todos.filter((t) => !t.is_completed).length;
+
+  // Processed notes: tag filter, sort, filter
+  const processedNotes = useMemo(() => {
+    let list = [...notes];
+    // Hide tiles excluded by sidebar tag filter
+    if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
+    // Filter
+    if (notesFilter === 'status') list = list.filter((t) => t.is_completed);
+    if (notesFilter === 'pattern') list = list.filter((t) => !!t.pattern_id);
+    // Sort
+    switch (notesSort) {
+      case 'date_desc': list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'date_asc': list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case 'alpha_asc': list.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
+      case 'alpha_desc': list.sort((a, b) => (b.title || '').localeCompare(a.title || '')); break;
+    }
+    return list;
+  }, [notes, notesSort, notesFilter, selectedTagIds]);
+
+  // Processed todos: tag filter, sort, filter
+  const processedTodos = useMemo(() => {
+    let list = [...todos];
+    // Hide tiles excluded by sidebar tag filter
+    if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
+    // Filter
+    if (todoFilter === 'active') list = list.filter((t) => !t.is_completed);
+    if (todoFilter === 'completed') list = list.filter((t) => t.is_completed);
+    if (todoFilter === 'pattern') list = list.filter((t) => !!t.pattern_id);
+    // Sort
+    switch (todoSort) {
+      case 'order':
+        list.sort((a, b) => {
+          if (a.is_completed && !b.is_completed) return 1;
+          if (!a.is_completed && b.is_completed) return -1;
+          return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        });
+        break;
+      case 'date_desc': list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'date_asc': list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case 'alpha_asc': list.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
+      case 'alpha_desc': list.sort((a, b) => (b.title || '').localeCompare(a.title || '')); break;
+    }
+    return list;
+  }, [todos, selectedTagIds, todoSort, todoFilter]);
+
+  const groupedTodos = useMemo(() => {
+    if (todoGroup === 'none') return null;
+    const groups: Record<string, Tile[]> = {};
+    processedTodos.forEach((t) => {
+      let key: string;
+      if (todoGroup === 'date') {
+        key = new Date(t.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      } else {
+        key = t.tags?.[0]?.name || 'Senza tag';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [processedTodos, todoGroup]);
+
+  const groupedNotes = useMemo(() => {
+    if (notesGroup === 'none') return null;
+    const groups: Record<string, Tile[]> = {};
+    processedNotes.forEach((t) => {
+      let key: string;
+      if (notesGroup === 'date') {
+        key = new Date(t.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      } else {
+        key = t.tags?.[0]?.name || 'Senza tag';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [processedNotes, notesGroup]);
 
   const getTagInfo = (tile: Tile): { icon: string; name: string } => {
     const tag = tile.tags?.[0];
@@ -250,6 +354,148 @@ export default function CalendarPage() {
     },
   });
 
+  // ─── Drag-and-drop between sections ───
+  type DropTarget = 'notes' | 'todo' | 'deadline' | 'allday' | 'timed';
+  const dragTileRef = useRef<Tile | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null); // "section" or "section:day" or "timed:day:minutes"
+
+  const onDragStart = useCallback((e: DragEvent, tile: Tile) => {
+    dragTileRef.current = tile;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tile.id);
+    // Semi-transparent drag image
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.4';
+    }
+  }, []);
+
+  const onDragEnd = useCallback((e: DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '';
+    }
+    dragTileRef.current = null;
+    setDragOver(null);
+  }, []);
+
+  const moveTileMutation = useMutation({
+    mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
+      tilesApi.update(params.id, params.updates as Parameters<typeof tilesApi.update>[1]),
+    onMutate: ({ id, updates }) => {
+      // Optimistic update across all caches
+      const patch = (t: Tile) => (t.id === id ? { ...t, ...updates } : t);
+      queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: old.data.map(patch) };
+      });
+      queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: old.data.map(patch) };
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+    },
+  });
+
+  const handleDrop = useCallback((target: DropTarget, day?: string, minuteOffset?: number) => {
+    const tile = dragTileRef.current;
+    if (!tile) return;
+    setDragOver(null);
+
+    const updates: Record<string, unknown> = {};
+    const dateStr = day || days[0]; // fallback to first visible day
+
+    switch (target) {
+      case 'notes':
+        updates.action_type = 'none';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.start_at = null;
+        updates.end_at = null;
+        break;
+      case 'todo':
+        updates.action_type = 'anytime';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.start_at = null;
+        updates.end_at = null;
+        break;
+      case 'deadline':
+        updates.action_type = 'deadline';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.end_at = new Date(`${dateStr}T23:59:59`).toISOString();
+        if (!tile.start_at) updates.start_at = null;
+        break;
+      case 'allday':
+        updates.action_type = 'event';
+        updates.is_event = true;
+        updates.all_day = true;
+        updates.start_at = new Date(`${dateStr}T00:00:00`).toISOString();
+        updates.end_at = new Date(`${dateStr}T23:59:59`).toISOString();
+        break;
+      case 'timed': {
+        const mins = minuteOffset ?? (9 * 60); // default 09:00
+        const h = Math.floor(mins / 60);
+        const m = Math.round(mins % 60);
+        const startTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        const endH = Math.min(h + 1, 22);
+        const endTime = `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        updates.action_type = 'event';
+        updates.is_event = true;
+        updates.all_day = false;
+        updates.start_at = new Date(`${dateStr}T${startTime}:00`).toISOString();
+        updates.end_at = new Date(`${dateStr}T${endTime}:00`).toISOString();
+        break;
+      }
+    }
+
+    moveTileMutation.mutate({ id: tile.id, updates });
+  }, [days, moveTileMutation, queryClient]);
+
+  // ─── Resize TIMED tiles (stretch duration) ───
+  const resizeRef = useRef<{ tileId: string; startY: number; startEndAt: string; dayStr: string } | null>(null);
+
+  const onResizeStart = useCallback((e: React.PointerEvent, tile: Tile, dayStr: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    resizeRef.current = { tileId: tile.id, startY: e.clientY, startEndAt: tile.end_at || '', dayStr };
+  }, []);
+
+  const onResizeMove = useCallback((e: React.PointerEvent) => {
+    if (!resizeRef.current) return;
+    const { tileId, startY, startEndAt, dayStr } = resizeRef.current;
+    const dy = e.clientY - startY;
+    const deltaMin = (dy / SLOT_H) * 60;
+    const origEnd = new Date(startEndAt);
+    const newEndMin = origEnd.getHours() * 60 + origEnd.getMinutes() + deltaMin;
+    // Snap to 15 min, clamp to grid
+    const snapped = Math.max(START_HOUR * 60 + 15, Math.min(END_HOUR * 60, Math.round(newEndMin / 15) * 15));
+    const h = Math.floor(snapped / 60);
+    const m = snapped % 60;
+    const newEnd = new Date(`${dayStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).toISOString();
+    // Optimistic update only end_at
+    const patch = (t: Tile) => (t.id === tileId ? { ...t, end_at: newEnd } : t);
+    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map(patch) };
+    });
+  }, [queryClient]);
+
+  const onResizeEnd = useCallback(() => {
+    if (!resizeRef.current) return;
+    const { tileId } = resizeRef.current;
+    // Read the current end_at from the optimistic cache
+    const cached = queryClient.getQueryData<any>(['calendar-events']);
+    const tile = cached?.data?.find((t: Tile) => t.id === tileId);
+    if (tile?.end_at) {
+      moveTileMutation.mutate({ id: tileId, updates: { end_at: tile.end_at } });
+    }
+    resizeRef.current = null;
+  }, [queryClient, moveTileMutation]);
+
   // Categorize calendar events into lanes
   const filteredEvents = useMemo(() => {
     let filtered = events;
@@ -301,8 +547,11 @@ export default function CalendarPage() {
     return (
       <div
         key={tile.id}
+        draggable
+        onDragStart={(e) => onDragStart(e, tile)}
+        onDragEnd={onDragEnd}
         className={cn(
-          'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
           selectedTileId === tile.id && 'ring-2 ring-blue-500',
           isTileDimmed(tile, selectedTagIds) && 'opacity-20 saturate-0',
           tile.is_completed && 'opacity-50',
@@ -311,7 +560,7 @@ export default function CalendarPage() {
           backgroundColor: 'rgba(24, 24, 27, 0.5)',
           borderColor: isHighlight ? '#E24B4A' : `${color}60`,
           minWidth: 56,
-          minHeight: 40,
+          minHeight: 52,
         }}
         onClick={() => handleCalTileClick(tile)}
       >
@@ -319,7 +568,7 @@ export default function CalendarPage() {
           <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
           <div className="px-1.5 py-1 min-w-0 flex-1">
             {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-            <span className={cn('text-[9px] text-zinc-400 font-semibold block truncate', tile.is_completed && 'line-through')}>{tile.title || 'Senza titolo'}</span>
+            <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', tile.is_completed && 'line-through')}>{tile.title || 'Senza titolo'}</span>
             {subtitle && <span className="text-[7px] text-zinc-500 block truncate">{subtitle}</span>}
           </div>
           {statusIcon && (
@@ -328,8 +577,8 @@ export default function CalendarPage() {
             </div>
           )}
           {shape !== 'solid' && (
-            <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
-              <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              <svg className="w-full h-full">
                 <InlinePattern shape={shape} color={color} />
               </svg>
             </div>
@@ -474,101 +723,300 @@ export default function CalendarPage() {
       <div className="flex flex-1 overflow-hidden">
 
         {/* 2 — COLONNA NOTES */}
-        <div className="shrink-0 w-44 border-r border-zinc-800 flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: '#64748B' }} />
-            <IconNote className="h-3.5 w-3.5" style={{ color: '#64748B' }} />
+        <div
+          className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50')}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
+          onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
+          onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
+        >
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+            <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
-            <span className="text-[10px] text-zinc-500 ml-auto">{notes.length}</span>
+            <span className="text-[10px] text-zinc-500">{processedNotes.length}</span>
+            <div className="flex items-center gap-0.5 ml-auto">
+              {/* Sort */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesSort !== 'date_desc' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconArrowsSort className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'sort' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesSort(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesSort === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesSort === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Filter */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconFilter className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'filter' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['all', 'Tutti'], ['status', 'Completati'], ['pattern', 'Con pattern']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesFilter(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesFilter === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Group */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconLayoutList className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'group' && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesGroup(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesGroup === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-            {notes.map((t) => {
-              const color = getTagColor(t);
-              const info = getTagInfo(t);
-              const shape = resolveShape(t);
-              const si = getIconForTile(t.id);
-              return (
-                <div
-                  key={t.id}
-                  className={cn(
-                    'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
-                    selectedTileId === t.id && 'ring-2 ring-blue-500',
-                    isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
-                  )}
-                  style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 40 }}
-                  onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                >
-                  <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                    <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                    <div className="px-1.5 py-1 min-w-0 flex-1">
-                      {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                      <span className="text-[9px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
-                    </div>
-                    {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
-                    {shape !== 'solid' && (
-                      <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
-                        <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
-                          <InlinePattern shape={shape} color={color} />
-                        </svg>
+            {groupedNotes ? (
+              Object.entries(groupedNotes).map(([group, tiles]) => (
+                <div key={group}>
+                  <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
+                  {tiles.map((t) => {
+                    const color = getTagColor(t);
+                    const info = getTagInfo(t);
+                    const shape = resolveShape(t);
+                    const si = getIconForTile(t.id);
+                    return (
+                      <div
+                        key={t.id}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, t)}
+                        onDragEnd={onDragEnd}
+                        className={cn(
+                          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          selectedTileId === t.id && 'ring-2 ring-blue-500',
+                          isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
+                        )}
+                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                        onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                      >
+                        <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                          <div className="px-1.5 py-1 min-w-0 flex-1">
+                            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                            <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                          </div>
+                          {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                          {shape !== 'solid' && (
+                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                              <svg className="w-full h-full">
+                                <InlinePattern shape={shape} color={color} />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-            {notes.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun appunto</span>}
+              ))
+            ) : (
+              processedNotes.map((t) => {
+                const color = getTagColor(t);
+                const info = getTagInfo(t);
+                const shape = resolveShape(t);
+                const si = getIconForTile(t.id);
+                return (
+                  <div
+                    key={t.id}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, t)}
+                    onDragEnd={onDragEnd}
+                    className={cn(
+                      'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      selectedTileId === t.id && 'ring-2 ring-blue-500',
+                      isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
+                    )}
+                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                    onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                  >
+                    <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                      <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                      <div className="px-1.5 py-1 min-w-0 flex-1">
+                        {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                        <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                      </div>
+                      {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                      {shape !== 'solid' && (
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                          <svg className="w-full h-full">
+                            <InlinePattern shape={shape} color={color} />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {processedNotes.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun appunto</span>}
           </div>
         </div>
 
         {/* 3 — COLONNA TODO */}
-        <div className="shrink-0 w-44 border-r border-zinc-800 flex flex-col overflow-hidden">
-          <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800">
-            <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: BAND_COLORS.todos }} />
-            <IconChecklist className="h-3.5 w-3.5" style={{ color: BAND_COLORS.todos }} />
+        <div
+          className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50')}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
+          onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
+          onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
+        >
+          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+            <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
-            <span className="text-[10px] text-zinc-500 ml-auto">{activeTodos} attivi</span>
+            <span className="text-[10px] text-zinc-500">{processedTodos.filter((t) => !t.is_completed).length}</span>
+            <div className="flex items-center gap-0.5 ml-auto">
+              {/* Sort */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoSort !== 'order' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconArrowsSort className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'sort' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['order', 'Ordine'], ['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoSort(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoSort === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoSort === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Filter */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconFilter className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'filter' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['all', 'Tutti'], ['active', 'Attivi'], ['completed', 'Completati'], ['pattern', 'Con pattern']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoFilter(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoFilter === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Group */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconLayoutList className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'group' && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoGroup(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoGroup === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
-            {todos.sort((a, b) => {
-              if (a.is_completed && !b.is_completed) return 1;
-              if (!a.is_completed && b.is_completed) return -1;
-              return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-            }).map((t) => {
-              const color = getTagColor(t);
-              const info = getTagInfo(t);
-              const shape = resolveShape(t);
-              const si = getIconForTile(t.id);
-              return (
-                <div
-                  key={t.id}
-                  className={cn(
-                    'rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
-                    selectedTileId === t.id && 'ring-2 ring-blue-500',
-                    isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0',
-                    t.is_completed && 'opacity-50',
-                  )}
-                  style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 40 }}
-                  onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                >
-                  <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                    <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                    <div className="px-1.5 py-1 min-w-0 flex-1">
-                      {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                      <span className={cn('text-[9px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
-                    </div>
-                    {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
-                    {shape !== 'solid' && (
-                      <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
-                        <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
-                          <InlinePattern shape={shape} color={color} />
-                        </svg>
+            {groupedTodos ? (
+              Object.entries(groupedTodos).map(([group, tiles]) => (
+                <div key={group}>
+                  <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
+                  {tiles.map((t) => {
+                    const color = getTagColor(t);
+                    const info = getTagInfo(t);
+                    const shape = resolveShape(t);
+                    const si = getIconForTile(t.id);
+                    return (
+                      <div
+                        key={t.id}
+                        draggable
+                        onDragStart={(e) => onDragStart(e, t)}
+                        onDragEnd={onDragEnd}
+                        className={cn(
+                          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          selectedTileId === t.id && 'ring-2 ring-blue-500',
+                          t.is_completed && 'opacity-50',
+                        )}
+                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                        onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                      >
+                        <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                          <div className="px-1.5 py-1 min-w-0 flex-1">
+                            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                            <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
+                          </div>
+                          {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                          {shape !== 'solid' && (
+                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                              <svg className="w-full h-full">
+                                <InlinePattern shape={shape} color={color} />
+                              </svg>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
+                    );
+                  })}
                 </div>
-              );
-            })}
-            {todos.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun task</span>}
+              ))
+            ) : (
+              processedTodos.map((t) => {
+                const color = getTagColor(t);
+                const info = getTagInfo(t);
+                const shape = resolveShape(t);
+                const si = getIconForTile(t.id);
+                return (
+                  <div
+                    key={t.id}
+                    draggable
+                    onDragStart={(e) => onDragStart(e, t)}
+                    onDragEnd={onDragEnd}
+                    className={cn(
+                      'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      selectedTileId === t.id && 'ring-2 ring-blue-500',
+                      t.is_completed && 'opacity-50',
+                    )}
+                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                    onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                  >
+                    <div className="flex relative" style={{ minHeight: 'inherit' }}>
+                      <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
+                      <div className="px-1.5 py-1 min-w-0 flex-1">
+                        {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
+                        <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
+                      </div>
+                      {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                      {shape !== 'solid' && (
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                          <svg className="w-full h-full">
+                            <InlinePattern shape={shape} color={color} />
+                          </svg>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+            {processedTodos.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun task</span>}
           </div>
         </div>
 
@@ -669,17 +1117,24 @@ export default function CalendarPage() {
             </div>
 
             {/* LANE DEADLINE */}
-            <div className="flex items-center gap-2 px-2 py-1 bg-red-950/30 border-b border-zinc-800">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              <IconHourglass size={12} className="text-amber-600/80" />
-              <span className="text-[9px] font-bold tracking-widest text-amber-600/80">DEADLINE</span>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.deadline}15` }}>
+              <IconHourglass size={12} style={{ color: actionColors.deadline }} />
+              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.deadline }}>DEADLINE</span>
             </div>
             <div className="flex border-b border-zinc-800">
               <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
               {days.map((day) => {
                 const tiles = groupedDeadlines[day] || [];
+                const dKey = `deadline:${day}`;
                 return (
-                  <div key={day} className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5')} style={{ minHeight: 46 }}>
+                  <div
+                    key={day}
+                    className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5', dragOver === dKey && 'bg-amber-500/10')}
+                    style={{ minHeight: 46 }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(dKey); }}
+                    onDragLeave={() => setDragOver((v) => v === dKey ? null : v)}
+                    onDrop={(e) => { e.preventDefault(); handleDrop('deadline', day); }}
+                  >
                     {tiles.map((t) => renderCalTile(t, deadlineSubtitle(t)))}
                   </div>
                 );
@@ -687,17 +1142,24 @@ export default function CalendarPage() {
             </div>
 
             {/* LANE ALL DAY */}
-            <div className="flex items-center gap-2 px-2 py-1 bg-amber-950/20 border-b border-zinc-800">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-600" />
-              <IconCalendarEvent size={12} className="text-green-600/80" />
-              <span className="text-[9px] font-bold tracking-widest text-green-600/80">ALL DAY</span>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.allday}15` }}>
+              <IconCalendarEvent size={12} style={{ color: actionColors.allday }} />
+              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.allday }}>ALL DAY</span>
             </div>
             <div className="flex border-b border-zinc-800">
               <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
               {days.map((day) => {
                 const tiles = groupedAllDay[day] || [];
+                const aKey = `allday:${day}`;
                 return (
-                  <div key={day} className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5')} style={{ minHeight: 46 }}>
+                  <div
+                    key={day}
+                    className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5', dragOver === aKey && 'bg-green-500/10')}
+                    style={{ minHeight: 46 }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(aKey); }}
+                    onDragLeave={() => setDragOver((v) => v === aKey ? null : v)}
+                    onDrop={(e) => { e.preventDefault(); handleDrop('allday', day); }}
+                  >
                     {tiles.map((t) => renderCalTile(t))}
                   </div>
                 );
@@ -705,10 +1167,9 @@ export default function CalendarPage() {
             </div>
 
             {/* LANE TIMED header */}
-            <div className="flex items-center gap-2 px-2 py-1 bg-blue-950/30 border-b border-zinc-800">
-              <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-              <IconClock size={12} className="text-blue-500/80" />
-              <span className="text-[9px] font-bold tracking-widest text-blue-500/80">TIMED</span>
+            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.event}15` }}>
+              <IconClock size={12} style={{ color: actionColors.event }} />
+              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.event }}>TIMED</span>
             </div>
 
             {/* LANE TIMED — continuous time grid */}
@@ -724,8 +1185,23 @@ export default function CalendarPage() {
               {/* Day columns with absolutely positioned events */}
               {days.map((day) => {
                 const tiles = timedByDay[day] || [];
+                const tKey = `timed:${day}`;
                 return (
-                  <div key={day} className={cn('flex-1 border-r border-zinc-800 relative', isToday(day) && 'bg-blue-500/5')}>
+                  <div
+                    key={day}
+                    className={cn('flex-1 border-r border-zinc-800 relative', isToday(day) && 'bg-blue-500/5', dragOver === tKey && 'bg-blue-500/10')}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(tKey); }}
+                    onDragLeave={() => setDragOver((v) => v === tKey ? null : v)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const yOffset = e.clientY - rect.top;
+                      const minutes = START_HOUR * 60 + (yOffset / SLOT_H) * 60;
+                      // Snap to 15-minute increments
+                      const snapped = Math.round(minutes / 15) * 15;
+                      handleDrop('timed', day, snapped);
+                    }}
+                  >
                     {/* Slot grid lines */}
                     {HOURS.map((h) => (
                       <div key={h} className="border-b border-zinc-800" style={{ height: SLOT_H }} />
@@ -746,14 +1222,17 @@ export default function CalendarPage() {
                       return (
                         <div
                           key={t.id}
+                          draggable
+                          onDragStart={(e) => { e.stopPropagation(); onDragStart(e, t); }}
+                          onDragEnd={onDragEnd}
                           className={cn(
-                            'absolute left-0.5 right-0.5 rounded-sm overflow-hidden cursor-pointer hover:brightness-110 transition-all border',
+                            'absolute left-0.5 right-0.5 rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
                             selectedTileId === t.id && 'ring-2 ring-blue-500',
                             isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                           )}
                           style={{
                             top: topPx,
-                            height: Math.max(40, heightPx),
+                            height: Math.max(52, heightPx),
                             backgroundColor: 'rgb(24, 24, 27)',
                             borderColor: `${color}60`,
                           }}
@@ -763,18 +1242,25 @@ export default function CalendarPage() {
                             <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
                             <div className="px-1 py-0.5 min-w-0 flex-1">
                               {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                              <span className="text-[9px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                              <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
                               <span className="text-[7px] text-zinc-500">{formatTime(t.start_at!)}{t.end_at ? ` - ${formatTime(t.end_at)}` : ''}</span>
                             </div>
                             {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
                             {shape !== 'solid' && (
-                              <div className="absolute top-0 bottom-0 right-0 w-8 flex items-center justify-center">
-                                <svg className="w-full h-full" viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                                <svg className="w-full h-full">
                                   <InlinePattern shape={shape} color={color} />
                                 </svg>
                               </div>
                             )}
                           </div>
+                          {/* Resize handle */}
+                          <div
+                            className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize hover:bg-white/10 transition-colors"
+                            onPointerDown={(e) => onResizeStart(e, t, day)}
+                            onPointerMove={onResizeMove}
+                            onPointerUp={onResizeEnd}
+                          />
                         </div>
                       );
                     })}

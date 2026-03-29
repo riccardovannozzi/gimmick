@@ -40,13 +40,15 @@ export const GIMMICK_PALETTE: PaletteColor[] = [
 ];
 
 export const DEFAULT_ACTION_COLORS: Record<ActionType, string> = {
-  none:     '#EC4899', // Rosa (Appunto)
-  anytime:  '#F59E0B', // Ambra (Da fare)
-  deadline: '#EF4444', // Rosso (Scadenza)
-  event:    '#3B82F6', // Blu (Evento)
+  none:     '#EC4899', // Rosa (Notes)
+  anytime:  '#F59E0B', // Ambra (To Do)
+  deadline: '#EF4444', // Rosso (Deadline)
+  event:    '#3B82F6', // Blu (Timed)
+  allday:   '#22C55E', // Verde (All Day)
 };
 
 export function getColorName(hex: string): string {
+  if (!hex) return '';
   const found = GIMMICK_PALETTE.find((c) => c.hex.toLowerCase() === hex.toLowerCase());
   return found?.name ?? hex;
 }

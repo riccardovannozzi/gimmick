@@ -74,15 +74,18 @@ export function Header({ actions }: HeaderProps) {
     : 'U';
 
   return (
-    <header className="flex h-12 items-center justify-between border-b border-zinc-800 bg-zinc-950 px-4">
-      {/* Left — Tab groups */}
-      <div className="flex items-center gap-3">
+    <header className="flex h-12 items-center border-b border-zinc-800 bg-zinc-950 px-4">
+      {/* Center — Tab groups */}
+      <div className="flex-1" />
+      <div className="flex items-center">
         <TabGroup items={TAB_GROUP_DATA} />
+        <div style={{ width: 100 }} />
         <TabGroup items={TAB_GROUP_VIEWS} />
       </div>
+      <div className="flex-1" />
 
       {/* Right side */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0">
         {actions}
         {/* Search */}
         <div className="relative">

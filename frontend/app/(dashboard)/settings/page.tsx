@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar, IconBrush, IconMoodSmile } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconBrush, IconMoodSmile } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,10 +21,11 @@ import { StatusIconsModal } from '@/components/status-icons/status-icons-modal';
 import type { ActionType } from '@/types';
 
 const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[] = [
-  { type: 'none', label: 'Appunto', icon: IconPin },
-  { type: 'anytime', label: 'Da fare', icon: IconBolt },
-  { type: 'deadline', label: 'Scadenza', icon: IconClock },
-  { type: 'event', label: 'Evento', icon: IconCalendar },
+  { type: 'none', label: 'Notes', icon: IconPin },
+  { type: 'anytime', label: 'To Do', icon: IconBolt },
+  { type: 'deadline', label: 'Deadline', icon: IconClock },
+  { type: 'event', label: 'Timed', icon: IconCalendar },
+  { type: 'allday', label: 'All Day', icon: IconCalendarEvent },
 ];
 
 function ColorPickerGrid({

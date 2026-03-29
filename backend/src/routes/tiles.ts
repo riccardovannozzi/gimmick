@@ -189,10 +189,10 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
   try {
     const { id } = req.params;
 
-    // Get tile
+    // Get tile with tags
     const { data: tile, error: tileError } = await supabaseAdmin
       .from('tiles')
-      .select('*')
+      .select('*, tile_tags(tag_id, tags(id, name, tag_type))')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();
@@ -212,11 +212,15 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
       throw sparksError;
     }
 
+    const tags = ((tile as any).tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
+
     res.json({
       success: true,
       data: {
         ...tile,
         sparks: sparks || [],
+        tags,
+        tile_tags: undefined,
       },
     });
   } catch (error) {

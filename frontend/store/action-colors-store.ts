@@ -19,7 +19,7 @@ export function useActionColorsQuery() {
     queryKey: ['settings', SETTINGS_KEY],
     queryFn: async () => {
       const res = await settingsApi.get<ActionColors>(SETTINGS_KEY);
-      return res.data ?? DEFAULT_ACTION_COLORS;
+      return { ...DEFAULT_ACTION_COLORS, ...(res.data || {}) };
     },
     staleTime: 5 * 60 * 1000,
     enabled: !!user,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
@@ -10,6 +11,8 @@ import type { Tag } from '@/types';
 import { usePatterns } from '@/store/patterns-store';
 import { cn } from '@/lib/utils';
 import { useStatusIcons } from '@/store/status-icons-store';
+import { useTagTypes } from '@/store/tag-types-store';
+import type { PatternShape } from '@/types';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -33,9 +36,27 @@ const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ 
 function StatusIconPicker({ tileId }: { tileId: string }) {
   const { icons, tileIcons, assignIcon } = useStatusIcons();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const currentIconId = tileIcons[tileId] || '';
   const current = icons.find((i) => i.id === currentIconId);
   const CurrentComp = current?.icon ? AllIcons[current.icon] : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
   if (icons.length === 0) return null;
 
@@ -43,6 +64,7 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
     <div className="relative">
       <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
       <button
+        ref={triggerRef}
         onClick={() => setOpen(!open)}
         className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
       >
@@ -52,12 +74,15 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
             <span className="truncate flex-1 text-left">{current!.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left">Nessuno</span>
+          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona status...</span>
         )}
-        <svg className={cn('h-3 w-3 text-zinc-500 shrink-0 transition-transform', open && 'rotate-180')} viewBox="0 0 12 12" fill="none"><path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </button>
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto">
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+        >
           <button
             onClick={() => { assignIcon(tileId, null); setOpen(false); }}
             className={cn(
@@ -65,8 +90,11 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
               !currentIconId && 'bg-zinc-700/30'
             )}
           >
-            <span className="w-4 h-4 flex items-center justify-center text-zinc-500">—</span>
-            <span className="text-zinc-400">Nessuno</span>
+            <span className="w-3.5 h-3.5 flex items-center justify-center text-zinc-500">—</span>
+            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
+            {!currentIconId && (
+              <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            )}
           </button>
           {icons.map((icon) => {
             const Comp = AllIcons[icon.icon];
@@ -81,19 +109,153 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
                 )}
               >
                 {Comp && <Comp size={14} className="text-zinc-200 shrink-0" />}
-                <span className="text-zinc-300 truncate">{icon.name}</span>
+                <span className="text-zinc-300 truncate flex-1">{icon.name}</span>
+                {selected && (
+                  <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
               </button>
             );
           })}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
 }
 
-function TagPicker({ tileId, tileTags, onChanged }: { tileId: string; tileTags: { id: string; name: string }[]; onChanged: () => void }) {
+function InlinePatternSvg({ shape, color }: { shape: PatternShape; color: string }) {
+  const o = 0.35;
+  switch (shape) {
+    case 'solid': return null;
+    case 'diagonal_ltr': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-ltr-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-ltr-${color.replace('#','')})`} /></svg>;
+    case 'diagonal_rtl': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-rtl-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-rtl-${color.replace('#','')})`} /></svg>;
+    case 'vertical': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-vert-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-vert-${color.replace('#','')})`} /></svg>;
+    case 'bubble': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><circle cx={15} cy={10} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={40} cy={18} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={65} cy={8} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /></svg>;
+    default: return null;
+  }
+}
+
+function PatternPickerField({ patterns, value, tagColor, onChange }: {
+  patterns: { id: string; name: string; shape: string }[];
+  value: string | null;
+  tagColor: string;
+  onChange: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const selected = patterns.find((p) => p.id === value) || null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  return (
+    <div>
+      <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors relative overflow-hidden"
+      >
+        {selected ? (
+          <>
+            <InlinePatternSvg shape={selected.shape as PatternShape} color={tagColor} />
+            <span className="relative z-10 truncate flex-1 text-left">{selected.name}</span>
+          </>
+        ) : (
+          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona pattern...</span>
+        )}
+      </button>
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+        >
+          <button
+            onClick={() => { onChange(null); setOpen(false); }}
+            className={cn(
+              'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+              !value && 'bg-zinc-700/30'
+            )}
+          >
+            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
+            {!value && (
+              <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+            )}
+          </button>
+          {patterns.map((p) => {
+            const isSelected = value === p.id;
+            return (
+              <button
+                key={p.id}
+                onClick={() => { onChange(p.id); setOpen(false); }}
+                className={cn(
+                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors relative overflow-hidden',
+                  isSelected && 'bg-zinc-700/30'
+                )}
+              >
+                <InlinePatternSvg shape={p.shape as PatternShape} color={tagColor} />
+                <span className="relative z-10 text-zinc-300 truncate flex-1">{p.name}</span>
+                {isSelected && (
+                  <svg className="relative z-10 w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; size?: number }) {
+  if (emoji.startsWith('Icon')) {
+    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
+    if (Comp) return <Comp size={size} style={{ color }} />;
+  }
+  if (emoji) return <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji}</span>;
+  return <span className="rounded-full shrink-0" style={{ width: size * 0.55, height: size * 0.55, backgroundColor: color }} />;
+}
+
+function TagPicker({ tileId, tileTags, onChanged, queryClient }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient> }) {
   const [open, setOpen] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
+  const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  // Position dropdown and handle outside clicks
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
 
   const { data: tagsData } = useQuery({
     queryKey: ['tags'],
@@ -101,20 +263,48 @@ function TagPicker({ tileId, tileTags, onChanged }: { tileId: string; tileTags: 
     staleTime: 60_000,
   });
   const allTags: Tag[] = (tagsData as { data?: Tag[] })?.data || [];
-  const tileTagIds = new Set(tileTags.map((t) => t.id));
+  const selectedTag = tileTags[0] || null;
 
-  const handleToggle = async (tag: Tag) => {
+  // Optimistic update helper: patch tag in all cached tile queries
+  const optimisticUpdateTag = (newTag: { id: string; name: string; tag_type?: string } | null) => {
+    const newTags = newTag ? [{ id: newTag.id, name: newTag.name, tag_type: newTag.tag_type }] : [];
+    // Update tile-detail cache
+    queryClient.setQueriesData({ queryKey: ['tile-detail', tileId] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: { ...old.data, tags: newTags } };
+    });
+    // Update calendar-events cache
+    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t: any) => t.id === tileId ? { ...t, tags: newTags } : t) };
+    });
+    // Update tiles-calendar cache
+    queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t: any) => t.id === tileId ? { ...t, tags: newTags } : t) };
+    });
+  };
+
+  const handleSelect = async (tag: Tag) => {
     setToggling(tag.id);
-    const isAssigned = tileTagIds.has(tag.id);
+    const isAssigned = selectedTag?.id === tag.id;
+    // Optimistic: update UI immediately
+    optimisticUpdateTag(isAssigned ? null : tag);
+    setOpen(false);
     try {
       if (isAssigned) {
         await tagsApi.untagTile(tag.id, tileId);
       } else {
+        if (selectedTag) {
+          await tagsApi.untagTile(selectedTag.id, tileId);
+        }
         await tagsApi.tagTiles(tag.id, [tileId]);
       }
       onChanged();
     } catch (err) {
       console.error('Tag toggle failed:', err);
+      // Revert on error
+      optimisticUpdateTag(isAssigned ? tag : selectedTag);
     } finally {
       setToggling(null);
     }
@@ -122,50 +312,61 @@ function TagPicker({ tileId, tileTags, onChanged }: { tileId: string; tileTags: 
 
   return (
     <div className="relative">
-      <label className="text-[11px] text-zinc-500 mb-1 block">Tags</label>
+      <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
       <div
-        className="flex flex-wrap gap-1 min-h-[28px] bg-zinc-800/60 border border-zinc-700 rounded px-1.5 py-1 cursor-pointer hover:border-zinc-600 transition-colors"
+        ref={triggerRef}
+        className="flex items-center gap-2 min-h-[28px] bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1 cursor-pointer hover:border-zinc-600 transition-colors"
         onClick={() => setOpen(!open)}
       >
-        {tileTags.length > 0 ? (
-          tileTags.map((tag) => (
-            <span key={tag.id} className="text-[10px] bg-zinc-700 text-zinc-300 px-1.5 py-0.5 rounded">{tag.name}</span>
-          ))
+        {selectedTag ? (
+          <>
+            <TagIcon
+              emoji={getTypeEmoji(selectedTag.tag_type || 'topic')}
+              color={getTypeColor(selectedTag.tag_type || 'topic') || '#64748B'}
+              size={14}
+            />
+            <span className="text-xs text-zinc-200 truncate">{selectedTag.name}</span>
+          </>
         ) : (
-          <span className="text-[10px] text-zinc-500">Seleziona tag...</span>
+          <span className="text-[11px] text-zinc-500">Seleziona tag...</span>
         )}
       </div>
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-64 overflow-y-auto py-1">
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-64 overflow-y-auto py-1"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+        >
           {allTags.length === 0 ? (
             <p className="text-xs text-zinc-500 text-center py-3">Nessun tag</p>
           ) : (
             allTags.map((tag) => {
-              const assigned = tileTagIds.has(tag.id);
+              const assigned = selectedTag?.id === tag.id;
               const busy = toggling === tag.id;
+              const c = getTypeColor(tag.tag_type || 'topic') || '#64748B';
+              const emoji = getTypeEmoji(tag.tag_type || 'topic');
               return (
                 <button
                   key={tag.id}
                   disabled={busy}
-                  onClick={() => handleToggle(tag)}
+                  onClick={() => handleSelect(tag)}
                   className={cn(
                     'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
                     assigned && 'bg-zinc-700/30',
                     busy && 'opacity-50'
                   )}
                 >
-                  <div className={cn(
-                    'w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0',
-                    assigned ? 'bg-blue-600 border-blue-500' : 'border-zinc-600'
-                  )}>
-                    {assigned && <svg className="w-2.5 h-2.5 text-white" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
-                  </div>
-                  <span className={cn('truncate', assigned ? 'text-zinc-200' : 'text-zinc-400')}>{tag.name}</span>
+                  <TagIcon emoji={emoji} color={c} size={14} />
+                  <span className={cn('truncate flex-1', assigned ? 'text-zinc-200' : 'text-zinc-400')}>{tag.name}</span>
+                  {assigned && (
+                    <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  )}
                 </button>
               );
             })
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -308,6 +509,7 @@ export function TileSidebar({
 }) {
   const queryClient = useQueryClient();
   const { customPatterns } = usePatterns();
+  const { getColor: getTypeColor } = useTagTypes();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -337,9 +539,27 @@ export function TileSidebar({
     invalidateKeys.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
   }, [queryClient, tileId, invalidateKeys]);
 
+  // Optimistic: patch tile fields in all cached queries immediately
+  const optimisticPatchTile = useCallback((updates: Record<string, unknown>) => {
+    const patch = (t: any) => (t.id === tileId ? { ...t, ...updates } : t);
+    queryClient.setQueriesData({ queryKey: ['tile-detail', tileId] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: { ...old.data, ...updates } };
+    });
+    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map(patch) };
+    });
+    queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map(patch) };
+    });
+  }, [queryClient, tileId]);
+
   const updateTileMutation = useMutation({
     mutationFn: (updates: Record<string, unknown>) =>
       tilesApi.update(tileId!, updates as Parameters<typeof tilesApi.update>[1]),
+    onMutate: (updates) => optimisticPatchTile(updates),
     onSuccess: invalidateAll,
   });
 
@@ -580,7 +800,23 @@ export function TileSidebar({
               })()}
 
               {/* Tags */}
-              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} />
+              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} queryClient={queryClient} />
+
+              {/* Status Icon */}
+              <StatusIconPicker tileId={tile.id} />
+
+              {/* Pattern */}
+              {customPatterns.length > 0 && (
+                <PatternPickerField
+                  patterns={customPatterns}
+                  value={tile.pattern_id || null}
+                  tagColor={(() => {
+                    const tt = tile.tags?.[0]?.tag_type || 'topic';
+                    return getTypeColor(tt) || '#64748B';
+                  })()}
+                  onChange={(id) => updateTileMutation.mutate({ pattern_id: id })}
+                />
+              )}
 
               {/* Done */}
               <div className="flex gap-3">
@@ -594,25 +830,6 @@ export function TileSidebar({
               <div className="text-[11px] text-zinc-500">
                 Creato: <span className="text-zinc-300">{new Date(tile.created_at).toLocaleDateString('it-IT')}</span>
               </div>
-
-              {/* Status Icon */}
-              <StatusIconPicker tileId={tile.id} />
-
-              {customPatterns.length > 0 && (
-                <div>
-                  <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
-                  <select
-                    value={tile.pattern_id || ''}
-                    onChange={(e) => updateTileMutation.mutate({ pattern_id: e.target.value || null })}
-                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="">Nessuno</option>
-                    {customPatterns.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
 
               <div className="border-t border-zinc-800" />
 

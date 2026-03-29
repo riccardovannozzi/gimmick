@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch, IconFocus, IconTarget } from '@tabler/icons-react';
+import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch, IconFocus, IconTarget } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
@@ -38,10 +38,11 @@ function TagTypeIcon({ emoji, size = 16 }: { emoji: string; size?: number }) {
 }
 
 const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
-  none: { icon: IconPin, label: 'Appunto' },
-  anytime: { icon: IconBolt, label: 'Da fare' },
-  deadline: { icon: IconClock, label: 'Scadenza' },
-  event: { icon: IconCalendar, label: 'Evento' },
+  none: { icon: IconPin, label: 'Notes' },
+  anytime: { icon: IconBolt, label: 'To Do' },
+  deadline: { icon: IconClock, label: 'Deadline' },
+  event: { icon: IconCalendar, label: 'Timed' },
+  allday: { icon: IconCalendarEvent, label: 'All Day' },
 };
 
 const SPARK_TYPE_OPTIONS: { value: SparkType; label: string }[] = [

@@ -1,5 +1,5 @@
 // Action type for GTD classification
-export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'allday';
 
 // Spark types
 export type SparkType =
