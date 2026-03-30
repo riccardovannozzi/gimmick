@@ -766,35 +766,52 @@ export function TileSidebar({
                         className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
                       />
                     </div>
-                    {/* Start/End time — only for timed */}
-                    {isTimed && (
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Inizio</label>
-                          <input
-                            type="time"
-                            value={startTime}
-                            onChange={(e) => {
-                              if (!e.target.value || !dateVal) return;
-                              updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${e.target.value}`).toISOString() });
-                            }}
-                            className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-                          />
+                    {/* Start/End time — only for timed (separate H : M selects) */}
+                    {isTimed && (() => {
+                      const sH = startTime.slice(0, 2);
+                      const sM = startTime.slice(3, 5);
+                      const eH = endTime.slice(0, 2);
+                      const eM = endTime.slice(3, 5);
+                      const selCls = "bg-zinc-800/60 border border-zinc-700 rounded px-1 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500";
+                      const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+                      const mins = ['00', '15', '30', '45'];
+                      const setStart = (h: string, m: string) => {
+                        if (!dateVal) return;
+                        updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${h}:${m}`).toISOString() });
+                      };
+                      const setEnd = (h: string, m: string) => {
+                        if (!dateVal) return;
+                        updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${h}:${m}`).toISOString() });
+                      };
+                      return (
+                        <div className="flex gap-2">
+                          <div className="flex-1">
+                            <label className="text-[11px] text-zinc-500 mb-0.5 block">Inizio</label>
+                            <div className="flex gap-1 items-center">
+                              <select value={sH} onChange={(e) => setStart(e.target.value, sM)} className={selCls}>
+                                {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              <span className="text-zinc-500 text-xs">:</span>
+                              <select value={sM} onChange={(e) => setStart(sH, e.target.value)} className={selCls}>
+                                {mins.map((m) => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <label className="text-[11px] text-zinc-500 mb-0.5 block">Fine</label>
+                            <div className="flex gap-1 items-center">
+                              <select value={eH} onChange={(e) => setEnd(e.target.value, eM)} className={selCls}>
+                                {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                              </select>
+                              <span className="text-zinc-500 text-xs">:</span>
+                              <select value={eM} onChange={(e) => setEnd(eH, e.target.value)} className={selCls}>
+                                {mins.map((m) => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Fine</label>
-                          <input
-                            type="time"
-                            value={endTime}
-                            onChange={(e) => {
-                              if (!e.target.value || !dateVal) return;
-                              updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${e.target.value}`).toISOString() });
-                            }}
-                            className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-                          />
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 );
               })()}

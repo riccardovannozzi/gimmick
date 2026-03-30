@@ -1134,7 +1134,7 @@ export default function GraphPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Graph" />
+      <Header title="Panopticon" />
 
       {/* Toolbar */}
       <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">

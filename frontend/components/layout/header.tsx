@@ -11,6 +11,7 @@ import {
   IconTag,
   IconCalendar,
   IconShare,
+  IconLayoutBoard,
 } from '@tabler/icons-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,8 +32,9 @@ const TAB_GROUP_DATA = [
 ];
 
 const TAB_GROUP_VIEWS = [
-  { name: 'Calendar', href: '/calendar', icon: IconCalendar },
-  { name: 'Graph', href: '/graph', icon: IconShare },
+  { name: 'Chrono', href: '/calendar', icon: IconCalendar },
+  { name: 'Canvas', href: '/canvas', icon: IconLayoutBoard },
+  { name: 'Panopticon', href: '/graph', icon: IconShare },
 ];
 
 function TabGroup({ items }: { items: typeof TAB_GROUP_DATA }) {

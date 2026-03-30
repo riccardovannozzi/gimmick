@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   IconLogout,
@@ -15,6 +16,7 @@ import {
   IconBookmark,
   IconArrowsMaximize,
   IconArrowsMinimize,
+  IconLayoutBoard,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -73,6 +75,8 @@ function TagSidebarGroup({
   isOpen,
   onToggleGroup,
   onReorder,
+  onOpenCanvas,
+  color,
 }: {
   tagType: string;
   label?: string;
@@ -82,6 +86,8 @@ function TagSidebarGroup({
   isOpen: boolean;
   onToggleGroup: () => void;
   onReorder: (tagType: string, fromIndex: number, toIndex: number) => void;
+  onOpenCanvas: (tagId: string) => void;
+  color?: string;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
@@ -106,7 +112,7 @@ function TagSidebarGroup({
         className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 hover:bg-zinc-900 rounded transition-colors duration-150"
       >
         <span className="flex items-center gap-1.5">
-          <Icon size={13} />
+          <Icon size={13} style={color ? { color } : undefined} />
           {label}
         </span>
         <IconChevronDown
@@ -144,18 +150,30 @@ function TagSidebarGroup({
                 overIdx === idx && dragIdx !== null && dragIdx !== idx && 'border-t border-blue-500',
               )}
             >
-              <button
-                onClick={() => onToggle(tag.id)}
-                className={cn(
-                  'w-full text-left px-3 py-1 pl-7 text-xs rounded transition-colors duration-150',
-                  isSelected
-                    ? 'text-white font-medium bg-zinc-800'
-                    : 'text-zinc-400 hover:bg-zinc-900 hover:text-zinc-300',
-                  dragIdx === idx && 'opacity-40',
-                )}
-              >
-                {tag.name}
-              </button>
+              <div className={cn(
+                'group flex items-center rounded transition-colors duration-150',
+                isSelected
+                  ? 'bg-zinc-800'
+                  : 'hover:bg-zinc-900',
+                dragIdx === idx && 'opacity-40',
+              )}>
+                <button
+                  onClick={() => onToggle(tag.id)}
+                  className={cn(
+                    'flex-1 text-left px-3 py-1 pl-7 text-xs',
+                    isSelected ? 'text-white font-medium' : 'text-zinc-400 hover:text-zinc-300',
+                  )}
+                >
+                  {tag.name}
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onOpenCanvas(tag.id); }}
+                  className="opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded border border-zinc-700 hover:bg-zinc-700 mr-1 shrink-0"
+                  title="Apri in Canvas"
+                >
+                  <IconLayoutBoard size={9} className="text-zinc-400" />
+                </button>
+              </div>
             </div>
           );
         })}
@@ -170,9 +188,10 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onOpenChat }: SidebarProps) {
+  const router = useRouter();
   const { user, signOut } = useAuthStore();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
-  const { tagTypes, getEmoji } = useTagTypes();
+  const { tagTypes, getColor: getTypeColor } = useTagTypes();
 
   // ─── New tiles notification ───
   const { lastSeen, readIds, dismissAll } = useTileNotificationStore();
@@ -410,6 +429,8 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               isOpen={groupState[group.type] !== false}
               onToggleGroup={() => toggleGroup(group.type)}
               onReorder={handleReorder}
+              onOpenCanvas={(tagId) => router.push(`/canvas?tag=${tagId}`)}
+              color={getTypeColor(group.type)}
             />
           </div>
         ))}

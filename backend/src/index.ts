@@ -15,6 +15,7 @@ import { calendarRouter } from './routes/calendar.js';
 import { settingsRouter } from './routes/settings.js';
 import { tagTypesRouter } from './routes/tag-types.js';
 import { patternsRouter } from './routes/patterns.js';
+import { canvasRouter } from './routes/canvas.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -64,6 +65,7 @@ app.use('/api/calendar', calendarRouter);
 app.use('/api/settings', settingsRouter);
 app.use('/api/tag-types', tagTypesRouter);
 app.use('/api/patterns', patternsRouter);
+app.use('/api/canvas', canvasRouter);
 
 // Error handling
 app.use(notFoundHandler);

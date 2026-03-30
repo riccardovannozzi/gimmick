@@ -512,3 +512,32 @@ export const settingsApi = {
     });
   },
 };
+
+// ============ Canvas API ============
+export const canvasApi = {
+  async getLayout(tagId: string) {
+    return apiRequest<{ tile_id: string; x: number; y: number }[]>(`/api/canvas/layout/${tagId}`);
+  },
+
+  async saveLayout(tagId: string, positions: { tile_id: string; x: number; y: number }[]) {
+    return apiRequest(`/api/canvas/layout/${tagId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ positions }),
+    });
+  },
+
+  async getEdges(tagId: string) {
+    return apiRequest<{ id: string; source_id: string; target_id: string }[]>(`/api/canvas/edges/${tagId}`);
+  },
+
+  async addEdge(tagId: string, source_id: string, target_id: string) {
+    return apiRequest(`/api/canvas/edges/${tagId}`, {
+      method: 'POST',
+      body: JSON.stringify({ source_id, target_id }),
+    });
+  },
+
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/canvas/edges/${id}`, { method: 'DELETE' });
+  },
+};

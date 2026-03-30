@@ -1,17 +1,22 @@
 'use client';
 
-import { useCallback, useMemo, useState, useRef, DragEvent } from 'react';
+import { useCallback, useMemo, useState, useRef, useEffect, DragEvent } from 'react';
+import { createPortal } from 'react-dom';
+import FullCalendar from '@fullcalendar/react';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconSparkles, IconTag, IconTrash, IconCalendar, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconHourglass, IconCalendarEvent, IconClock, IconArrowsSort, IconFilter, IconLayoutList } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconSparkles, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse, PatternShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
-import { BAND_COLORS, isTileDimmed, isToday, isSunday, formatTime, generateWeekDays, groupByDay, formatWeekRange, deadlineSubtitle } from '@/lib/tile-helpers';
+import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange } from '@/lib/tile-helpers';
 import { usePatterns } from '@/store/patterns-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useStatusIcons } from '@/store/status-icons-store';
@@ -34,6 +39,79 @@ function toLocalDatetimeValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ─── Reusable dropdown for modal (mirrors sidebar pickers) ───
+function ModalDropdown({ value, options, placeholder, onChange, renderOption, renderSelected }: {
+  value: string | null;
+  options: { id: string | null; label: string; icon?: string; shape?: string }[];
+  placeholder: string;
+  onChange: (id: string | null) => void;
+  renderOption?: (opt: { id: string | null; label: string; icon?: string }) => React.ReactNode;
+  renderSelected?: () => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selected = options.find((o) => o.id === value && o.id !== null);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors text-left"
+      >
+        {selected && renderSelected ? renderSelected() : (
+          selected ? <span className="truncate">{selected.label}</span> : <span className="text-[11px] text-zinc-500">{placeholder}</span>
+        )}
+      </button>
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+        >
+          {options.map((opt, idx) => {
+            const isSelected = opt.id === value;
+            return (
+              <button
+                key={opt.id ?? `none-${idx}`}
+                onClick={() => { onChange(opt.id); setOpen(false); }}
+                className={cn(
+                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+                  isSelected && 'bg-zinc-700/30'
+                )}
+              >
+                {renderOption ? renderOption(opt) : <span className={cn('truncate flex-1', isSelected ? 'text-zinc-200' : 'text-zinc-400')}>{opt.label}</span>}
+                {isSelected && (
+                  <svg className="w-3 h-3 text-blue-400 shrink-0 ml-auto" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 interface EventModalState {
   open: boolean;
   mode: 'create' | 'edit';
@@ -46,6 +124,9 @@ interface EventModalState {
   autoDetect: boolean;
   tagIds: string[];
   actionType: string;
+  statusIconId: string | null;
+  patternId: string | null;
+  isCompleted: boolean;
 }
 
 const emptyModal: EventModalState = {
@@ -58,14 +139,18 @@ const emptyModal: EventModalState = {
   endAt: '',
   autoDetect: true,
   tagIds: [],
-  actionType: 'event',
+  actionType: 'none',
+  statusIconId: null,
+  patternId: null,
+  isCompleted: false,
 };
 
 const ACTION_OPTIONS = [
-  { value: 'none', label: 'Appunto' },
-  { value: 'anytime', label: 'Da fare' },
-  { value: 'deadline', label: 'Scadenza' },
-  { value: 'event', label: 'Evento' },
+  { value: 'none', label: 'NOTES' },
+  { value: 'anytime', label: 'TO DO' },
+  { value: 'deadline', label: 'DEADLINE' },
+  { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
+  { value: 'event', label: 'TIMED', extra: { all_day: false } },
 ] as const;
 
 
@@ -83,11 +168,8 @@ function InlinePattern({ shape, color }: { shape: PatternShape; color: string })
   }
 }
 
-const GUTTER_W = 42;
-const SLOT_H = 40; // px per hour slot
 const START_HOUR = 6;
 const END_HOUR = 22;
-const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => START_HOUR + i);
 
 export default function CalendarPage() {
   const queryClient = useQueryClient();
@@ -191,7 +273,6 @@ export default function CalendarPage() {
 
   const events = eventsData?.data || [];
   const tags = (tagsData as ApiResponse<Tag[]>)?.data || [];
-  const unscheduledTiles = (tilesData?.data || []).filter((t: Tile) => !t.is_event);
 
   // Tiles for left panels
   const { data: allTilesData } = useQuery({
@@ -210,8 +291,6 @@ export default function CalendarPage() {
     });
     return { todos, notes };
   }, [allTiles]);
-
-  const activeTodos = todos.filter((t) => !t.is_completed).length;
 
   // Processed notes: tag filter, sort, filter
   const processedNotes = useMemo(() => {
@@ -296,13 +375,6 @@ export default function CalendarPage() {
     return { icon: tagType ? getTypeEmoji(tagType) : '', name: tag.name };
   };
 
-  // Reschedule mutation (drag-and-drop)
-  const rescheduleMutation = useMutation({
-    mutationFn: (params: { id: string; start_at: string; end_at?: string }) =>
-      calendarApi.reschedule(params.id, params.start_at, params.end_at),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar-events'] }),
-  });
-
   // Create event mutation (creates tile + schedules atomically)
   const createEventMutation = useMutation({
     mutationFn: (params: {
@@ -363,7 +435,6 @@ export default function CalendarPage() {
     dragTileRef.current = tile;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', tile.id);
-    // Semi-transparent drag image
     if (e.currentTarget instanceof HTMLElement) {
       e.currentTarget.style.opacity = '0.4';
     }
@@ -437,11 +508,18 @@ export default function CalendarPage() {
         break;
       case 'timed': {
         const mins = minuteOffset ?? (9 * 60); // default 09:00
-        const h = Math.floor(mins / 60);
-        const m = Math.round(mins % 60);
+        // Snap to 15-minute grid
+        const snappedMins = Math.round(mins / 15) * 15;
+        const clampedMins = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - 15, snappedMins));
+        const h = Math.floor(clampedMins / 60);
+        const m = clampedMins % 60;
         const startTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-        const endH = Math.min(h + 1, 22);
-        const endTime = `${String(endH).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        // Always reset to 1 hour when dropping
+        const durationMins = 60;
+        const endMins = Math.min(clampedMins + durationMins, END_HOUR * 60);
+        const endH = Math.floor(endMins / 60);
+        const endM = endMins % 60;
+        const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
         updates.action_type = 'event';
         updates.is_event = true;
         updates.all_day = false;
@@ -454,47 +532,29 @@ export default function CalendarPage() {
     moveTileMutation.mutate({ id: tile.id, updates });
   }, [days, moveTileMutation, queryClient]);
 
-  // ─── Resize TIMED tiles (stretch duration) ───
-  const resizeRef = useRef<{ tileId: string; startY: number; startEndAt: string; dayStr: string } | null>(null);
+  // ─── Context menu state ───
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; tile: Tile } | null>(null);
+  const [clipboardTile, setClipboardTile] = useState<Tile | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
 
-  const onResizeStart = useCallback((e: React.PointerEvent, tile: Tile, dayStr: string) => {
+  useEffect(() => {
+    if (!ctxMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [ctxMenu]);
+
+  const onTileContextMenu = useCallback((e: React.MouseEvent, tile: Tile) => {
     e.preventDefault();
     e.stopPropagation();
-    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    resizeRef.current = { tileId: tile.id, startY: e.clientY, startEndAt: tile.end_at || '', dayStr };
+    setCtxMenu({ x: e.clientX, y: e.clientY, tile });
   }, []);
 
-  const onResizeMove = useCallback((e: React.PointerEvent) => {
-    if (!resizeRef.current) return;
-    const { tileId, startY, startEndAt, dayStr } = resizeRef.current;
-    const dy = e.clientY - startY;
-    const deltaMin = (dy / SLOT_H) * 60;
-    const origEnd = new Date(startEndAt);
-    const newEndMin = origEnd.getHours() * 60 + origEnd.getMinutes() + deltaMin;
-    // Snap to 15 min, clamp to grid
-    const snapped = Math.max(START_HOUR * 60 + 15, Math.min(END_HOUR * 60, Math.round(newEndMin / 15) * 15));
-    const h = Math.floor(snapped / 60);
-    const m = snapped % 60;
-    const newEnd = new Date(`${dayStr}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`).toISOString();
-    // Optimistic update only end_at
-    const patch = (t: Tile) => (t.id === tileId ? { ...t, end_at: newEnd } : t);
-    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map(patch) };
-    });
-  }, [queryClient]);
-
-  const onResizeEnd = useCallback(() => {
-    if (!resizeRef.current) return;
-    const { tileId } = resizeRef.current;
-    // Read the current end_at from the optimistic cache
-    const cached = queryClient.getQueryData<any>(['calendar-events']);
-    const tile = cached?.data?.find((t: Tile) => t.id === tileId);
-    if (tile?.end_at) {
-      moveTileMutation.mutate({ id: tileId, updates: { end_at: tile.end_at } });
-    }
-    resizeRef.current = null;
-  }, [queryClient, moveTileMutation]);
+  const handleCopy = useCallback(() => {
+    if (!ctxMenu) return;
+    setClipboardTile(ctxMenu.tile);
+    setCtxMenu(null);
+  }, [ctxMenu]);
 
   // Categorize calendar events into lanes
   const filteredEvents = useMemo(() => {
@@ -505,88 +565,43 @@ export default function CalendarPage() {
     return filtered;
   }, [events, aiFilterIds]);
 
-  const { calDeadlines, calAllDay, calTimed } = useMemo(() => {
-    const calDeadlines: Tile[] = [];
-    const calAllDay: Tile[] = [];
-    const calTimed: Tile[] = [];
-    filteredEvents.forEach((t) => {
-      if (t.action_type === 'deadline') calDeadlines.push(t);
-      else if (t.all_day) calAllDay.push(t);
-      else calTimed.push(t);
-    });
-    return { calDeadlines, calAllDay, calTimed };
-  }, [filteredEvents]);
+  // FullCalendar ref + events
+  const fcRef = useRef<FullCalendar>(null);
 
-  const groupedDeadlines = useMemo(() => groupByDay(calDeadlines, 'end_at'), [calDeadlines]);
-  const groupedAllDay = useMemo(() => groupByDay(calAllDay, 'start_at'), [calAllDay]);
-  // Group timed events by day for absolute positioning
-  const timedByDay = useMemo(() => {
-    const groups: Record<string, Tile[]> = {};
-    calTimed.forEach((t) => {
-      if (!t.start_at) return;
-      const d = new Date(t.start_at);
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(t);
+  // Navigate FullCalendar when weekOffset changes
+  useEffect(() => {
+    const api = fcRef.current?.getApi();
+    if (api && days[0]) {
+      api.gotoDate(days[0]);
+    }
+  }, [days]);
+
+  const fcEvents: EventInput[] = useMemo(() => {
+    return filteredEvents.map((t) => {
+      const color = getTagColor(t);
+      const isAllDay = t.all_day || t.action_type === 'deadline';
+      return {
+        id: t.id,
+        title: t.title || 'Senza titolo',
+        start: t.action_type === 'deadline' ? (t.end_at || t.created_at) : (t.start_at || t.created_at),
+        end: isAllDay ? undefined : (t.end_at || new Date(new Date(t.start_at || t.created_at).getTime() + 3600000).toISOString()),
+        allDay: isAllDay,
+        backgroundColor: 'rgba(24, 24, 27, 0.9)',
+        borderColor: `${color}60`,
+        textColor: '#A1A1AA',
+        classNames: [
+          t.is_completed ? 'fc-event-completed' : '',
+          t.action_type === 'deadline' ? 'fc-event-deadline' : '',
+        ].filter(Boolean),
+      };
     });
-    return groups;
-  }, [calTimed]);
+  }, [filteredEvents, getTagColor]);
 
   // Handle click on a calendar tile (open edit modal + sidebar)
   const handleCalTileClick = useCallback((tile: Tile) => {
     setSelectedTileId(tile.id);
     if (!sidebarOpen) setSidebarOpen(true);
   }, [sidebarOpen]);
-
-  function renderCalTile(tile: Tile, subtitle?: string) {
-    const color = getTagColor(tile);
-    const info = getTagInfo(tile);
-    const shape = resolveShape(tile);
-    const statusIcon = getIconForTile(tile.id);
-    const isHighlight = tile.action_type === 'deadline' && tile.end_at ? isToday(tile.end_at) : false;
-    return (
-      <div
-        key={tile.id}
-        draggable
-        onDragStart={(e) => onDragStart(e, tile)}
-        onDragEnd={onDragEnd}
-        className={cn(
-          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-          selectedTileId === tile.id && 'ring-2 ring-blue-500',
-          isTileDimmed(tile, selectedTagIds) && 'opacity-20 saturate-0',
-          tile.is_completed && 'opacity-50',
-        )}
-        style={{
-          backgroundColor: 'rgba(24, 24, 27, 0.5)',
-          borderColor: isHighlight ? '#E24B4A' : `${color}60`,
-          minWidth: 56,
-          minHeight: 52,
-        }}
-        onClick={() => handleCalTileClick(tile)}
-      >
-        <div className="flex relative" style={{ minHeight: 'inherit' }}>
-          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-          <div className="px-1.5 py-1 min-w-0 flex-1">
-            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-            <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', tile.is_completed && 'line-through')}>{tile.title || 'Senza titolo'}</span>
-            {subtitle && <span className="text-[7px] text-zinc-500 block truncate">{subtitle}</span>}
-          </div>
-          {statusIcon && (
-            <div className="shrink-0 flex items-center justify-center pr-1">
-              <StatusIconRender iconName={statusIcon.icon} />
-            </div>
-          )}
-          {shape !== 'solid' && (
-            <div className="absolute inset-0 pointer-events-none overflow-hidden">
-              <svg className="w-full h-full">
-                <InlinePattern shape={shape} color={color} />
-              </svg>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   // Sync tags for a tile: add missing, remove extra
   const syncTags = useCallback(async (tileId: string, tagIds: string[]) => {
@@ -601,77 +616,123 @@ export default function CalendarPage() {
     }
   }, []);
 
+  // ─── Context menu actions (need syncTags) ───
+  const handlePaste = useCallback(async () => {
+    if (!clipboardTile) return;
+    setCtxMenu(null);
+    try {
+      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+      const newId = res?.data?.id;
+      if (newId) {
+        await tilesApi.update(newId, {
+          action_type: clipboardTile.action_type as any,
+          is_event: clipboardTile.is_event,
+          all_day: clipboardTile.all_day,
+          start_at: clipboardTile.start_at,
+          end_at: clipboardTile.end_at,
+          is_completed: clipboardTile.is_completed,
+          pattern_id: clipboardTile.pattern_id,
+        });
+        const tagId = clipboardTile.tags?.[0]?.id;
+        if (tagId) await syncTags(newId, [tagId]);
+        queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      }
+    } catch { /* ignore */ }
+  }, [clipboardTile, syncTags, queryClient]);
+
+  const handleDeleteTile = useCallback(async () => {
+    if (!ctxMenu) return;
+    const id = ctxMenu.tile.id;
+    setCtxMenu(null);
+    try {
+      await tilesApi.delete(id);
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      if (selectedTileId === id) setSelectedTileId(null);
+    } catch { /* ignore */ }
+  }, [ctxMenu, queryClient, selectedTileId]);
+
   // Handle create/edit submit
+  const { assignIcon } = useStatusIcons();
   const handleSubmit = useCallback(async () => {
+    const computeDates = () => {
+      if (modal.allDay && modal.startAt) {
+        return {
+          start_at: new Date(new Date(modal.startAt).setHours(0, 0, 0, 0)).toISOString(),
+          end_at: new Date(new Date(modal.startAt).setHours(23, 59, 59, 0)).toISOString(),
+        };
+      }
+      if (modal.actionType === 'deadline') {
+        return { start_at: undefined, end_at: modal.endAt || undefined };
+      }
+      return { start_at: modal.startAt || undefined, end_at: modal.endAt || undefined };
+    };
+
     if (modal.mode === 'create') {
       if (modal.tileId) {
-        // Schedule existing tile
         scheduleMutation.mutate({
           tile_id: modal.tileId,
-          start_at: modal.startAt || undefined,
-          end_at: modal.endAt || undefined,
+          ...computeDates(),
           title: modal.title || undefined,
           description: modal.description || undefined,
           auto_detect: modal.autoDetect,
         });
-        // Sync tags for existing tile
         if (modal.tagIds.length > 0) {
           await syncTags(modal.tileId, modal.tagIds);
-          queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
         }
+        if (modal.statusIconId) assignIcon(modal.tileId, modal.statusIconId);
       } else {
-        // Create new tile + schedule atomically (every event IS a tile)
-        createEventMutation.mutate({
-          title: modal.title || undefined,
-          description: modal.description || undefined,
-          start_at: modal.startAt || undefined,
-          end_at: modal.endAt || undefined,
-        }, {
-          onSuccess: async (result: ApiResponse<Tile>) => {
-            if (result?.data?.id && modal.tagIds.length > 0) {
-              await syncTags(result.data.id, modal.tagIds);
-              queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-              queryClient.invalidateQueries({ queryKey: ['tags'] });
-            }
-          },
+        // Create tile, then apply all settings
+        const result = await new Promise<ApiResponse<Tile>>((resolve) => {
+          createEventMutation.mutate({
+            title: modal.title || undefined,
+            description: modal.description || undefined,
+            ...computeDates(),
+          }, { onSuccess: resolve });
         });
+        const newId = result?.data?.id;
+        if (newId) {
+          // Apply action_type, pattern, done
+          await tilesApi.update(newId, {
+            action_type: modal.actionType as any,
+            all_day: modal.allDay,
+            is_event: modal.actionType === 'event',
+            is_completed: modal.isCompleted,
+            pattern_id: modal.patternId,
+          });
+          if (modal.tagIds.length > 0) await syncTags(newId, modal.tagIds);
+          if (modal.statusIconId) assignIcon(newId, modal.statusIconId);
+          queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+          queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+          queryClient.invalidateQueries({ queryKey: ['tags'] });
+        }
       }
     } else if (modal.mode === 'edit' && modal.tileId) {
-      // Get current tags from the event
       const currentEvent = events.find((e: Tile) => e.id === modal.tileId);
       const currentTagIds = (currentEvent?.tags || []).map((t) => t.id);
       const toAdd = modal.tagIds.filter((id: string) => !currentTagIds.includes(id));
       const toRemove = currentTagIds.filter((id: string) => !modal.tagIds.includes(id));
-
-      // Remove tags
       for (const tagId of toRemove) {
         try { await tagsApi.untagTile(tagId, modal.tileId); } catch { /* ignore */ }
       }
-      // Add tags
-      if (toAdd.length > 0) {
-        await syncTags(modal.tileId, toAdd);
-      }
+      if (toAdd.length > 0) await syncTags(modal.tileId, toAdd);
 
-      const startAt = modal.allDay && modal.startAt
-        ? new Date(new Date(modal.startAt).setHours(0, 0, 0, 0)).toISOString()
-        : modal.startAt;
-      const endAt = modal.allDay && modal.startAt
-        ? new Date(new Date(modal.startAt).setHours(23, 59, 59, 0)).toISOString()
-        : modal.endAt;
-
+      const dates = computeDates();
       updateMutation.mutate({
         id: modal.tileId,
         updates: {
           title: modal.title,
           description: modal.description,
-          start_at: startAt,
-          end_at: endAt,
+          start_at: dates.start_at,
+          end_at: dates.end_at,
           action_type: modal.actionType,
           all_day: modal.allDay,
         },
       });
+      if (modal.statusIconId !== undefined) assignIcon(modal.tileId, modal.statusIconId);
     }
-  }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient]);
+  }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient, assignIcon]);
 
   // AI filter
   const handleAiFilter = useCallback(async () => {
@@ -698,27 +759,9 @@ export default function CalendarPage() {
     setAiFilterActive(false);
   }, []);
 
-  // Schedule existing tile
-  const handleScheduleTile = useCallback((tile: Tile) => {
-    setShowTilePicker(false);
-    setModal({
-      open: true,
-      mode: 'create',
-      tileId: tile.id,
-      title: tile.title || '',
-      description: tile.description || '',
-      allDay: tile.all_day || false,
-      startAt: '',
-      endAt: '',
-      autoDetect: true,
-      tagIds: [],
-      actionType: tile.action_type || 'event',
-    });
-  }, []);
-
   return (
-    <div className="flex flex-col h-full">
-      <Header title="Calendario" />
+    <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
+      <Header title="Chrono" />
 
       <div className="flex flex-1 overflow-hidden">
 
@@ -798,15 +841,17 @@ export default function CalendarPage() {
                       <div
                         key={t.id}
                         draggable
-                        onDragStart={(e) => onDragStart(e, t)}
+                        data-tile-id={t.id}
+                    onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
                           'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
-                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                        onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
                         <div className="flex relative" style={{ minHeight: 'inherit' }}>
                           <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
@@ -838,6 +883,7 @@ export default function CalendarPage() {
                   <div
                     key={t.id}
                     draggable
+                    data-tile-id={t.id}
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
@@ -845,8 +891,9 @@ export default function CalendarPage() {
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
-                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                    onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
                     <div className="flex relative" style={{ minHeight: 'inherit' }}>
                       <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
@@ -947,15 +994,17 @@ export default function CalendarPage() {
                       <div
                         key={t.id}
                         draggable
-                        onDragStart={(e) => onDragStart(e, t)}
+                        data-tile-id={t.id}
+                    onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
                           'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
-                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                        onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
                         <div className="flex relative" style={{ minHeight: 'inherit' }}>
                           <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
@@ -987,6 +1036,7 @@ export default function CalendarPage() {
                   <div
                     key={t.id}
                     draggable
+                    data-tile-id={t.id}
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
@@ -994,8 +1044,9 @@ export default function CalendarPage() {
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
-                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 52 }}
+                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+                    onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
                     <div className="flex relative" style={{ minHeight: 'inherit' }}>
                       <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
@@ -1064,15 +1115,6 @@ export default function CalendarPage() {
         </div>
 
         <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowTilePicker(true)}
-          className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 text-xs"
-        >
-          <IconCalendar className="h-3.5 w-3.5 mr-1.5" />
-          Pianifica
-        </Button>
-        <Button
           size="sm"
           onClick={() => setModal({
             ...emptyModal,
@@ -1088,431 +1130,402 @@ export default function CalendarPage() {
         </Button>
       </div>
 
-      {/* Calendar grid */}
-      <div className="flex-1 overflow-y-auto">
+      {/* FullCalendar grid */}
+      <div className="flex-1 overflow-hidden fc-dark">
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : (
-          <>
-            {/* Day headers */}
-            <div className="flex sticky top-0 z-10 bg-zinc-900">
-              <div style={{ width: GUTTER_W }} className="border-b border-r border-zinc-800 shrink-0" />
-              {days.map((day) => {
-                const d = new Date(day);
-                const weekday = d.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase();
-                const dayNum = d.getDate();
-                return (
-                  <div key={day} className={cn('flex-1 text-center py-1 border-b border-r border-zinc-800', isToday(day) && 'bg-blue-500/10')}>
-                    <div className={cn('text-[9px] uppercase tracking-wider', isToday(day) ? 'text-blue-400' : isSunday(day) ? 'text-red-400' : 'text-zinc-500')}>
-                      {weekday}
-                    </div>
-                    <div className={cn('text-sm font-medium', isToday(day) ? 'text-blue-400' : 'text-zinc-300')}>
-                      {dayNum}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* LANE DEADLINE */}
-            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.deadline}15` }}>
-              <IconHourglass size={12} style={{ color: actionColors.deadline }} />
-              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.deadline }}>DEADLINE</span>
-            </div>
-            <div className="flex border-b border-zinc-800">
-              <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
-              {days.map((day) => {
-                const tiles = groupedDeadlines[day] || [];
-                const dKey = `deadline:${day}`;
-                return (
-                  <div
-                    key={day}
-                    className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5', dragOver === dKey && 'bg-amber-500/10')}
-                    style={{ minHeight: 46 }}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(dKey); }}
-                    onDragLeave={() => setDragOver((v) => v === dKey ? null : v)}
-                    onDrop={(e) => { e.preventDefault(); handleDrop('deadline', day); }}
-                  >
-                    {tiles.map((t) => renderCalTile(t, deadlineSubtitle(t)))}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* LANE ALL DAY */}
-            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.allday}15` }}>
-              <IconCalendarEvent size={12} style={{ color: actionColors.allday }} />
-              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.allday }}>ALL DAY</span>
-            </div>
-            <div className="flex border-b border-zinc-800">
-              <div style={{ width: GUTTER_W }} className="border-r border-zinc-800 bg-zinc-900/50 shrink-0" />
-              {days.map((day) => {
-                const tiles = groupedAllDay[day] || [];
-                const aKey = `allday:${day}`;
-                return (
-                  <div
-                    key={day}
-                    className={cn('flex-1 border-r border-zinc-800 p-1 flex flex-col gap-1', isToday(day) && 'bg-blue-500/5', dragOver === aKey && 'bg-green-500/10')}
-                    style={{ minHeight: 46 }}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(aKey); }}
-                    onDragLeave={() => setDragOver((v) => v === aKey ? null : v)}
-                    onDrop={(e) => { e.preventDefault(); handleDrop('allday', day); }}
-                  >
-                    {tiles.map((t) => renderCalTile(t))}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* LANE TIMED header */}
-            <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800" style={{ backgroundColor: `${actionColors.event}15` }}>
-              <IconClock size={12} style={{ color: actionColors.event }} />
-              <span className="text-[9px] font-bold tracking-widest" style={{ color: actionColors.event }}>TIMED</span>
-            </div>
-
-            {/* LANE TIMED — continuous time grid */}
-            <div className="flex">
-              {/* Time gutter */}
-              <div className="shrink-0" style={{ width: GUTTER_W }}>
-                {HOURS.map((h) => (
-                  <div key={h} className="border-r border-b border-zinc-800 bg-zinc-900/50 flex items-start justify-end pr-1" style={{ height: SLOT_H }}>
-                    <span className="text-[8px] text-zinc-600 -translate-y-1.5">{String(h).padStart(2, '0')}:00</span>
-                  </div>
-                ))}
-              </div>
-              {/* Day columns with absolutely positioned events */}
-              {days.map((day) => {
-                const tiles = timedByDay[day] || [];
-                const tKey = `timed:${day}`;
-                return (
-                  <div
-                    key={day}
-                    className={cn('flex-1 border-r border-zinc-800 relative', isToday(day) && 'bg-blue-500/5', dragOver === tKey && 'bg-blue-500/10')}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(tKey); }}
-                    onDragLeave={() => setDragOver((v) => v === tKey ? null : v)}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const yOffset = e.clientY - rect.top;
-                      const minutes = START_HOUR * 60 + (yOffset / SLOT_H) * 60;
-                      // Snap to 15-minute increments
-                      const snapped = Math.round(minutes / 15) * 15;
-                      handleDrop('timed', day, snapped);
-                    }}
-                  >
-                    {/* Slot grid lines */}
-                    {HOURS.map((h) => (
-                      <div key={h} className="border-b border-zinc-800" style={{ height: SLOT_H }} />
-                    ))}
-                    {/* Events positioned absolutely */}
-                    {tiles.map((t) => {
-                      const start = new Date(t.start_at!);
-                      const end = t.end_at ? new Date(t.end_at) : new Date(start.getTime() + 3600000);
-                      const startMin = start.getHours() * 60 + start.getMinutes();
-                      const endMin = end.getHours() * 60 + end.getMinutes();
-                      const durationMin = Math.max(30, endMin - startMin);
-                      const topPx = ((startMin - START_HOUR * 60) / 60) * SLOT_H;
-                      const heightPx = (durationMin / 60) * SLOT_H;
-                      const info = getTagInfo(t);
-                      const color = getTagColor(t);
-                      const shape = resolveShape(t);
-                      const si = getIconForTile(t.id);
-                      return (
-                        <div
-                          key={t.id}
-                          draggable
-                          onDragStart={(e) => { e.stopPropagation(); onDragStart(e, t); }}
-                          onDragEnd={onDragEnd}
-                          className={cn(
-                            'absolute left-0.5 right-0.5 rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-                            selectedTileId === t.id && 'ring-2 ring-blue-500',
-                            isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
-                          )}
-                          style={{
-                            top: topPx,
-                            height: Math.max(52, heightPx),
-                            backgroundColor: 'rgb(24, 24, 27)',
-                            borderColor: `${color}60`,
-                          }}
-                          onClick={() => handleCalTileClick(t)}
-                        >
-                          <div className="flex h-full">
-                            <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                            <div className="px-1 py-0.5 min-w-0 flex-1">
-                              {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                              <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
-                              <span className="text-[7px] text-zinc-500">{formatTime(t.start_at!)}{t.end_at ? ` - ${formatTime(t.end_at)}` : ''}</span>
-                            </div>
-                            {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
-                            {shape !== 'solid' && (
-                              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                                <svg className="w-full h-full">
-                                  <InlinePattern shape={shape} color={color} />
-                                </svg>
-                              </div>
-                            )}
-                          </div>
-                          {/* Resize handle */}
-                          <div
-                            className="absolute bottom-0 left-0 right-0 h-2 cursor-s-resize hover:bg-white/10 transition-colors"
-                            onPointerDown={(e) => onResizeStart(e, t, day)}
-                            onPointerMove={onResizeMove}
-                            onPointerUp={onResizeEnd}
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+          <FullCalendar
+            ref={fcRef}
+            plugins={[timeGridPlugin, interactionPlugin]}
+            initialView="timeGridWeek"
+            locale="it"
+            firstDay={1}
+            headerToolbar={false}
+            slotMinTime="06:00:00"
+            slotMaxTime="22:00:00"
+            slotDuration="00:30:00"
+            slotLabelInterval="01:00:00"
+            slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+            height="100%"
+            allDaySlot={true}
+            allDayText=""
+            nowIndicator={true}
+            editable={true}
+            droppable={true}
+            eventDurationEditable={true}
+            eventStartEditable={true}
+            snapDuration="00:15:00"
+            dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
+            initialDate={days[0]}
+            events={fcEvents}
+            eventClick={(info) => {
+              const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+              if (tile) { setSelectedTileId(tile.id); if (!sidebarOpen) setSidebarOpen(true); }
+            }}
+            eventDrop={(info) => {
+              const { id } = info.event;
+              const start = info.event.start;
+              const end = info.event.end;
+              if (!start) return;
+              const allDay = info.event.allDay;
+              const updates: Record<string, unknown> = {
+                start_at: start.toISOString(),
+                end_at: end ? end.toISOString() : new Date(start.getTime() + 3600000).toISOString(),
+                all_day: allDay,
+                action_type: allDay ? 'event' : 'event',
+                is_event: true,
+              };
+              moveTileMutation.mutate({ id, updates });
+            }}
+            eventResize={(info) => {
+              const { id } = info.event;
+              const end = info.event.end;
+              if (!end) return;
+              moveTileMutation.mutate({ id, updates: { end_at: end.toISOString() } });
+            }}
+            eventDidMount={(info) => {
+              // Right-click context menu
+              info.el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+                if (tile) setCtxMenu({ x: e.clientX, y: e.clientY, tile });
+              });
+              // Apply tag color to border
+              const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+              if (tile) {
+                const color = getTagColor(tile);
+                info.el.style.borderLeft = `3px solid ${color}`;
+                info.el.style.backgroundColor = 'rgba(24, 24, 27, 0.9)';
+                info.el.style.borderColor = `${color}60`;
+                info.el.style.borderLeftColor = color;
+              }
+            }}
+            drop={(info) => {
+              // External drop from NOTES/TODO
+              const tileId = info.draggedEl.getAttribute('data-tile-id');
+              if (!tileId) return;
+              const start = info.date;
+              const allDay = info.allDay;
+              const updates: Record<string, unknown> = {
+                action_type: 'event',
+                is_event: true,
+                all_day: allDay,
+                start_at: start.toISOString(),
+                end_at: allDay
+                  ? new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59).toISOString()
+                  : new Date(start.getTime() + 3600000).toISOString(),
+              };
+              moveTileMutation.mutate({ id: tileId, updates });
+            }}
+          />
         )}
       </div>
 
       {/* Event modal */}
-      {modal.open && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(emptyModal)}>
-          <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+      {/* Context menu */}
+      {ctxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
+        <div
+          ref={ctxRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+        >
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold">
-                {modal.mode === 'create' ? 'Nuovo Evento' : 'Modifica Evento'}
-              </h2>
-              <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
-                <IconX className="h-5 w-5" />
-              </button>
-            </div>
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copia
+          </button>
+          <button
+            onClick={clipboardTile ? handlePaste : undefined}
+            disabled={!clipboardTile}
+            className={cn(
+              'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors',
+              clipboardTile ? 'text-zinc-300 hover:bg-zinc-700/50' : 'text-zinc-600 cursor-not-allowed'
+            )}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            Incolla
+          </button>
+          <div className="border-t border-zinc-700 my-1" />
+          <button
+            onClick={handleDeleteTile}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+          >
+            <IconTrash className="h-3.5 w-3.5" />
+            Elimina
+          </button>
+        </div>
+        </>,
+        document.body
+      )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Titolo</label>
-                <input
-                  type="text"
-                  value={modal.title}
-                  onChange={(e) => setModal({ ...modal, title: e.target.value })}
-                  placeholder="Titolo evento"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500"
-                  autoFocus
-                />
+      {modal.open && (() => {
+        const isDeadline = modal.actionType === 'deadline';
+        const isEvent = modal.actionType === 'event';
+        const isTimed = isEvent && !modal.allDay;
+        const showDate = isDeadline || isEvent;
+        const dateRef = isDeadline ? modal.endAt : modal.startAt;
+        const dateVal = dateRef ? toLocalDatetimeValue(dateRef).slice(0, 10) : '';
+        const startTime = modal.startAt ? toLocalDatetimeValue(modal.startAt).slice(11, 16) : '';
+        const endTime = modal.endAt ? toLocalDatetimeValue(modal.endAt).slice(11, 16) : '';
+
+        const setDate = (newDate: string) => {
+          if (!newDate) return;
+          if (isDeadline) {
+            setModal({ ...modal, endAt: new Date(`${newDate}T23:59:59`).toISOString() });
+          } else if (isTimed) {
+            setModal({
+              ...modal,
+              startAt: new Date(`${newDate}T${startTime || '09:00'}`).toISOString(),
+              endAt: endTime ? new Date(`${newDate}T${endTime}`).toISOString() : modal.endAt,
+            });
+          } else {
+            setModal({
+              ...modal,
+              startAt: new Date(`${newDate}T00:00:00`).toISOString(),
+              endAt: new Date(`${newDate}T23:59:59`).toISOString(),
+            });
+          }
+        };
+
+        // Status icons from store
+        const allStatusIcons = statusIcons;
+        const currentStatusIcon = modal.statusIconId ? allStatusIcons.find((i) => i.id === modal.statusIconId) : null;
+        const CurrentStatusComp = currentStatusIcon?.icon ? AllIcons[currentStatusIcon.icon] : null;
+
+        // Tag info for pattern color
+        const selectedTag = tags.find((t: Tag) => modal.tagIds.includes(t.id));
+        const tagColor = selectedTag ? (getTypeColor(selectedTag.tag_type || 'topic') || '#64748B') : '#64748B';
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(emptyModal)}>
+            <div
+              className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-[340px] shadow-2xl max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm text-white font-semibold">
+                  {modal.mode === 'create' ? 'Nuovo Tile' : 'Modifica Tile'}
+                </h2>
+                <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
+                  <IconX className="h-4 w-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Descrizione</label>
-                <textarea
-                  value={modal.description}
-                  onChange={(e) => setModal({ ...modal, description: e.target.value })}
-                  placeholder="Descrizione..."
-                  rows={3}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 resize-none"
-                />
-              </div>
-
-              {/* Action type selector */}
-              <div>
-                <label className="text-xs text-zinc-400 mb-1.5 block">Tipo azione</label>
-                <div className="flex gap-1.5">
-                  {ACTION_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setModal({ ...modal, actionType: opt.value })}
-                      className={cn(
-                        'px-3 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                        modal.actionType === opt.value
-                          ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                          : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                      )}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* All day toggle */}
-              <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="checkbox"
-                  checked={modal.allDay}
-                  onChange={(e) => setModal({ ...modal, allDay: e.target.checked })}
-                  className="accent-blue-500 w-4 h-4"
-                />
-                <span className="text-sm text-zinc-300">Tutto il giorno</span>
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
+                {/* Titolo */}
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Inizio</label>
+                  <label className="text-[11px] text-zinc-500">Titolo</label>
                   <input
-                    type={modal.allDay ? 'date' : 'datetime-local'}
-                    value={modal.allDay ? toLocalDatetimeValue(modal.startAt).slice(0, 10) : toLocalDatetimeValue(modal.startAt)}
-                    onChange={(e) => {
-                      if (modal.allDay) {
-                        setModal({ ...modal, startAt: e.target.value ? new Date(`${e.target.value}T00:00:00`).toISOString() : '' });
-                      } else {
-                        setModal({ ...modal, startAt: e.target.value ? new Date(e.target.value).toISOString() : '' });
-                      }
-                    }}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                    value={modal.title}
+                    onChange={(e) => setModal({ ...modal, title: e.target.value })}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5"
+                    placeholder="Titolo..."
+                    autoFocus
                   />
                 </div>
-                {!modal.allDay && (
-                  <div>
-                    <label className="text-xs text-zinc-400 mb-1 block">Fine</label>
-                    <input
-                      type="datetime-local"
-                      value={toLocalDatetimeValue(modal.endAt)}
-                      onChange={(e) => setModal({ ...modal, endAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                    />
-                  </div>
-                )}
-              </div>
 
-              {/* Tag picker */}
-              {tags.length > 0 && (
+                {/* Descrizione */}
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1.5 block">Tag</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {tags.map((tag: Tag) => {
-                      const selected = modal.tagIds.includes(tag.id);
+                  <label className="text-[11px] text-zinc-500">Descrizione</label>
+                  <textarea
+                    value={modal.description}
+                    onChange={(e) => setModal({ ...modal, description: e.target.value })}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 mt-0.5 resize-none overflow-hidden"
+                    placeholder="Descrizione..."
+                    rows={2}
+                  />
+                </div>
+
+                {/* Tipo — all 5 on one line */}
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
+                  <div className="flex gap-1">
+                    {ACTION_OPTIONS.map((opt) => {
+                      const isActive = opt.value === 'event'
+                        ? modal.actionType === 'event' && ((opt as any).extra?.all_day ? modal.allDay : !modal.allDay)
+                        : modal.actionType === opt.value;
                       return (
                         <button
-                          key={tag.id}
+                          key={opt.label}
                           type="button"
-                          onClick={() =>
-                            setModal({
-                              ...modal,
-                              tagIds: selected
-                                ? modal.tagIds.filter((id) => id !== tag.id)
-                                : [...modal.tagIds, tag.id],
-                            })
-                          }
+                          onClick={() => {
+                            const updates: Partial<EventModalState> = { actionType: opt.value };
+                            if (opt.value === 'event') {
+                              updates.allDay = !!(opt as any).extra?.all_day;
+                              if (!modal.startAt) {
+                                updates.startAt = new Date().toISOString();
+                                updates.endAt = new Date(Date.now() + 3600000).toISOString();
+                              }
+                            }
+                            setModal({ ...modal, ...updates });
+                          }}
                           className={cn(
-                            'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                            selected
-                              ? 'text-white'
+                            'flex-1 px-1.5 py-1 rounded text-[10px] font-medium border transition-all text-center',
+                            isActive
+                              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
                               : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
                           )}
-                          style={
-                            selected
-                              ? {
-                                  backgroundColor: `${'#94A3B8'}25`,
-                                  borderColor: `${'#94A3B8'}70`,
-                                  color: '#94A3B8',
-                                }
-                              : undefined
-                          }
                         >
-                          <IconTag className="h-3 w-3" style={selected ? { color: '#94A3B8' } : undefined} />
-                          {tag.name}
+                          {opt.label}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              )}
 
-              {modal.mode === 'create' && modal.tileId && (
-                <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={modal.autoDetect}
-                    onChange={(e) => setModal({ ...modal, autoDetect: e.target.checked })}
-                    className="rounded border-zinc-600"
-                  />
-                  <IconSparkles className="h-4 w-4 text-blue-400" />
-                  Rileva data/ora dal contenuto con AI
-                </label>
-              )}
-
-              <div className="flex items-center gap-2 pt-2">
-                {modal.mode === 'edit' && modal.tileId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => unscheduleMutation.mutate(modal.tileId!)}
-                    className="text-red-400 border-red-900 hover:bg-red-950 text-xs"
-                  >
-                    <IconTrash className="h-3.5 w-3.5 mr-1" />
-                    Rimuovi
-                  </Button>
+                {/* Date/time — conditional */}
+                {showDate && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[11px] text-zinc-500 mb-0.5 block">{isDeadline ? 'Scadenza' : 'Data'}</label>
+                      <input type="date" value={dateVal} onChange={(e) => setDate(e.target.value)}
+                        className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500" />
+                    </div>
+                    {isTimed && (() => {
+                      const sH = startTime.slice(0, 2);
+                      const sM = startTime.slice(3, 5);
+                      const eH = endTime.slice(0, 2);
+                      const eM = endTime.slice(3, 5);
+                      const selCls = "bg-zinc-800/60 border border-zinc-700 rounded px-1 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500";
+                      const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+                      const mins = ['00', '15', '30', '45'];
+                      return (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Inizio</label>
+                          <div className="flex gap-1 items-center">
+                            <select value={sH} onChange={(e) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${e.target.value}:${sM}`).toISOString() }); }} className={selCls}>
+                              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            <span className="text-zinc-500 text-xs">:</span>
+                            <select value={sM} onChange={(e) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${sH}:${e.target.value}`).toISOString() }); }} className={selCls}>
+                              {mins.map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Fine</label>
+                          <div className="flex gap-1 items-center">
+                            <select value={eH} onChange={(e) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${e.target.value}:${eM}`).toISOString() }); }} className={selCls}>
+                              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                            <span className="text-zinc-500 text-xs">:</span>
+                            <select value={eM} onChange={(e) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${eH}:${e.target.value}`).toISOString() }); }} className={selCls}>
+                              {mins.map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                      );
+                    })()}
+                  </div>
                 )}
-                <div className="flex-1" />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setModal(emptyModal)}
-                  className="text-zinc-400 border-zinc-700 text-xs"
-                >
-                  Annulla
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  disabled={scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
-                >
-                  {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
-                    <IconLoader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+
+                {/* Tag — dropdown like sidebar */}
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
+                  <ModalDropdown
+                    value={modal.tagIds[0] || null}
+                    options={tags.filter((t: Tag) => !t.is_root).map((t: Tag) => ({ id: t.id, label: t.name }))}
+                    placeholder="Seleziona tag..."
+                    onChange={(id) => setModal({ ...modal, tagIds: id ? [id] : [] })}
+                  />
+                </div>
+
+                {/* Status — dropdown like sidebar */}
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+                  <ModalDropdown
+                    value={modal.statusIconId}
+                    options={[
+                      { id: null as any, label: 'Nessuno' },
+                      ...allStatusIcons.map((si) => ({ id: si.id, label: si.name, icon: si.icon })),
+                    ]}
+                    placeholder="Seleziona status..."
+                    onChange={(id) => setModal({ ...modal, statusIconId: id })}
+                    renderOption={(opt) => {
+                      if (!opt.icon) return <span className="text-zinc-400">{opt.label}</span>;
+                      const Comp = AllIcons[opt.icon];
+                      return (
+                        <span className="flex items-center gap-2">
+                          {Comp && <Comp size={14} className="text-zinc-200" />}
+                          <span>{opt.label}</span>
+                        </span>
+                      );
+                    }}
+                    renderSelected={() => {
+                      if (!CurrentStatusComp) return null;
+                      return (
+                        <>
+                          <CurrentStatusComp size={14} className="text-zinc-200 shrink-0" />
+                          <span className="text-xs text-zinc-200 truncate">{currentStatusIcon!.name}</span>
+                        </>
+                      );
+                    }}
+                  />
+                </div>
+
+                {/* Pattern — dropdown like sidebar */}
+                {customPatterns.length > 0 && (
+                  <div>
+                    <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
+                    <ModalDropdown
+                      value={modal.patternId}
+                      options={[
+                        { id: null as any, label: 'Nessuno' },
+                        ...customPatterns.map((p) => ({ id: p.id, label: p.name, shape: p.shape })),
+                      ]}
+                      placeholder="Seleziona pattern..."
+                      onChange={(id) => setModal({ ...modal, patternId: id })}
+                    />
+                  </div>
+                )}
+
+                {/* Done */}
+                <div className="flex gap-3">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={modal.isCompleted}
+                      onChange={(e) => setModal({ ...modal, isCompleted: e.target.checked })}
+                      className="accent-green-500 w-3.5 h-3.5" />
+                    <span className="text-[11px] text-zinc-400">Done</span>
+                  </label>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                  {modal.mode === 'edit' && modal.tileId && (
+                    <Button variant="outline" size="sm"
+                      onClick={() => unscheduleMutation.mutate(modal.tileId!)}
+                      className="text-red-400 border-red-900 hover:bg-red-950 text-xs">
+                      <IconTrash className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                    </Button>
                   )}
-                  {modal.mode === 'create' ? 'Crea' : 'Salva'}
-                </Button>
+                  <div className="flex-1" />
+                  <Button variant="outline" size="sm" onClick={() => setModal(emptyModal)}
+                    className="text-zinc-400 border-zinc-700 text-xs">Annulla</Button>
+                  <Button size="sm" onClick={handleSubmit}
+                    disabled={scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs">
+                    {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
+                      <IconLoader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    )}
+                    {modal.mode === 'create' ? 'Crea' : 'Salva'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Tile picker modal */}
-      {showTilePicker && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowTilePicker(false)}>
-          <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[70vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold">Schedula un Tile</h2>
-              <button onClick={() => setShowTilePicker(false)} className="text-zinc-400 hover:text-white">
-                <IconX className="h-5 w-5" />
-              </button>
-            </div>
-
-            <p className="text-xs text-zinc-400 mb-3">
-              Seleziona un tile da aggiungere al calendario. L&apos;AI cerchera di rilevare data e ora dal contenuto.
-            </p>
-
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {unscheduledTiles.length === 0 ? (
-                <p className="text-zinc-500 text-sm text-center py-8">Nessun tile disponibile</p>
-              ) : (
-                unscheduledTiles.map((tile: Tile) => (
-                  <button
-                    key={tile.id}
-                    onClick={() => handleScheduleTile(tile)}
-                    className="w-full text-left bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 rounded-lg p-3 transition-colors"
-                  >
-                    <p className="text-sm text-white font-medium truncate">
-                      {tile.title || 'Tile senza titolo'}
-                    </p>
-                    {tile.description && (
-                      <p className="text-xs text-zinc-400 truncate mt-0.5">{tile.description}</p>
-                    )}
-                    <p className="text-[10px] text-zinc-500 mt-1">
-                      {tile.spark_count || 0} spark &middot; {new Date(tile.created_at).toLocaleDateString('it-IT')}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
       </div>{/* end PANNELLO CALENDAR */}
 
       {/* 5 — SIDEBAR DESTRA */}
