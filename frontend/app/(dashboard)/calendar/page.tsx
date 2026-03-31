@@ -534,15 +534,18 @@ export default function CalendarPage() {
 
   // ─── Context menu state ───
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; tile: Tile } | null>(null);
+  const [slotCtxMenu, setSlotCtxMenu] = useState<{ x: number; y: number; date: Date; allDay: boolean } | null>(null);
+  const [colCtxMenu, setColCtxMenu] = useState<{ x: number; y: number; type: 'notes' | 'todo' } | null>(null);
   const [clipboardTile, setClipboardTile] = useState<Tile | null>(null);
   const ctxRef = useRef<HTMLDivElement>(null);
+  const slotCtxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!ctxMenu) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setCtxMenu(null); };
+    if (!ctxMenu && !slotCtxMenu && !colCtxMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setCtxMenu(null); setSlotCtxMenu(null); setColCtxMenu(null); } };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [ctxMenu]);
+  }, [ctxMenu, slotCtxMenu]);
 
   const onTileContextMenu = useCallback((e: React.MouseEvent, tile: Tile) => {
     e.preventDefault();
@@ -652,6 +655,59 @@ export default function CalendarPage() {
       if (selectedTileId === id) setSelectedTileId(null);
     } catch { /* ignore */ }
   }, [ctxMenu, queryClient, selectedTileId]);
+
+  const handleNewTileInColumn = useCallback(() => {
+    if (!colCtxMenu) return;
+    const actionType = colCtxMenu.type === 'notes' ? 'none' : 'anytime';
+    setColCtxMenu(null);
+    setModal({
+      ...emptyModal,
+      open: true,
+      mode: 'create',
+      actionType,
+    });
+  }, [colCtxMenu]);
+
+  const handlePasteInColumn = useCallback(async () => {
+    if (!clipboardTile || !colCtxMenu) return;
+    const actionType = colCtxMenu.type === 'notes' ? 'none' : 'anytime';
+    setColCtxMenu(null);
+    try {
+      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+      const newId = res?.data?.id;
+      if (newId) {
+        await tilesApi.update(newId, {
+          action_type: actionType as any,
+          is_event: false,
+          all_day: false,
+          start_at: null,
+          end_at: null,
+          is_completed: clipboardTile.is_completed,
+          pattern_id: clipboardTile.pattern_id,
+        });
+        const tagId = clipboardTile.tags?.[0]?.id;
+        if (tagId) await syncTags(newId, [tagId]);
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      }
+    } catch { /* ignore */ }
+  }, [clipboardTile, colCtxMenu, syncTags, queryClient]);
+
+  const handleNewTileAtSlot = useCallback(() => {
+    if (!slotCtxMenu) return;
+    const { date, allDay } = slotCtxMenu;
+    setSlotCtxMenu(null);
+    setModal({
+      ...emptyModal,
+      open: true,
+      mode: 'create',
+      actionType: allDay ? 'event' : 'event',
+      allDay,
+      startAt: date.toISOString(),
+      endAt: allDay
+        ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString()
+        : new Date(date.getTime() + 3600000).toISOString(),
+    });
+  }, [slotCtxMenu]);
 
   // Handle create/edit submit
   const { assignIcon } = useStatusIcons();
@@ -771,6 +827,11 @@ export default function CalendarPage() {
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
           onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
+          onContextMenu={(e) => {
+            if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
+            e.preventDefault();
+            setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'notes' });
+          }}
         >
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
             <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
@@ -924,6 +985,11 @@ export default function CalendarPage() {
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
           onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
+          onContextMenu={(e) => {
+            if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
+            e.preventDefault();
+            setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'todo' });
+          }}
         >
           <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
             <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
@@ -1131,7 +1197,51 @@ export default function CalendarPage() {
       </div>
 
       {/* FullCalendar grid */}
-      <div className="flex-1 overflow-hidden fc-dark">
+      <div
+        className="flex-1 overflow-hidden fc-dark"
+        onContextMenu={(e) => {
+          // Only show slot context menu if not clicking on an event
+          const target = e.target as HTMLElement;
+          if (target.closest('.fc-event')) return; // let event contextmenu handle it
+          e.preventDefault();
+          // Try to find the date from the slot element
+          const slotEl = target.closest('[data-date]') as HTMLElement | null;
+          const tdEl = target.closest('td.fc-timegrid-slot') as HTMLElement | null;
+          if (slotEl) {
+            const dateStr = slotEl.getAttribute('data-date');
+            if (dateStr) {
+              const date = new Date(dateStr);
+              const allDay = !!target.closest('.fc-daygrid-body, .fc-daygrid-day');
+              setSlotCtxMenu({ x: e.clientX, y: e.clientY, date, allDay });
+              return;
+            }
+          }
+          if (tdEl) {
+            const dateAttr = tdEl.getAttribute('data-time');
+            // Find the day column from X position
+            const api = fcRef.current?.getApi();
+            if (api && dateAttr) {
+              // Use the column header to find the day
+              const colHeaders = document.querySelectorAll('.fc-col-header-cell');
+              let dayDate = new Date();
+              colHeaders.forEach((header) => {
+                const rect = header.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right) {
+                  const d = (header as HTMLElement).getAttribute('data-date');
+                  if (d) dayDate = new Date(d);
+                }
+              });
+              const [h, m] = dateAttr.split(':').map(Number);
+              dayDate.setHours(h, m, 0, 0);
+              setSlotCtxMenu({ x: e.clientX, y: e.clientY, date: dayDate, allDay: false });
+              return;
+            }
+          }
+          // Fallback: all-day area or header
+          setSlotCtxMenu(null);
+          setCtxMenu(null);
+        }}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
             <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
@@ -1161,6 +1271,20 @@ export default function CalendarPage() {
             dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
             initialDate={days[0]}
             events={fcEvents}
+            dateClick={(info) => {
+              // Left-click on empty slot — open modal pre-filled
+              setModal({
+                ...emptyModal,
+                open: true,
+                mode: 'create',
+                actionType: 'event',
+                allDay: info.allDay,
+                startAt: info.date.toISOString(),
+                endAt: info.allDay
+                  ? new Date(info.date.getFullYear(), info.date.getMonth(), info.date.getDate(), 23, 59, 59).toISOString()
+                  : new Date(info.date.getTime() + 3600000).toISOString(),
+              });
+            }}
             eventClick={(info) => {
               const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
               if (tile) { setSelectedTileId(tile.id); if (!sidebarOpen) setSidebarOpen(true); }
@@ -1261,6 +1385,97 @@ export default function CalendarPage() {
             <IconTrash className="h-3.5 w-3.5" />
             Elimina
           </button>
+        </div>
+        </>,
+        document.body
+      )}
+
+      {/* Slot context menu (right-click on empty area) */}
+      {slotCtxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setSlotCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSlotCtxMenu(null); }} />
+        <div
+          ref={slotCtxRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
+          style={{ top: slotCtxMenu.y, left: slotCtxMenu.x }}
+        >
+          <button
+            onClick={handleNewTileAtSlot}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconPlus className="h-3.5 w-3.5" />
+            Nuovo tile qui
+          </button>
+          {clipboardTile && (
+            <>
+              <div className="border-t border-zinc-700 my-1" />
+              <button
+                onClick={() => {
+                  if (!clipboardTile || !slotCtxMenu) return;
+                  const { date, allDay } = slotCtxMenu;
+                  setSlotCtxMenu(null);
+                  (async () => {
+                    try {
+                      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+                      const newId = res?.data?.id;
+                      if (newId) {
+                        await tilesApi.update(newId, {
+                          action_type: 'event' as any,
+                          is_event: true,
+                          all_day: allDay,
+                          start_at: date.toISOString(),
+                          end_at: allDay
+                            ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString()
+                            : new Date(date.getTime() + 3600000).toISOString(),
+                          pattern_id: clipboardTile.pattern_id,
+                        });
+                        const tagId = clipboardTile.tags?.[0]?.id;
+                        if (tagId) await syncTags(newId, [tagId]);
+                        queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+                        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+                      }
+                    } catch { /* ignore */ }
+                  })();
+                }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                Incolla qui
+              </button>
+            </>
+          )}
+        </div>
+        </>,
+        document.body
+      )}
+
+      {/* Column context menu (right-click on empty NOTES/TODO area) */}
+      {colCtxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setColCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColCtxMenu(null); }} />
+        <div
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
+          style={{ top: colCtxMenu.y, left: colCtxMenu.x }}
+        >
+          <button
+            onClick={handleNewTileInColumn}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconPlus className="h-3.5 w-3.5" />
+            {colCtxMenu.type === 'notes' ? 'Nuovo appunto' : 'Nuovo task'}
+          </button>
+          {clipboardTile && (
+            <>
+              <div className="border-t border-zinc-700 my-1" />
+              <button
+                onClick={handlePasteInColumn}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                Incolla qui
+              </button>
+            </>
+          )}
         </div>
         </>,
         document.body

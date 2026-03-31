@@ -4,12 +4,10 @@ import { IconArrowsMove, IconLink, IconRefresh, IconMaximize } from '@tabler/ico
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
-type CanvasMode = 'move' | 'link';
-
-function ToolbarButton({ icon, label, active, onClick }: {
+function ToolbarToggle({ icon, label, active, onClick }: {
   icon: React.ReactNode;
   label: string;
-  active?: boolean;
+  active: boolean;
   onClick: () => void;
 }) {
   return (
@@ -19,8 +17,25 @@ function ToolbarButton({ icon, label, active, onClick }: {
         'flex items-center gap-1 px-2 py-1 rounded text-[11px] transition-colors',
         active
           ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40'
-          : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+          : 'bg-zinc-800/60 text-zinc-600 border border-zinc-700'
       )}
+      title={label}
+    >
+      {icon}
+      {label}
+    </button>
+  );
+}
+
+function ToolbarButton({ icon, label, onClick }: {
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
       title={label}
     >
       {icon}
@@ -32,13 +47,15 @@ function ToolbarButton({ icon, label, active, onClick }: {
 interface CanvasTopbarProps {
   tag: Tag | null;
   tileCount: number;
-  mode: CanvasMode;
-  onModeChange: (mode: CanvasMode) => void;
+  moveEnabled: boolean;
+  linkEnabled: boolean;
+  onToggleMove: () => void;
+  onToggleLink: () => void;
   onReset: () => void;
   onFit: () => void;
 }
 
-export function CanvasTopbar({ tag, tileCount, mode, onModeChange, onReset, onFit }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, tileCount, moveEnabled, linkEnabled, onToggleMove, onToggleLink, onReset, onFit }: CanvasTopbarProps) {
   return (
     <div className="h-11 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-950">
       {/* Tag pill */}
@@ -53,17 +70,17 @@ export function CanvasTopbar({ tag, tileCount, mode, onModeChange, onReset, onFi
 
       {/* Toolbar */}
       <div className="flex items-center gap-1">
-        <ToolbarButton
+        <ToolbarToggle
           icon={<IconArrowsMove size={13} />}
           label="Sposta"
-          active={mode === 'move'}
-          onClick={() => onModeChange('move')}
+          active={moveEnabled}
+          onClick={onToggleMove}
         />
-        <ToolbarButton
+        <ToolbarToggle
           icon={<IconLink size={13} />}
           label="Collega"
-          active={mode === 'link'}
-          onClick={() => onModeChange('link')}
+          active={linkEnabled}
+          onClick={onToggleLink}
         />
         <div className="w-px h-5 bg-zinc-700 mx-1" />
         <ToolbarButton icon={<IconRefresh size={13} />} label="Reset" onClick={onReset} />

@@ -540,4 +540,15 @@ export const canvasApi = {
   async deleteEdge(id: string) {
     return apiRequest(`/api/canvas/edges/${id}`, { method: 'DELETE' });
   },
+
+  async getGroups(tagId: string) {
+    return apiRequest<{ id: string; label: string; node_ids: string[] }[]>(`/api/canvas/groups/${tagId}`);
+  },
+
+  async saveGroups(tagId: string, groups: { id: string; label: string; node_ids: string[] }[]) {
+    return apiRequest(`/api/canvas/groups/${tagId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ groups }),
+    });
+  },
 };

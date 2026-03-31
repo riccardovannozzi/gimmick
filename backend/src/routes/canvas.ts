@@ -126,3 +126,59 @@ canvasRouter.delete('/edges/:id', async (req: AuthenticatedRequest, res: Respons
     next(error);
   }
 });
+
+/**
+ * GET /api/canvas/groups/:tagId
+ */
+canvasRouter.get('/groups/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tagId } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('canvas_groups')
+      .select('id, label, node_ids')
+      .eq('user_id', req.user!.id)
+      .eq('tag_id', tagId);
+
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * PUT /api/canvas/groups/:tagId
+ */
+canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tagId } = req.params;
+    const { groups } = req.body;
+
+    if (!Array.isArray(groups)) {
+      res.status(400).json({ success: false, error: 'groups must be an array' });
+      return;
+    }
+
+    await supabaseAdmin
+      .from('canvas_groups')
+      .delete()
+      .eq('user_id', req.user!.id)
+      .eq('tag_id', tagId);
+
+    if (groups.length > 0) {
+      const rows = groups.map((g: { id: string; label: string; node_ids: string[] }) => ({
+        id: g.id,
+        user_id: req.user!.id,
+        tag_id: tagId,
+        label: g.label || '',
+        node_ids: g.node_ids,
+      }));
+      const { error } = await supabaseAdmin.from('canvas_groups').insert(rows);
+      if (error) throw error;
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
