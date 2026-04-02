@@ -60,7 +60,7 @@ export function CanvasBoard({
 
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number } | null>(null);
-  const dropTarget = useRef<string | null>(null); // node id found during drag
+  const dropTarget = useRef<{ nodeId: string; groupId?: string } | null>(null);
 
   const getColor = useCallback((at: string) => (actionColors as Record<string, string>)[at] || actionColors.none || '#888780', [actionColors]);
 
@@ -80,33 +80,60 @@ export function CanvasBoard({
     return { x, y, w: Math.max(...gn.map((n) => n.x + TILE_W)) + GROUP_PAD - x, h: Math.max(...gn.map((n) => n.y + TILE_H)) + GROUP_PAD - y };
   };
 
-  // Hit-test: find node or group-first-node at board coords
-  const hitTest = useCallback((bx: number, by: number, excludeId: string): string | null => {
+  // Hit-test result: nodeId to connect to + optional groupId for highlight
+  interface HitResult { nodeId: string; groupId?: string; }
+  const hitTest = useCallback((bx: number, by: number, excludeId: string): HitResult | null => {
     const ns = nodesRef.current;
-    // 1. Direct tile
-    const tile = ns.find((n) => n.id !== excludeId && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
-    if (tile) return tile.id;
-    // 2. Group container
-    for (const g of groupsRef.current) {
+    const gs = groupsRef.current;
+    const TOL = 8;
+
+    const groupedIds = new Set<string>();
+    let sourceGroupId: string | null = null;
+    gs.forEach((g) => {
+      g.nodeIds.forEach((id) => {
+        groupedIds.add(id);
+        if (id === excludeId) sourceGroupId = g.id;
+      });
+    });
+
+    // 1. Group containers
+    for (const g of gs) {
+      if (g.id === sourceGroupId) continue;
       const b = getGroupBounds(g, ns);
       if (!b) continue;
-      if (bx >= b.x && bx <= b.x + b.w && by >= b.y - LABEL_H && by <= b.y + b.h) {
+      if (bx >= b.x - TOL && bx <= b.x + b.w + TOL && by >= b.y - LABEL_H - TOL && by <= b.y + b.h + TOL) {
         const first = ns.find((n) => g.nodeIds.includes(n.id) && n.id !== excludeId);
-        if (first) return first.id;
+        if (first) return { nodeId: first.id, groupId: g.id };
       }
     }
+
+    // 2. Ungrouped tiles only
+    const tile = ns.find((n) => n.id !== excludeId && !groupedIds.has(n.id) && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
+    if (tile) return { nodeId: tile.id };
+
     return null;
   }, []);
 
-  // Clip line to rect border
+  // Clip a line entering a rect: find where the line from (fromX,fromY) to (toX,toY) crosses the rect border.
+  // Returns the intersection point on the border closest to "to". If "to" is outside the rect, returns toX,toY unchanged.
   const clipToRect = (fromX: number, fromY: number, toX: number, toY: number, rx: number, ry: number, rw: number, rh: number): [number, number] => {
+    // If toX,toY is outside the rect, no clipping needed
+    if (toX < rx || toX > rx + rw || toY < ry || toY > ry + rh) return [toX, toY];
+    // toX,toY is inside the rect — find where the line FROM outside (fromX,fromY) enters the rect
     const dx = toX - fromX, dy = toY - fromY;
-    if (!dx && !dy) return [fromX, fromY];
+    if (!dx && !dy) return [toX, toY];
+    // Find intersection going from "from" toward "to", pick the first intersection with the rect
     let best = Infinity;
-    const tryEdge = (t: number, coord: number, min: number, max: number) => { if (t > 0 && t < best && coord >= min && coord <= max) best = t; };
-    if (dx) { tryEdge((rx - fromX) / dx, fromY + ((rx - fromX) / dx) * dy, ry, ry + rh); tryEdge((rx + rw - fromX) / dx, fromY + ((rx + rw - fromX) / dx) * dy, ry, ry + rh); }
-    if (dy) { tryEdge((ry - fromY) / dy, fromX + ((ry - fromY) / dy) * dx, rx, rx + rw); tryEdge((ry + rh - fromY) / dy, fromX + ((ry + rh - fromY) / dy) * dx, rx, rx + rw); }
-    return best < Infinity ? [fromX + best * dx, fromY + best * dy] : [fromX, fromY];
+    const tryEdge = (t: number, cross: number, min: number, max: number) => { if (t > 0 && t < 1 && t < best && cross >= min && cross <= max) best = t; };
+    if (dx) {
+      const t1 = (rx - fromX) / dx; tryEdge(t1, fromY + t1 * dy, ry, ry + rh);
+      const t2 = (rx + rw - fromX) / dx; tryEdge(t2, fromY + t2 * dy, ry, ry + rh);
+    }
+    if (dy) {
+      const t3 = (ry - fromY) / dy; tryEdge(t3, fromX + t3 * dx, rx, rx + rw);
+      const t4 = (ry + rh - fromY) / dy; tryEdge(t4, fromX + t4 * dx, rx, rx + rw);
+    }
+    return best < Infinity ? [fromX + best * dx, fromY + best * dy] : [toX, toY];
   };
 
   const render = useCallback(() => {
@@ -162,19 +189,33 @@ export function CanvasBoard({
       const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
       tempLine.attr('x2', mx).attr('y2', my);
       dropTarget.current = hitTest(mx, my, linkSrc.current.id);
+      // Reset all highlights
+      nodeGrps.each(function (d: any) { d3.select(this).select('.tile-bg').attr('stroke', getColor(d.actionType) + '60').attr('stroke-width', 1); });
+      groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       // Highlight target
-      nodeGrps.select('.tile-bg').attr('stroke-width', 1);
       if (dropTarget.current) {
-        nodeGrps.filter((d: any) => d.id === dropTarget.current).select('.tile-bg').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
+        if (dropTarget.current.groupId) {
+          // Highlight the group container
+          groupsBg.selectAll('g').each(function (_, i) {
+            const grp = groupsRef.current[i];
+            if (grp && grp.id === dropTarget.current!.groupId) {
+              d3.select(this as SVGGElement).select('rect').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
+            }
+          });
+        } else {
+          // Highlight the tile
+          nodeGrps.filter((d: any) => d.id === dropTarget.current!.nodeId).select('.tile-bg').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
+        }
       }
     };
     const endLink = () => {
       tempLine.attr('opacity', 0);
       nodeGrps.each(function (d: any) { d3.select(this).select('.tile-bg').attr('stroke', getColor(d.actionType) + '60').attr('stroke-width', 1); });
+      groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
       linkSrc.current = null;
-      if (dropTarget.current && dropTarget.current !== sid) onAddEdge(sid, dropTarget.current);
+      if (dropTarget.current && dropTarget.current.nodeId !== sid) onAddEdge(sid, dropTarget.current.nodeId);
       dropTarget.current = null;
     };
 
@@ -189,13 +230,21 @@ export function CanvasBoard({
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', 8)
           .attr('fill', 'rgba(59,130,246,0.04)').attr('stroke', '#3B82F650').attr('stroke-width', 1).attr('stroke-dasharray', '6,4')
           .style('cursor', moveRef.current ? 'grab' : 'default')
-          .call(d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
-            .on('drag', (ev) => {
-              grp.nodeIds.forEach((id) => { const n = nodes.find((nn) => nn.id === id); if (n) { n.x += ev.dx; n.y += ev.dy; } });
-              nodeGrps.filter((d: any) => grp.nodeIds.includes(d.id)).attr('transform', (d: any) => `translate(${d.x},${d.y})`);
-              drawEdges(); drawGroups();
-            })
-            .on('end', () => onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })))));
+          .call((() => {
+            let prev: [number, number] | null = null;
+            return d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
+              .on('start', (ev) => { prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number]; })
+              .on('drag', (ev) => {
+                const cur = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
+                if (!prev) { prev = cur; return; }
+                const dx = cur[0] - prev[0], dy = cur[1] - prev[1];
+                prev = cur;
+                grp.nodeIds.forEach((id) => { const n = nodes.find((nn) => nn.id === id); if (n) { n.x += dx; n.y += dy; } });
+                nodeGrps.filter((d: any) => grp.nodeIds.includes(d.id)).attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+                drawEdges(); drawGroups();
+              })
+              .on('end', () => { prev = null; onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
+          })());
         gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', '#71717A').attr('font-size', 11).attr('font-weight', 500)
           .text(grp.label || 'Gruppo').style('cursor', 'text')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); const nl = prompt('Nome del gruppo:', grp.label || ''); if (nl !== null) onGroupsChange(groupsRef.current.map((g) => g.id === grp.id ? { ...g, label: nl } : g)); });
