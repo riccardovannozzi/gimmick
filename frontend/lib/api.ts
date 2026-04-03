@@ -551,4 +551,26 @@ export const canvasApi = {
       body: JSON.stringify({ groups }),
     });
   },
+
+  async getTextBoxes(tagId: string) {
+    return apiRequest<{ id: string; content: string; x: number; y: number }[]>(`/api/canvas/textboxes/${tagId}`);
+  },
+
+  async addTextBox(tagId: string, data: { content?: string; x: number; y: number }) {
+    return apiRequest<{ id: string; content: string; x: number; y: number }>(`/api/canvas/textboxes/${tagId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateTextBox(id: string, updates: { content?: string; x?: number; y?: number }) {
+    return apiRequest(`/api/canvas/textboxes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteTextBox(id: string) {
+    return apiRequest(`/api/canvas/textboxes/${id}`, { method: 'DELETE' });
+  },
 };

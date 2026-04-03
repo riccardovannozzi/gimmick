@@ -8,7 +8,7 @@ import { IconComponents, IconTrash } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { tagsApi, canvasApi, tilesApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
-import { CanvasBoard, type CanvasEdge, type CanvasGroup } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import type { Tag, Tile } from '@/types';
 
@@ -19,6 +19,7 @@ export default function CanvasPage() {
 
   const [moveEnabled, setMoveEnabled] = useState(true);
   const [linkEnabled, setLinkEnabled] = useState(true);
+  const [textMode, setTextMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [fitTrigger, setFitTrigger] = useState(0);
@@ -134,6 +135,57 @@ export default function CanvasPage() {
     await canvasApi.deleteEdge(id);
   }, [tagId, queryClient]);
 
+  // ── Text boxes ──
+  const { data: textBoxesData } = useQuery({
+    queryKey: ['canvas-textboxes', tagId],
+    queryFn: () => canvasApi.getTextBoxes(tagId!),
+    enabled: !!tagId,
+  });
+  const textBoxes = (textBoxesData?.data || []) as CanvasTextBox[];
+
+  const handleAddTextBox = useCallback(async (x: number, y: number) => {
+    if (!tagId) return;
+    setTextMode(false);
+    const tempId = `temp-tb-${Date.now()}`;
+    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, content: '', x, y }],
+    }));
+    try {
+      const res = await canvasApi.addTextBox(tagId, { content: '', x, y });
+      if (res?.data) {
+        const d = res.data as any;
+        queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
+        }));
+      }
+    } catch {
+      queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+        data: (old?.data || []).filter((tb: any) => tb.id !== tempId),
+      }));
+    }
+  }, [tagId, queryClient]);
+
+  const tbUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleUpdateTextBox = useCallback((id: string, updates: { content?: string; x?: number; y?: number }) => {
+    if (!tagId) return;
+    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+      data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
+    }));
+    if (tbUpdateTimer.current) clearTimeout(tbUpdateTimer.current);
+    tbUpdateTimer.current = setTimeout(() => { canvasApi.updateTextBox(id, updates); }, 800);
+  }, [tagId, queryClient]);
+
+  const handleDeleteTextBox = useCallback(async (id: string) => {
+    if (!tagId) return;
+    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+      data: (old?.data || []).filter((tb: any) => tb.id !== id),
+    }));
+    await canvasApi.deleteTextBox(id);
+  }, [tagId, queryClient]);
+
+  // Text box context menu
+  const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
+
   const handleReset = useCallback(() => {
     setResetTrigger((n) => n + 1);
   }, []);
@@ -203,19 +255,23 @@ export default function CanvasPage() {
             tileCount={tiles.length}
             moveEnabled={moveEnabled}
             linkEnabled={linkEnabled}
+            textMode={textMode}
             onToggleMove={() => setMoveEnabled((v) => !v)}
             onToggleLink={() => setLinkEnabled((v) => !v)}
+            onToggleTextMode={() => setTextMode((v) => !v)}
             onReset={handleReset}
             onFit={handleFit}
           />
-          <div className="flex-1 relative overflow-hidden">
+          <div className="flex-1 relative overflow-hidden" style={{ cursor: textMode ? 'crosshair' : undefined }}>
             <CanvasBoard
               tiles={tiles}
               layout={layout}
               edges={edges}
               groups={canvasGroups}
+              textBoxes={textBoxes}
               moveEnabled={moveEnabled}
               linkEnabled={linkEnabled}
+              textMode={textMode}
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
               onDeleteEdge={handleDeleteEdge}
@@ -223,6 +279,9 @@ export default function CanvasPage() {
               onTileContextMenu={handleTileContextMenu}
               onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
               onGroupsChange={handleGroupsChange}
+              onAddTextBox={handleAddTextBox}
+              onUpdateTextBox={handleUpdateTextBox}
+              onTextBoxContextMenu={(e) => setTbCtx(e)}
               fitTrigger={fitTrigger}
               resetTrigger={resetTrigger}
             />
@@ -256,6 +315,26 @@ export default function CanvasPage() {
                 )}
                 <button
                   onClick={handleConfirmDeleteTile}
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                >
+                  <IconTrash className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </div>
+            </>,
+            document.body
+          )}
+
+          {/* Text box context menu */}
+          {tbCtx && createPortal(
+            <>
+              <div className="fixed inset-0 z-[9998]" onClick={() => setTbCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTbCtx(null); }} />
+              <div
+                className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
+                style={{ top: tbCtx.y, left: tbCtx.x }}
+              >
+                <button
+                  onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }}
                   className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
                 >
                   <IconTrash className="h-3.5 w-3.5" />

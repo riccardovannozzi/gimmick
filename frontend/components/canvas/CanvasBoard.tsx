@@ -19,6 +19,13 @@ export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
 export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
+export interface CanvasTextBox { id: string; content: string; x: number; y: number; }
+
+const TB_W = 200; // text box width
+const TB_FONT = 11;
+const TB_LINE_H = 16;
+const TB_PAD = 8;
+const TB_EXTRA_LINES = 2; // extra empty lines below text
 
 const PORTS = [
   { key: 'top', cx: TILE_W / 2, cy: 0 },
@@ -32,8 +39,10 @@ interface CanvasBoardProps {
   layout: { tile_id: string; x: number; y: number }[];
   edges: CanvasEdge[];
   groups: CanvasGroup[];
+  textBoxes: CanvasTextBox[];
   moveEnabled: boolean;
   linkEnabled: boolean;
+  textMode: boolean;
   onPositionChange: (positions: { tile_id: string; x: number; y: number }[]) => void;
   onAddEdge: (source_id: string, target_id: string, source_port?: string, target_port?: string) => void;
   onDeleteEdge: (id: string) => void;
@@ -41,16 +50,20 @@ interface CanvasBoardProps {
   onTileContextMenu: (e: { x: number; y: number; tileId: string; inGroup: boolean }) => void;
   onTileClick: (tileId: string) => void;
   onGroupsChange: (groups: CanvasGroup[]) => void;
+  onAddTextBox: (x: number, y: number) => void;
+  onUpdateTextBox: (id: string, updates: { content?: string; x?: number; y?: number }) => void;
+  onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
   fitTrigger: number;
   resetTrigger: number;
 }
 
 export function CanvasBoard({
-  tiles, layout, edges, groups,
-  moveEnabled, linkEnabled,
+  tiles, layout, edges, groups, textBoxes,
+  moveEnabled, linkEnabled, textMode,
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
-  onGroupsChange, fitTrigger, resetTrigger,
+  onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu,
+  fitTrigger, resetTrigger,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -59,6 +72,7 @@ export function CanvasBoard({
   const actionColors = useActionColors();
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
+  const textModeRef = useRef(textMode); textModeRef.current = textMode;
 
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
@@ -115,16 +129,27 @@ export function CanvasBoard({
       return null;
     };
 
+    // Text box check
+    const findTextBox = (): HitResult | null => {
+      for (const tb of textBoxes) {
+        const tbId = `tb:${tb.id}`;
+        if (tbId === excludeId) continue;
+        const h = Math.max(TB_LINE_H * 3, ((tb.content || '').split('\n').length + TB_EXTRA_LINES) * TB_LINE_H + TB_PAD * 2);
+        if (bx >= tb.x && bx <= tb.x + TB_W && by >= tb.y && by <= tb.y + h) {
+          return { nodeId: tbId };
+        }
+      }
+      return null;
+    };
+
     if (preferGroup) {
-      // Container first, then ungrouped tiles
-      return findGroup() || findTile();
+      return findGroup() || findTile() || findTextBox();
     } else {
-      // Tiles first (including grouped), then container empty area
       const tile = ns.find((n) => n.id !== excludeId && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
       if (tile) return { nodeId: tile.id };
-      return findGroup();
+      return findTextBox() || findGroup();
     }
-  }, []);
+  }, [textBoxes]);
 
 
   const render = useCallback(() => {
@@ -297,28 +322,48 @@ export function CanvasBoard({
 
     // ── Draw edges ──
     const edgesG = board.append('g');
-    // Get all ports for an endpoint (tile or group based on port prefix)
-    const getEndpointPorts = (nd: CanvasNode, port: string | undefined): { x: number; y: number }[] => {
-      if (port && port.startsWith('g:')) {
-        const grp = groupsRef.current.find((g) => g.nodeIds.includes(nd.id));
-        if (grp) {
-          const b = getGroupBounds(grp, nodes);
-          if (b) return [
-            { x: b.x + b.w / 2, y: b.y - LABEL_H },
-            { x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
-            { x: b.x + b.w / 2, y: b.y + b.h },
-            { x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+    // Get all ports for an endpoint (tile, group, or textbox)
+    const getEndpointPorts = (nodeId: string, port: string | undefined): { x: number; y: number }[] => {
+      // Text box ports
+      if (nodeId.startsWith('tb:') || (port && port.startsWith('t:'))) {
+        const tbId = nodeId.startsWith('tb:') ? nodeId.slice(3) : nodeId;
+        const tb = textBoxes.find((t) => t.id === tbId);
+        if (tb) {
+          const h = Math.max(TB_LINE_H * 3, ((tb.content || '').split('\n').length + TB_EXTRA_LINES) * TB_LINE_H + TB_PAD * 2);
+          return [
+            { x: tb.x + TB_W / 2, y: tb.y },
+            { x: tb.x + TB_W, y: tb.y + h / 2 },
+            { x: tb.x + TB_W / 2, y: tb.y + h },
+            { x: tb.x, y: tb.y + h / 2 },
           ];
         }
       }
+      // Group ports
+      if (port && port.startsWith('g:')) {
+        const nd = nodes.find((n) => n.id === nodeId);
+        if (nd) {
+          const grp = groupsRef.current.find((g) => g.nodeIds.includes(nd.id));
+          if (grp) {
+            const b = getGroupBounds(grp, nodes);
+            if (b) return [
+              { x: b.x + b.w / 2, y: b.y - LABEL_H },
+              { x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+              { x: b.x + b.w / 2, y: b.y + b.h },
+              { x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+            ];
+          }
+        }
+      }
       // Tile ports
-      return PORTS.map((p) => ({ x: nd.x + p.cx, y: nd.y + p.cy }));
+      const nd = nodes.find((n) => n.id === nodeId);
+      if (nd) return PORTS.map((p) => ({ x: nd.x + p.cx, y: nd.y + p.cy }));
+      return [];
     };
 
     // Find best pair of ports between two endpoints
-    const findBestPorts = (snd: CanvasNode, tnd: CanvasNode, sp: string | undefined, tp: string | undefined): { sx: number; sy: number; tx: number; ty: number } => {
-      const sPorts = getEndpointPorts(snd, sp);
-      const tPorts = getEndpointPorts(tnd, tp);
+    const findBestPorts = (sId: string, tId: string, sp: string | undefined, tp: string | undefined): { sx: number; sy: number; tx: number; ty: number } => {
+      const sPorts = getEndpointPorts(sId, sp);
+      const tPorts = getEndpointPorts(tId, tp);
       let bestDist = Infinity, best = { sx: 0, sy: 0, tx: 0, ty: 0 };
       for (const s of sPorts) {
         for (const t of tPorts) {
@@ -332,14 +377,20 @@ export function CanvasBoard({
     const drawEdges = () => {
       edgesG.selectAll('*').remove();
       edges.forEach((edge) => {
-        const s = nodes.find((n) => n.id === edge.source_id), t = nodes.find((n) => n.id === edge.target_id);
-        if (!s || !t) return;
+        // Check endpoints exist (could be tile or textbox)
+        const sIsTb = edge.source_id.startsWith('tb:');
+        const tIsTb = edge.target_id.startsWith('tb:');
+        const s = sIsTb ? null : nodes.find((n) => n.id === edge.source_id);
+        const t = tIsTb ? null : nodes.find((n) => n.id === edge.target_id);
+        const sTb = sIsTb ? textBoxes.find((tb) => `tb:${tb.id}` === edge.source_id) : null;
+        const tTb = tIsTb ? textBoxes.find((tb) => `tb:${tb.id}` === edge.target_id) : null;
+        if (!s && !sTb) return;
+        if (!t && !tTb) return;
 
-        // Compute best ports based on saved port type (tile or group)
-        const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(s, t, edge.source_port, edge.target_port);
+        const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(edge.source_id, edge.target_id, edge.source_port, edge.target_port);
 
-        const sColor = getColor(s.actionType);
-        const tColor = getColor(t.actionType);
+        const sColor = s ? getColor(s.actionType) : '#3F3F46';
+        const tColor = t ? getColor(t.actionType) : '#3F3F46';
         const g = edgesG.append('g');
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
         const vl = g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', '#444').attr('stroke-width', 1.5).attr('stroke-dasharray', '4,3').style('pointer-events', 'none');
@@ -389,12 +440,114 @@ export function CanvasBoard({
     nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => { ev.stopPropagation(); onTileClick(d.id); });
     nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenu({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
 
+    // ── Text boxes ──
+    const tbG = board.append('g').attr('class', 'textboxes');
+
+    const calcTbHeight = (content: string) => {
+      const lines = (content || '').split('\n').length + TB_EXTRA_LINES;
+      return Math.max(TB_LINE_H * 3, lines * TB_LINE_H + TB_PAD * 2);
+    };
+
+    const drawTextBoxes = () => {
+      tbG.selectAll('*').remove();
+      textBoxes.forEach((tb) => {
+        const h = calcTbHeight(tb.content);
+        const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node');
+
+        // Background
+        g.append('rect')
+          .attr('width', TB_W).attr('height', h).attr('rx', 6)
+          .attr('fill', '#0C0C0E').attr('stroke', '#3F3F46').attr('stroke-width', 0.5);
+
+        // Text editing via foreignObject
+        const fo = g.append('foreignObject')
+          .attr('x', TB_PAD).attr('y', TB_PAD)
+          .attr('width', TB_W - TB_PAD * 2).attr('height', h - TB_PAD * 2);
+
+        const div = fo.append('xhtml:div')
+          .attr('contenteditable', 'true')
+          .attr('style', `color:#A1A1AA;font-size:${TB_FONT}px;line-height:${TB_LINE_H}px;outline:none;white-space:pre-wrap;word-break:break-word;min-height:${TB_LINE_H}px;`)
+          .text(tb.content || '');
+
+        // Save on blur / input
+        let saveTimer: ReturnType<typeof setTimeout> | null = null;
+        (div.node() as HTMLElement)?.addEventListener('input', () => {
+          const text = (div.node() as HTMLElement)?.innerText || '';
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(() => onUpdateTextBox(tb.id, { content: text }), 600);
+          // Resize
+          const newH = calcTbHeight(text);
+          g.select('rect').attr('height', newH);
+          fo.attr('height', newH - TB_PAD * 2);
+        });
+
+        // Stop propagation on text editing clicks
+        (div.node() as HTMLElement)?.addEventListener('mousedown', (e) => e.stopPropagation());
+
+        // 4 ports
+        const tbPorts = g.append('g').attr('class', 'tb-ports').attr('opacity', 0);
+        const tbPortList = [
+          { key: 'top', cx: TB_W / 2, cy: 0 },
+          { key: 'right', cx: TB_W, cy: h / 2 },
+          { key: 'bottom', cx: TB_W / 2, cy: h },
+          { key: 'left', cx: 0, cy: h / 2 },
+        ];
+        tbPortList.forEach(({ key, cx, cy }) => {
+          tbPorts.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy)
+            .attr('r', PORT_R).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2)
+            .style('cursor', 'crosshair');
+        });
+
+        g.on('mouseenter', () => { if (linkRef.current) tbPorts.attr('opacity', 1); });
+        g.on('mouseleave', () => { if (!linkSrc.current) tbPorts.attr('opacity', 0); });
+
+        // Port drag on text box
+        const tbPortDrag = d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
+          .on('start', function (ev) {
+            const pcx = parseFloat(d3.select(this).attr('cx')), pcy = parseFloat(d3.select(this).attr('cy'));
+            const pk = tbPortList.find((p) => p.cx === pcx && p.cy === pcy)?.key || 'right';
+            startLink(`tb:${tb.id}`, tb.x + pcx, tb.y + pcy, `t:${pk}`, ev);
+          })
+          .on('drag', dragLink)
+          .on('end', () => { endLink(); tbPorts.attr('opacity', 0); });
+        tbPorts.selectAll('circle.port').call(tbPortDrag as any);
+
+        // Drag to move
+        g.call(d3.drag<SVGGElement, unknown>()
+          .filter((ev) => {
+            if ((ev.target as SVGElement).classList?.contains('port')) return false;
+            if ((ev.target as HTMLElement)?.getAttribute?.('contenteditable')) return false;
+            return moveRef.current;
+          })
+          .on('drag', (ev) => {
+            tb.x += ev.dx; tb.y += ev.dy;
+            g.attr('transform', `translate(${tb.x},${tb.y})`);
+            drawEdges();
+          })
+          .on('end', () => { onUpdateTextBox(tb.id, { x: tb.x, y: tb.y }); }) as any);
+
+        // Context menu
+        g.on('contextmenu', (ev: MouseEvent) => {
+          ev.preventDefault(); ev.stopPropagation();
+          onTextBoxContextMenu({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
+        });
+      });
+    };
+    drawTextBoxes();
+
+    // Click on background to create text box in text mode
+    d3svg.on('click.tb', (ev: MouseEvent) => {
+      if (!textModeRef.current) return;
+      if (ev.target !== svg) return;
+      const [mx, my] = d3.pointer(ev, boardNode);
+      onAddTextBox(mx, my);
+    });
+
     drawGroups();
-    // Raise nodes above group bg
     nodesG.raise();
-    // Raise temp line to top
+    tbG.raise();
     tempLine.raise();
-  }, [tiles, layout, edges, groups, buildNodes, getColor, onPositionChange, onAddEdge, onDeleteEdge, onEdgeContextMenu, onTileContextMenu, onTileClick, onGroupsChange, hitTest]);
+  }, [tiles, layout, edges, groups, textBoxes, buildNodes, getColor, onPositionChange, onAddEdge, onDeleteEdge, onEdgeContextMenu, onTileContextMenu, onTileClick, onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, hitTest]);
 
   useEffect(() => { render(); }, [render]);
 

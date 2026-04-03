@@ -184,3 +184,63 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
     next(error);
   }
 });
+
+// ─── Text Boxes ───
+
+canvasRouter.get('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tagId } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('canvas_textboxes')
+      .select('id, content, x, y')
+      .eq('user_id', req.user!.id)
+      .eq('tag_id', tagId);
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error) { next(error); }
+});
+
+canvasRouter.post('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tagId } = req.params;
+    const { content, x, y } = req.body;
+    const { data, error } = await supabaseAdmin
+      .from('canvas_textboxes')
+      .insert({ user_id: req.user!.id, tag_id: tagId, content: content || '', x: x || 0, y: y || 0 })
+      .select()
+      .single();
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (error) { next(error); }
+});
+
+canvasRouter.patch('/textboxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const updates: Record<string, unknown> = {};
+    if (req.body.content !== undefined) updates.content = req.body.content;
+    if (req.body.x !== undefined) updates.x = req.body.x;
+    if (req.body.y !== undefined) updates.y = req.body.y;
+    updates.updated_at = new Date().toISOString();
+    const { error } = await supabaseAdmin
+      .from('canvas_textboxes')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', req.user!.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
+
+canvasRouter.delete('/textboxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('canvas_textboxes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', req.user!.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) { next(error); }
+});
