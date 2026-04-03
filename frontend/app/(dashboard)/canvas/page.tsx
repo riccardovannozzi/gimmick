@@ -17,8 +17,6 @@ export default function CanvasPage() {
   const tagId = searchParams.get('tag');
   const queryClient = useQueryClient();
 
-  const [moveEnabled, setMoveEnabled] = useState(true);
-  const [linkEnabled, setLinkEnabled] = useState(true);
   const [textMode, setTextMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -143,15 +141,15 @@ export default function CanvasPage() {
   });
   const textBoxes = (textBoxesData?.data || []) as CanvasTextBox[];
 
-  const handleAddTextBox = useCallback(async (x: number, y: number) => {
+  const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;
     setTextMode(false);
     const tempId = `temp-tb-${Date.now()}`;
     queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
-      data: [...(old?.data || []), { id: tempId, content: '', x, y }],
+      data: [...(old?.data || []), { id: tempId, content: '', x, y, w, h }],
     }));
     try {
-      const res = await canvasApi.addTextBox(tagId, { content: '', x, y });
+      const res = await canvasApi.addTextBox(tagId, { content: '', x, y, w, h });
       if (res?.data) {
         const d = res.data as any;
         queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
@@ -186,9 +184,21 @@ export default function CanvasPage() {
   // Text box context menu
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
 
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const handleReset = useCallback(() => {
-    setResetTrigger((n) => n + 1);
+    setShowResetConfirm(true);
   }, []);
+  const confirmReset = useCallback(async () => {
+    setResetTrigger((n) => n + 1);
+    setShowResetConfirm(false);
+    if (!tagId) return;
+    // Delete all edges
+    const currentEdges = (queryClient.getQueryData(['canvas-edges', tagId]) as any)?.data || [];
+    queryClient.setQueryData(['canvas-edges', tagId], { data: [] });
+    for (const edge of currentEdges) {
+      try { await canvasApi.deleteEdge(edge.id); } catch { /* ignore */ }
+    }
+  }, [tagId, queryClient]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -253,11 +263,7 @@ export default function CanvasPage() {
           <CanvasTopbar
             tag={tag}
             tileCount={tiles.length}
-            moveEnabled={moveEnabled}
-            linkEnabled={linkEnabled}
             textMode={textMode}
-            onToggleMove={() => setMoveEnabled((v) => !v)}
-            onToggleLink={() => setLinkEnabled((v) => !v)}
             onToggleTextMode={() => setTextMode((v) => !v)}
             onReset={handleReset}
             onFit={handleFit}
@@ -269,8 +275,8 @@ export default function CanvasPage() {
               edges={edges}
               groups={canvasGroups}
               textBoxes={textBoxes}
-              moveEnabled={moveEnabled}
-              linkEnabled={linkEnabled}
+              moveEnabled={true}
+              linkEnabled={true}
               textMode={textMode}
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
@@ -342,6 +348,21 @@ export default function CanvasPage() {
                 </button>
               </div>
             </>,
+            document.body
+          )}
+
+          {/* Reset confirm */}
+          {showResetConfirm && createPortal(
+            <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60" onClick={() => setShowResetConfirm(false)}>
+              <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-sm font-semibold text-white mb-2">Reset Canvas</h3>
+                <p className="text-xs text-zinc-400 mb-4">Tutti i nodi torneranno alla posizione iniziale. Gruppi e collegamenti verranno eliminati. Le note di testo verranno mantenute. Questa azione non è reversibile.</p>
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setShowResetConfirm(false)} className="px-3 py-1.5 rounded text-xs text-zinc-400 border border-zinc-700 hover:bg-zinc-800 transition-colors">Annulla</button>
+                  <button onClick={confirmReset} className="px-3 py-1.5 rounded text-xs text-white bg-red-600 hover:bg-red-500 transition-colors">Reset</button>
+                </div>
+              </div>
+            </div>,
             document.body
           )}
 

@@ -553,17 +553,17 @@ export const canvasApi = {
   },
 
   async getTextBoxes(tagId: string) {
-    return apiRequest<{ id: string; content: string; x: number; y: number }[]>(`/api/canvas/textboxes/${tagId}`);
+    return apiRequest<{ id: string; content: string; x: number; y: number; w: number; h: number }[]>(`/api/canvas/textboxes/${tagId}`);
   },
 
-  async addTextBox(tagId: string, data: { content?: string; x: number; y: number }) {
+  async addTextBox(tagId: string, data: { content?: string; x: number; y: number; w?: number; h?: number }) {
     return apiRequest<{ id: string; content: string; x: number; y: number }>(`/api/canvas/textboxes/${tagId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateTextBox(id: string, updates: { content?: string; x?: number; y?: number }) {
+  async updateTextBox(id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) {
     return apiRequest(`/api/canvas/textboxes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -572,5 +572,41 @@ export const canvasApi = {
 
   async deleteTextBox(id: string) {
     return apiRequest(`/api/canvas/textboxes/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Status Icons API ============
+export const statusIconsApi = {
+  async list() {
+    return apiRequest<{ id: string; name: string; icon: string; color?: string; sort_order: number }[]>('/api/status-icons');
+  },
+
+  async create(data: { name: string; icon: string; color?: string }) {
+    return apiRequest<{ id: string; name: string; icon: string; color?: string }>('/api/status-icons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; icon?: string; color?: string }) {
+    return apiRequest(`/api/status-icons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/status-icons/${id}`, { method: 'DELETE' });
+  },
+
+  async getAssignments() {
+    return apiRequest<{ tile_id: string; status_icon_id: string }[]>('/api/status-icons/assignments');
+  },
+
+  async assign(tile_id: string, status_icon_id: string | null) {
+    return apiRequest('/api/status-icons/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ tile_id, status_icon_id }),
+    });
   },
 };

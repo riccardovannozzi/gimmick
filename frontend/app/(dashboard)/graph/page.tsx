@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
@@ -144,7 +145,14 @@ export default function GraphPage() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
     () => new Set(filterConfig.map((f) => f.key))
   );
+  const searchParams = useSearchParams();
+  const tagParam = searchParams.get('tag');
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+
+  // Sync from URL param
+  useEffect(() => {
+    if (tagParam) setSelectedTagId(tagParam);
+  }, [tagParam]);
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);

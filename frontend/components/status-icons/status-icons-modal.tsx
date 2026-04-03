@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { useStatusIcons, type StatusIcon } from '@/store/status-icons-store';
+import { GIMMICK_PALETTE } from '@/lib/palette';
 
 type IconComp = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
 const Icons = TablerIcons as unknown as Record<string, IconComp>;
@@ -36,30 +37,29 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
   const [editingIcon, setEditingIcon] = useState<StatusIcon | null>(null);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
+  const [color, setColor] = useState('');
 
   const openEditor = (si?: StatusIcon) => {
     if (si) {
       setEditingIcon(si);
       setName(si.name);
       setIcon(si.icon);
+      setColor(si.color || '');
     } else {
       setEditingIcon(null);
       setName('');
       setIcon('');
+      setColor('');
     }
     setEditorOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!name.trim() || !icon) return;
     if (editingIcon) {
-      updateIcon(editingIcon.id, { name: name.trim(), icon });
+      await updateIcon(editingIcon.id, { name: name.trim(), icon, color: color || undefined });
     } else {
-      addIcon({
-        id: `si_${Date.now()}`,
-        name: name.trim(),
-        icon,
-      });
+      await addIcon({ name: name.trim(), icon, color: color || undefined });
     }
     setEditorOpen(false);
   };
@@ -92,8 +92,11 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
 
                 {icons.map((si) => (
                   <div key={si.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
-                    <div className="w-10 h-10 rounded-lg bg-zinc-800 border border-zinc-700 flex items-center justify-center">
-                      <RenderIcon name={si.icon} size={22} className="text-zinc-200" />
+                    <div
+                      className="w-10 h-10 rounded-lg border border-zinc-700 flex items-center justify-center"
+                      style={{ backgroundColor: si.color || '#27272A' }}
+                    >
+                      <RenderIcon name={si.icon} size={22} className="text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-white block truncate">{si.name}</span>
@@ -133,12 +136,18 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
             <DialogTitle className="text-white">
               {editingIcon ? 'Modifica icona' : 'Nuova icona di stato'}
             </DialogTitle>
+            <DialogDescription className="text-zinc-400">
+              {editingIcon ? 'Modifica nome, icona e colore.' : 'Crea una nuova icona di stato personalizzata.'}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             {/* Preview */}
             <div className="flex justify-center">
-              <div className="w-16 h-16 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center">
+              <div
+                className="w-16 h-16 rounded-xl border border-zinc-700 flex items-center justify-center"
+                style={{ backgroundColor: color || '#27272A' }}
+              >
                 {icon ? <RenderIcon name={icon} size={36} className="text-white" /> : <span className="text-zinc-500 text-2xl">?</span>}
               </div>
             </div>
@@ -173,6 +182,27 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
                   </div>
                 }
               />
+            </div>
+
+            {/* Color picker */}
+            <div>
+              <label className="text-xs text-zinc-400 mb-1 block">Colore sfondo</label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  onClick={() => setColor('')}
+                  className={`w-6 h-6 rounded border ${!color ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700'} bg-zinc-800`}
+                  title="Nessuno"
+                />
+                {GIMMICK_PALETTE.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setColor(c.hex)}
+                    className={`w-6 h-6 rounded border ${color === c.hex ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700'}`}
+                    style={{ backgroundColor: c.hex }}
+                    title={c.name}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Actions */}

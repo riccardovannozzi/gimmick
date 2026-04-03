@@ -4,9 +4,12 @@ import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors } from '@/store/action-colors-store';
+import { usePatterns } from '@/store/patterns-store';
+import { useStatusIcons } from '@/store/status-icons-store';
+import * as TablerIcons from '@tabler/icons-react';
 
-const TILE_W = 148;
-const TILE_H = 52;
+const TILE_W = 144;
+const TILE_H = 89;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -14,18 +17,18 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; patternShape?: string; statusIcon?: string; statusColor?: string; startAt?: string; endAt?: string; allDay?: boolean; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
 export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
-export interface CanvasTextBox { id: string; content: string; x: number; y: number; }
+export interface CanvasTextBox { id: string; content: string; x: number; y: number; w: number; h: number; }
 
-const TB_W = 200; // text box width
+const TB_MIN_W = 100;
+const TB_MIN_H = 40;
 const TB_FONT = 11;
 const TB_LINE_H = 16;
 const TB_PAD = 8;
-const TB_EXTRA_LINES = 2; // extra empty lines below text
 
 const PORTS = [
   { key: 'top', cx: TILE_W / 2, cy: 0 },
@@ -50,8 +53,8 @@ interface CanvasBoardProps {
   onTileContextMenu: (e: { x: number; y: number; tileId: string; inGroup: boolean }) => void;
   onTileClick: (tileId: string) => void;
   onGroupsChange: (groups: CanvasGroup[]) => void;
-  onAddTextBox: (x: number, y: number) => void;
-  onUpdateTextBox: (id: string, updates: { content?: string; x?: number; y?: number }) => void;
+  onAddTextBox: (x: number, y: number, w: number, h: number) => void;
+  onUpdateTextBox: (id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) => void;
   onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
   fitTrigger: number;
   resetTrigger: number;
@@ -70,6 +73,9 @@ export function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
+  const { customPatterns, doneShape, getActionTypeShape } = usePatterns();
+  const statusIcons = useStatusIcons((s) => s.icons);
+  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
@@ -84,9 +90,22 @@ export function CanvasBoard({
     const pm = new Map(layout.map((p) => [p.tile_id, p]));
     return tiles.map((t, i) => {
       const s = pm.get(t.id);
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', x: s?.x ?? OFFSET_X, y: s?.y ?? OFFSET_Y + i * (TILE_H + TILE_GAP) };
+      // Resolve pattern shape
+      let shape = 'solid';
+      if (t.pattern_id) {
+        const cp = customPatterns.find((p) => p.id === t.pattern_id);
+        if (cp) shape = cp.shape;
+      } else if (t.is_completed) {
+        shape = doneShape;
+      } else {
+        shape = getActionTypeShape(t.action_type || 'none');
+      }
+      // Status icon
+      const siId = statusTileIcons[t.id];
+      const si = siId ? statusIcons.find((ic) => ic.id === siId) : null;
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', patternShape: shape, statusIcon: si?.icon, statusColor: si?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x: s?.x ?? OFFSET_X, y: s?.y ?? OFFSET_Y + i * (TILE_H + TILE_GAP) };
     });
-  }, [tiles, layout]);
+  }, [tiles, layout, customPatterns, doneShape, getActionTypeShape, statusIcons, statusTileIcons]);
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
@@ -134,8 +153,7 @@ export function CanvasBoard({
       for (const tb of textBoxes) {
         const tbId = `tb:${tb.id}`;
         if (tbId === excludeId) continue;
-        const h = Math.max(TB_LINE_H * 3, ((tb.content || '').split('\n').length + TB_EXTRA_LINES) * TB_LINE_H + TB_PAD * 2);
-        if (bx >= tb.x && bx <= tb.x + TB_W && by >= tb.y && by <= tb.y + h) {
+        if (bx >= tb.x && bx <= tb.x + tb.w && by >= tb.y && by <= tb.y + tb.h) {
           return { nodeId: tbId };
         }
       }
@@ -160,7 +178,10 @@ export function CanvasBoard({
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
-      .filter((ev) => ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && ev.target === svg))
+      .filter((ev) => {
+        if (textModeRef.current && ev.type === 'mousedown') return false; // block pan in text mode
+        return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && ev.target === svg);
+      })
       .on('zoom', (ev) => board.attr('transform', ev.transform));
     d3svg.call(zoom);
     zoomRef.current = zoom;
@@ -329,12 +350,11 @@ export function CanvasBoard({
         const tbId = nodeId.startsWith('tb:') ? nodeId.slice(3) : nodeId;
         const tb = textBoxes.find((t) => t.id === tbId);
         if (tb) {
-          const h = Math.max(TB_LINE_H * 3, ((tb.content || '').split('\n').length + TB_EXTRA_LINES) * TB_LINE_H + TB_PAD * 2);
           return [
-            { x: tb.x + TB_W / 2, y: tb.y },
-            { x: tb.x + TB_W, y: tb.y + h / 2 },
-            { x: tb.x + TB_W / 2, y: tb.y + h },
-            { x: tb.x, y: tb.y + h / 2 },
+            { x: tb.x + tb.w / 2, y: tb.y },
+            { x: tb.x + tb.w, y: tb.y + tb.h / 2 },
+            { x: tb.x + tb.w / 2, y: tb.y + tb.h },
+            { x: tb.x, y: tb.y + tb.h / 2 },
           ];
         }
       }
@@ -406,10 +426,96 @@ export function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('transform', (d) => `translate(${d.x},${d.y})`);
-    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8).attr('fill', '#1C1C1E').attr('stroke', (d) => getColor(d.actionType) + '60').attr('stroke-width', 1);
-    nodeGrps.append('rect').attr('width', 4).attr('height', TILE_H).attr('rx', 2).attr('fill', (d) => getColor(d.actionType));
-    nodeGrps.append('text').attr('x', 12).attr('y', 22).attr('fill', '#D4D4D8').attr('font-size', 12).attr('font-weight', 500).text((d) => d.title.length > 16 ? d.title.slice(0, 15) + '…' : d.title);
-    nodeGrps.append('text').attr('x', 12).attr('y', 38).attr('fill', '#71717A').attr('font-size', 10).text((d) => d.actionType);
+    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8)
+      .attr('fill', (d) => d.statusColor ? d.statusColor + '80' : '#1C1C1E')
+      .attr('stroke', (d) => getColor(d.actionType) + '60').attr('stroke-width', 1).style('cursor', moveRef.current ? 'grab' : 'default');
+    // Pattern overlay
+    let patIdx = 0;
+    nodeGrps.each(function (d) {
+      if (!d.patternShape || d.patternShape === 'solid') return;
+      const g = d3.select(this);
+      const color = getColor(d.actionType);
+      const o = 0.2;
+      const pid = `cpat-${patIdx++}`;
+      const clip = g.append('clipPath').attr('id', `${pid}-clip`);
+      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8);
+      const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
+      switch (d.patternShape) {
+        case 'diagonal_ltr':
+          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(60)')
+            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
+          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
+          break;
+        case 'diagonal_rtl':
+          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
+            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
+          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
+          break;
+        case 'vertical':
+          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 16).attr('height', 20)
+            .append('line').attr('x1', 8).attr('y1', 0).attr('x2', 8).attr('y2', 20).attr('stroke', color).attr('stroke-width', 6).attr('stroke-opacity', o);
+          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
+          break;
+        case 'bubble':
+          pg.append('circle').attr('cx', 18).attr('cy', 14).attr('r', 8).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
+          pg.append('circle').attr('cx', 58).attr('cy', 10).attr('r', 5).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
+          pg.append('circle').attr('cx', 40).attr('cy', 30).attr('r', 11).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
+          pg.append('circle').attr('cx', TILE_W - 20).attr('cy', TILE_H - 15).attr('r', 9).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
+          break;
+        case 'cross':
+          pg.append('line').attr('x1', 0).attr('y1', 0).attr('x2', TILE_W).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
+          pg.append('line').attr('x1', TILE_W).attr('y1', 0).attr('x2', 0).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
+          break;
+      }
+    });
+    nodeGrps.each(function (d) {
+      const g = d3.select(this);
+      const fo = g.append('foreignObject').attr('x', 10).attr('y', 8).attr('width', TILE_W - 16).attr('height', TILE_H - 28);
+      fo.append('xhtml:div')
+        .attr('style', 'color:#D4D4D8;font-size:12px;font-weight:500;line-height:15px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
+        .text(d.title);
+    });
+    // Footer: date info + type label + status icon
+    const typeLabels: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
+    const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }); };
+    const formatTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+
+    nodeGrps.each(function (d) {
+      const g = d3.select(this);
+      const hasDate = d.actionType === 'deadline' || d.actionType === 'event' || d.actionType === 'allday';
+      if (hasDate && (d.startAt || d.endAt)) {
+        let dateStr = '';
+        if (d.actionType === 'deadline' && d.endAt) {
+          dateStr = formatDate(d.endAt);
+        } else if (d.allDay && d.startAt) {
+          dateStr = formatDate(d.startAt);
+        } else if (d.startAt) {
+          dateStr = `${formatDate(d.startAt)} ${formatTime(d.startAt)}`;
+          if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
+        }
+        if (dateStr) {
+          g.append('text').attr('x', 12).attr('y', TILE_H - 20).attr('fill', '#52525B').attr('font-size', 10).text(dateStr);
+        }
+      }
+    });
+    nodeGrps.append('text').attr('x', 12).attr('y', TILE_H - 10).attr('fill', '#71717A').attr('font-size', 9).text((d) => typeLabels[d.actionType] || d.actionType.toUpperCase());
+    // Status icon as SVG directly (no React rendering needed)
+    nodeGrps.each(function (d) {
+      if (!d.statusIcon) return;
+      const g = d3.select(this);
+      // Render a placeholder icon using a foreignObject + innerHTML from a temporary DOM element
+      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.statusIcon];
+      if (!IconComp) return;
+      // Create a temporary container, use React createElement + renderToString
+      const React = require('react');
+      const { renderToString } = require('react-dom/server');
+      const html = renderToString(React.createElement(IconComp, { size: 28, color: '#FFFFFF' }));
+      const fo = g.append('foreignObject').attr('x', TILE_W - 34).attr('y', TILE_H - 34).attr('width', 28).attr('height', 28).style('pointer-events', 'none');
+      const container = document.createElement('div');
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:28px;';
+      container.innerHTML = html;
+      (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+    });
 
     // Tile ports
     const portG = nodeGrps.append('g').attr('class', 'ports').attr('opacity', 0);
@@ -434,7 +540,26 @@ export function CanvasBoard({
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
       .on('start', function () { d3.select(this).raise(); })
       .on('drag', function (ev, d) { d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
-      .on('end', () => onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })))));
+      .on('end', (_, d) => {
+        onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+        // Check if tile was dropped inside a group it doesn't belong to → add it
+        const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
+        const currentGroups = groupsRef.current;
+        const alreadyIn = currentGroups.find((g) => g.nodeIds.includes(d.id));
+        if (!alreadyIn) {
+          for (const g of currentGroups) {
+            const b = getGroupBounds(g, nodes);
+            if (!b) continue;
+            if (cx >= b.x && cx <= b.x + b.w && cy >= b.y - LABEL_H && cy <= b.y + b.h) {
+              const updated = currentGroups.map((grp) =>
+                grp.id === g.id ? { ...grp, nodeIds: [...grp.nodeIds, d.id] } : grp
+              );
+              onGroupsChange(updated);
+              break;
+            }
+          }
+        }
+      }));
 
     // Click / context on tiles
     nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => { ev.stopPropagation(); onTileClick(d.id); });
@@ -443,54 +568,75 @@ export function CanvasBoard({
     // ── Text boxes ──
     const tbG = board.append('g').attr('class', 'textboxes');
 
-    const calcTbHeight = (content: string) => {
-      const lines = (content || '').split('\n').length + TB_EXTRA_LINES;
-      return Math.max(TB_LINE_H * 3, lines * TB_LINE_H + TB_PAD * 2);
-    };
-
     const drawTextBoxes = () => {
       tbG.selectAll('*').remove();
       textBoxes.forEach((tb) => {
-        const h = calcTbHeight(tb.content);
+        const tw = tb.w, th = tb.h;
         const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node');
 
         // Background
         g.append('rect')
-          .attr('width', TB_W).attr('height', h).attr('rx', 6)
+          .attr('width', tw).attr('height', th).attr('rx', 6)
           .attr('fill', '#0C0C0E').attr('stroke', '#3F3F46').attr('stroke-width', 0.5);
 
         // Text editing via foreignObject
         const fo = g.append('foreignObject')
           .attr('x', TB_PAD).attr('y', TB_PAD)
-          .attr('width', TB_W - TB_PAD * 2).attr('height', h - TB_PAD * 2);
+          .attr('width', tw - TB_PAD * 2).attr('height', th - TB_PAD * 2)
+          .style('pointer-events', 'none').style('cursor', 'grab');
 
         const div = fo.append('xhtml:div')
-          .attr('contenteditable', 'true')
-          .attr('style', `color:#A1A1AA;font-size:${TB_FONT}px;line-height:${TB_LINE_H}px;outline:none;white-space:pre-wrap;word-break:break-word;min-height:${TB_LINE_H}px;`)
+          .attr('contenteditable', 'false')
+          .attr('style', `color:#A1A1AA;font-size:${TB_FONT}px;line-height:${TB_LINE_H}px;outline:none;white-space:pre-wrap;word-break:break-word;overflow:auto;width:100%;height:100%;pointer-events:none;user-select:none;cursor:grab;`)
           .text(tb.content || '');
 
-        // Save on blur / input
-        let saveTimer: ReturnType<typeof setTimeout> | null = null;
-        (div.node() as HTMLElement)?.addEventListener('input', () => {
-          const text = (div.node() as HTMLElement)?.innerText || '';
-          if (saveTimer) clearTimeout(saveTimer);
-          saveTimer = setTimeout(() => onUpdateTextBox(tb.id, { content: text }), 600);
-          // Resize
-          const newH = calcTbHeight(text);
-          g.select('rect').attr('height', newH);
-          fo.attr('height', newH - TB_PAD * 2);
+        const divEl = div.node() as HTMLElement;
+
+        // Click to enter edit mode
+        g.on('click.edit', (ev: MouseEvent) => {
+          ev.stopPropagation();
+          if (!divEl) return;
+          divEl.setAttribute('contenteditable', 'true');
+          divEl.style.pointerEvents = 'auto';
+          divEl.style.userSelect = 'auto';
+          divEl.style.cursor = 'text';
+          fo.style('pointer-events', 'auto').style('cursor', 'text');
+          divEl.focus();
         });
 
-        // Stop propagation on text editing clicks
-        (div.node() as HTMLElement)?.addEventListener('mousedown', (e) => e.stopPropagation());
+        // Blur to exit edit mode
+        if (divEl) {
+          divEl.addEventListener('blur', () => {
+            divEl.setAttribute('contenteditable', 'false');
+            divEl.style.pointerEvents = 'none';
+            divEl.style.userSelect = 'none';
+            divEl.style.cursor = 'grab';
+            fo.style('pointer-events', 'none').style('cursor', 'grab');
+          });
+
+          // Save on input
+          let saveTimer: ReturnType<typeof setTimeout> | null = null;
+          divEl.addEventListener('input', () => {
+            const text = divEl.innerText || '';
+            if (saveTimer) clearTimeout(saveTimer);
+            saveTimer = setTimeout(() => onUpdateTextBox(tb.id, { content: text }), 600);
+          });
+
+          // Stop propagation only when editing
+          divEl.addEventListener('mousedown', (e) => {
+            if (divEl.getAttribute('contenteditable') === 'true') {
+              e.stopPropagation();
+            }
+          });
+        }
 
         // 4 ports
         const tbPorts = g.append('g').attr('class', 'tb-ports').attr('opacity', 0);
         const tbPortList = [
-          { key: 'top', cx: TB_W / 2, cy: 0 },
-          { key: 'right', cx: TB_W, cy: h / 2 },
-          { key: 'bottom', cx: TB_W / 2, cy: h },
-          { key: 'left', cx: 0, cy: h / 2 },
+          { key: 'top', cx: tw / 2, cy: 0 },
+          { key: 'right', cx: tw, cy: th / 2 },
+          { key: 'bottom', cx: tw / 2, cy: th },
+          { key: 'left', cx: 0, cy: th / 2 },
         ];
         tbPortList.forEach(({ key, cx, cy }) => {
           tbPorts.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy)
@@ -512,19 +658,104 @@ export function CanvasBoard({
           .on('end', () => { endLink(); tbPorts.attr('opacity', 0); });
         tbPorts.selectAll('circle.port').call(tbPortDrag as any);
 
-        // Drag to move
-        g.call(d3.drag<SVGGElement, unknown>()
-          .filter((ev) => {
-            if ((ev.target as SVGElement).classList?.contains('port')) return false;
-            if ((ev.target as HTMLElement)?.getAttribute?.('contenteditable')) return false;
-            return moveRef.current;
+        // Drag to move (on background rect, not on ports/resize/text)
+        g.select('rect').style('cursor', moveRef.current ? 'grab' : 'default');
+        g.call((() => {
+          let prev: [number, number] | null = null;
+          return d3.drag<SVGGElement, unknown>()
+            .filter((ev) => {
+              const el = ev.target as SVGElement | HTMLElement;
+              if (el.classList?.contains('port')) return false;
+              if (el.classList?.contains('tb-resize')) return false;
+              if ((el as HTMLElement)?.getAttribute?.('contenteditable')) return false;
+              return moveRef.current;
+            })
+            .on('start', (ev) => { prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number]; })
+            .on('drag', (ev) => {
+              const cur = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
+              if (!prev) { prev = cur; return; }
+              tb.x += cur[0] - prev[0]; tb.y += cur[1] - prev[1];
+              prev = cur;
+              g.attr('transform', `translate(${tb.x},${tb.y})`);
+              drawEdges();
+            })
+            .on('end', () => { prev = null; onUpdateTextBox(tb.id, { x: tb.x, y: tb.y }); });
+        })() as any);
+
+        // Resize handles on edges (not on ports)
+        const RESIZE_W = 6;
+        const resizeEdges = [
+          { key: 'right', x: tw - RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
+          { key: 'bottom', x: PORT_R + 4, y: th - RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
+          { key: 'left', x: -RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
+          { key: 'top', x: PORT_R + 4, y: -RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
+        ];
+        resizeEdges.forEach(({ key: rk, x: rx, y: ry, w: rw, h: rh, cursor }) => {
+          const handle = g.append('rect')
+            .attr('class', 'tb-resize')
+            .attr('x', rx).attr('y', ry).attr('width', rw).attr('height', rh)
+            .attr('fill', 'transparent').style('cursor', cursor);
+
+          let resizeStart: { mx: number; my: number; ow: number; oh: number; ox: number; oy: number } | null = null;
+
+          handle.call(d3.drag<SVGRectElement, unknown>()
+            .on('start', (ev) => {
+              ev.sourceEvent.stopPropagation();
+              const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+              resizeStart = { mx, my, ow: tb.w, oh: tb.h, ox: tb.x, oy: tb.y };
+            })
+            .on('drag', (ev) => {
+              if (!resizeStart) return;
+              const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+              const dx = mx - resizeStart.mx, dy = my - resizeStart.my;
+              if (rk === 'right') {
+                tb.w = Math.max(TB_MIN_W, resizeStart.ow + dx);
+              } else if (rk === 'bottom') {
+                tb.h = Math.max(TB_MIN_H, resizeStart.oh + dy);
+              } else if (rk === 'left') {
+                const newW = Math.max(TB_MIN_W, resizeStart.ow - dx);
+                tb.x = resizeStart.ox + resizeStart.ow - newW;
+                tb.w = newW;
+              } else if (rk === 'top') {
+                const newH = Math.max(TB_MIN_H, resizeStart.oh - dy);
+                tb.y = resizeStart.oy + resizeStart.oh - newH;
+                tb.h = newH;
+              }
+              // Redraw this text box
+              drawTextBoxes();
+              drawEdges();
+            })
+            .on('end', () => {
+              resizeStart = null;
+              onUpdateTextBox(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
+            }) as any);
+        });
+
+        // Corner resize (bottom-right)
+        const cornerHandle = g.append('rect')
+          .attr('class', 'tb-resize')
+          .attr('x', tw - 8).attr('y', th - 8).attr('width', 8).attr('height', 8)
+          .attr('fill', 'transparent').style('cursor', 'nwse-resize');
+
+        let cornerStart: { mx: number; my: number; ow: number; oh: number } | null = null;
+        cornerHandle.call(d3.drag<SVGRectElement, unknown>()
+          .on('start', (ev) => {
+            ev.sourceEvent.stopPropagation();
+            const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+            cornerStart = { mx, my, ow: tb.w, oh: tb.h };
           })
           .on('drag', (ev) => {
-            tb.x += ev.dx; tb.y += ev.dy;
-            g.attr('transform', `translate(${tb.x},${tb.y})`);
+            if (!cornerStart) return;
+            const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+            tb.w = Math.max(TB_MIN_W, cornerStart.ow + (mx - cornerStart.mx));
+            tb.h = Math.max(TB_MIN_H, cornerStart.oh + (my - cornerStart.my));
+            drawTextBoxes();
             drawEdges();
           })
-          .on('end', () => { onUpdateTextBox(tb.id, { x: tb.x, y: tb.y }); }) as any);
+          .on('end', () => {
+            cornerStart = null;
+            onUpdateTextBox(tb.id, { w: tb.w, h: tb.h });
+          }) as any);
 
         // Context menu
         g.on('contextmenu', (ev: MouseEvent) => {
@@ -535,12 +766,37 @@ export function CanvasBoard({
     };
     drawTextBoxes();
 
-    // Click on background to create text box in text mode
-    d3svg.on('click.tb', (ev: MouseEvent) => {
-      if (!textModeRef.current) return;
-      if (ev.target !== svg) return;
-      const [mx, my] = d3.pointer(ev, boardNode);
-      onAddTextBox(mx, my);
+    // Drag on background to draw text box in text mode
+    const tbDrawRect = board.append('rect')
+      .attr('fill', 'rgba(12,12,14,0.8)').attr('stroke', '#3F3F46').attr('stroke-width', 0.5)
+      .attr('stroke-dasharray', '4,3').attr('rx', 6).attr('opacity', 0);
+    let tbStart: [number, number] | null = null;
+
+    d3svg.on('mousedown.tb', (e: MouseEvent) => {
+      if (!textModeRef.current || e.button !== 0 || e.target !== svg) return;
+      e.preventDefault();
+      const [mx, my] = d3.pointer(e, boardNode);
+      tbStart = [mx, my];
+      tbDrawRect.attr('x', mx).attr('y', my).attr('width', 0).attr('height', 0).attr('opacity', 1);
+    });
+    d3svg.on('mousemove.tb', (e: MouseEvent) => {
+      if (!tbStart) return;
+      const [mx, my] = d3.pointer(e, boardNode);
+      tbDrawRect
+        .attr('x', Math.min(tbStart[0], mx)).attr('y', Math.min(tbStart[1], my))
+        .attr('width', Math.abs(mx - tbStart[0])).attr('height', Math.abs(my - tbStart[1]));
+    });
+    d3svg.on('mouseup.tb', (e: MouseEvent) => {
+      if (!tbStart) return;
+      const [mx, my] = d3.pointer(e, boardNode);
+      const x = Math.min(tbStart[0], mx);
+      const y = Math.min(tbStart[1], my);
+      const w = Math.abs(mx - tbStart[0]);
+      const h = Math.abs(my - tbStart[1]);
+      tbStart = null;
+      tbDrawRect.attr('opacity', 0);
+      if (w < 30 || h < 20) return;
+      onAddTextBox(x, y, w, h);
     });
 
     drawGroups();

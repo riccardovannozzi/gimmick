@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   IconLogout,
@@ -189,6 +189,7 @@ interface SidebarProps {
 
 export function Sidebar({ onOpenChat }: SidebarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, signOut } = useAuthStore();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
   const { tagTypes, getColor: getTypeColor } = useTagTypes();
@@ -425,7 +426,15 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               label={group.label}
               tags={group.tags}
               selectedTagIds={selectedTagIds}
-              onToggle={toggle}
+              onToggle={(tagId) => {
+                if (pathname === '/canvas') {
+                  router.push(`/canvas?tag=${tagId}`);
+                } else if (pathname === '/graph') {
+                  router.push(`/graph?tag=${tagId}`);
+                } else {
+                  toggle(tagId);
+                }
+              }}
               isOpen={groupState[group.type] !== false}
               onToggleGroup={() => toggleGroup(group.type)}
               onReorder={handleReorder}

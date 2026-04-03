@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { useAuthStore } from '@/store/auth-store';
+import { useStatusIcons } from '@/store/status-icons-store';
 
 export default function DashboardLayout({
   children,
@@ -14,12 +15,21 @@ export default function DashboardLayout({
   const router = useRouter();
   const { user, isLoading, isInitialized } = useAuthStore();
   const [chatOpen, setChatOpen] = useState(false);
+  const fetchStatusIcons = useStatusIcons((s) => s.fetchAll);
+  const statusIconsLoaded = useStatusIcons((s) => s.loaded);
 
   useEffect(() => {
     if (isInitialized && !isLoading && !user) {
       router.push('/login');
     }
   }, [user, isLoading, isInitialized, router]);
+
+  // Load status icons from DB on first render
+  useEffect(() => {
+    if (user && !statusIconsLoaded) {
+      fetchStatusIcons();
+    }
+  }, [user, statusIconsLoaded, fetchStatusIcons]);
 
   if (!isInitialized || isLoading) {
     return (

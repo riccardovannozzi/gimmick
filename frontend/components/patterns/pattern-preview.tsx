@@ -149,4 +149,4 @@ export const SHAPE_LABELS: Record<PatternShape, string> = {
   arrows: 'Arrows',
 };
 
-export const ALL_SHAPES: PatternShape[] = ['solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble'];
+export const ALL_SHAPES: PatternShape[] = ['solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble', 'cross'];
