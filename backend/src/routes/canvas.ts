@@ -69,7 +69,7 @@ canvasRouter.get('/edges/:tagId', async (req: AuthenticatedRequest, res: Respons
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_edges')
-      .select('id, source_id, target_id')
+      .select('id, source_id, target_id, source_port, target_port')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
 
@@ -87,7 +87,7 @@ canvasRouter.get('/edges/:tagId', async (req: AuthenticatedRequest, res: Respons
 canvasRouter.post('/edges/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tagId } = req.params;
-    const { source_id, target_id } = req.body;
+    const { source_id, target_id, source_port, target_port } = req.body;
 
     const { data, error } = await supabaseAdmin
       .from('canvas_edges')
@@ -96,6 +96,8 @@ canvasRouter.post('/edges/:tagId', async (req: AuthenticatedRequest, res: Respon
         tag_id: tagId,
         source_id,
         target_id,
+        source_port: source_port || null,
+        target_port: target_port || null,
       }, { onConflict: 'user_id,tag_id,source_id,target_id' })
       .select()
       .single();

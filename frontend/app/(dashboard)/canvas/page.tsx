@@ -55,7 +55,7 @@ export default function CanvasPage() {
     queryFn: () => canvasApi.getEdges(tagId!),
     enabled: !!tagId,
   });
-  const edges: CanvasEdge[] = edgesData?.data || [];
+  const edges = (edgesData?.data || []) as CanvasEdge[];
 
   // Groups — persisted via backend API
   const { data: groupsData } = useQuery({
@@ -96,15 +96,27 @@ export default function CanvasPage() {
   }, [tagId, queryClient]);
 
   // Add edge
-  const handleAddEdge = useCallback(async (source_id: string, target_id: string) => {
+  const handleAddEdge = useCallback(async (source_id: string, target_id: string, source_port?: string, target_port?: string) => {
     if (!tagId) return;
-    // Optimistic
     const tempId = `temp-${Date.now()}`;
+    // Optimistic: add with temp ID
     queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
-      data: [...(old?.data || []), { id: tempId, source_id, target_id }],
+      data: [...(old?.data || []), { id: tempId, source_id, target_id, source_port, target_port }],
     }));
-    await canvasApi.addEdge(tagId, source_id, target_id);
-    queryClient.invalidateQueries({ queryKey: ['canvas-edges', tagId] });
+    try {
+      const res = await canvasApi.addEdge(tagId, source_id, target_id, source_port, target_port);
+      // Replace temp with real data from server
+      if (res?.data) {
+        queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+          data: (old?.data || []).map((e: any) => e.id === tempId ? res.data : e),
+        }));
+      }
+    } catch {
+      // Revert optimistic on error
+      queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+        data: (old?.data || []).filter((e: any) => e.id !== tempId),
+      }));
+    }
   }, [tagId, queryClient]);
 
   // Delete edge

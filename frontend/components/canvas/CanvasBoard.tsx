@@ -15,7 +15,8 @@ const GROUP_PAD = 12;
 const LABEL_H = 20;
 
 export interface CanvasNode { id: string; title: string; actionType: string; x: number; y: number; }
-export interface CanvasEdge { id: string; source_id: string; target_id: string; }
+export type PortKey = 'top' | 'right' | 'bottom' | 'left';
+export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: PortKey; target_port?: PortKey; }
 export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
 
 const PORTS = [
@@ -33,7 +34,7 @@ interface CanvasBoardProps {
   moveEnabled: boolean;
   linkEnabled: boolean;
   onPositionChange: (positions: { tile_id: string; x: number; y: number }[]) => void;
-  onAddEdge: (source_id: string, target_id: string) => void;
+  onAddEdge: (source_id: string, target_id: string, source_port?: PortKey, target_port?: PortKey) => void;
   onDeleteEdge: (id: string) => void;
   onEdgeContextMenu: (e: { x: number; y: number; edgeId: string }) => void;
   onTileContextMenu: (e: { x: number; y: number; tileId: string; inGroup: boolean }) => void;
@@ -59,8 +60,8 @@ export function CanvasBoard({
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
 
   // Link drag state
-  const linkSrc = useRef<{ id: string; px: number; py: number } | null>(null);
-  const dropTarget = useRef<{ nodeId: string; groupId?: string } | null>(null);
+  const linkSrc = useRef<{ id: string; px: number; py: number; port: PortKey } | null>(null);
+  const dropTarget = useRef<{ nodeId: string; groupId?: string; port?: PortKey } | null>(null);
 
   const getColor = useCallback((at: string) => (actionColors as Record<string, string>)[at] || actionColors.none || '#888780', [actionColors]);
 
@@ -114,27 +115,6 @@ export function CanvasBoard({
     return null;
   }, []);
 
-  // Clip a line entering a rect: find where the line from (fromX,fromY) to (toX,toY) crosses the rect border.
-  // Returns the intersection point on the border closest to "to". If "to" is outside the rect, returns toX,toY unchanged.
-  const clipToRect = (fromX: number, fromY: number, toX: number, toY: number, rx: number, ry: number, rw: number, rh: number): [number, number] => {
-    // If toX,toY is outside the rect, no clipping needed
-    if (toX < rx || toX > rx + rw || toY < ry || toY > ry + rh) return [toX, toY];
-    // toX,toY is inside the rect — find where the line FROM outside (fromX,fromY) enters the rect
-    const dx = toX - fromX, dy = toY - fromY;
-    if (!dx && !dy) return [toX, toY];
-    // Find intersection going from "from" toward "to", pick the first intersection with the rect
-    let best = Infinity;
-    const tryEdge = (t: number, cross: number, min: number, max: number) => { if (t > 0 && t < 1 && t < best && cross >= min && cross <= max) best = t; };
-    if (dx) {
-      const t1 = (rx - fromX) / dx; tryEdge(t1, fromY + t1 * dy, ry, ry + rh);
-      const t2 = (rx + rw - fromX) / dx; tryEdge(t2, fromY + t2 * dy, ry, ry + rh);
-    }
-    if (dy) {
-      const t3 = (ry - fromY) / dy; tryEdge(t3, fromX + t3 * dx, rx, rx + rw);
-      const t4 = (ry + rh - fromY) / dy; tryEdge(t4, fromX + t4 * dx, rx, rx + rw);
-    }
-    return best < Infinity ? [fromX + best * dx, fromY + best * dy] : [toX, toY];
-  };
 
   const render = useCallback(() => {
     const svg = svgRef.current;
@@ -178,24 +158,58 @@ export function CanvasBoard({
     const tempLine = board.append('line').attr('stroke', '#3B82F6').attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
 
     // ── Common link drag handlers ──
-    const startLink = (sourceId: string, px: number, py: number, ev: any) => {
+    const startLink = (sourceId: string, px: number, py: number, port: PortKey, ev: any) => {
       ev.sourceEvent.stopPropagation();
-      linkSrc.current = { id: sourceId, px, py };
+      linkSrc.current = { id: sourceId, px, py, port };
       dropTarget.current = null;
       tempLine.attr('x1', px).attr('y1', py).attr('x2', px).attr('y2', py).attr('opacity', 1);
     };
+    // Find closest port on a target node or group
+    const findClosestPort = (mx: number, my: number, targetId: string, groupId?: string): PortKey => {
+      if (groupId) {
+        const grp = groupsRef.current.find((g) => g.id === groupId);
+        if (grp) {
+          const b = getGroupBounds(grp, nodes);
+          if (b) {
+            const gPts: { key: PortKey; x: number; y: number }[] = [
+              { key: 'top', x: b.x + b.w / 2, y: b.y - LABEL_H },
+              { key: 'right', x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+              { key: 'bottom', x: b.x + b.w / 2, y: b.y + b.h },
+              { key: 'left', x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+            ];
+            let best = gPts[0], bestDist = Infinity;
+            gPts.forEach((p) => { const d = (mx - p.x) ** 2 + (my - p.y) ** 2; if (d < bestDist) { bestDist = d; best = p; } });
+            return best.key;
+          }
+        }
+      }
+      const nd = nodes.find((n) => n.id === targetId);
+      if (nd) {
+        const tPts = PORTS.map((p) => ({ key: p.key as PortKey, x: nd.x + p.cx, y: nd.y + p.cy }));
+        let best = tPts[0], bestDist = Infinity;
+        tPts.forEach((p) => { const d = (mx - p.x) ** 2 + (my - p.y) ** 2; if (d < bestDist) { bestDist = d; best = p; } });
+        return best.key;
+      }
+      return 'right';
+    };
+
     const dragLink = (ev: any) => {
       if (!linkSrc.current) return;
       const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
       tempLine.attr('x2', mx).attr('y2', my);
-      dropTarget.current = hitTest(mx, my, linkSrc.current.id);
+      const hit = hitTest(mx, my, linkSrc.current.id);
+      if (hit) {
+        const tp = findClosestPort(mx, my, hit.nodeId, hit.groupId);
+        dropTarget.current = { ...hit, port: tp };
+      } else {
+        dropTarget.current = null;
+      }
       // Reset all highlights
       nodeGrps.each(function (d: any) { d3.select(this).select('.tile-bg').attr('stroke', getColor(d.actionType) + '60').attr('stroke-width', 1); });
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       // Highlight target
       if (dropTarget.current) {
         if (dropTarget.current.groupId) {
-          // Highlight the group container
           groupsBg.selectAll('g').each(function (_, i) {
             const grp = groupsRef.current[i];
             if (grp && grp.id === dropTarget.current!.groupId) {
@@ -203,7 +217,6 @@ export function CanvasBoard({
             }
           });
         } else {
-          // Highlight the tile
           nodeGrps.filter((d: any) => d.id === dropTarget.current!.nodeId).select('.tile-bg').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
         }
       }
@@ -214,8 +227,11 @@ export function CanvasBoard({
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
+      const sp = linkSrc.current.port;
       linkSrc.current = null;
-      if (dropTarget.current && dropTarget.current.nodeId !== sid) onAddEdge(sid, dropTarget.current.nodeId);
+      if (dropTarget.current && dropTarget.current.nodeId !== sid) {
+        onAddEdge(sid, dropTarget.current.nodeId, sp, dropTarget.current.port);
+      }
       dropTarget.current = null;
     };
 
@@ -249,13 +265,18 @@ export function CanvasBoard({
           .text(grp.label || 'Gruppo').style('cursor', 'text')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); const nl = prompt('Nome del gruppo:', grp.label || ''); if (nl !== null) onGroupsChange(groupsRef.current.map((g) => g.id === grp.id ? { ...g, label: nl } : g)); });
         // Group ports
-        const pts = [{ cx: b.x + b.w / 2, cy: b.y - LABEL_H }, { cx: b.x + b.w, cy: b.y + (b.h - LABEL_H) / 2 }, { cx: b.x + b.w / 2, cy: b.y + b.h }, { cx: b.x, cy: b.y + (b.h - LABEL_H) / 2 }];
-        pts.forEach(({ cx, cy }) => {
+        const gPorts: { key: PortKey; cx: number; cy: number }[] = [
+          { key: 'top', cx: b.x + b.w / 2, cy: b.y - LABEL_H },
+          { key: 'right', cx: b.x + b.w, cy: b.y + (b.h - LABEL_H) / 2 },
+          { key: 'bottom', cx: b.x + b.w / 2, cy: b.y + b.h },
+          { key: 'left', cx: b.x, cy: b.y + (b.h - LABEL_H) / 2 },
+        ];
+        gPorts.forEach(({ key: pk, cx, cy }) => {
           const pc = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
           ha.on('mouseenter', () => { if (linkRef.current) pc.attr('opacity', 1); }).on('mouseleave', () => { if (!linkSrc.current) pc.attr('opacity', 0); });
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
-            .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, ev); pc.attr('opacity', 1); })
+            .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, pk, ev); pc.attr('opacity', 1); })
             .on('drag', dragLink)
             .on('end', () => { endLink(); pc.attr('opacity', 0); }) as any);
         });
@@ -265,22 +286,56 @@ export function CanvasBoard({
     // ── Draw edges ──
     const edgesG = board.append('g');
     const nodeGroupMap = () => { const m = new Map<string, CanvasGroup>(); groupsRef.current.forEach((g) => g.nodeIds.forEach((id) => m.set(id, g))); return m; };
+    // Get port position for a node (tile or group)
+    // Get all 4 port positions for a node (tile or group container)
+    const getNodePorts = (nd: CanvasNode, gm: Map<string, CanvasGroup>): { key: PortKey; x: number; y: number }[] => {
+      const grp = gm.get(nd.id);
+      if (grp) {
+        const b = getGroupBounds(grp, nodes);
+        if (b) return [
+          { key: 'top', x: b.x + b.w / 2, y: b.y - LABEL_H },
+          { key: 'right', x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+          { key: 'bottom', x: b.x + b.w / 2, y: b.y + b.h },
+          { key: 'left', x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+        ];
+      }
+      return PORTS.map((p) => ({ key: p.key as PortKey, x: nd.x + p.cx, y: nd.y + p.cy }));
+    };
+
+    // Find the closest pair of ports between two nodes
+    const findBestPorts = (snd: CanvasNode, tnd: CanvasNode, gm: Map<string, CanvasGroup>): { sx: number; sy: number; tx: number; ty: number } => {
+      const sPorts = getNodePorts(snd, gm);
+      const tPorts = getNodePorts(tnd, gm);
+      let bestDist = Infinity, best = { sx: 0, sy: 0, tx: 0, ty: 0 };
+      for (const sp of sPorts) {
+        for (const tp of tPorts) {
+          const d = (sp.x - tp.x) ** 2 + (sp.y - tp.y) ** 2;
+          if (d < bestDist) { bestDist = d; best = { sx: sp.x, sy: sp.y, tx: tp.x, ty: tp.y }; }
+        }
+      }
+      return best;
+    };
+
     const drawEdges = () => {
       edgesG.selectAll('*').remove();
       const gm = nodeGroupMap();
       edges.forEach((edge) => {
         const s = nodes.find((n) => n.id === edge.source_id), t = nodes.find((n) => n.id === edge.target_id);
         if (!s || !t) return;
-        const scx = s.x + TILE_W / 2, scy = s.y + TILE_H / 2, tcx = t.x + TILE_W / 2, tcy = t.y + TILE_H / 2;
-        const sg = gm.get(s.id), tg = gm.get(t.id), same = sg && tg && sg.id === tg.id;
-        let x1 = scx, y1 = scy, x2 = tcx, y2 = tcy;
-        if (!same) {
-          if (sg) { const b = getGroupBounds(sg, nodes); if (b) [x1, y1] = clipToRect(tcx, tcy, scx, scy, b.x, b.y - LABEL_H, b.w, b.h + LABEL_H); }
-          if (tg) { const b = getGroupBounds(tg, nodes); if (b) [x2, y2] = clipToRect(scx, scy, tcx, tcy, b.x, b.y - LABEL_H, b.w, b.h + LABEL_H); }
-        }
+        const sg = gm.get(s.id), tg = gm.get(t.id);
+        const sameGroup = sg && tg && sg.id === tg.id;
+
+        // Always compute best ports dynamically
+        const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(s, t, sameGroup ? new Map() : gm);
+
+        const sColor = getColor(s.actionType);
+        const tColor = getColor(t.actionType);
         const g = edgesG.append('g');
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
         const vl = g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', '#444').attr('stroke-width', 1.5).attr('stroke-dasharray', '4,3').style('pointer-events', 'none');
+        // Anchor dots at port positions
+        g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
+        g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
         g.on('mouseenter', () => vl.attr('stroke', '#EF4444').attr('stroke-width', 2.5)).on('mouseleave', () => vl.attr('stroke', '#444').attr('stroke-width', 1.5));
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenu({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
@@ -306,7 +361,8 @@ export function CanvasBoard({
       .on('start', function (ev) {
         const nd = d3.select((this.parentNode as SVGGElement).parentNode as SVGGElement).datum() as CanvasNode;
         const pcx = parseFloat(d3.select(this).attr('cx')), pcy = parseFloat(d3.select(this).attr('cy'));
-        startLink(nd.id, nd.x + pcx, nd.y + pcy, ev);
+        const pk = PORTS.find((p) => p.cx === pcx && p.cy === pcy)?.key as PortKey || 'right';
+        startLink(nd.id, nd.x + pcx, nd.y + pcy, pk, ev);
       })
       .on('drag', dragLink)
       .on('end', () => { endLink(); nodeGrps.selectAll('.ports').attr('opacity', 0); });

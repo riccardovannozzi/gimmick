@@ -527,13 +527,13 @@ export const canvasApi = {
   },
 
   async getEdges(tagId: string) {
-    return apiRequest<{ id: string; source_id: string; target_id: string }[]>(`/api/canvas/edges/${tagId}`);
+    return apiRequest<{ id: string; source_id: string; target_id: string; source_port?: string; target_port?: string }[]>(`/api/canvas/edges/${tagId}`);
   },
 
-  async addEdge(tagId: string, source_id: string, target_id: string) {
+  async addEdge(tagId: string, source_id: string, target_id: string, source_port?: string, target_port?: string) {
     return apiRequest(`/api/canvas/edges/${tagId}`, {
       method: 'POST',
-      body: JSON.stringify({ source_id, target_id }),
+      body: JSON.stringify({ source_id, target_id, source_port, target_port }),
     });
   },
 
