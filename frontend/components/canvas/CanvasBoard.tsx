@@ -16,7 +16,8 @@ const LABEL_H = 20;
 
 export interface CanvasNode { id: string; title: string; actionType: string; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
-export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: PortKey; target_port?: PortKey; }
+// port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
+export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
 export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
 
 const PORTS = [
@@ -34,7 +35,7 @@ interface CanvasBoardProps {
   moveEnabled: boolean;
   linkEnabled: boolean;
   onPositionChange: (positions: { tile_id: string; x: number; y: number }[]) => void;
-  onAddEdge: (source_id: string, target_id: string, source_port?: PortKey, target_port?: PortKey) => void;
+  onAddEdge: (source_id: string, target_id: string, source_port?: string, target_port?: string) => void;
   onDeleteEdge: (id: string) => void;
   onEdgeContextMenu: (e: { x: number; y: number; edgeId: string }) => void;
   onTileContextMenu: (e: { x: number; y: number; tileId: string; inGroup: boolean }) => void;
@@ -60,8 +61,8 @@ export function CanvasBoard({
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
 
   // Link drag state
-  const linkSrc = useRef<{ id: string; px: number; py: number; port: PortKey } | null>(null);
-  const dropTarget = useRef<{ nodeId: string; groupId?: string; port?: PortKey } | null>(null);
+  const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
+  const dropTarget = useRef<{ nodeId: string; groupId?: string; port?: string } | null>(null);
 
   const getColor = useCallback((at: string) => (actionColors as Record<string, string>)[at] || actionColors.none || '#888780', [actionColors]);
 
@@ -82,37 +83,47 @@ export function CanvasBoard({
   };
 
   // Hit-test result: nodeId to connect to + optional groupId for highlight
+  // preferGroup: when true, containers take priority over tiles inside them
   interface HitResult { nodeId: string; groupId?: string; }
-  const hitTest = useCallback((bx: number, by: number, excludeId: string): HitResult | null => {
+  const hitTest = useCallback((bx: number, by: number, excludeId: string, preferGroup = false): HitResult | null => {
     const ns = nodesRef.current;
     const gs = groupsRef.current;
     const TOL = 8;
 
-    const groupedIds = new Set<string>();
     let sourceGroupId: string | null = null;
-    gs.forEach((g) => {
-      g.nodeIds.forEach((id) => {
-        groupedIds.add(id);
-        if (id === excludeId) sourceGroupId = g.id;
-      });
-    });
+    gs.forEach((g) => { if (g.nodeIds.includes(excludeId)) sourceGroupId = g.id; });
 
-    // 1. Group containers
-    for (const g of gs) {
-      if (g.id === sourceGroupId) continue;
-      const b = getGroupBounds(g, ns);
-      if (!b) continue;
-      if (bx >= b.x - TOL && bx <= b.x + b.w + TOL && by >= b.y - LABEL_H - TOL && by <= b.y + b.h + TOL) {
-        const first = ns.find((n) => g.nodeIds.includes(n.id) && n.id !== excludeId);
-        if (first) return { nodeId: first.id, groupId: g.id };
+    // Group check
+    const findGroup = (): HitResult | null => {
+      for (const g of gs) {
+        if (g.id === sourceGroupId) continue;
+        const b = getGroupBounds(g, ns);
+        if (!b) continue;
+        if (bx >= b.x - TOL && bx <= b.x + b.w + TOL && by >= b.y - LABEL_H - TOL && by <= b.y + b.h + TOL) {
+          const first = ns.find((n) => g.nodeIds.includes(n.id) && n.id !== excludeId);
+          if (first) return { nodeId: first.id, groupId: g.id };
+        }
       }
+      return null;
+    };
+
+    // Tile check (ungrouped tiles only when preferGroup, ALL tiles otherwise)
+    const findTile = (): HitResult | null => {
+      const groupedIds = preferGroup ? new Set(gs.flatMap((g) => g.nodeIds)) : new Set<string>();
+      const tile = ns.find((n) => n.id !== excludeId && !groupedIds.has(n.id) && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
+      if (tile) return { nodeId: tile.id };
+      return null;
+    };
+
+    if (preferGroup) {
+      // Container first, then ungrouped tiles
+      return findGroup() || findTile();
+    } else {
+      // Tiles first (including grouped), then container empty area
+      const tile = ns.find((n) => n.id !== excludeId && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
+      if (tile) return { nodeId: tile.id };
+      return findGroup();
     }
-
-    // 2. Ungrouped tiles only
-    const tile = ns.find((n) => n.id !== excludeId && !groupedIds.has(n.id) && bx >= n.x && bx <= n.x + TILE_W && by >= n.y && by <= n.y + TILE_H);
-    if (tile) return { nodeId: tile.id };
-
-    return null;
   }, []);
 
 
@@ -158,24 +169,24 @@ export function CanvasBoard({
     const tempLine = board.append('line').attr('stroke', '#3B82F6').attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
 
     // ── Common link drag handlers ──
-    const startLink = (sourceId: string, px: number, py: number, port: PortKey, ev: any) => {
+    const startLink = (sourceId: string, px: number, py: number, port: string, ev: any) => {
       ev.sourceEvent.stopPropagation();
       linkSrc.current = { id: sourceId, px, py, port };
       dropTarget.current = null;
       tempLine.attr('x1', px).attr('y1', py).attr('x2', px).attr('y2', py).attr('opacity', 1);
     };
-    // Find closest port on a target node or group
-    const findClosestPort = (mx: number, my: number, targetId: string, groupId?: string): PortKey => {
+    // Find closest port on a target node or group. Returns "top"|"right"... for tile, "g:top"|"g:right"... for group
+    const findClosestPort = (mx: number, my: number, targetId: string, groupId?: string): string => {
       if (groupId) {
         const grp = groupsRef.current.find((g) => g.id === groupId);
         if (grp) {
           const b = getGroupBounds(grp, nodes);
           if (b) {
-            const gPts: { key: PortKey; x: number; y: number }[] = [
-              { key: 'top', x: b.x + b.w / 2, y: b.y - LABEL_H },
-              { key: 'right', x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
-              { key: 'bottom', x: b.x + b.w / 2, y: b.y + b.h },
-              { key: 'left', x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+            const gPts = [
+              { key: 'g:top', x: b.x + b.w / 2, y: b.y - LABEL_H },
+              { key: 'g:right', x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+              { key: 'g:bottom', x: b.x + b.w / 2, y: b.y + b.h },
+              { key: 'g:left', x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
             ];
             let best = gPts[0], bestDist = Infinity;
             gPts.forEach((p) => { const d = (mx - p.x) ** 2 + (my - p.y) ** 2; if (d < bestDist) { bestDist = d; best = p; } });
@@ -185,7 +196,7 @@ export function CanvasBoard({
       }
       const nd = nodes.find((n) => n.id === targetId);
       if (nd) {
-        const tPts = PORTS.map((p) => ({ key: p.key as PortKey, x: nd.x + p.cx, y: nd.y + p.cy }));
+        const tPts = PORTS.map((p) => ({ key: p.key, x: nd.x + p.cx, y: nd.y + p.cy }));
         let best = tPts[0], bestDist = Infinity;
         tPts.forEach((p) => { const d = (mx - p.x) ** 2 + (my - p.y) ** 2; if (d < bestDist) { bestDist = d; best = p; } });
         return best.key;
@@ -197,7 +208,8 @@ export function CanvasBoard({
       if (!linkSrc.current) return;
       const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
       tempLine.attr('x2', mx).attr('y2', my);
-      const hit = hitTest(mx, my, linkSrc.current.id);
+      const fromGroup = linkSrc.current.port.startsWith('g:');
+      const hit = hitTest(mx, my, linkSrc.current.id, fromGroup);
       if (hit) {
         const tp = findClosestPort(mx, my, hit.nodeId, hit.groupId);
         dropTarget.current = { ...hit, port: tp };
@@ -276,7 +288,7 @@ export function CanvasBoard({
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
           ha.on('mouseenter', () => { if (linkRef.current) pc.attr('opacity', 1); }).on('mouseleave', () => { if (!linkSrc.current) pc.attr('opacity', 0); });
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
-            .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, pk, ev); pc.attr('opacity', 1); })
+            .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, `g:${pk}`, ev); pc.attr('opacity', 1); })
             .on('drag', dragLink)
             .on('end', () => { endLink(); pc.attr('opacity', 0); }) as any);
         });
@@ -285,32 +297,33 @@ export function CanvasBoard({
 
     // ── Draw edges ──
     const edgesG = board.append('g');
-    const nodeGroupMap = () => { const m = new Map<string, CanvasGroup>(); groupsRef.current.forEach((g) => g.nodeIds.forEach((id) => m.set(id, g))); return m; };
-    // Get port position for a node (tile or group)
-    // Get all 4 port positions for a node (tile or group container)
-    const getNodePorts = (nd: CanvasNode, gm: Map<string, CanvasGroup>): { key: PortKey; x: number; y: number }[] => {
-      const grp = gm.get(nd.id);
-      if (grp) {
-        const b = getGroupBounds(grp, nodes);
-        if (b) return [
-          { key: 'top', x: b.x + b.w / 2, y: b.y - LABEL_H },
-          { key: 'right', x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
-          { key: 'bottom', x: b.x + b.w / 2, y: b.y + b.h },
-          { key: 'left', x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
-        ];
+    // Get all ports for an endpoint (tile or group based on port prefix)
+    const getEndpointPorts = (nd: CanvasNode, port: string | undefined): { x: number; y: number }[] => {
+      if (port && port.startsWith('g:')) {
+        const grp = groupsRef.current.find((g) => g.nodeIds.includes(nd.id));
+        if (grp) {
+          const b = getGroupBounds(grp, nodes);
+          if (b) return [
+            { x: b.x + b.w / 2, y: b.y - LABEL_H },
+            { x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+            { x: b.x + b.w / 2, y: b.y + b.h },
+            { x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+          ];
+        }
       }
-      return PORTS.map((p) => ({ key: p.key as PortKey, x: nd.x + p.cx, y: nd.y + p.cy }));
+      // Tile ports
+      return PORTS.map((p) => ({ x: nd.x + p.cx, y: nd.y + p.cy }));
     };
 
-    // Find the closest pair of ports between two nodes
-    const findBestPorts = (snd: CanvasNode, tnd: CanvasNode, gm: Map<string, CanvasGroup>): { sx: number; sy: number; tx: number; ty: number } => {
-      const sPorts = getNodePorts(snd, gm);
-      const tPorts = getNodePorts(tnd, gm);
+    // Find best pair of ports between two endpoints
+    const findBestPorts = (snd: CanvasNode, tnd: CanvasNode, sp: string | undefined, tp: string | undefined): { sx: number; sy: number; tx: number; ty: number } => {
+      const sPorts = getEndpointPorts(snd, sp);
+      const tPorts = getEndpointPorts(tnd, tp);
       let bestDist = Infinity, best = { sx: 0, sy: 0, tx: 0, ty: 0 };
-      for (const sp of sPorts) {
-        for (const tp of tPorts) {
-          const d = (sp.x - tp.x) ** 2 + (sp.y - tp.y) ** 2;
-          if (d < bestDist) { bestDist = d; best = { sx: sp.x, sy: sp.y, tx: tp.x, ty: tp.y }; }
+      for (const s of sPorts) {
+        for (const t of tPorts) {
+          const d = (s.x - t.x) ** 2 + (s.y - t.y) ** 2;
+          if (d < bestDist) { bestDist = d; best = { sx: s.x, sy: s.y, tx: t.x, ty: t.y }; }
         }
       }
       return best;
@@ -318,15 +331,12 @@ export function CanvasBoard({
 
     const drawEdges = () => {
       edgesG.selectAll('*').remove();
-      const gm = nodeGroupMap();
       edges.forEach((edge) => {
         const s = nodes.find((n) => n.id === edge.source_id), t = nodes.find((n) => n.id === edge.target_id);
         if (!s || !t) return;
-        const sg = gm.get(s.id), tg = gm.get(t.id);
-        const sameGroup = sg && tg && sg.id === tg.id;
 
-        // Always compute best ports dynamically
-        const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(s, t, sameGroup ? new Map() : gm);
+        // Compute best ports based on saved port type (tile or group)
+        const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(s, t, edge.source_port, edge.target_port);
 
         const sColor = getColor(s.actionType);
         const tColor = getColor(t.actionType);

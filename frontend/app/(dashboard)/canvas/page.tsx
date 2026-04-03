@@ -105,10 +105,15 @@ export default function CanvasPage() {
     }));
     try {
       const res = await canvasApi.addEdge(tagId, source_id, target_id, source_port, target_port);
-      // Replace temp with real data from server
+      // Replace temp with real data from server, preserving port info
       if (res?.data) {
+        const d = res.data as any;
         queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
-          data: (old?.data || []).map((e: any) => e.id === tempId ? res.data : e),
+          data: (old?.data || []).map((e: any) => e.id === tempId ? {
+            ...d,
+            source_port: d.source_port || source_port,
+            target_port: d.target_port || target_port,
+          } : e),
         }));
       }
     } catch {
