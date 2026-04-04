@@ -18,8 +18,9 @@ export default function CanvasPage() {
   const queryClient = useQueryClient();
 
   const [textMode, setTextMode] = useState(false);
+  const [tileMode, setTileMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fitTrigger, setFitTrigger] = useState(0);
   const [resetTrigger, setResetTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -200,6 +201,32 @@ export default function CanvasPage() {
     }
   }, [tagId, queryClient]);
 
+  // Add new tile at position
+  const handleAddTileAt = useCallback(async (x: number, y: number) => {
+    if (!tagId) return;
+    setTileMode(false);
+    try {
+      const res = await tilesApi.create({ title: 'Nuovo tile' });
+      const newId = res?.data?.id;
+      if (newId) {
+        // Assign tag
+        const tag = tags.find((t: Tag) => t.id === tagId);
+        if (tag) await tagsApi.tagTiles(tag.id, [newId]);
+        // Save position
+        const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
+        const newLayout = [...currentLayout, { tile_id: newId, x, y }];
+        queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
+        canvasApi.saveLayout(tagId, newLayout);
+        // Refresh tiles + tags (sidebar count)
+        queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+        queryClient.invalidateQueries({ queryKey: ['tags'] });
+        // Open sidebar
+        setSelectedTileId(newId);
+        setSidebarOpen(true);
+      }
+    } catch { /* ignore */ }
+  }, [tagId, tags, queryClient]);
+
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
   }, []);
@@ -264,11 +291,13 @@ export default function CanvasPage() {
             tag={tag}
             tileCount={tiles.length}
             textMode={textMode}
+            tileMode={tileMode}
             onToggleTextMode={() => setTextMode((v) => !v)}
+            onToggleTileMode={() => setTileMode((v) => !v)}
             onReset={handleReset}
             onFit={handleFit}
           />
-          <div className="flex-1 relative overflow-hidden" style={{ cursor: textMode ? 'crosshair' : undefined }}>
+          <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode) ? 'crosshair' : undefined }}>
             <CanvasBoard
               tiles={tiles}
               layout={layout}
@@ -278,12 +307,24 @@ export default function CanvasPage() {
               moveEnabled={true}
               linkEnabled={true}
               textMode={textMode}
+              tileMode={tileMode}
+              onAddTileAt={handleAddTileAt}
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
               onDeleteEdge={handleDeleteEdge}
               onEdgeContextMenu={handleEdgeContextMenu}
               onTileContextMenu={handleTileContextMenu}
-              onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
+              onTileClick={(id) => {
+                // Optimistic: pre-fill cache with tile data + canvas tag
+                const t = tiles.find((tile) => tile.id === id);
+                if (t) {
+                  const canvasTag = tag ? { id: tag.id, name: tag.name, tag_type: tag.tag_type } : null;
+                  const tileWithTag = { ...t, tags: canvasTag ? [canvasTag] : (t.tags || []) };
+                  queryClient.setQueryData(['tile-detail', id], { data: tileWithTag });
+                }
+                setSelectedTileId(id);
+                setSidebarOpen(true);
+              }}
               onGroupsChange={handleGroupsChange}
               onAddTextBox={handleAddTextBox}
               onUpdateTextBox={handleUpdateTextBox}
@@ -299,7 +340,7 @@ export default function CanvasPage() {
             tileId={selectedTileId}
             open={sidebarOpen}
             onToggle={() => setSidebarOpen(!sidebarOpen)}
-            invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges']}
+            invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
           />
 
           {/* Tile context menu */}

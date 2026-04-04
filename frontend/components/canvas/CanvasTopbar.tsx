@@ -1,6 +1,6 @@
 'use client';
 
-import { IconRefresh, IconMaximize, IconNote } from '@tabler/icons-react';
+import { IconRefresh, IconMaximize, IconNote, IconPlus } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
@@ -48,12 +48,14 @@ interface CanvasTopbarProps {
   tag: Tag | null;
   tileCount: number;
   textMode: boolean;
+  tileMode: boolean;
   onToggleTextMode: () => void;
+  onToggleTileMode: () => void;
   onReset: () => void;
   onFit: () => void;
 }
 
-export function CanvasTopbar({ tag, tileCount, textMode, onToggleTextMode, onReset, onFit }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextMode, onToggleTileMode, onReset, onFit }: CanvasTopbarProps) {
   return (
     <div className="h-11 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-950">
       {tag ? (
@@ -66,6 +68,7 @@ export function CanvasTopbar({ tag, tileCount, textMode, onToggleTextMode, onRes
       )}
 
       <div className="flex items-center gap-1">
+        <ToolbarToggle icon={<IconPlus size={13} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
         <ToolbarToggle icon={<IconNote size={13} />} label="Testo" active={textMode} onClick={onToggleTextMode} />
         <div className="w-px h-5 bg-zinc-700 mx-1" />
         <ToolbarButton icon={<IconRefresh size={13} />} label="Reset" onClick={onReset} />

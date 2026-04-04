@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/auth-store';
-import { ActionColorsContext, useActionColorsQuery } from '@/store/action-colors-store';
+import { ActionColorsContext, ActionBordersContext, useActionColorsQuery } from '@/store/action-colors-store';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -26,10 +26,12 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
 }
 
 function ActionColorsProvider({ children }: { children: React.ReactNode }) {
-  const { actionColors } = useActionColorsQuery();
+  const { actionColors, actionBorders } = useActionColorsQuery();
   return (
     <ActionColorsContext.Provider value={actionColors}>
-      {children}
+      <ActionBordersContext.Provider value={actionBorders}>
+        {children}
+      </ActionBordersContext.Provider>
     </ActionColorsContext.Provider>
   );
 }

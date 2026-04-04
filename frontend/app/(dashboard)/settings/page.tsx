@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
-import { useActionColorsQuery } from '@/store/action-colors-store';
+import { useActionColorsQuery, type BorderStyle } from '@/store/action-colors-store';
 import { GIMMICK_PALETTE, getColorName } from '@/lib/palette';
 import { PatternsModal } from '@/components/patterns/patterns-modal';
 import { StatusIconsModal } from '@/components/status-icons/status-icons-modal';
@@ -71,7 +71,7 @@ export default function SettingsPage() {
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const { actionColors, updateActionColor } = useActionColorsQuery();
+  const { actionColors, updateActionColor, actionBorders, updateActionBorder } = useActionColorsQuery();
 
   useEffect(() => {
     if (!pickerAction) return;
@@ -131,38 +131,72 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3">
               <IconPalette className="h-5 w-5 text-zinc-400" />
               <div>
-                <CardTitle className="text-white">Colori delle azioni</CardTitle>
+                <CardTitle className="text-white">Style of actions</CardTitle>
                 <CardDescription className="text-zinc-400">
-                  Associa un colore a ogni tipo di azione
+                  Associa colore e stile bordo a ogni tipo di azione
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-1">
+          <CardContent className="space-y-3">
             {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
               const color = actionColors[type];
+              const border = actionBorders[type] || 'solid';
+              const BORDER_OPTIONS: { value: BorderStyle; label: string }[] = [
+                { value: 'solid', label: 'Normale' },
+                { value: 'dashed', label: 'Tratteggiato' },
+                { value: 'dotted', label: 'Puntinato' },
+                { value: 'thick', label: 'Spesso' },
+                { value: 'double', label: 'Doppio' },
+                { value: 'none', label: 'Nessuno' },
+              ];
+              const getBorderCSS = (bs: BorderStyle, c: string): React.CSSProperties => {
+                switch (bs) {
+                  case 'solid': return { border: `2px solid ${c}` };
+                  case 'dashed': return { border: `2px dashed ${c}` };
+                  case 'dotted': return { border: `2px dotted ${c}` };
+                  case 'thick': return { border: `4px solid ${c}` };
+                  case 'double': return { border: `4px double ${c}` };
+                  case 'none': return { border: '2px solid transparent' };
+                }
+              };
               return (
-                <button
-                  key={type}
-                  ref={(el) => { triggerRefs.current[type] = el; }}
-                  onClick={() => {
-                    const el = triggerRefs.current[type];
-                    if (el) {
-                      const rect = el.getBoundingClientRect();
-                      setPickerPos({ top: rect.bottom + 4, left: rect.left });
-                    }
-                    setPickerAction(pickerAction === type ? null : type);
-                  }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg hover:bg-zinc-800/60 transition-colors text-left"
-                >
-                  <div
-                    className="w-5 h-5 rounded-full border border-white/20 shrink-0"
-                    style={{ backgroundColor: color }}
-                  />
-                  <ActionIcon className="h-4 w-4 text-zinc-400 shrink-0" />
-                  <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
-                  <span className="text-xs text-zinc-500">{getColorName(color)}</span>
-                </button>
+                <div key={type} className="rounded-lg bg-zinc-800/30 px-3 py-2">
+                  {/* Color row */}
+                  <button
+                    ref={(el) => { triggerRefs.current[type] = el; }}
+                    onClick={() => {
+                      const el = triggerRefs.current[type];
+                      if (el) {
+                        const rect = el.getBoundingClientRect();
+                        setPickerPos({ top: rect.bottom + 4, left: rect.left });
+                      }
+                      setPickerAction(pickerAction === type ? null : type);
+                    }}
+                    className="flex items-center gap-3 w-full py-1 rounded hover:bg-zinc-800/60 transition-colors text-left"
+                  >
+                    <div className="w-5 h-5 rounded-full border border-white/20 shrink-0" style={{ backgroundColor: color }} />
+                    <ActionIcon className="h-4 w-4 text-zinc-400 shrink-0" />
+                    <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
+                    <span className="text-xs text-zinc-500">{getColorName(color)}</span>
+                  </button>
+                  {/* Border style picker — tile preview + select */}
+                  <div className="flex items-center gap-3 mt-2">
+                    <div
+                      className="shrink-0 rounded-lg bg-zinc-900"
+                      style={{ width: 89, height: 55, ...getBorderCSS(border, color) }}
+                    />
+                    <select
+                      value={border}
+                      onChange={(e) => updateActionBorder(type, e.target.value as BorderStyle)}
+                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                    >
+                      {BORDER_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               );
             })}
           </CardContent>

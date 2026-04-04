@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconPin, IconBolt, IconClock, IconCalendarEvent, IconCalendar } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -12,6 +12,7 @@ import { usePatterns } from '@/store/patterns-store';
 import { cn } from '@/lib/utils';
 import { useStatusIcons } from '@/store/status-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
+import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
 import type { PatternShape } from '@/types';
 import type { Tile, Spark } from '@/types';
 
@@ -66,11 +67,14 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        className="w-full flex items-center gap-2 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        style={{ backgroundColor: current?.color ? current.color + '40' : 'rgba(39,39,42,0.6)' }}
       >
         {CurrentComp ? (
           <>
-            <CurrentComp size={14} className="text-zinc-200 shrink-0" />
+            <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: current?.color || '#27272A' }}>
+              <CurrentComp size={12} className="text-white" />
+            </div>
             <span className="truncate flex-1 text-left">{current!.name}</span>
           </>
         ) : (
@@ -108,7 +112,11 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
                   selected && 'bg-zinc-700/30'
                 )}
               >
-                {Comp && <Comp size={14} className="text-zinc-200 shrink-0" />}
+                {Comp && (
+                  <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: icon.color || '#27272A' }}>
+                    <Comp size={12} className="text-white" />
+                  </div>
+                )}
                 <span className="text-zinc-300 truncate flex-1">{icon.name}</span>
                 {selected && (
                   <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -687,24 +695,42 @@ export function TileSidebar({
               {/* Type selector */}
               <div>
                 <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
-                <div className="flex flex-wrap gap-1">
-                  {([
-                    { value: 'none', label: 'NOTES' },
-                    { value: 'anytime', label: 'TO DO' },
-                    { value: 'deadline', label: 'DEADLINE' },
-                    { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
-                    { value: 'event', label: 'TIMED', extra: { all_day: false } },
-                  ] as const).map((opt) => {
+                {(() => {
+                  const ac = useActionColors();
+                  const ab = useActionBorders();
+                  const getBorderStyle = (at: string): React.CSSProperties => {
+                    const bs = (ab as Record<string, string>)[at] as BorderStyle || 'solid';
+                    const c = (ac as Record<string, string>)[at] || '#3F3F46';
+                    switch (bs) {
+                      case 'solid': return { border: `1.5px solid ${c}` };
+                      case 'dashed': return { border: `1.5px dashed ${c}` };
+                      case 'dotted': return { border: `1.5px dotted ${c}` };
+                      case 'thick': return { border: `3px solid ${c}` };
+                      case 'double': return { border: `3px double ${c}` };
+                      case 'none': return { border: '1.5px solid transparent' };
+                    }
+                  };
+                  const allOpts = [
+                    { value: 'none', label: 'NOTES', icon: IconPin },
+                    { value: 'anytime', label: 'TO DO', icon: IconBolt },
+                    { value: 'deadline', label: 'DEADLINE', icon: IconClock },
+                    { value: 'event', label: 'ALL DAY', icon: IconCalendarEvent, extra: { all_day: true } },
+                    { value: 'event', label: 'TIMED', icon: IconCalendar, extra: { all_day: false } },
+                  ] as const;
+                  const row1 = allOpts.slice(0, 2);
+                  const row2 = allOpts.slice(2);
+                  const renderBtn = (opt: typeof allOpts[number]) => {
                     const isActive = opt.value === 'event'
-                      ? tile.action_type === 'event' && (opt.extra.all_day ? !!tile.all_day : !tile.all_day)
+                      ? tile.action_type === 'event' && ((opt as any).extra?.all_day ? !!tile.all_day : !tile.all_day)
                       : tile.action_type === opt.value;
+                    const OptIcon = opt.icon;
                     return (
                       <button
                         key={opt.label}
                         onClick={() => {
                           const updates: Record<string, unknown> = { action_type: opt.value };
                           if (opt.value === 'event') {
-                            updates.all_day = opt.extra.all_day;
+                            updates.all_day = (opt as any).extra.all_day;
                             updates.is_event = true;
                           } else {
                             updates.is_event = false;
@@ -713,17 +739,25 @@ export function TileSidebar({
                           updateTileMutation.mutate(updates);
                         }}
                         className={cn(
-                          'px-2 py-1 rounded text-[10px] font-medium border transition-all',
+                          'flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[9px] font-medium transition-all',
                           isActive
-                            ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                            : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+                            ? 'bg-blue-600/20 text-blue-300'
+                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800'
                         )}
+                        style={getBorderStyle(opt.value)}
                       >
+                        <OptIcon size={11} />
                         {opt.label}
                       </button>
                     );
-                  })}
-                </div>
+                  };
+                  return (
+                    <div className="flex flex-col gap-1">
+                      <div className="flex gap-1">{row1.map(renderBtn)}</div>
+                      <div className="flex gap-1">{row2.map(renderBtn)}</div>
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Date/time fields — shown for deadline, all day, timed */}

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
-import { useActionColors } from '@/store/action-colors-store';
+import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
 import { usePatterns } from '@/store/patterns-store';
 import { useStatusIcons } from '@/store/status-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
@@ -46,6 +46,8 @@ interface CanvasBoardProps {
   moveEnabled: boolean;
   linkEnabled: boolean;
   textMode: boolean;
+  tileMode: boolean;
+  onAddTileAt: (x: number, y: number) => void;
   onPositionChange: (positions: { tile_id: string; x: number; y: number }[]) => void;
   onAddEdge: (source_id: string, target_id: string, source_port?: string, target_port?: string) => void;
   onDeleteEdge: (id: string) => void;
@@ -62,7 +64,7 @@ interface CanvasBoardProps {
 
 export function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
-  moveEnabled, linkEnabled, textMode,
+  moveEnabled, linkEnabled, textMode, tileMode, onAddTileAt,
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu,
@@ -73,12 +75,14 @@ export function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
+  const actionBorders = useActionBorders();
   const { customPatterns, doneShape, getActionTypeShape } = usePatterns();
   const statusIcons = useStatusIcons((s) => s.icons);
   const statusTileIcons = useStatusIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
+  const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
 
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
@@ -179,7 +183,7 @@ export function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if (textModeRef.current && ev.type === 'mousedown') return false; // block pan in text mode
+        if ((textModeRef.current || tileModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && ev.target === svg);
       })
       .on('zoom', (ev) => board.attr('transform', ev.transform));
@@ -426,9 +430,35 @@ export function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('transform', (d) => `translate(${d.x},${d.y})`);
+    // Apply border style per action type
+    const getBorderAttrs = (at: string): { sw: number; sd: string } => {
+      const bs = (actionBorders as Record<string, string>)[at] as BorderStyle || 'solid';
+      switch (bs) {
+        case 'solid': return { sw: 1, sd: '' };
+        case 'dashed': return { sw: 1.5, sd: '6,3' };
+        case 'dotted': return { sw: 1.5, sd: '2,3' };
+        case 'thick': return { sw: 3, sd: '' };
+        case 'double': return { sw: 3, sd: '' };
+        case 'none': return { sw: 0, sd: '' };
+        default: return { sw: 1, sd: '' };
+      }
+    };
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8)
       .attr('fill', (d) => d.statusColor ? d.statusColor + '80' : '#1C1C1E')
-      .attr('stroke', (d) => getColor(d.actionType) + '60').attr('stroke-width', 1).style('cursor', moveRef.current ? 'grab' : 'default');
+      .attr('stroke', (d) => getColor(d.actionType))
+      .attr('stroke-width', (d) => getBorderAttrs(d.actionType).sw)
+      .attr('stroke-dasharray', (d) => getBorderAttrs(d.actionType).sd)
+      .style('cursor', moveRef.current ? 'grab' : 'default');
+    // Double border: add inner rect
+    nodeGrps.each(function (d) {
+      const bs = (actionBorders as Record<string, string>)[d.actionType] as BorderStyle;
+      if (bs === 'double') {
+        d3.select(this).append('rect').attr('class', 'tile-inner-border')
+          .attr('x', 4).attr('y', 4).attr('width', TILE_W - 8).attr('height', TILE_H - 8).attr('rx', 5)
+          .attr('fill', 'none').attr('stroke', getColor(d.actionType)).attr('stroke-width', 1)
+          .style('pointer-events', 'none');
+      }
+    });
     // Pattern overlay
     let patIdx = 0;
     nodeGrps.each(function (d) {
@@ -536,11 +566,13 @@ export function CanvasBoard({
     portG.selectAll('circle.port').call(portDrag as any);
 
     // Node drag
+    let nodeDragged = false;
     nodeGrps.call(d3.drag<SVGGElement, CanvasNode>()
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
-      .on('start', function () { d3.select(this).raise(); })
-      .on('drag', function (ev, d) { d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
+      .on('start', function () { nodeDragged = false; d3.select(this).raise(); })
+      .on('drag', function (ev, d) { nodeDragged = true; d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
       .on('end', (_, d) => {
+        if (!nodeDragged) { onTileClick(d.id); return; }
         onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
         // Check if tile was dropped inside a group it doesn't belong to → add it
         const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
@@ -799,11 +831,19 @@ export function CanvasBoard({
       onAddTextBox(x, y, w, h);
     });
 
+    // Click on background to place a new tile
+    d3svg.on('click.tile', (ev: MouseEvent) => {
+      if (!tileModeRef.current) return;
+      if (ev.target !== svg) return;
+      const [mx, my] = d3.pointer(ev, boardNode);
+      onAddTileAt(mx, my);
+    });
+
     drawGroups();
     nodesG.raise();
     tbG.raise();
     tempLine.raise();
-  }, [tiles, layout, edges, groups, textBoxes, buildNodes, getColor, onPositionChange, onAddEdge, onDeleteEdge, onEdgeContextMenu, onTileContextMenu, onTileClick, onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, hitTest]);
+  }, [tiles, layout, edges, groups, textBoxes, buildNodes, getColor, onPositionChange, onAddEdge, onDeleteEdge, onEdgeContextMenu, onTileContextMenu, onTileClick, onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddTileAt, hitTest]);
 
   useEffect(() => { render(); }, [render]);
 
