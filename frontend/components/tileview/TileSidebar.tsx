@@ -518,6 +518,8 @@ export function TileSidebar({
   const queryClient = useQueryClient();
   const { customPatterns } = usePatterns();
   const { getColor: getTypeColor } = useTagTypes();
+  const actionColors = useActionColors();
+  const actionBorders = useActionBorders();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -696,8 +698,8 @@ export function TileSidebar({
               <div>
                 <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
                 {(() => {
-                  const ac = useActionColors();
-                  const ab = useActionBorders();
+                  const ac = actionColors;
+                  const ab = actionBorders;
                   const getBorderStyle = (at: string): React.CSSProperties => {
                     const bs = (ab as Record<string, string>)[at] as BorderStyle || 'solid';
                     const c = (ac as Record<string, string>)[at] || '#3F3F46';

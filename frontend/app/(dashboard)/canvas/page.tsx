@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,7 +39,7 @@ export default function CanvasPage() {
     queryFn: () => tagsApi.getTiles(tagId!),
     enabled: !!tagId,
   });
-  const tiles: Tile[] = tilesData?.data || [];
+  const tiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
 
   // Fetch layout
   const { data: layoutData } = useQuery({
@@ -47,7 +47,7 @@ export default function CanvasPage() {
     queryFn: () => canvasApi.getLayout(tagId!),
     enabled: !!tagId,
   });
-  const layout = layoutData?.data || [];
+  const layout = useMemo(() => layoutData?.data || [], [layoutData]);
 
   // Fetch edges
   const { data: edgesData } = useQuery({
@@ -55,7 +55,7 @@ export default function CanvasPage() {
     queryFn: () => canvasApi.getEdges(tagId!),
     enabled: !!tagId,
   });
-  const edges = (edgesData?.data || []) as CanvasEdge[];
+  const edges = useMemo(() => (edgesData?.data || []) as CanvasEdge[], [edgesData]);
 
   // Groups — persisted via backend API
   const { data: groupsData } = useQuery({
@@ -63,11 +63,11 @@ export default function CanvasPage() {
     queryFn: () => canvasApi.getGroups(tagId!),
     enabled: !!tagId,
   });
-  const canvasGroups: CanvasGroup[] = (groupsData?.data || []).map((g: any) => ({
+  const canvasGroups: CanvasGroup[] = useMemo(() => (groupsData?.data || []).map((g: any) => ({
     id: g.id,
     label: g.label || '',
     nodeIds: g.node_ids || [],
-  }));
+  })), [groupsData]);
 
   const saveGroupsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleGroupsChange = useCallback((newGroups: CanvasGroup[]) => {
@@ -86,14 +86,13 @@ export default function CanvasPage() {
   // Save positions (debounced)
   const handlePositionChange = useCallback((positions: { tile_id: string; x: number; y: number }[]) => {
     if (!tagId) return;
-    // Optimistic update
-    queryClient.setQueryData(['canvas-layout', tagId], { data: positions });
-    // Debounce save to DB
+    // Don't update cache (would cause re-render and zoom reset)
+    // Just debounce save to DB
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       canvasApi.saveLayout(tagId, positions);
     }, 800);
-  }, [tagId, queryClient]);
+  }, [tagId]);
 
   // Add edge
   const handleAddEdge = useCallback(async (source_id: string, target_id: string, source_port?: string, target_port?: string) => {
@@ -140,7 +139,7 @@ export default function CanvasPage() {
     queryFn: () => canvasApi.getTextBoxes(tagId!),
     enabled: !!tagId,
   });
-  const textBoxes = (textBoxesData?.data || []) as CanvasTextBox[];
+  const textBoxes = useMemo(() => (textBoxesData?.data || []) as CanvasTextBox[], [textBoxesData]);
 
   const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;

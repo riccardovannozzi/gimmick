@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
@@ -62,7 +62,7 @@ interface CanvasBoardProps {
   resetTrigger: number;
 }
 
-export function CanvasBoard({
+export const CanvasBoard = React.memo(function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
   moveEnabled, linkEnabled, textMode, tileMode, onAddTileAt,
   onPositionChange, onAddEdge, onDeleteEdge,
@@ -72,6 +72,7 @@ export function CanvasBoard({
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
+  const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
@@ -84,6 +85,19 @@ export function CanvasBoard({
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
   const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
 
+  // Refs for callbacks to avoid re-render of the entire SVG
+  const onTileClickRef = useRef(onTileClick); onTileClickRef.current = onTileClick;
+  const onTileContextMenuRef = useRef(onTileContextMenu); onTileContextMenuRef.current = onTileContextMenu;
+  const onEdgeContextMenuRef = useRef(onEdgeContextMenu); onEdgeContextMenuRef.current = onEdgeContextMenu;
+  const onTextBoxContextMenuRef = useRef(onTextBoxContextMenu); onTextBoxContextMenuRef.current = onTextBoxContextMenu;
+  const onAddTileAtRef = useRef(onAddTileAt); onAddTileAtRef.current = onAddTileAt;
+  const onPositionChangeRef = useRef(onPositionChange); onPositionChangeRef.current = onPositionChange;
+  const onGroupsChangeRef = useRef(onGroupsChange); onGroupsChangeRef.current = onGroupsChange;
+  const onAddEdgeRef = useRef(onAddEdge); onAddEdgeRef.current = onAddEdge;
+  const onDeleteEdgeRef = useRef(onDeleteEdge); onDeleteEdgeRef.current = onDeleteEdge;
+  const onAddTextBoxRef = useRef(onAddTextBox); onAddTextBoxRef.current = onAddTextBox;
+  const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
+
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
   const dropTarget = useRef<{ nodeId: string; groupId?: string; port?: string } | null>(null);
@@ -92,8 +106,13 @@ export function CanvasBoard({
 
   const buildNodes = useCallback((): CanvasNode[] => {
     const pm = new Map(layout.map((p) => [p.tile_id, p]));
+    // Use current in-memory positions if available (from drag), fallback to layout cache
+    const currentPosMap = new Map(nodesRef.current.map((n) => [n.id, { x: n.x, y: n.y }]));
     return tiles.map((t, i) => {
+      const cur = currentPosMap.get(t.id);
       const s = pm.get(t.id);
+      const x = cur?.x ?? s?.x ?? OFFSET_X;
+      const y = cur?.y ?? s?.y ?? (OFFSET_Y + i * (TILE_H + TILE_GAP));
       // Resolve pattern shape
       let shape = 'solid';
       if (t.pattern_id) {
@@ -107,7 +126,7 @@ export function CanvasBoard({
       // Status icon
       const siId = statusTileIcons[t.id];
       const si = siId ? statusIcons.find((ic) => ic.id === siId) : null;
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', patternShape: shape, statusIcon: si?.icon, statusColor: si?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x: s?.x ?? OFFSET_X, y: s?.y ?? OFFSET_Y + i * (TILE_H + TILE_GAP) };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', patternShape: shape, statusIcon: si?.icon, statusColor: si?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
     });
   }, [tiles, layout, customPatterns, doneShape, getActionTypeShape, statusIcons, statusTileIcons]);
 
@@ -186,11 +205,16 @@ export function CanvasBoard({
         if ((textModeRef.current || tileModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && ev.target === svg);
       })
-      .on('zoom', (ev) => board.attr('transform', ev.transform));
+      .on('zoom', (ev) => { zoomTransformRef.current = ev.transform; board.attr('transform', ev.transform); });
     d3svg.call(zoom);
     zoomRef.current = zoom;
 
     const board = d3.select(svg).append('g');
+
+    // Restore saved zoom transform
+    if (zoomTransformRef.current !== d3.zoomIdentity) {
+      d3svg.call(zoom.transform as any, zoomTransformRef.current);
+    }
     const boardNode = board.node()!;
     const nodes = buildNodes();
     nodesRef.current = nodes;
@@ -212,7 +236,7 @@ export function CanvasBoard({
       const ids = inside.map((n) => n.id);
       let ng = groupsRef.current.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !ids.includes(id)) })).filter((g) => g.nodeIds.length >= 2);
       ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
-      onGroupsChange(ng);
+      onGroupsChangeRef.current(ng);
     });
 
     // ── Temp line for link drag ──
@@ -292,7 +316,7 @@ export function CanvasBoard({
       const sp = linkSrc.current.port;
       linkSrc.current = null;
       if (dropTarget.current && dropTarget.current.nodeId !== sid) {
-        onAddEdge(sid, dropTarget.current.nodeId, sp, dropTarget.current.port);
+        onAddEdgeRef.current(sid, dropTarget.current.nodeId, sp, dropTarget.current.port);
       }
       dropTarget.current = null;
     };
@@ -321,7 +345,7 @@ export function CanvasBoard({
                 nodeGrps.filter((d: any) => grp.nodeIds.includes(d.id)).attr('transform', (d: any) => `translate(${d.x},${d.y})`);
                 drawEdges(); drawGroups();
               })
-              .on('end', () => { prev = null; onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
+              .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
           })());
         gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', '#71717A').attr('font-size', 11).attr('font-weight', 500)
           .text(grp.label || 'Gruppo').style('cursor', 'text')
@@ -422,7 +446,7 @@ export function CanvasBoard({
         g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
         g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
         g.on('mouseenter', () => vl.attr('stroke', '#EF4444').attr('stroke-width', 2.5)).on('mouseleave', () => vl.attr('stroke', '#444').attr('stroke-width', 1.5));
-        g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenu({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
+        g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
     };
     drawEdges();
@@ -566,14 +590,12 @@ export function CanvasBoard({
     portG.selectAll('circle.port').call(portDrag as any);
 
     // Node drag
-    let nodeDragged = false;
     nodeGrps.call(d3.drag<SVGGElement, CanvasNode>()
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
-      .on('start', function () { nodeDragged = false; d3.select(this).raise(); })
-      .on('drag', function (ev, d) { nodeDragged = true; d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
+      .on('start', function () {})
+      .on('drag', function (ev, d) { d3.select(this).raise(); d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
       .on('end', (_, d) => {
-        if (!nodeDragged) { onTileClick(d.id); return; }
-        onPositionChange(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+        onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
         // Check if tile was dropped inside a group it doesn't belong to → add it
         const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
         const currentGroups = groupsRef.current;
@@ -586,7 +608,7 @@ export function CanvasBoard({
               const updated = currentGroups.map((grp) =>
                 grp.id === g.id ? { ...grp, nodeIds: [...grp.nodeIds, d.id] } : grp
               );
-              onGroupsChange(updated);
+              onGroupsChangeRef.current(updated);
               break;
             }
           }
@@ -594,8 +616,8 @@ export function CanvasBoard({
       }));
 
     // Click / context on tiles
-    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => { ev.stopPropagation(); onTileClick(d.id); });
-    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenu({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
+    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => { ev.stopPropagation(); onTileClickRef.current(d.id); });
+    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
 
     // ── Text boxes ──
     const tbG = board.append('g').attr('class', 'textboxes');
@@ -651,7 +673,7 @@ export function CanvasBoard({
           divEl.addEventListener('input', () => {
             const text = divEl.innerText || '';
             if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => onUpdateTextBox(tb.id, { content: text }), 600);
+            saveTimer = setTimeout(() => onUpdateTextBoxRef.current(tb.id, { content: text }), 600);
           });
 
           // Stop propagation only when editing
@@ -711,7 +733,7 @@ export function CanvasBoard({
               g.attr('transform', `translate(${tb.x},${tb.y})`);
               drawEdges();
             })
-            .on('end', () => { prev = null; onUpdateTextBox(tb.id, { x: tb.x, y: tb.y }); });
+            .on('end', () => { prev = null; onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y }); });
         })() as any);
 
         // Resize handles on edges (not on ports)
@@ -759,7 +781,7 @@ export function CanvasBoard({
             })
             .on('end', () => {
               resizeStart = null;
-              onUpdateTextBox(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
+              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
             }) as any);
         });
 
@@ -786,13 +808,13 @@ export function CanvasBoard({
           })
           .on('end', () => {
             cornerStart = null;
-            onUpdateTextBox(tb.id, { w: tb.w, h: tb.h });
+            onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h });
           }) as any);
 
         // Context menu
         g.on('contextmenu', (ev: MouseEvent) => {
           ev.preventDefault(); ev.stopPropagation();
-          onTextBoxContextMenu({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
+          onTextBoxContextMenuRef.current({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
         });
       });
     };
@@ -828,7 +850,7 @@ export function CanvasBoard({
       tbStart = null;
       tbDrawRect.attr('opacity', 0);
       if (w < 30 || h < 20) return;
-      onAddTextBox(x, y, w, h);
+      onAddTextBoxRef.current(x, y, w, h);
     });
 
     // Click on background to place a new tile
@@ -836,14 +858,15 @@ export function CanvasBoard({
       if (!tileModeRef.current) return;
       if (ev.target !== svg) return;
       const [mx, my] = d3.pointer(ev, boardNode);
-      onAddTileAt(mx, my);
+      onAddTileAtRef.current(mx, my);
     });
 
     drawGroups();
     nodesG.raise();
     tbG.raise();
     tempLine.raise();
-  }, [tiles, layout, edges, groups, textBoxes, buildNodes, getColor, onPositionChange, onAddEdge, onDeleteEdge, onEdgeContextMenu, onTileContextMenu, onTileClick, onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddTileAt, hitTest]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -860,9 +883,9 @@ export function CanvasBoard({
 
   useEffect(() => {
     if (!resetTrigger) return;
-    onPositionChange(tiles.map((t, i) => ({ tile_id: t.id, x: OFFSET_X, y: OFFSET_Y + i * (TILE_H + TILE_GAP) })));
-    onGroupsChange([]);
+    onPositionChangeRef.current(tiles.map((t, i) => ({ tile_id: t.id, x: OFFSET_X, y: OFFSET_Y + i * (TILE_H + TILE_GAP) })));
+    onGroupsChangeRef.current([]);
   }, [resetTrigger]);
 
   return <svg ref={svgRef} className="w-full h-full bg-zinc-950" />;
-}
+});
