@@ -17,7 +17,10 @@ import {
   IconArrowsMaximize,
   IconArrowsMinimize,
   IconLayoutBoard,
+  IconPin,
+  IconPinFilled,
 } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
@@ -77,6 +80,9 @@ function TagSidebarGroup({
   onReorder,
   onOpenCanvas,
   color,
+  emoji,
+  pinnedIds,
+  onTogglePin,
 }: {
   tagType: string;
   label?: string;
@@ -88,6 +94,9 @@ function TagSidebarGroup({
   onReorder: (tagType: string, fromIndex: number, toIndex: number) => void;
   onOpenCanvas: (tagId: string) => void;
   color?: string;
+  emoji?: string;
+  pinnedIds: Set<string>;
+  onTogglePin: (tagId: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
@@ -101,18 +110,30 @@ function TagSidebarGroup({
     }
   }, [tags.length, isOpen]);
 
-  const Icon = TAG_TYPE_ICONS[tagType] || IconTag;
   const label = labelProp || TAG_TYPE_LABELS[tagType] || tagType.toUpperCase();
+
+  // Resolve icon: use emoji from tag type (could be Tabler icon name like "IconFolder" or unicode emoji)
+  const resolveIcon = () => {
+    if (emoji) {
+      if (emoji.startsWith('Icon')) {
+        const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
+        if (Comp) return <Comp size={13} style={color ? { color } : undefined} />;
+      }
+      return <span style={{ fontSize: 11, color: color || undefined }}>{emoji}</span>;
+    }
+    const FallbackIcon = TAG_TYPE_ICONS[tagType] || IconTag;
+    return <FallbackIcon size={13} style={color ? { color } : undefined} />;
+  };
 
   return (
     <div className="mb-0.5">
       {/* Group header */}
       <button
         onClick={onToggleGroup}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500 hover:bg-zinc-900 rounded transition-colors duration-150"
+        className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-400 bg-zinc-800/50 hover:bg-zinc-800 rounded transition-colors duration-150"
       >
         <span className="flex items-center gap-1.5">
-          <Icon size={13} style={color ? { color } : undefined} />
+          {resolveIcon()}
           {label}
         </span>
         <IconChevronDown
@@ -158,9 +179,19 @@ function TagSidebarGroup({
                 dragIdx === idx && 'opacity-40',
               )}>
                 <button
+                  onClick={(e) => { e.stopPropagation(); onTogglePin(tag.id); }}
+                  className={cn(
+                    'w-3.5 flex items-center justify-center shrink-0 transition-opacity ml-2',
+                    pinnedIds.has(tag.id) ? 'opacity-100 text-amber-500' : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-amber-400'
+                  )}
+                  title={pinnedIds.has(tag.id) ? 'Rimuovi pin' : 'Aggiungi pin'}
+                >
+                  {pinnedIds.has(tag.id) ? <IconPinFilled size={9} /> : <IconPin size={9} />}
+                </button>
+                <button
                   onClick={() => onToggle(tag.id)}
                   className={cn(
-                    'flex-1 text-left px-3 py-1 pl-7 text-xs',
+                    'flex-1 text-left pl-1.5 py-1 text-xs truncate min-w-0',
                     isSelected ? 'text-white font-medium' : 'text-zinc-400 hover:text-zinc-300',
                   )}
                 >
@@ -192,7 +223,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   const pathname = usePathname();
   const { user, signOut } = useAuthStore();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
-  const { tagTypes, getColor: getTypeColor } = useTagTypes();
+  const { tagTypes, getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
 
   // ─── New tiles notification ───
   const { lastSeen, readIds, dismissAll } = useTileNotificationStore();
@@ -219,6 +250,22 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   }, [tilesData, lastSeen, readIds]);
 
   const hasFilter = selectedTagIds.size > 0;
+
+  // ─── Pin state ───
+  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
+    try { const raw = localStorage.getItem('sidebar_pinned_tags'); return new Set(raw ? JSON.parse(raw) : []); }
+    catch { return new Set(); }
+  });
+  const [viewMode, setViewMode] = useState<'tags' | 'pins'>('tags');
+
+  const togglePin = useCallback((tagId: string) => {
+    setPinnedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId); else next.add(tagId);
+      try { localStorage.setItem('sidebar_pinned_tags', JSON.stringify([...next])); } catch { /* */ }
+      return next;
+    });
+  }, []);
 
   // ─── Reorder tags within a group (persist in DB via settings API) ───
   const queryClient = useQueryClient();
@@ -347,8 +394,40 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
     saveGroupOrderMutation.mutate(next);
   }, [sortedGrouped, queryClient, saveGroupOrderMutation]);
 
+  // ─── Resizable sidebar width ───
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try { const w = localStorage.getItem('sidebar_width'); return w ? parseInt(w, 10) : 192; }
+    catch { return 192; }
+  });
+  const resizing = useRef(false);
+
+  const onResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    resizing.current = true;
+    const startX = e.clientX;
+    const startW = sidebarWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      lastW = Math.max(192, Math.min(400, startW + ev.clientX - startX));
+      setSidebarWidth(lastW);
+    };
+    const onUp = () => {
+      resizing.current = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      try { localStorage.setItem('sidebar_width', String(lastW)); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }, [sidebarWidth]);
+
   return (
-    <div className="flex h-full w-48 flex-col border-r border-zinc-800" style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
+    <div className="flex h-full flex-col border-r border-zinc-800 relative" style={{ width: sidebarWidth, minWidth: 192, backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
+      {/* Resize handle */}
+      <div
+        className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10"
+        onMouseDown={onResizeStart}
+      />
       {/* Logo + notification */}
       <div className="flex h-12 items-center px-3 gap-2 shrink-0">
         <span className="text-lg font-bold text-white">Gimmick</span>
@@ -365,31 +444,81 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
 
       <Separator className="bg-zinc-800" />
 
-      {/* Tags header */}
+      {/* Tags header with TAGS/PINS toggle */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold">Tags</span>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setViewMode('tags')}
+            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors',
+              viewMode === 'tags' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
+            )}
+          >Tags</button>
+          <button
+            onClick={() => setViewMode('pins')}
+            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5',
+              viewMode === 'pins' ? 'text-amber-400 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
+            )}
+          >
+            <IconPinFilled size={9} />
+            Pins
+            {pinnedIds.size > 0 && <span className="text-[8px] text-zinc-500">({pinnedIds.size})</span>}
+          </button>
+        </div>
         <div className="flex items-center gap-1">
           {hasFilter && (
             <button onClick={clear} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5">
               <IconX className="h-2.5 w-2.5" /> Clear
             </button>
           )}
-          <button
-            onClick={allExpanded ? collapseAll : expandAll}
-            className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
-            title={allExpanded ? 'Collapse all' : 'Expand all'}
-          >
-            {allExpanded
-              ? <IconArrowsMinimize className="h-3 w-3" />
-              : <IconArrowsMaximize className="h-3 w-3" />
-            }
-          </button>
+          {viewMode === 'tags' && (
+            <button
+              onClick={allExpanded ? collapseAll : expandAll}
+              className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+              title={allExpanded ? 'Collapse all' : 'Expand all'}
+            >
+              {allExpanded ? <IconArrowsMinimize className="h-3 w-3" /> : <IconArrowsMaximize className="h-3 w-3" />}
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Grouped tag list */}
+      {/* Grouped tag list or pinned list */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {sortedGrouped.map((group, idx) => (
+        {viewMode === 'pins' ? (
+          // Pinned tags grouped by type
+          (() => {
+            const pinnedGrouped = sortedGrouped
+              .map((g) => ({ ...g, tags: g.tags.filter((t) => pinnedIds.has(t.id)) }))
+              .filter((g) => g.tags.length > 0);
+            return pinnedGrouped.length === 0 ? (
+              <p className="text-[10px] text-zinc-500 text-center py-4">Nessun tag pinnato</p>
+            ) : (
+              pinnedGrouped.map((group) => (
+                <TagSidebarGroup
+                  key={group.type}
+                  tagType={group.type}
+                  label={group.label}
+                  tags={group.tags}
+                  selectedTagIds={selectedTagIds}
+                  onToggle={(tagId) => {
+                    if (pathname === '/canvas') router.push(`/canvas?tag=${tagId}`);
+                    else if (pathname === '/graph') router.push(`/graph?tag=${tagId}`);
+                    else toggle(tagId);
+                  }}
+                  isOpen={true}
+                  onToggleGroup={() => {}}
+                  onReorder={handleReorder}
+                  onOpenCanvas={(tagId) => router.push(`/canvas?tag=${tagId}`)}
+                  color={getTypeColor(group.type)}
+                  emoji={getTypeEmoji(group.type)}
+                  pinnedIds={pinnedIds}
+                  onTogglePin={togglePin}
+                />
+              ))
+            );
+          })()
+        ) : (
+        sortedGrouped.map((group, idx) => (
           <div
             key={group.type}
             draggable
@@ -440,9 +569,12 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               onReorder={handleReorder}
               onOpenCanvas={(tagId) => router.push(`/canvas?tag=${tagId}`)}
               color={getTypeColor(group.type)}
+              emoji={getTypeEmoji(group.type)}
+              pinnedIds={pinnedIds}
+              onTogglePin={togglePin}
             />
           </div>
-        ))}
+        )))}
       </div>
 
       {/* Ask Gimmick */}

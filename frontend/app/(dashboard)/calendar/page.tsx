@@ -20,6 +20,7 @@ import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange } 
 import { usePatterns } from '@/store/patterns-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useStatusIcons } from '@/store/status-icons-store';
+import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
 
 const FALLBACK_COLOR = '#888780';
@@ -1600,47 +1601,28 @@ export default function CalendarPage() {
                 {showDate && (
                   <div className="space-y-2">
                     <div>
-                      <label className="text-[11px] text-zinc-500 mb-0.5 block">{isDeadline ? 'Scadenza' : 'Data'}</label>
+                      <label className="text-[11px] text-zinc-500 mb-0.5 block">Date</label>
                       <input type="date" value={dateVal} onChange={(e) => setDate(e.target.value)}
                         className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500" />
                     </div>
-                    {isTimed && (() => {
-                      const sH = startTime.slice(0, 2);
-                      const sM = startTime.slice(3, 5);
-                      const eH = endTime.slice(0, 2);
-                      const eM = endTime.slice(3, 5);
-                      const selCls = "bg-zinc-800/60 border border-zinc-700 rounded px-1 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500";
-                      const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-                      const mins = ['00', '15', '30', '45'];
-                      return (
+                    {isTimed && (
                       <div className="flex gap-2">
                         <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Inizio</label>
-                          <div className="flex gap-1 items-center">
-                            <select value={sH} onChange={(e) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${e.target.value}:${sM}`).toISOString() }); }} className={selCls}>
-                              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                            <span className="text-zinc-500 text-xs">:</span>
-                            <select value={sM} onChange={(e) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${sH}:${e.target.value}`).toISOString() }); }} className={selCls}>
-                              {mins.map((m) => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                          </div>
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
+                          <TimePicker
+                            value={startTime || '09:00'}
+                            onChange={(t) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                          />
                         </div>
                         <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Fine</label>
-                          <div className="flex gap-1 items-center">
-                            <select value={eH} onChange={(e) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${e.target.value}:${eM}`).toISOString() }); }} className={selCls}>
-                              {hours.map((h) => <option key={h} value={h}>{h}</option>)}
-                            </select>
-                            <span className="text-zinc-500 text-xs">:</span>
-                            <select value={eM} onChange={(e) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${eH}:${e.target.value}`).toISOString() }); }} className={selCls}>
-                              {mins.map((m) => <option key={m} value={m}>{m}</option>)}
-                            </select>
-                          </div>
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
+                          <TimePicker
+                            value={endTime || '10:00'}
+                            onChange={(t) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                          />
                         </div>
                       </div>
-                      );
-                    })()}
+                    )}
                   </div>
                 )}
 

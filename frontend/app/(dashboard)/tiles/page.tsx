@@ -21,20 +21,24 @@ import {
 import { cn } from '@/lib/utils';
 import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
-import { useActionColors } from '@/store/action-colors-store';
+import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { SparkViewer } from '@/components/spark/spark-viewer';
 import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
+import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
+import { useStatusIcons } from '@/store/status-icons-store';
+import { usePatterns } from '@/store/patterns-store';
+import { TimePicker } from '@/components/ui/time-picker';
 
 // Helper: render emoji string or Tabler icon component
-function TagTypeIcon({ emoji, size = 16 }: { emoji: string; size?: number }) {
+function TagTypeIcon({ emoji, size = 16, color }: { emoji: string; size?: number; color?: string }) {
   if (emoji.startsWith('Icon')) {
-    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>)[emoji];
-    if (Comp) return <Comp size={size} className="text-zinc-300" />;
+    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
+    if (Comp) return <Comp size={size} style={color ? { color } : { color: '#D4D4D8' }} />;
   }
-  return <span style={{ fontSize: size * 0.8 }}>{emoji}</span>;
+  return <span style={{ fontSize: size * 0.8, color: color || undefined }}>{emoji}</span>;
 }
 
 const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
@@ -288,12 +292,27 @@ function InlineActionDropdown({
   };
 
   const actionColors = useActionColors();
+  const actionBorders = useActionBorders();
   const at = tile.action_type || 'none';
-  const cfg = ACTION_TYPE_BADGE[at];
+  const isAllDay = at === 'event' && tile.all_day;
+  const displayAt = isAllDay ? 'allday' as ActionType : at;
+  const cfg = ACTION_TYPE_BADGE[displayAt];
   const Icon = cfg.icon;
-  const atColor = actionColors[at];
+  const atColor = actionColors[displayAt];
+  const atBorder = (actionBorders as Record<string, string>)[displayAt] as BorderStyle || 'solid';
   const subtitle = formatActionSubtitle(tile);
   const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
+
+  const getBorderCSS = (): React.CSSProperties => {
+    switch (atBorder) {
+      case 'solid': return { border: `1.5px solid ${atColor}` };
+      case 'dashed': return { border: `1.5px dashed ${atColor}` };
+      case 'dotted': return { border: `1.5px dotted ${atColor}` };
+      case 'thick': return { border: `3px solid ${atColor}` };
+      case 'double': return { border: `3px double ${atColor}` };
+      case 'none': return { border: '1.5px solid transparent' };
+    }
+  };
 
   const showPortal = open || pickerMode;
 
@@ -302,13 +321,14 @@ function InlineActionDropdown({
       <button
         ref={triggerRef}
         onClick={handleToggle}
-        className="flex flex-col items-start gap-0 w-full text-left"
+        className="flex flex-col justify-center gap-0 w-full text-left rounded px-1.5"
+        style={{ ...getBorderCSS(), minHeight: 36, backgroundColor: `${atColor}15` }}
       >
-        <div className="flex items-center gap-1">
-          <Icon className="h-3 w-3" style={{ color: atColor }} />
-          <span className="text-xs" style={{ color: atColor }}>{cfg.label}</span>
-          <IconChevronDown className="h-3 w-3 text-zinc-500" />
+        <div className="flex items-center gap-1 w-full">
+          <Icon className="h-3 w-3" style={{ color: '#93C5FD' }} />
+          <span className="text-xs flex-1" style={{ color: '#93C5FD' }}>{cfg.label}</span>
           {hasAiHint && <IconSparkles className="h-2.5 w-2.5 text-purple-400" />}
+          <IconChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
         </div>
         {subtitle && (
           <span className="text-[11px] text-zinc-500 leading-tight truncate max-w-full">
@@ -325,24 +345,51 @@ function InlineActionDropdown({
           {/* Action type options */}
           {open && (
             <div className="w-36 py-1">
-              {(['none', 'anytime', 'deadline', 'event'] as ActionType[]).map((opt) => {
-                const optCfg = ACTION_TYPE_BADGE[opt];
-                const OptIcon = optCfg.icon;
-                const isActive = at === opt;
+              {([
+                { value: 'none' as ActionType, label: 'Notes', allDay: false },
+                { value: 'anytime' as ActionType, label: 'To Do', allDay: false },
+                { value: 'deadline' as ActionType, label: 'Deadline', allDay: false },
+                { value: 'event' as ActionType, label: 'All Day', allDay: true },
+                { value: 'event' as ActionType, label: 'Timed', allDay: false },
+              ]).map((opt) => {
+                const optCfg = ACTION_TYPE_BADGE[opt.value];
+                const OptIcon = opt.allDay ? IconCalendarEvent : optCfg.icon;
+                const isActive = opt.value === 'event'
+                  ? at === 'event' && (opt.allDay ? !!tile.all_day : !tile.all_day)
+                  : at === opt.value;
+                const colorKey = opt.allDay ? 'allday' as ActionType : opt.value;
                 return (
                   <button
-                    key={opt}
+                    key={opt.label}
                     className={cn(
                       'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
                       isActive && 'bg-zinc-800'
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSelectOption(opt);
+                      if (opt.value === 'event') {
+                        // For event types, set allDay and skip date picker for All Day
+                        setOpen(false);
+                        if (opt.allDay) {
+                          const today = new Date().toISOString().slice(0, 10);
+                          onUpdate({
+                            action_type: 'event',
+                            is_event: true,
+                            all_day: true,
+                            start_at: tile.start_at || new Date(`${today}T00:00:00`).toISOString(),
+                            end_at: tile.end_at || new Date(`${today}T23:59:59`).toISOString(),
+                          });
+                        } else {
+                          setPickerAllDay(false);
+                          handleSelectOption('event');
+                        }
+                      } else {
+                        handleSelectOption(opt.value);
+                      }
                     }}
                   >
-                    <OptIcon className="h-3.5 w-3.5" style={{ color: actionColors[opt] }} />
-                    <span className="text-zinc-300">{optCfg.label}</span>
+                    <OptIcon className="h-3.5 w-3.5" style={{ color: actionColors[colorKey] }} />
+                    <span className="text-zinc-300">{opt.label}</span>
                     {isActive && <IconCheck className="h-3 w-3 text-blue-400 ml-auto" />}
                   </button>
                 );
@@ -523,8 +570,13 @@ function TagDropdown({
 
   if (!open) return null;
 
-  const tileTagIds = new Set(tileTags.map((t) => t.id));
+  // Only show the first non-root tag as assigned (single-tag mode)
+  const rootTagIds = new Set(allTags.filter((t) => t.is_root).map((t) => t.id));
+  const nonRootTileTags = tileTags.filter((t) => !rootTagIds.has(t.id));
+  const assignedTagId = nonRootTileTags.length > 0 ? nonRootTileTags[0].id : null;
   const isBulk = tileIds.length > 1;
+  // Filter out root tags from the dropdown
+  const visibleTags = allTags.filter((t) => !t.is_root);
 
   return createPortal(
     <div
@@ -537,11 +589,11 @@ function TagDropdown({
           {tileIds.length} tile selezionati
         </p>
       )}
-      {allTags.length === 0 ? (
+      {visibleTags.length === 0 ? (
         <p className="text-xs text-zinc-500 px-3 py-2">Nessun tag disponibile</p>
       ) : (
-        allTags.map((tag) => {
-          const isAssigned = tileTagIds.has(tag.id);
+        visibleTags.map((tag) => {
+          const isAssigned = tag.id === assignedTagId;
           return (
             <button
               key={tag.id}
@@ -551,12 +603,8 @@ function TagDropdown({
                 tagMutation.mutate({ tagId: tag.id, action: isAssigned ? 'remove' : 'add' });
               }}
             >
-              <div
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: getTypeColor(tag.tag_type || 'topic') || '#94A3B8' }}
-              />
-              <TagTypeIcon emoji={getTypeEmoji(tag.tag_type || 'topic')} size={14} />
-              <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
+              <TagTypeIcon emoji={getTypeEmoji(tag.tag_type || 'topic')} size={13} />
+              <span className={cn('flex-1 truncate', isAssigned ? 'text-white font-medium' : 'text-zinc-400')} style={{ color: isAssigned ? getTypeColor(tag.tag_type || 'topic') || '#94A3B8' : undefined }}>{tag.name}</span>
               {isAssigned && <IconCheck className="h-3 w-3 text-blue-400 shrink-0" />}
             </button>
           );
@@ -701,6 +749,98 @@ function ResizableHead({
   );
 }
 
+const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>>;
+
+function TipoStatusPatternCells({ tile, colWidths, onUpdate }: { tile: Tile; colWidths: { dataScad: number; oraInizio: number; oraFine: number; status: number; pattern: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void }) {
+  const statusIcons = useStatusIcons((s) => s.icons);
+  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
+  const { customPatterns } = usePatterns();
+
+  const siId = statusTileIcons[tile.id];
+  const si = siId ? statusIcons.find((i) => i.id === siId) : null;
+  const SiComp = si?.icon ? AllIcons[si.icon] : null;
+
+  const pattern = tile.pattern_id ? customPatterns.find((p) => p.id === tile.pattern_id) : null;
+
+  const typeLabel = tile.all_day ? 'ALL DAY' : (TYPE_LABELS[tile.action_type || 'none'] || tile.action_type);
+
+  const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
+  const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
+  const dateVal = dateRef ? new Date(dateRef).toISOString().slice(0, 10) : '';
+  const startH = tile.start_at ? String(new Date(tile.start_at).getHours()).padStart(2, '0') : '';
+  const startM = tile.start_at ? String(new Date(tile.start_at).getMinutes()).padStart(2, '0') : '';
+  const endH = tile.end_at ? String(new Date(tile.end_at).getHours()).padStart(2, '0') : '';
+  const endM = tile.end_at ? String(new Date(tile.end_at).getMinutes()).padStart(2, '0') : '';
+  const isTimed = tile.action_type === 'event' && !tile.all_day;
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const mins = ['00', '15', '30', '45'];
+  const selCls = "w-full bg-transparent text-[10px] text-zinc-300 focus:outline-none cursor-pointer";
+
+  const updateDate = (newDate: string) => {
+    if (!newDate) return;
+    if (tile.action_type === 'deadline') {
+      onUpdate(tile.id, { end_at: new Date(`${newDate}T23:59:59`).toISOString() });
+    } else if (isTimed) {
+      onUpdate(tile.id, { start_at: new Date(`${newDate}T${startH || '09'}:${startM || '00'}`).toISOString(), end_at: tile.end_at ? new Date(`${newDate}T${endH || '10'}:${endM || '00'}`).toISOString() : undefined });
+    } else {
+      onUpdate(tile.id, { start_at: new Date(`${newDate}T00:00:00`).toISOString(), end_at: new Date(`${newDate}T23:59:59`).toISOString() });
+    }
+  };
+
+  return (
+    <>
+      {/* Data/Scadenza */}
+      <TableCell className="border-r border-zinc-800 p-0.5" style={{ width: colWidths.dataScad, minWidth: colWidths.dataScad, maxWidth: colWidths.dataScad }}>
+        {hasDate ? (
+          <input type="date" value={dateVal} onChange={(e) => updateDate(e.target.value)}
+            className="w-full bg-transparent text-[10px] text-zinc-300 focus:outline-none cursor-pointer" />
+        ) : <span className="text-zinc-600 text-xs px-1">—</span>}
+      </TableCell>
+      {/* Inizio */}
+      <TableCell className="border-r border-zinc-800 p-0.5" style={{ width: colWidths.oraInizio, minWidth: colWidths.oraInizio, maxWidth: colWidths.oraInizio }}>
+        {isTimed ? (
+          <TimePicker
+            value={`${startH || '09'}:${startM || '00'}`}
+            onChange={(t) => { if (dateVal) onUpdate(tile.id, { start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
+            compact
+          />
+        ) : <span className="text-zinc-600 text-xs px-1">—</span>}
+      </TableCell>
+      {/* Fine */}
+      <TableCell className="border-r border-zinc-800 p-0.5" style={{ width: colWidths.oraFine, minWidth: colWidths.oraFine, maxWidth: colWidths.oraFine }}>
+        {isTimed ? (
+          <TimePicker
+            value={`${endH || '10'}:${endM || '00'}`}
+            onChange={(t) => { if (dateVal) onUpdate(tile.id, { end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
+            compact
+          />
+        ) : <span className="text-zinc-600 text-xs px-1">—</span>}
+      </TableCell>
+      {/* Status */}
+      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
+        {si && SiComp ? (
+          <div className="flex items-center gap-1">
+            <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: si.color || '#27272A' }}>
+              <SiComp size={10} className="text-white" />
+            </div>
+            <span className="text-[10px] text-zinc-400 truncate">{si.name}</span>
+          </div>
+        ) : (
+          <span className="text-zinc-600 text-xs">—</span>
+        )}
+      </TableCell>
+      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.pattern, minWidth: colWidths.pattern, maxWidth: colWidths.pattern }}>
+        {pattern ? (
+          <span className="text-[10px] text-zinc-400 truncate">{pattern.name}</span>
+        ) : (
+          <span className="text-zinc-600 text-xs">—</span>
+        )}
+      </TableCell>
+    </>
+  );
+}
+
 function TileRow({
   tile,
   selected,
@@ -719,7 +859,7 @@ function TileRow({
   selected: boolean;
   selectedIds: Set<string>;
   allTags: Tag[];
-  colWidths: { title: number; actionType: number; sparks: number; tags: number };
+  colWidths: { title: number; actionType: number; sparks: number; tags: number; dataScad: number; oraInizio: number; oraFine: number; status: number; pattern: number };
   onSelect: (id: string, checked: boolean) => void;
   onSparkClick: (spark: Spark) => void;
   onTileClick: (tile: Tile) => void;
@@ -827,15 +967,19 @@ function TileRow({
           }}
         >
           <div className="flex items-center gap-1.5">
-            {tile.tags && tile.tags.length > 0 ? (
-              <>
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getColor((tile.tags[0] as { tag_type?: string }).tag_type || 'topic') || '#94A3B8' }} />
-                <TagTypeIcon emoji={getEmoji((tile.tags[0] as { tag_type?: string }).tag_type || 'topic')} size={13} />
-                <span className="text-xs text-zinc-300 truncate flex-1">{tile.tags[0].name}</span>
-              </>
-            ) : (
-              <span className="text-zinc-600 text-xs flex-1">—</span>
-            )}
+            {(() => {
+              const rootIds = new Set(allTags.filter((t) => t.is_root).map((t) => t.id));
+              const displayTag = tile.tags?.find((t) => !rootIds.has(t.id)) || tile.tags?.[0];
+              if (displayTag) {
+                return (
+                  <>
+                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={13} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || '#64748B'} />
+                    <span className="text-xs text-zinc-300 truncate flex-1">{displayTag.name}</span>
+                  </>
+                );
+              }
+              return <span className="text-zinc-600 text-xs flex-1">—</span>;
+            })()}
             <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />
           </div>
           <TagDropdown
@@ -847,6 +991,7 @@ function TileRow({
             anchorRef={tagCellRef}
           />
         </TableCell>
+        <TipoStatusPatternCells tile={tile} colWidths={colWidths} onUpdate={(id, updates) => onActionTypeChange(id, updates as any)} />
         <TableCell className="text-zinc-400 text-xs border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
         </TableCell>
@@ -875,6 +1020,8 @@ export default function TilesPage() {
   const [page, setPage] = useState(1);
   const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
+  const [sidebarTileId, setSidebarTileId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
 
@@ -902,6 +1049,11 @@ export default function TilesPage() {
     actionType: 140,
     sparks: 340,
     tags: 160,
+    dataScad: 100,
+    oraInizio: 70,
+    oraFine: 70,
+    status: 80,
+    pattern: 80,
   });
   const setColWidth = useCallback(
     (col: keyof typeof colWidths, w: number) =>
@@ -1075,6 +1227,7 @@ export default function TilesPage() {
         ) : undefined}
       />
 
+      <div className="flex flex-1 overflow-hidden">
       <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
         {/* AI Filter Banner */}
         {aiFilterIds && (
@@ -1132,7 +1285,7 @@ export default function TilesPage() {
         ) : (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
             <div className="flex-1 overflow-auto">
-              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + 40 + 60 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + 40 + 60 + 60 + 80 + 56 }}>
+              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.oraInizio + colWidths.oraFine + colWidths.status + colWidths.pattern + 40 + 60 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.oraInizio + colWidths.oraFine + colWidths.status + colWidths.pattern + 40 + 60 + 60 + 80 + 56 }}>
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900">
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
@@ -1151,14 +1304,14 @@ export default function TilesPage() {
                     </TableHead>
                     <TableHead
                       ref={completedHeadRef}
-                      className="border-r border-zinc-800 text-zinc-400"
+                      className="border-r border-zinc-800 text-zinc-400 text-xs"
                       style={{ width: 60, minWidth: 60, maxWidth: 60 }}
                     >
                       <button
                         onClick={() => setOpenFilter(openFilter === 'completed' ? null : 'completed')}
                         className="flex items-center gap-1 w-full text-left"
                       >
-                        <span className="text-[10px] truncate">Done</span>
+                        <span className="text-xs truncate">Done</span>
                         <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', completedFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
@@ -1166,7 +1319,7 @@ export default function TilesPage() {
                       label="Title"
                       width={colWidths.title}
                       onResize={(w) => setColWidth('title', w)}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       hasActiveFilter={!!titleFilter}
                       filterOpen={openFilter === 'title'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'title' ? null : 'title')}
@@ -1176,7 +1329,7 @@ export default function TilesPage() {
                       label="Action"
                       width={colWidths.actionType}
                       onResize={(w) => setColWidth('actionType', w)}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       hasActiveFilter={actionFilter.size > 0}
                       filterOpen={openFilter === 'action'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'action' ? null : 'action')}
@@ -1186,7 +1339,7 @@ export default function TilesPage() {
                       label="Sparks"
                       width={colWidths.sparks}
                       onResize={(w) => setColWidth('sparks', w)}
-                      className="text-zinc-400 text-left border-r border-zinc-800"
+                      className="text-zinc-400 text-left border-r border-zinc-800 text-xs"
                       hasActiveFilter={sparkTypeFilter.size > 0}
                       filterOpen={openFilter === 'sparks'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'sparks' ? null : 'sparks')}
@@ -1196,22 +1349,27 @@ export default function TilesPage() {
                       label="Tags"
                       width={colWidths.tags}
                       onResize={(w) => setColWidth('tags', w)}
-                      className="text-zinc-400 text-left border-r border-zinc-800"
+                      className="text-zinc-400 text-left border-r border-zinc-800 text-xs"
                       hasActiveFilter={tagFilter.size > 0}
                       filterOpen={openFilter === 'tags'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'tags' ? null : 'tags')}
                       headRef={tagsHeadRef}
                     />
+                    <ResizableHead width={colWidths.dataScad} onResize={(w) => setColWidth('dataScad', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Date</ResizableHead>
+                    <ResizableHead width={colWidths.oraInizio} onResize={(w) => setColWidth('oraInizio', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Start</ResizableHead>
+                    <ResizableHead width={colWidths.oraFine} onResize={(w) => setColWidth('oraFine', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">End</ResizableHead>
+                    <ResizableHead width={colWidths.status} onResize={(w) => setColWidth('status', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Status</ResizableHead>
+                    <ResizableHead width={colWidths.pattern} onResize={(w) => setColWidth('pattern', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Pattern</ResizableHead>
                     <TableHead
                       ref={dateHeadRef}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       style={{ width: 80, minWidth: 80, maxWidth: 80 }}
                     >
                       <button
                         onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
                         className="flex items-center gap-1 w-full text-left"
                       >
-                        <span className="truncate">Date</span>
+                        <span className="text-xs truncate">Created</span>
                         <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
@@ -1229,7 +1387,7 @@ export default function TilesPage() {
                       colWidths={colWidths}
                       onSelect={handleSelect}
                       onSparkClick={setSelectedMemo}
-                      onTileClick={setSelectedTile}
+                      onTileClick={(tile) => { queryClient.setQueryData(['tile-detail', tile.id], { data: tile }); setSidebarTileId(tile.id); setSidebarOpen(true); }}
                       onActionTypeChange={handleActionTypeChange}
                       onToggleCompleted={handleToggleCompleted}
                       getEmoji={getEmoji}
@@ -1445,6 +1603,13 @@ export default function TilesPage() {
         open={selectedTile !== null}
         onOpenChange={(open) => { if (!open) setSelectedTile(null); }}
       />
+      <TileSidebar
+        tileId={sidebarTileId}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        invalidateKeys={['tiles']}
+      />
+    </div>
     </div>
   );
 }
