@@ -15,7 +15,6 @@ export interface Tile {
   id: string;
   user_id: string;
   title?: string;
-  description?: string;
   start_at?: string;
   end_at?: string;
   is_event?: boolean;

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -44,7 +44,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [actionType, setActionType] = useState<ActionType>('none');
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
@@ -60,7 +59,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   useEffect(() => {
     if (tile) {
       setTitle(tile.title || '');
-      setDescription(tile.description || '');
       setActionType(tile.action_type || 'none');
       setStartAt(tile.start_at ? toLocalDatetime(tile.start_at) : '');
       setEndAt(tile.end_at ? toLocalDatetime(tile.end_at) : '');
@@ -73,7 +71,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
       if (!tile) return;
       const updates: Record<string, unknown> = {
         title: title || undefined,
-        description: description || undefined,
         action_type: actionType,
       };
       if (actionType === 'event' || actionType === 'deadline') {
@@ -157,19 +154,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titolo tile..."
               className="mt-1 bg-zinc-800 border-zinc-700 text-white"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label htmlFor="tile-desc" className="text-xs text-zinc-400">Descrizione</Label>
-            <Textarea
-              id="tile-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrizione..."
-              rows={2}
-              className="mt-1 bg-zinc-800 border-zinc-700 text-white resize-none"
             />
           </div>
 

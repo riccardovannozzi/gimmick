@@ -202,20 +202,20 @@ export const tilesApi = {
 
   async graph() {
     return apiRequest<{
-      tiles: { id: string; title?: string; description?: string; created_at: string; action_type?: ActionType }[];
+      tiles: { id: string; title?: string; created_at: string; action_type?: ActionType }[];
       sparks: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
       tags: { id: string; name: string; created_at: string; tile_ids: string[] }[];
     }>('/api/tiles/graph');
   },
 
-  async create(tile?: { title?: string; description?: string }) {
+  async create(tile?: { title?: string }) {
     return apiRequest<Tile>('/api/tiles', {
       method: 'POST',
       body: JSON.stringify(tile || {}),
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; pattern_id?: string | null; sort_order?: number }) {
+  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; pattern_id?: string | null; sort_order?: number }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -390,7 +390,6 @@ export const calendarApi = {
 
   async createEvent(data: {
     title?: string;
-    description?: string;
     start_at?: string;
     end_at?: string;
   }) {
@@ -405,7 +404,6 @@ export const calendarApi = {
     start_at?: string;
     end_at?: string;
     title?: string;
-    description?: string;
     auto_detect?: boolean;
   }) {
     return apiRequest<Tile>('/api/calendar/schedule', {
@@ -423,7 +421,6 @@ export const calendarApi = {
 
   async updateEvent(id: string, updates: {
     title?: string;
-    description?: string;
     start_at?: string;
     end_at?: string;
     action_type?: string;

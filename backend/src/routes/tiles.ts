@@ -16,12 +16,10 @@ tilesRouter.use(authenticate);
 // Validation schemas
 const createTileSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
 });
 
 const updateTileSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
   action_type: z.enum(ACTION_TYPES).optional(),
   is_event: z.boolean().optional(),
   all_day: z.boolean().optional(),
@@ -132,7 +130,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all tiles
     const { data: tiles, error: tilesError } = await supabaseAdmin
       .from('tiles')
-      .select('id, title, description, created_at, action_type')
+      .select('id, title, created_at, action_type')
       .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 

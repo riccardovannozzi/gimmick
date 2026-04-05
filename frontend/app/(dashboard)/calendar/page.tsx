@@ -118,7 +118,6 @@ interface EventModalState {
   mode: 'create' | 'edit';
   tileId?: string;
   title: string;
-  description: string;
   allDay: boolean;
   startAt: string;
   endAt: string;
@@ -134,7 +133,6 @@ const emptyModal: EventModalState = {
   open: false,
   mode: 'create',
   title: '',
-  description: '',
   allDay: false,
   startAt: '',
   endAt: '',
@@ -380,7 +378,6 @@ export default function CalendarPage() {
   const createEventMutation = useMutation({
     mutationFn: (params: {
       title?: string;
-      description?: string;
       start_at?: string;
       end_at?: string;
     }) => calendarApi.createEvent(params),
@@ -397,7 +394,6 @@ export default function CalendarPage() {
       start_at?: string;
       end_at?: string;
       title?: string;
-      description?: string;
       auto_detect?: boolean;
     }) => calendarApi.schedule(params),
     onSuccess: () => {
@@ -409,7 +405,7 @@ export default function CalendarPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string; action_type?: string; all_day?: boolean } }) =>
+    mutationFn: (params: { id: string; updates: { title?: string; start_at?: string; end_at?: string; action_type?: string; all_day?: boolean } }) =>
       calendarApi.updateEvent(params.id, params.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -625,7 +621,7 @@ export default function CalendarPage() {
     if (!clipboardTile) return;
     setCtxMenu(null);
     try {
-      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+      const res = await tilesApi.create({ title: clipboardTile.title });
       const newId = res?.data?.id;
       if (newId) {
         await tilesApi.update(newId, {
@@ -674,7 +670,7 @@ export default function CalendarPage() {
     const actionType = colCtxMenu.type === 'notes' ? 'none' : 'anytime';
     setColCtxMenu(null);
     try {
-      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+      const res = await tilesApi.create({ title: clipboardTile.title });
       const newId = res?.data?.id;
       if (newId) {
         await tilesApi.update(newId, {
@@ -732,7 +728,6 @@ export default function CalendarPage() {
           tile_id: modal.tileId,
           ...computeDates(),
           title: modal.title || undefined,
-          description: modal.description || undefined,
           auto_detect: modal.autoDetect,
         });
         if (modal.tagIds.length > 0) {
@@ -744,7 +739,6 @@ export default function CalendarPage() {
         const result = await new Promise<ApiResponse<Tile>>((resolve) => {
           createEventMutation.mutate({
             title: modal.title || undefined,
-            description: modal.description || undefined,
             ...computeDates(),
           }, { onSuccess: resolve });
         });
@@ -780,7 +774,6 @@ export default function CalendarPage() {
         id: modal.tileId,
         updates: {
           title: modal.title,
-          description: modal.description,
           start_at: dates.start_at,
           end_at: dates.end_at,
           action_type: modal.actionType,
@@ -1417,7 +1410,7 @@ export default function CalendarPage() {
                   setSlotCtxMenu(null);
                   (async () => {
                     try {
-                      const res = await tilesApi.create({ title: clipboardTile.title, description: clipboardTile.description });
+                      const res = await tilesApi.create({ title: clipboardTile.title });
                       const newId = res?.data?.id;
                       if (newId) {
                         await tilesApi.update(newId, {
@@ -1545,18 +1538,6 @@ export default function CalendarPage() {
                     className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5"
                     placeholder="Titolo..."
                     autoFocus
-                  />
-                </div>
-
-                {/* Descrizione */}
-                <div>
-                  <label className="text-[11px] text-zinc-500">Descrizione</label>
-                  <textarea
-                    value={modal.description}
-                    onChange={(e) => setModal({ ...modal, description: e.target.value })}
-                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 mt-0.5 resize-none overflow-hidden"
-                    placeholder="Descrizione..."
-                    rows={2}
                   />
                 </div>
 

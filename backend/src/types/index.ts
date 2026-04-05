@@ -24,7 +24,6 @@ export interface Tile {
   id: string;
   user_id: string;
   title?: string;
-  description?: string;
   start_at?: string;
   end_at?: string;
   is_event?: boolean;
@@ -43,7 +42,6 @@ export interface Tile {
 // Create tile DTO
 export interface CreateTileDto {
   title?: string;
-  description?: string;
   start_at?: string;
   end_at?: string;
   is_event?: boolean;

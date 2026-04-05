@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
-import { processNewSpark } from '../services/indexing.js';
+
 
 const anthropic = new Anthropic();
 
@@ -19,13 +19,11 @@ const scheduleSchema = z.object({
   start_at: z.string().optional(),
   end_at: z.string().optional(),
   title: z.string().optional(),
-  description: z.string().optional(),
   auto_detect: z.boolean().optional(),
 });
 
 const createEventSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
   start_at: z.string().optional(),
   end_at: z.string().optional(),
 });
@@ -106,7 +104,7 @@ calendarRouter.post(
   validate(scheduleSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { tile_id, start_at, end_at, title, description, auto_detect } = req.body;
+      const { tile_id, start_at, end_at, title, auto_detect } = req.body;
 
       // Verify tile ownership
       const { data: tile, error: fetchError } = await supabaseAdmin
@@ -149,7 +147,6 @@ calendarRouter.post(
         updated_at: new Date().toISOString(),
       };
       if (title) updateData.title = title;
-      if (description) updateData.description = description;
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
@@ -176,14 +173,13 @@ calendarRouter.post(
  * POST /api/calendar/create-event
  * Create a new tile AND schedule it as an event in one atomic operation.
  * Every calendar event corresponds to a real tile.
- * If description is provided, also creates a text Spark with that content.
  */
 calendarRouter.post(
   '/create-event',
   validate(createEventSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { title, description, start_at, end_at } = req.body;
+      const { title, start_at, end_at } = req.body;
 
       // Normalize dates
       const finalStartAt = start_at ? new Date(start_at).toISOString() : new Date().toISOString();
@@ -197,7 +193,6 @@ calendarRouter.post(
         .insert({
           user_id: req.user!.id,
           title: title || 'Nuovo evento',
-          description: description || null,
           start_at: finalStartAt,
           end_at: finalEndAt,
           is_event: true,
@@ -208,27 +203,6 @@ calendarRouter.post(
         .single();
 
       if (error) throw error;
-
-      // If description is provided, create a text Spark with the description content
-      if (description && description.trim()) {
-        const { data: spark, error: sparkError } = await supabaseAdmin
-          .from('sparks')
-          .insert({
-            user_id: req.user!.id,
-            tile_id: data.id,
-            type: 'text',
-            content: description.trim(),
-          })
-          .select()
-          .single();
-
-        if (!sparkError && spark) {
-          // Fire-and-forget AI indexing for the new spark
-          processNewSpark(spark.id).catch((err) => {
-            console.error(`[Calendar] Spark indexing failed for ${spark.id}:`, err);
-          });
-        }
-      }
 
       res.status(201).json({
         success: true,
@@ -279,20 +253,19 @@ calendarRouter.patch(
 
 /**
  * PATCH /api/calendar/events/:id
- * Update event details (title, description, times)
+ * Update event details (title, times)
  */
 calendarRouter.patch(
   '/events/:id',
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
-      const { title, description, start_at, end_at, action_type, all_day } = req.body;
+      const { title, start_at, end_at, action_type, all_day } = req.body;
 
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
       if (title !== undefined) updateData.title = title;
-      if (description !== undefined) updateData.description = description;
       if (start_at) updateData.start_at = start_at;
       if (end_at) updateData.end_at = end_at;
       if (action_type !== undefined) {
@@ -366,7 +339,7 @@ calendarRouter.post(
 
       let dbQuery = supabaseAdmin
         .from('tiles')
-        .select('id, title, description, start_at, end_at, sparks(content, file_name, metadata)')
+        .select('id, title, start_at, end_at, sparks(content, file_name, metadata)')
         .eq('user_id', req.user!.id)
         .eq('is_event', true)
         .order('start_at', { ascending: true })
@@ -387,7 +360,7 @@ calendarRouter.post(
           .map((s: any) => s.content || s.file_name || s.metadata?.summary || '')
           .filter(Boolean)
           .join('; ');
-        return `[${i}] "${e.title || 'Senza titolo'}" (${e.start_at}) - ${e.description || ''} ${sparkTexts}`.trim();
+        return `[${i}] "${e.title || 'Senza titolo'}" (${e.start_at}) ${sparkTexts}`.trim();
       });
 
       const response = await anthropic.messages.create({
@@ -423,7 +396,6 @@ calendarRouter.post(
 async function detectDateTimeFromTile(tile: any): Promise<{ start_at: string; end_at?: string } | null> {
   const textParts: string[] = [];
   if (tile.title) textParts.push(`Titolo: ${tile.title}`);
-  if (tile.description) textParts.push(`Descrizione: ${tile.description}`);
 
   const sparks = tile.sparks || [];
   for (const spark of sparks) {

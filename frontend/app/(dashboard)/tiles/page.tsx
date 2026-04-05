@@ -623,12 +623,12 @@ function SparkThumbnail({ path }: { path: string }) {
       if (res.success && res.data) setUrl(res.data.url);
     }).catch(() => {});
   }, [path]);
-  if (!url) return <div className="h-8 w-8 rounded bg-zinc-700 animate-pulse shrink-0" />;
+  if (!url) return <div className="h-10 w-10 rounded bg-zinc-700 animate-pulse shrink-0" />;
   return (
     <img
       src={url}
       alt=""
-      className="h-8 w-8 rounded object-cover shrink-0"
+      className="h-10 w-10 rounded object-cover shrink-0"
     />
   );
 }
@@ -642,7 +642,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
     const thumbPath = spark.storage_path;
     if (thumbPath) return <SparkThumbnail path={thumbPath} />;
     return (
-      <div className="h-8 w-8 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+      <div className="h-10 w-10 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
         <IconPhoto className="h-3.5 w-3.5 text-blue-400" />
       </div>
     );
@@ -651,7 +651,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Video → icon
   if (t === 'video') {
     return (
-      <div className="h-8 w-8 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
+      <div className="h-10 w-10 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
         <IconMovie className="h-3.5 w-3.5 text-orange-400" />
       </div>
     );
@@ -660,7 +660,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Audio → icon
   if (t === 'audio_recording') {
     return (
-      <div className="h-8 w-8 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+      <div className="h-10 w-10 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
         <IconMicrophone className="h-3.5 w-3.5 text-red-400" />
       </div>
     );
@@ -669,8 +669,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Text → excerpt
   if (t === 'text' && spark.content) {
     return (
-      <div className="px-2 py-1 rounded bg-zinc-500/10 border border-zinc-500/20 shrink-0 max-w-[200px]">
-        <p className="text-[11px] text-zinc-400 line-clamp-2 leading-tight">
+      <div className="px-2 py-1 rounded bg-[#1f1f23]/80 overflow-hidden text-left w-full">
+        <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2 whitespace-normal" style={{ wordBreak: 'break-word' }}>
           {spark.content}
         </p>
       </div>
@@ -680,7 +680,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // File → attachment icon + name
   if (t === 'file') {
     return (
-      <div className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px]">
+      <div className="flex items-center gap-1 px-2 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px] h-10">
         <IconPaperclip className="h-3 w-3 text-yellow-400 shrink-0" />
         <span className="text-[11px] text-yellow-300/80 truncate">
           {spark.file_name || 'file'}
@@ -937,20 +937,23 @@ function TileRow({
             onUpdate={(data) => onActionTypeChange(tile.id, data)}
           />
         </TableCell>
-        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, minWidth: colWidths.sparks, maxWidth: colWidths.sparks }}>
+        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, maxWidth: colWidths.sparks }}>
           {tile.sparks && tile.sparks.length > 0 ? (
-            <div className="flex gap-1.5 items-center overflow-hidden">
+            <div className="flex gap-1.5 items-center min-w-0 w-full">
               {tile.sparks.map((spark) => (
-                <button
+                <div
                   key={spark.id}
-                  className="hover:opacity-80 hover:scale-105 transition-all"
+                  className={cn(
+                    'hover:opacity-80 hover:scale-105 transition-all cursor-pointer',
+                    spark.type === 'text' ? 'flex-1 w-0 overflow-hidden' : 'shrink-0'
+                  )}
                   onClick={(e) => {
                     e.stopPropagation();
                     onSparkClick(spark as Spark);
                   }}
                 >
                   <SparkChip spark={spark} />
-                </button>
+                </div>
               ))}
             </div>
           ) : (

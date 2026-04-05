@@ -507,8 +507,8 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     messages: [
       {
         role: 'user',
-        content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) e una descrizione (1 frase) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
-{"title": "...", "description": "..."}
+        content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
+{"title": "..."}
 
 Riassunti degli spark:
 ${summaries.slice(0, 2000)}`,
@@ -529,7 +529,6 @@ ${summaries.slice(0, 2000)}`,
         .from('tiles')
         .update({
           title: parsed.title,
-          description: parsed.description || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', tileId);
@@ -552,7 +551,7 @@ ${summaries.slice(0, 2000)}`,
 async function classifyActionType(tileId: string): Promise<void> {
   const { data: tile } = await supabaseAdmin
     .from('tiles')
-    .select('id, title, description, action_type_reviewed, action_type, start_at, is_event')
+    .select('id, title, action_type_reviewed, action_type, start_at, is_event')
     .eq('id', tileId)
     .single();
 
@@ -568,7 +567,6 @@ async function classifyActionType(tileId: string): Promise<void> {
 
   const textParts: string[] = [];
   if (tile.title) textParts.push(`Titolo: ${tile.title}`);
-  if (tile.description) textParts.push(`Descrizione: ${tile.description}`);
   for (const s of sparks || []) {
     const meta = s.metadata as SparkMetadata;
     if (meta?.summary) textParts.push(meta.summary);

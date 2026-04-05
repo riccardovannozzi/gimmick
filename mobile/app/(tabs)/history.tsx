@@ -170,16 +170,11 @@ function TileItem({
         />
       </View>
 
-      {/* Title + description */}
+      {/* Title */}
       <View style={{ flex: 1 }}>
         <Text style={{ fontSize: 15, fontWeight: '500', color: colors.primary }} numberOfLines={1}>
           {tile.title || 'Senza titolo'}
         </Text>
-        {tile.description ? (
-          <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }} numberOfLines={1}>
-            {tile.description}
-          </Text>
-        ) : null}
       </View>
 
       {/* Spark count */}

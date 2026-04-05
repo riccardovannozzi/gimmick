@@ -412,8 +412,8 @@ function SparkEditor({
 
   if (spark.type === 'text') {
     return (
-      <div className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 group relative">
-        <div className="flex items-center gap-1 mb-1">
+      <div className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 group relative h-32 flex flex-col">
+        <div className="flex items-center gap-1 mb-1 shrink-0">
           <IconFileText className="h-3 w-3 text-zinc-500" />
           <span className="text-[10px] text-zinc-500 uppercase">Testo</span>
         </div>
@@ -422,12 +422,9 @@ function SparkEditor({
           onChange={(e) => {
             setEditText(e.target.value);
             textDirty.current = true;
-            e.target.style.height = 'auto';
-            e.target.style.height = e.target.scrollHeight + 'px';
           }}
           onBlur={() => { if (textDirty.current) { onUpdateText(editText); textDirty.current = false; } }}
-          ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-          className="w-full bg-transparent text-xs text-zinc-300 leading-relaxed resize-none focus:outline-none overflow-hidden"
+          className="w-full flex-1 bg-transparent text-xs text-zinc-300 leading-relaxed resize-none focus:outline-none overflow-y-auto"
         />
         <button
           onClick={handleDeleteClick}
@@ -533,18 +530,14 @@ export function TileSidebar({
   const sparks: Spark[] = (tile as Tile & { sparks?: Spark[] })?.sparks || [];
 
   const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
   const titleDirty = useRef(false);
-  const descDirty = useRef(false);
 
   useEffect(() => {
     if (tile) {
       setEditTitle(tile.title || '');
-      setEditDesc(tile.description || '');
       titleDirty.current = false;
-      descDirty.current = false;
     }
-  }, [tile?.id, tile?.title, tile?.description]);
+  }, [tile?.id, tile?.title]);
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['tile-detail', tileId] });
@@ -581,11 +574,6 @@ export function TileSidebar({
     titleDirty.current = false;
   }, [editTitle, tileId, updateTileMutation]);
 
-  const saveDesc = useCallback(() => {
-    if (!descDirty.current || !tileId) return;
-    updateTileMutation.mutate({ description: editDesc.trim() });
-    descDirty.current = false;
-  }, [editDesc, tileId, updateTileMutation]);
 
   const updateSparkMutation = useMutation({
     mutationFn: ({ id, content }: { id: string; content: string }) =>
@@ -668,33 +656,18 @@ export function TileSidebar({
           ) : (
             <div className="space-y-3">
               <div>
-                <label className="text-[11px] text-zinc-500">Titolo</label>
-                <input
+                <label className="text-[11px] text-zinc-500">Title</label>
+                <textarea
                   value={editTitle}
                   onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
                   onBlur={saveTitle}
-                  onKeyDown={(e) => e.key === 'Enter' && saveTitle()}
-                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5"
-                  placeholder="Titolo..."
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
+                  rows={2}
+                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs leading-6 text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5 resize-none"
+                  placeholder="Title..."
                 />
               </div>
 
-              <div>
-                <label className="text-[11px] text-zinc-500">Descrizione</label>
-                <textarea
-                  value={editDesc}
-                  onChange={(e) => {
-                    setEditDesc(e.target.value);
-                    descDirty.current = true;
-                    e.target.style.height = 'auto';
-                    e.target.style.height = e.target.scrollHeight + 'px';
-                  }}
-                  onBlur={saveDesc}
-                  ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; } }}
-                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 mt-0.5 resize-none overflow-hidden"
-                  placeholder="Descrizione..."
-                />
-              </div>
 
               {/* Type selector */}
               <div>
@@ -756,7 +729,7 @@ export function TileSidebar({
                     );
                   };
                   return (
-                    <div className="flex flex-col gap-1">
+                    <div className="flex flex-col" style={{ gap: 12 }}>
                       <div className="flex gap-1">{row1.map(renderBtn)}</div>
                       <div className="flex gap-1">{row2.map(renderBtn)}</div>
                     </div>
@@ -854,15 +827,44 @@ export function TileSidebar({
                 </label>
               </div>
 
-              {/* Creato */}
-              <div className="text-[11px] text-zinc-500">
-                Creato: <span className="text-zinc-300">{new Date(tile.created_at).toLocaleDateString('it-IT')}</span>
-              </div>
-
               <div className="border-t border-zinc-800" />
 
               <div>
                 <div className="text-[11px] text-zinc-500 mb-2">Contenuti ({sparks.length})</div>
+                <div className="flex gap-1 justify-center mb-3">
+                  {[
+                    { id: 'photo', icon: IconCamera, color: '#5B8DEF', bg: '#1A2540', accept: 'image/*' },
+                    { id: 'video', icon: IconVideo, color: '#E87DA0', bg: '#2D1A22', accept: 'video/*' },
+                    { id: 'gallery', icon: IconPhoto, color: '#AB9FF2', bg: '#241E35', accept: 'image/*' },
+                    { id: 'text', icon: IconEdit, color: '#6FCF97', bg: '#1A2D1E', accept: null },
+                    { id: 'voice', icon: IconMicrophone, color: '#EF4444', bg: '#2D1A1A', accept: 'audio/*' },
+                    { id: 'file', icon: IconPaperclip, color: '#F2C94C', bg: '#2D2A1A', accept: '*/*' },
+                  ].map((opt) => {
+                    const BtnIcon = opt.icon;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => {
+                          if (opt.id === 'text') {
+                            setShowNewText(true);
+                          } else {
+                            const input = document.createElement('input');
+                            input.type = 'file';
+                            input.multiple = true;
+                            input.accept = opt.accept || '*/*';
+                            input.onchange = () => { handleFileSelect(input.files); };
+                            input.click();
+                          }
+                        }}
+                        className="w-8 h-8 rounded flex items-center justify-center transition-colors"
+                        style={{ backgroundColor: opt.bg, borderWidth: 1, borderColor: `${opt.color}40` }}
+                        title={opt.id}
+                      >
+                        <BtnIcon style={{ color: opt.color }} className="h-3.5 w-3.5" />
+                      </button>
+                    );
+                  })}
+                </div>
                 <div className="space-y-2">
                   {sparks.map((spark) => (
                     <SparkEditor
@@ -891,46 +893,14 @@ export function TileSidebar({
                   </div>
                 )}
               </div>
+
             </div>
           )}
         </div>
 
         {tileId && tile && (
-          <div className="border-t border-zinc-800 px-2 py-2 shrink-0">
-            <div className="flex gap-1 justify-center">
-              {[
-                { id: 'photo', icon: IconCamera, color: '#5B8DEF', bg: '#1A2540', accept: 'image/*' },
-                { id: 'video', icon: IconVideo, color: '#E87DA0', bg: '#2D1A22', accept: 'video/*' },
-                { id: 'gallery', icon: IconPhoto, color: '#AB9FF2', bg: '#241E35', accept: 'image/*' },
-                { id: 'text', icon: IconEdit, color: '#6FCF97', bg: '#1A2D1E', accept: null },
-                { id: 'voice', icon: IconMicrophone, color: '#EF4444', bg: '#2D1A1A', accept: 'audio/*' },
-                { id: 'file', icon: IconPaperclip, color: '#F2C94C', bg: '#2D2A1A', accept: '*/*' },
-              ].map((opt) => {
-                const BtnIcon = opt.icon;
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => {
-                      if (opt.id === 'text') {
-                        setShowNewText(true);
-                      } else {
-                        const input = document.createElement('input');
-                        input.type = 'file';
-                        input.multiple = true;
-                        input.accept = opt.accept || '*/*';
-                        input.onchange = () => { handleFileSelect(input.files); };
-                        input.click();
-                      }
-                    }}
-                    className="w-8 h-8 rounded flex items-center justify-center transition-colors"
-                    style={{ backgroundColor: opt.bg, borderWidth: 1, borderColor: `${opt.color}40` }}
-                    title={opt.id}
-                  >
-                    <BtnIcon style={{ color: opt.color }} className="h-3.5 w-3.5" />
-                  </button>
-                );
-              })}
-            </div>
+          <div className="px-3 py-2 shrink-0 text-right">
+            <span className="text-[11px] text-zinc-500">Created: {new Date(tile.created_at).toLocaleDateString('it-IT')}</span>
           </div>
         )}
       </>)}
