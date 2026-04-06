@@ -8,8 +8,8 @@ import { usePatterns } from '@/store/patterns-store';
 import { useStatusIcons } from '@/store/status-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 
-const TILE_W = 144;
-const TILE_H = 89;
+const TILE_W = 128;
+const TILE_H = 79;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -60,6 +60,7 @@ interface CanvasBoardProps {
   onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
   fitTrigger: number;
   resetTrigger: number;
+  zoom100Trigger?: number;
 }
 
 export const CanvasBoard = React.memo(function CanvasBoard({
@@ -68,7 +69,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu,
-  fitTrigger, resetTrigger,
+  fitTrigger, resetTrigger, zoom100Trigger,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -467,7 +468,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         default: return { sw: 1, sd: '' };
       }
     };
-    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8)
+    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
       .attr('fill', (d) => d.statusColor ? d.statusColor + '80' : '#1C1C1E')
       .attr('stroke', (d) => getColor(d.actionType))
       .attr('stroke-width', (d) => getBorderAttrs(d.actionType).sw)
@@ -478,7 +479,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const bs = (actionBorders as Record<string, string>)[d.actionType] as BorderStyle;
       if (bs === 'double') {
         d3.select(this).append('rect').attr('class', 'tile-inner-border')
-          .attr('x', 4).attr('y', 4).attr('width', TILE_W - 8).attr('height', TILE_H - 8).attr('rx', 5)
+          .attr('x', 4).attr('y', 4).attr('width', TILE_W - 8).attr('height', TILE_H - 8).attr('rx', 3)
           .attr('fill', 'none').attr('stroke', getColor(d.actionType)).attr('stroke-width', 1)
           .style('pointer-events', 'none');
       }
@@ -492,7 +493,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const o = 0.2;
       const pid = `cpat-${patIdx++}`;
       const clip = g.append('clipPath').attr('id', `${pid}-clip`);
-      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 8);
+      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4);
       const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
       switch (d.patternShape) {
         case 'diagonal_ltr':
@@ -524,9 +525,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
-      const fo = g.append('foreignObject').attr('x', 10).attr('y', 8).attr('width', TILE_W - 16).attr('height', TILE_H - 28);
+      const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
       fo.append('xhtml:div')
-        .attr('style', 'color:#D4D4D8;font-size:12px;font-weight:500;line-height:15px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
+        .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:500;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
         .text(d.title);
     });
     // Footer: date info + type label + status icon
@@ -548,11 +549,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
         }
         if (dateStr) {
-          g.append('text').attr('x', 12).attr('y', TILE_H - 20).attr('fill', '#52525B').attr('font-size', 10).text(dateStr);
+          g.append('text').attr('x', 6).attr('y', TILE_H - 19).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
         }
       }
     });
-    nodeGrps.append('text').attr('x', 12).attr('y', TILE_H - 10).attr('fill', '#71717A').attr('font-size', 9).text((d) => typeLabels[d.actionType] || d.actionType.toUpperCase());
+    nodeGrps.append('text').attr('x', 6).attr('y', TILE_H - 6).attr('fill', '#71717A').attr('font-size', 9).text((d) => typeLabels[d.actionType] || d.actionType.toUpperCase());
     // Status icon as SVG directly (no React rendering needed)
     nodeGrps.each(function (d) {
       if (!d.statusIcon) return;
@@ -563,10 +564,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Create a temporary container, use React createElement + renderToString
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 28, color: '#FFFFFF' }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 34).attr('y', TILE_H - 34).attr('width', 28).attr('height', 28).style('pointer-events', 'none');
+      const html = renderToString(React.createElement(IconComp, { size: 20, color: '#FFFFFF' }));
+      const fo = g.append('foreignObject').attr('x', TILE_W - 26).attr('y', TILE_H - 24).attr('width', 20).attr('height', 20).style('pointer-events', 'none');
       const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:28px;height:28px;';
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:20px;height:20px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
@@ -880,6 +881,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const s = Math.min((w - 80) / (x2 - x1), (h - 80) / (y2 - y1), 1.5);
     d3.select(svg).transition().duration(300).call(z.transform as any, d3.zoomIdentity.translate((w - (x2 - x1) * s) / 2 - x1 * s, (h - (y2 - y1) * s) / 2 - y1 * s).scale(s));
   }, [fitTrigger]);
+
+  // Zoom to 100% (1:1)
+  useEffect(() => {
+    if (!zoom100Trigger) return;
+    const svg = svgRef.current, z = zoomRef.current;
+    if (!svg || !z) return;
+    const { width: w, height: h } = svg.getBoundingClientRect();
+    const t = zoomTransformRef.current;
+    // Zoom to scale=1, keeping center of viewport
+    const cx = w / 2, cy = h / 2;
+    const newT = d3.zoomIdentity.translate(cx - (cx - t.x) / t.k, cy - (cy - t.y) / t.k).scale(1);
+    d3.select(svg).transition().duration(300).call(z.transform as any, newT);
+  }, [zoom100Trigger]);
 
   useEffect(() => {
     if (!resetTrigger) return;

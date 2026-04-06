@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch, IconFocus, IconTarget } from '@tabler/icons-react';
+import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch, IconFocus, IconTarget, IconPlus } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
@@ -1056,7 +1056,7 @@ function TileRow({
               if (displayTag) {
                 return (
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={24} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || '#64748B'} />
+                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={16} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || '#64748B'} />
                     <span className="text-xs text-zinc-400 truncate flex-1">{displayTag.name}</span>
                   </div>
                 );
@@ -1249,6 +1249,28 @@ export default function TilesPage() {
     completedMutation.mutate({ tileId, completed });
   }, [completedMutation]);
 
+  const handleAddTile = useCallback(async () => {
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      const newTile = res?.data;
+      if (newTile) {
+        // Assign GIMMICK root tag
+        const allTagsList = tagsResult?.data || [];
+        const rootTag = allTagsList.find((t) => t.is_root);
+        if (rootTag) {
+          await tagsApi.tagTiles(rootTag.id, [newTile.id]);
+        }
+        // Refresh and open sidebar
+        await queryClient.invalidateQueries({ queryKey: ['tiles'] });
+        queryClient.setQueryData(['tile-detail', newTile.id], { data: newTile });
+        setSidebarTileId(newTile.id);
+        setSidebarOpen(true);
+      }
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tagsResult, setSidebarTileId, setSidebarOpen]);
+
   const allTags = tagsResult?.data || [];
   const allTiles = useMemo(() => infiniteData?.pages.flatMap((p) => p.data) || [], [infiniteData]);
   const totalCount = infiniteData?.pages[0]?.pagination?.total;
@@ -1391,6 +1413,14 @@ export default function TilesPage() {
           <span className="text-sm text-zinc-400">
             {tiles.length}{totalCount ? ` / ${totalCount}` : ''} tiles
           </span>
+          <Button
+            size="sm"
+            onClick={handleAddTile}
+            className="bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 text-xs h-8"
+          >
+            <IconPlus className="h-3.5 w-3.5 mr-1.5" />
+            Add Tile
+          </Button>
           {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo || completedFilter !== 'all') && (
             <button
               onClick={() => {

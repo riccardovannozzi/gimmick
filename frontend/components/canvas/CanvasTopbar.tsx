@@ -53,9 +53,10 @@ interface CanvasTopbarProps {
   onToggleTileMode: () => void;
   onReset: () => void;
   onFit: () => void;
+  onZoom100: () => void;
 }
 
-export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextMode, onToggleTileMode, onReset, onFit }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextMode, onToggleTileMode, onReset, onFit, onZoom100 }: CanvasTopbarProps) {
   return (
     <div className="h-11 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-950">
       {tag ? (
@@ -73,6 +74,7 @@ export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextM
         <div className="w-px h-5 bg-zinc-700 mx-1" />
         <ToolbarButton icon={<IconRefresh size={13} />} label="Reset" onClick={onReset} />
         <ToolbarButton icon={<IconMaximize size={13} />} label="Fit" onClick={onFit} />
+        <ToolbarButton icon={<span className="text-[10px] font-bold">1:1</span>} label="100%" onClick={onZoom100} />
       </div>
     </div>
   );

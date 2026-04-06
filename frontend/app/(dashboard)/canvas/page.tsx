@@ -230,6 +230,11 @@ export default function CanvasPage() {
     setFitTrigger((n) => n + 1);
   }, []);
 
+  const [zoom100Trigger, setZoom100Trigger] = useState(0);
+  const handleZoom100 = useCallback(() => {
+    setZoom100Trigger((n) => n + 1);
+  }, []);
+
   // Edge context menu
   const [edgeCtx, setEdgeCtx] = useState<{ x: number; y: number; edgeId: string } | null>(null);
 
@@ -295,6 +300,7 @@ export default function CanvasPage() {
             onToggleTileMode={() => setTileMode((v) => !v)}
             onReset={handleReset}
             onFit={handleFit}
+            onZoom100={handleZoom100}
           />
           <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode) ? 'crosshair' : undefined }}>
             <CanvasBoard
@@ -330,6 +336,7 @@ export default function CanvasPage() {
               onTextBoxContextMenu={(e) => setTbCtx(e)}
               fitTrigger={fitTrigger}
               resetTrigger={resetTrigger}
+              zoom100Trigger={zoom100Trigger}
             />
           </div>
         </div>
