@@ -559,6 +559,11 @@ export function TileSidebar({
       if (!old?.data) return old;
       return { ...old, data: old.data.map(patch) };
     });
+    // Patch infinite query cache (tiles table)
+    queryClient.setQueriesData({ queryKey: ['tiles'] }, (old: any) => {
+      if (!old?.pages) return old;
+      return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
+    });
   }, [queryClient, tileId]);
 
   const updateTileMutation = useMutation({
@@ -716,13 +721,14 @@ export function TileSidebar({
                           updateTileMutation.mutate(updates);
                         }}
                         className={cn(
-                          'flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[9px] font-medium transition-all',
+                          'flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[9px] font-medium transition-all relative',
                           isActive
-                            ? 'bg-blue-600/20 text-blue-300'
-                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800'
+                            ? 'bg-zinc-800/60 text-zinc-200'
+                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800 opacity-70'
                         )}
                         style={getBorderStyle(opt.value === 'event' && (opt as any).extra?.all_day ? 'allday' : opt.value)}
                       >
+                        {isActive && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-white" />}
                         <OptIcon size={11} />
                         {opt.label}
                       </button>
@@ -745,15 +751,17 @@ export function TileSidebar({
                 const endTime = tile.end_at ? toLocalInput(tile.end_at).slice(11, 16) : '';
                 const isTimed = tile.action_type === 'event' && !tile.all_day;
 
+                const safeTime = (t: string, fallback: string) => /^\d{2}:\d{2}$/.test(t) ? t : fallback;
+
                 const updateDate = (newDate: string) => {
-                  if (!newDate) return;
+                  if (!newDate || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
                   if (tile.action_type === 'deadline') {
-                    updateTileMutation.mutate({ end_at: new Date(`${newDate}T${endTime || '23:59'}`).toISOString() });
+                    updateTileMutation.mutate({ end_at: new Date(`${newDate}T${safeTime(endTime, '23:59')}`).toISOString() });
                   } else if (isTimed) {
                     const updates: Record<string, string> = {
-                      start_at: new Date(`${newDate}T${startTime || '09:00'}`).toISOString(),
+                      start_at: new Date(`${newDate}T${safeTime(startTime, '09:00')}`).toISOString(),
                     };
-                    if (endTime) updates.end_at = new Date(`${newDate}T${endTime}`).toISOString();
+                    if (endTime) updates.end_at = new Date(`${newDate}T${safeTime(endTime, '10:00')}`).toISOString();
                     updateTileMutation.mutate(updates);
                   } else {
                     updateTileMutation.mutate({
@@ -764,38 +772,41 @@ export function TileSidebar({
                 };
 
                 return (
-                  <div className="space-y-2">
-                    {/* Date */}
-                    <div>
-                      <label className="text-[11px] text-zinc-500 mb-0.5 block">
-                        Date
-                      </label>
-                      <input
-                        type="date"
-                        value={dateVal}
-                        onChange={(e) => updateDate(e.target.value)}
-                        className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
-                      />
-                    </div>
-                    {/* Start/End time — only for timed (separate H : M selects) */}
-                    {isTimed && (
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
-                          <TimePicker
-                            value={startTime || '09:00'}
-                            onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                          />
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
-                          <TimePicker
-                            value={endTime || '10:00'}
-                            onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                          />
-                        </div>
+                  <div>
+                    <div className="flex items-end justify-between">
+                      {/* Date */}
+                      <div className="shrink-0">
+                        <label className="text-[11px] text-zinc-500 mb-0.5 block">Date</label>
+                        <input
+                          type="date"
+                          value={dateVal}
+                          onChange={(e) => updateDate(e.target.value)}
+                          className="bg-zinc-800/60 border border-zinc-700 rounded px-1 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
+                          style={{ width: 'auto', maxWidth: 110, colorScheme: 'dark' }}
+                        />
                       </div>
-                    )}
+                      {/* Start/End time — only for timed */}
+                      {isTimed && (
+                        <>
+                          <div className="shrink-0">
+                            <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
+                            <TimePicker
+                              value={startTime || '09:00'}
+                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                              compact
+                            />
+                          </div>
+                          <div className="shrink-0">
+                            <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
+                            <TimePicker
+                              value={endTime || '10:00'}
+                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                              compact
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
                 );
               })()}

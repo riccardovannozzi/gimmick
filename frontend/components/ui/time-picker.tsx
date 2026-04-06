@@ -12,9 +12,10 @@ interface TimePickerProps {
   onChange: (time: string) => void;
   label?: string;
   compact?: boolean; // smaller trigger for table cells
+  borderless?: boolean; // no border/bg for inline use
 }
 
-export function TimePicker({ value, onChange, label, compact }: TimePickerProps) {
+export function TimePicker({ value, onChange, label, compact, borderless }: TimePickerProps) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -66,10 +67,12 @@ export function TimePicker({ value, onChange, label, compact }: TimePickerProps)
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-1 rounded border border-zinc-700 hover:border-zinc-600 transition-colors text-left',
-          compact
-            ? 'px-1 py-0.5 text-[10px] text-zinc-300 bg-transparent'
-            : 'px-2 py-1.5 text-xs text-zinc-300 bg-zinc-800/60'
+          'flex items-center gap-1 rounded transition-colors text-left',
+          borderless
+            ? 'px-0 py-0 text-[11px] text-zinc-500 bg-transparent cursor-pointer'
+            : compact
+              ? 'px-1 py-1 text-[11px] text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
+              : 'px-2 py-1.5 text-xs text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
         )}
       >
         {label && <span className="text-zinc-500 shrink-0">{label}</span>}
