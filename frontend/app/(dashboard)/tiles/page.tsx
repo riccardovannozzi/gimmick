@@ -846,7 +846,7 @@ function TipoStatusPatternCells({ tile, colWidths, onUpdate, getColor }: { tile:
 
   const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
   const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
-  const dateVal = dateRef ? new Date(dateRef).toISOString().slice(0, 10) : '';
+  const dateVal = dateRef ? (() => { const d = new Date(dateRef); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })() : '';
   const startH = tile.start_at ? String(new Date(tile.start_at).getHours()).padStart(2, '0') : '';
   const startM = tile.start_at ? String(new Date(tile.start_at).getMinutes()).padStart(2, '0') : '';
   const endH = tile.end_at ? String(new Date(tile.end_at).getHours()).padStart(2, '0') : '';
@@ -999,7 +999,7 @@ function TileRow({
           {(() => {
             const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
             const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
-            const dateVal = dateRef ? new Date(dateRef).toISOString().slice(0, 10) : '';
+            const dateVal = dateRef ? (() => { const d = new Date(dateRef); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })() : '';
             const isTimed = tile.action_type === 'event' && !tile.all_day;
             const startH = tile.start_at ? String(new Date(tile.start_at).getHours()).padStart(2, '0') : '';
             const startM = tile.start_at ? String(new Date(tile.start_at).getMinutes()).padStart(2, '0') : '';

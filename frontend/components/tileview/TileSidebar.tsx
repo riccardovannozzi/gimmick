@@ -481,25 +481,55 @@ function SparkEditor({
     );
   }
 
-  return (
-    <div className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 flex items-center gap-2 group relative">
-      <SparkIcon className="h-4 w-4 text-zinc-400 shrink-0" />
-      <span className="text-xs text-zinc-400 truncate flex-1">{spark.file_name || spark.type}</span>
-      {signedUrl && (
-        <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100">
-          <IconExternalLink className="h-3 w-3" />
+  // File: image preview if mime is image, otherwise icon thumbnail
+  const isImageFile = spark.mime_type?.startsWith('image/');
+  if (isImageFile && signedUrl) {
+    return (
+      <div className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative">
+        <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="block">
+          <img src={signedUrl} alt={spark.file_name || ''} className="w-full h-32 object-cover" />
         </a>
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-900/90 to-transparent px-2 py-1">
+          <span className="text-[10px] text-zinc-300 truncate block">{spark.file_name}</span>
+        </div>
+        <button
+          onClick={handleDeleteClick}
+          className={cn(
+            'absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+            confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400'
+          )}
+        >
+          <IconTrash className="h-3 w-3" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <a
+      href={signedUrl || '#'}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
+      className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 flex items-center gap-2 group relative hover:bg-zinc-800/70 transition-colors cursor-pointer"
+    >
+      <div className="w-10 h-10 rounded bg-zinc-700/50 flex items-center justify-center shrink-0">
+        <SparkIcon className="h-5 w-5 text-zinc-400" />
+      </div>
+      <span className="text-xs text-zinc-300 truncate flex-1">{spark.file_name || spark.type}</span>
+      {signedUrl && (
+        <IconExternalLink className="h-3 w-3 text-zinc-500 opacity-0 group-hover:opacity-100 shrink-0" />
       )}
       <button
-        onClick={handleDeleteClick}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteClick(); }}
         className={cn(
-          'p-0.5 rounded transition-all',
+          'p-0.5 rounded transition-all shrink-0',
           confirmDelete ? 'bg-red-600 text-white' : 'text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100'
         )}
       >
         <IconTrash className="h-3 w-3" />
       </button>
-    </div>
+    </a>
   );
 }
 
