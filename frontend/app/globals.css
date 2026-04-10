@@ -164,7 +164,8 @@
 .fc-dark .fc-timegrid-event .fc-event-main { padding: 2px 4px; }
 .fc-dark .fc-timegrid-event .fc-event-title { font-weight: 500; }
 .fc-dark .fc-timegrid-event .fc-event-time { font-size: 9px; color: #71717a; }
-.fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 10px; cursor: grab; }
+.fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 11px; cursor: grab; min-height: 24px; padding: 2px 4px; }
+.fc-dark .fc-daygrid-day-events { min-height: 32px; }
 .fc-dark .fc-event-completed { opacity: 0.5; text-decoration: line-through; }
 .fc-dark .fc-event-deadline .fc-event-main::before { content: '⏰ '; }
 .fc-dark .fc-daygrid-day-number { color: #a1a1aa; font-size: 12px; text-decoration: none; }

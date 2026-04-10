@@ -900,23 +900,24 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
-                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
+                        style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
-                        <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                          <div className="px-1.5 py-1 min-w-0 flex-1">
-                            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                            <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                        <div className="relative h-full flex flex-col p-1.5">
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                          <div className="flex items-end justify-between mt-auto">
+                            <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
+                            {si && <StatusIconRender iconName={si.icon} />}
+                          </div>
                           {shape !== 'solid' && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
                                 <InlinePattern shape={shape} color={color} />
                               </svg>
@@ -942,23 +943,24 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
-                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
+                    style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
-                    <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                      <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                      <div className="px-1.5 py-1 min-w-0 flex-1">
-                        {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                        <span className="text-[11px] text-zinc-400 font-semibold block truncate">{t.title || 'Senza titolo'}</span>
+                    <div className="relative h-full flex flex-col p-1.5">
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                      <div className="flex items-end justify-between mt-auto">
+                        <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
+                        {si && <StatusIconRender iconName={si.icon} />}
+                      </div>
                       {shape !== 'solid' && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
                             <InlinePattern shape={shape} color={color} />
                           </svg>
@@ -1058,23 +1060,24 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
-                        style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
+                        style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
-                        <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                          <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                          <div className="px-1.5 py-1 min-w-0 flex-1">
-                            {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                            <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
+                        <div className="relative h-full flex flex-col p-1.5">
+                          <div className="flex-1 min-h-0 overflow-hidden">
+                            <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                          <div className="flex items-end justify-between mt-auto">
+                            <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
+                            {si && <StatusIconRender iconName={si.icon} />}
+                          </div>
                           {shape !== 'solid' && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
                                 <InlinePattern shape={shape} color={color} />
                               </svg>
@@ -1100,23 +1103,24 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded-sm overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
-                    style={{ backgroundColor: 'rgba(24, 24, 27, 0.5)', borderColor: `${color}60`, minHeight: 62 }}
+                    style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
-                    <div className="flex relative" style={{ minHeight: 'inherit' }}>
-                      <div className="w-1 shrink-0 self-stretch rounded-l-sm" style={{ backgroundColor: color }} />
-                      <div className="px-1.5 py-1 min-w-0 flex-1">
-                        {info.name && <span className="text-[7px] font-semibold text-zinc-400 block truncate">{info.name}</span>}
-                        <span className={cn('text-[11px] text-zinc-400 font-semibold block truncate', t.is_completed && 'line-through')}>{t.title || 'Senza titolo'}</span>
+                    <div className="relative h-full flex flex-col p-1.5">
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      {si && <div className="shrink-0 flex items-center justify-center pr-1"><StatusIconRender iconName={si.icon} /></div>}
+                      <div className="flex items-end justify-between mt-auto">
+                        <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
+                        {si && <StatusIconRender iconName={si.icon} />}
+                      </div>
                       {shape !== 'solid' && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
                             <InlinePattern shape={shape} color={color} />
                           </svg>
@@ -1266,6 +1270,9 @@ export default function CalendarPage() {
             initialDate={days[0]}
             events={fcEvents}
             dateClick={(info) => {
+              // Ignore if clicked on an event element
+              const target = info.jsEvent.target as HTMLElement;
+              if (target.closest('.fc-event')) return;
               // Left-click on empty slot — open modal pre-filled
               setModal({
                 ...emptyModal,
