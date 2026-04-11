@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -224,6 +224,34 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Subtasks API ============
+export const subtasksApi = {
+  async list(tileId: string) {
+    return apiRequest<Subtask[]>(`/api/subtasks?tile_id=${encodeURIComponent(tileId)}`);
+  },
+  async create(data: { tile_id: string; content?: string; is_done?: boolean }) {
+    return apiRequest<Subtask>('/api/subtasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+    return apiRequest<Subtask>(`/api/subtasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async delete(id: string) {
+    return apiRequest(`/api/subtasks/${id}`, { method: 'DELETE' });
+  },
+  async reorder(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/subtasks/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    });
   },
 };
 

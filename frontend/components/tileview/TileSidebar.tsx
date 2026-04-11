@@ -15,6 +15,7 @@ import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
 import type { PatternShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
+import { SubtaskList } from '@/components/tileview/SubtaskList';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -559,6 +560,7 @@ export function TileSidebar({
   const tile = data?.data;
   const sparks: Spark[] = (tile as Tile & { sparks?: Spark[] })?.sparks || [];
 
+  const [activeTab, setActiveTab] = useState<'edit' | 'list'>('edit');
   const [editTitle, setEditTitle] = useState('');
   const titleDirty = useRef(false);
 
@@ -681,13 +683,42 @@ export function TileSidebar({
       </button>
 
       {open && (<>
-        <div className="flex-1 overflow-y-auto px-3 pb-4">
+        {/* Tab bar */}
+        {tileId && (
+          <div className="flex border-b border-zinc-800 shrink-0">
+            <button
+              onClick={() => setActiveTab('edit')}
+              className={cn(
+                'flex-1 text-[11px] font-medium py-2 transition-colors border-b-2',
+                activeTab === 'edit'
+                  ? 'text-zinc-200 border-blue-500'
+                  : 'text-zinc-500 border-transparent hover:text-zinc-300'
+              )}
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => setActiveTab('list')}
+              className={cn(
+                'flex-1 text-[11px] font-medium py-2 transition-colors border-b-2',
+                activeTab === 'list'
+                  ? 'text-zinc-200 border-blue-500'
+                  : 'text-zinc-500 border-transparent hover:text-zinc-300'
+              )}
+            >
+              List
+            </button>
+          </div>
+        )}
+        <div className="flex-1 overflow-y-auto px-3 pb-4 pt-3">
           {!tileId ? (
             <p className="text-xs text-zinc-500 mt-4">Seleziona un tile</p>
           ) : isLoading ? (
             <p className="text-xs text-zinc-500 mt-4">Caricamento...</p>
           ) : !tile ? (
             <p className="text-xs text-zinc-500 mt-4">Tile non trovato</p>
+          ) : activeTab === 'list' ? (
+            <SubtaskList tileId={tileId} />
           ) : (
             <div className="space-y-3">
               <div>

@@ -143,6 +143,17 @@ export interface Pattern {
   created_at: string;
 }
 
+// Tile subtask (checklist item)
+export interface Subtask {
+  id: string;
+  tile_id: string;
+  content: string;
+  is_done: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 // Auth Tokens
 export interface AuthTokens {
   access_token: string;
