@@ -104,6 +104,8 @@ export interface Tag {
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;
+  is_pinned?: boolean;
+  is_archived?: boolean;
   created_at: string;
 }
 

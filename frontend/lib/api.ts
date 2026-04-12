@@ -359,7 +359,7 @@ export const tagsApi = {
     });
   },
 
-  async update(id: string, updates: { name?: string; aliases?: string[]; tag_type?: string }) {
+  async update(id: string, updates: { name?: string; aliases?: string[]; tag_type?: string; is_pinned?: boolean; is_archived?: boolean }) {
     return apiRequest<Tag>(`/api/tags/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

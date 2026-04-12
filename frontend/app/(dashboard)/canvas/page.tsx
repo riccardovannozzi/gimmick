@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconComponents, IconTrash } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
@@ -14,6 +14,7 @@ import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const tagId = searchParams.get('tag');
   const queryClient = useQueryClient();
 
@@ -301,6 +302,16 @@ export default function CanvasPage() {
             onReset={handleReset}
             onFit={handleFit}
             onZoom100={handleZoom100}
+            pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}
+            onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
+            onUnpinTag={async (id) => {
+              queryClient.setQueryData(['tags'], (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((t: Tag) => t.id === id ? { ...t, is_pinned: false } : t) };
+              });
+              try { await tagsApi.update(id, { is_pinned: false }); }
+              finally { queryClient.invalidateQueries({ queryKey: ['tags'] }); }
+            }}
           />
           <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode) ? 'crosshair' : undefined }}>
             <CanvasBoard

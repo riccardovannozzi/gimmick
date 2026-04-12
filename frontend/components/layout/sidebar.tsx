@@ -19,6 +19,8 @@ import {
   IconLayoutBoard,
   IconPin,
   IconPinFilled,
+  IconArchive,
+  IconArchiveOff,
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
@@ -82,7 +84,9 @@ function TagSidebarGroup({
   color,
   emoji,
   pinnedIds,
+  archivedIds,
   onTogglePin,
+  onToggleArchive,
 }: {
   tagType: string;
   label?: string;
@@ -96,7 +100,9 @@ function TagSidebarGroup({
   color?: string;
   emoji?: string;
   pinnedIds: Set<string>;
+  archivedIds: Set<string>;
   onTogglePin: (tagId: string) => void;
+  onToggleArchive: (tagId: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
@@ -198,6 +204,18 @@ function TagSidebarGroup({
                   {tag.name}
                 </button>
                 <button
+                  onClick={(e) => { e.stopPropagation(); onToggleArchive(tag.id); }}
+                  className={cn(
+                    'w-4 h-4 flex items-center justify-center rounded border mr-1 shrink-0 transition-opacity',
+                    archivedIds.has(tag.id)
+                      ? 'opacity-100 border-zinc-600 text-zinc-400 hover:text-zinc-200'
+                      : 'opacity-0 group-hover:opacity-100 border-zinc-700 hover:bg-zinc-700 text-zinc-400'
+                  )}
+                  title={archivedIds.has(tag.id) ? 'Ripristina da archivio' : 'Archivia (Old)'}
+                >
+                  {archivedIds.has(tag.id) ? <IconArchiveOff size={9} /> : <IconArchive size={9} />}
+                </button>
+                <button
                   onClick={(e) => { e.stopPropagation(); onOpenCanvas(tag.id); }}
                   className="opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded border border-zinc-700 hover:bg-zinc-700 mr-1 shrink-0"
                   title="Apri in Canvas"
@@ -251,21 +269,41 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
 
   const hasFilter = selectedTagIds.size > 0;
 
-  // ─── Pin state ───
-  const [pinnedIds, setPinnedIds] = useState<Set<string>>(() => {
-    try { const raw = localStorage.getItem('sidebar_pinned_tags'); return new Set(raw ? JSON.parse(raw) : []); }
-    catch { return new Set(); }
-  });
-  const [viewMode, setViewMode] = useState<'tags' | 'pins'>('tags');
+  // ─── Pin/Archive state (DB-backed) ───
+  const pinnedIds = useMemo(() => new Set(tags.filter((t) => t.is_pinned).map((t) => t.id)), [tags]);
+  const archivedIds = useMemo(() => new Set(tags.filter((t) => t.is_archived).map((t) => t.id)), [tags]);
+  const [viewMode, setViewMode] = useState<'all' | 'pin' | 'old'>('all');
 
-  const togglePin = useCallback((tagId: string) => {
-    setPinnedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagId)) next.delete(tagId); else next.add(tagId);
-      try { localStorage.setItem('sidebar_pinned_tags', JSON.stringify([...next])); } catch { /* */ }
-      return next;
+  const tagsQc = useQueryClient();
+  const togglePin = useCallback(async (tagId: string) => {
+    const tag = tags.find((t) => t.id === tagId);
+    if (!tag) return;
+    const next = !tag.is_pinned;
+    tagsQc.setQueryData(['tags'], (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t: Tag) => t.id === tagId ? { ...t, is_pinned: next, is_archived: next ? false : t.is_archived } : t) };
     });
-  }, []);
+    try {
+      await tagsApi.update(tagId, { is_pinned: next, ...(next ? { is_archived: false } : {}) });
+    } finally {
+      tagsQc.invalidateQueries({ queryKey: ['tags'] });
+    }
+  }, [tags, tagsQc]);
+
+  const toggleArchive = useCallback(async (tagId: string) => {
+    const tag = tags.find((t) => t.id === tagId);
+    if (!tag) return;
+    const next = !tag.is_archived;
+    tagsQc.setQueryData(['tags'], (old: any) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t: Tag) => t.id === tagId ? { ...t, is_archived: next, is_pinned: next ? false : t.is_pinned } : t) };
+    });
+    try {
+      await tagsApi.update(tagId, { is_archived: next, ...(next ? { is_pinned: false } : {}) });
+    } finally {
+      tagsQc.invalidateQueries({ queryKey: ['tags'] });
+    }
+  }, [tags, tagsQc]);
 
   // ─── Reorder tags within a group (persist in DB via settings API) ───
   const queryClient = useQueryClient();
@@ -444,24 +482,33 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
 
       <Separator className="bg-zinc-800" />
 
-      {/* Tags header with TAGS/PINS toggle */}
+      {/* Tags header with ALL/PIN/OLD toggle */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1">
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setViewMode('tags')}
+            onClick={() => setViewMode('all')}
             className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors',
-              viewMode === 'tags' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
+              viewMode === 'all' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
             )}
-          >Tags</button>
+          >All</button>
           <button
-            onClick={() => setViewMode('pins')}
+            onClick={() => setViewMode('pin')}
             className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5',
-              viewMode === 'pins' ? 'text-amber-400 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
+              viewMode === 'pin' ? 'text-amber-400 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
             )}
           >
             <IconPinFilled size={9} />
-            Pins
+            Pin
             {pinnedIds.size > 0 && <span className="text-[8px] text-zinc-500">({pinnedIds.size})</span>}
+          </button>
+          <button
+            onClick={() => setViewMode('old')}
+            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors',
+              viewMode === 'old' ? 'text-zinc-300 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
+            )}
+          >
+            Old
+            {archivedIds.size > 0 && <span className="text-[8px] text-zinc-500 ml-0.5">({archivedIds.size})</span>}
           </button>
         </div>
         <div className="flex items-center gap-1">
@@ -470,7 +517,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               <IconX className="h-2.5 w-2.5" /> Clear
             </button>
           )}
-          {viewMode === 'tags' && (
+          {viewMode === 'all' && (
             <button
               onClick={allExpanded ? collapseAll : expandAll}
               className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
@@ -482,43 +529,50 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
         </div>
       </div>
 
-      {/* Grouped tag list or pinned list */}
+      {/* Grouped tag list (filtered by viewMode) */}
       <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {viewMode === 'pins' ? (
-          // Pinned tags grouped by type
+        {viewMode === 'pin' || viewMode === 'old' ? (
           (() => {
-            const pinnedGrouped = sortedGrouped
-              .map((g) => ({ ...g, tags: g.tags.filter((t) => pinnedIds.has(t.id)) }))
+            const filterFn = viewMode === 'pin'
+              ? (t: Tag) => pinnedIds.has(t.id)
+              : (t: Tag) => archivedIds.has(t.id);
+            const filteredGrouped = sortedGrouped
+              .map((g) => ({ ...g, tags: g.tags.filter(filterFn) }))
               .filter((g) => g.tags.length > 0);
-            return pinnedGrouped.length === 0 ? (
-              <p className="text-[10px] text-zinc-500 text-center py-4">Nessun tag pinnato</p>
-            ) : (
-              pinnedGrouped.map((group) => (
-                <TagSidebarGroup
-                  key={group.type}
-                  tagType={group.type}
-                  label={group.label}
-                  tags={group.tags}
-                  selectedTagIds={selectedTagIds}
-                  onToggle={(tagId) => {
-                    if (pathname === '/canvas') router.push(`/canvas?tag=${tagId}`);
-                    else if (pathname === '/graph') router.push(`/graph?tag=${tagId}`);
-                    else toggle(tagId);
-                  }}
-                  isOpen={true}
-                  onToggleGroup={() => {}}
-                  onReorder={handleReorder}
-                  onOpenCanvas={(tagId) => router.push(`/canvas?tag=${tagId}`)}
-                  color={getTypeColor(group.type)}
-                  emoji={getTypeEmoji(group.type)}
-                  pinnedIds={pinnedIds}
-                  onTogglePin={togglePin}
-                />
-              ))
-            );
+            if (filteredGrouped.length === 0) {
+              return <p className="text-[10px] text-zinc-500 text-center py-4">{viewMode === 'pin' ? 'Nessun tag pinnato' : 'Nessun tag archiviato'}</p>;
+            }
+            return filteredGrouped.map((group) => (
+              <TagSidebarGroup
+                key={group.type}
+                tagType={group.type}
+                label={group.label}
+                tags={group.tags}
+                selectedTagIds={selectedTagIds}
+                onToggle={(tagId) => {
+                  if (pathname === '/canvas') router.push(`/canvas?tag=${tagId}`);
+                  else if (pathname === '/graph') router.push(`/graph?tag=${tagId}`);
+                  else toggle(tagId);
+                }}
+                isOpen={true}
+                onToggleGroup={() => {}}
+                onReorder={handleReorder}
+                onOpenCanvas={(tagId) => router.push(`/canvas?tag=${tagId}`)}
+                color={getTypeColor(group.type)}
+                emoji={getTypeEmoji(group.type)}
+                pinnedIds={pinnedIds}
+                archivedIds={archivedIds}
+                onTogglePin={togglePin}
+                onToggleArchive={toggleArchive}
+              />
+            ));
           })()
         ) : (
-        sortedGrouped.map((group, idx) => (
+        // ALL view: exclude archived tags
+        sortedGrouped
+          .map((g) => ({ ...g, tags: g.tags.filter((t) => !archivedIds.has(t.id)) }))
+          .filter((g) => g.tags.length > 0)
+          .map((group, idx) => (
           <div
             key={group.type}
             draggable
@@ -571,7 +625,9 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               color={getTypeColor(group.type)}
               emoji={getTypeEmoji(group.type)}
               pinnedIds={pinnedIds}
+              archivedIds={archivedIds}
               onTogglePin={togglePin}
+              onToggleArchive={toggleArchive}
             />
           </div>
         )))}

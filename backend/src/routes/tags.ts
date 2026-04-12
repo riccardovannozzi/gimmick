@@ -21,6 +21,8 @@ const updateTagSchema = z.object({
   name: z.string().min(1).max(50).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
   tag_type: z.string().max(30).optional(),
+  is_pinned: z.boolean().optional(),
+  is_archived: z.boolean().optional(),
 });
 
 // ─── Static routes (before :id params) ───────────────────────

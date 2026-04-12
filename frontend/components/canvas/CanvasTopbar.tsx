@@ -1,6 +1,6 @@
 'use client';
 
-import { IconRefresh, IconMaximize, IconNote, IconPlus } from '@tabler/icons-react';
+import { IconRefresh, IconMaximize, IconNote, IconPlus, IconPinnedOff } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
@@ -54,19 +54,43 @@ interface CanvasTopbarProps {
   onReset: () => void;
   onFit: () => void;
   onZoom100: () => void;
+  pinnedTags?: Tag[];
+  onPinnedTagClick?: (tagId: string) => void;
+  onUnpinTag?: (tagId: string) => void;
 }
 
-export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextMode, onToggleTileMode, onReset, onFit, onZoom100 }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, tileCount, textMode, tileMode, onToggleTextMode, onToggleTileMode, onReset, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag }: CanvasTopbarProps) {
   return (
     <div className="h-11 border-b border-zinc-800 flex items-center justify-between px-4 shrink-0 bg-zinc-950">
-      {tag ? (
-        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-zinc-800 border border-zinc-700 text-sm font-medium text-zinc-200">
-          {tag.name}
-          <span className="text-[11px] text-zinc-500 font-normal">{tileCount} tile</span>
-        </div>
-      ) : (
-        <div />
-      )}
+      <div className="flex items-center gap-1 min-w-0 overflow-x-auto">
+        {pinnedTags.map((pt) => (
+          <div
+            key={pt.id}
+            className={cn(
+              'group flex items-center gap-1 pl-2 pr-1 py-0.5 rounded text-[11px] border transition-colors shrink-0',
+              tag?.id === pt.id
+                ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800 hover:text-amber-300'
+            )}
+          >
+            <button
+              onClick={() => onPinnedTagClick?.(pt.id)}
+              className="flex items-center gap-1"
+              title={`Apri "${pt.name}" in Canvas`}
+            >
+              {pt.name}
+              {tag?.id === pt.id && <span className="text-[10px] text-amber-400/70">· {tileCount}</span>}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onUnpinTag?.(pt.id); }}
+              className="opacity-0 group-hover:opacity-100 transition-opacity w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-zinc-700 hover:text-red-400 ml-0.5"
+              title="Rimuovi dal pin"
+            >
+              <IconPinnedOff size={10} />
+            </button>
+          </div>
+        ))}
+      </div>
 
       <div className="flex items-center gap-1">
         <ToolbarToggle icon={<IconPlus size={13} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
