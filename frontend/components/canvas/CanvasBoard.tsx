@@ -107,13 +107,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
   const buildNodes = useCallback((): CanvasNode[] => {
     const pm = new Map(layout.map((p) => [p.tile_id, p]));
-    // Use current in-memory positions if available (from drag), fallback to layout cache
     const currentPosMap = new Map(nodesRef.current.map((n) => [n.id, { x: n.x, y: n.y }]));
     return tiles.map((t, i) => {
       const cur = currentPosMap.get(t.id);
       const s = pm.get(t.id);
-      const x = cur?.x ?? s?.x ?? OFFSET_X;
-      const y = cur?.y ?? s?.y ?? (OFFSET_Y + i * (TILE_H + TILE_GAP));
+      // Priority: DB layout > in-memory (drag) > default column
+      // If DB has a position, use it. In-memory is only a fallback (e.g. for freshly created tiles not yet persisted).
+      const x = s?.x ?? cur?.x ?? OFFSET_X;
+      const y = s?.y ?? cur?.y ?? (OFFSET_Y + i * (TILE_H + TILE_GAP));
       // Resolve pattern shape
       let shape = 'solid';
       if (t.pattern_id) {
@@ -734,7 +735,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               g.attr('transform', `translate(${tb.x},${tb.y})`);
               drawEdges();
             })
-            .on('end', () => { prev = null; onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y }); });
+            .on('end', () => {
+              prev = null;
+              const currentContent = divEl?.innerText ?? tb.content ?? '';
+              tb.content = currentContent;
+              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, content: currentContent });
+            });
         })() as any);
 
         // Resize handles on edges (not on ports)
@@ -782,7 +788,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             })
             .on('end', () => {
               resizeStart = null;
-              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
+              const currentContent = divEl?.innerText ?? tb.content ?? '';
+              tb.content = currentContent;
+              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h, content: currentContent });
             }) as any);
         });
 
@@ -809,7 +817,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           })
           .on('end', () => {
             cornerStart = null;
-            onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h });
+            const currentContent = divEl?.innerText ?? tb.content ?? '';
+            tb.content = currentContent;
+            onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h, content: currentContent });
           }) as any);
 
         // Context menu

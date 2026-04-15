@@ -658,12 +658,21 @@ export function TileSidebar({
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
   const addTextMutation = useMutation({
-    mutationFn: () => sparksApi.create({ tile_id: tileId!, type: 'text', content: newTextContent.trim() }),
+    mutationFn: async () => {
+      if (!tileId) throw new Error('Nessun tile selezionato');
+      const res = await sparksApi.create({ tile_id: tileId, type: 'text', content: newTextContent.trim() });
+      if (!res.success) throw new Error(res.error || 'Errore creazione spark');
+      return res;
+    },
     onSuccess: () => {
       invalidateAll();
       setNewTextContent('');
       setShowNewText(false);
       toast.success('Testo aggiunto');
+    },
+    onError: (err: Error) => {
+      console.error('[TileSidebar] addTextMutation failed:', err);
+      toast.error(err.message || 'Errore salvataggio');
     },
   });
 

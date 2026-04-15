@@ -1553,7 +1553,16 @@ export default function TilesPage() {
                       colWidths={colWidths}
                       onSelect={handleSelect}
                       onSparkClick={() => {}}
-                      onTileClick={(tile) => { queryClient.setQueryData(['tile-detail', tile.id], { data: tile }); setSidebarTileId(tile.id); setSidebarOpen(true); }}
+                      onTileClick={(tile) => {
+                        // Merge with cached data to preserve sparks already fetched
+                        queryClient.setQueryData(['tile-detail', tile.id], (old: any) => ({
+                          data: { ...tile, sparks: old?.data?.sparks }
+                        }));
+                        // Force a refresh so we get the authoritative sparks list
+                        queryClient.invalidateQueries({ queryKey: ['tile-detail', tile.id] });
+                        setSidebarTileId(tile.id);
+                        setSidebarOpen(true);
+                      }}
                       onActionTypeChange={handleActionTypeChange}
                       onToggleCompleted={handleToggleCompleted}
                       getEmoji={getEmoji}

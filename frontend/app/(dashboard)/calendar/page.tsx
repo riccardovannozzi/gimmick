@@ -1328,6 +1328,22 @@ export default function CalendarPage() {
                 info.el.style.borderColor = `${color}60`;
                 info.el.style.borderLeftColor = color;
               }
+              // Inject status icon (if any) into the event
+              const si = tile ? getIconForTile(tile.id) : null;
+              if (si?.icon) {
+                const IconComp = AllIcons[si.icon];
+                if (IconComp) {
+                  // eslint-disable-next-line @typescript-eslint/no-require-imports
+                  const { renderToString } = require('react-dom/server');
+                  const React = require('react');
+                  const svg = renderToString(React.createElement(IconComp, { size: 12, color: '#D4D4D8' }));
+                  const badge = document.createElement('div');
+                  badge.style.cssText = 'position:absolute;top:2px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0.85;';
+                  badge.innerHTML = svg;
+                  info.el.style.position = 'relative';
+                  info.el.appendChild(badge);
+                }
+              }
             }}
             drop={(info) => {
               // External drop from NOTES/TODO

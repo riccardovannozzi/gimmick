@@ -34,6 +34,25 @@ export default function CanvasPage() {
   const tags: Tag[] = tagsData?.data || [];
   const tag = tagId ? tags.find((t) => t.id === tagId) || null : null;
 
+  // Persist last opened tag to localStorage
+  useEffect(() => {
+    if (tagId) {
+      try { localStorage.setItem('canvas_last_tag', tagId); } catch { /* */ }
+    }
+  }, [tagId]);
+
+  // Auto-redirect to last used tag if mounted without ?tag= query
+  useEffect(() => {
+    if (tagId) return;
+    if (tags.length === 0) return; // wait for tags to load
+    try {
+      const last = localStorage.getItem('canvas_last_tag');
+      if (last && tags.some((t) => t.id === last)) {
+        router.replace(`/canvas?tag=${last}`);
+      }
+    } catch { /* */ }
+  }, [tagId, tags, router]);
+
   // Fetch tiles for tag
   const { data: tilesData } = useQuery({
     queryKey: ['canvas-tiles', tagId],
@@ -84,16 +103,17 @@ export default function CanvasPage() {
     }, 800);
   }, [tagId, queryClient]);
 
-  // Save positions (debounced)
+  // Save positions (debounced) + optimistic cache update
   const handlePositionChange = useCallback((positions: { tile_id: string; x: number; y: number }[]) => {
     if (!tagId) return;
-    // Don't update cache (would cause re-render and zoom reset)
-    // Just debounce save to DB
+    // Optimistic: keep layout cache in sync with current visual positions
+    // so that any re-render uses the latest values, not stale DB data.
+    queryClient.setQueryData(['canvas-layout', tagId], { success: true, data: positions });
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       canvasApi.saveLayout(tagId, positions);
     }, 800);
-  }, [tagId]);
+  }, [tagId, queryClient]);
 
   // Add edge
   const handleAddEdge = useCallback(async (source_id: string, target_id: string, source_port?: string, target_port?: string) => {
@@ -165,11 +185,17 @@ export default function CanvasPage() {
   }, [tagId, queryClient]);
 
   const tbUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleUpdateTextBox = useCallback((id: string, updates: { content?: string; x?: number; y?: number }) => {
+  const handleUpdateTextBox = useCallback((id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) => {
     if (!tagId) return;
-    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
-      data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
-    }));
+    // For content-only updates, skip cache write: the contenteditable DOM already reflects
+    // the typed text and updating the cache would trigger a re-render that rebuilds the SVG,
+    // losing focus and dropping in-flight keystrokes.
+    const isContentOnly = 'content' in updates && !('x' in updates) && !('y' in updates) && !('w' in updates) && !('h' in updates);
+    if (!isContentOnly) {
+      queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+        data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
+      }));
+    }
     if (tbUpdateTimer.current) clearTimeout(tbUpdateTimer.current);
     tbUpdateTimer.current = setTimeout(() => { canvasApi.updateTextBox(id, updates); }, 800);
   }, [tagId, queryClient]);
@@ -331,12 +357,15 @@ export default function CanvasPage() {
               onEdgeContextMenu={handleEdgeContextMenu}
               onTileContextMenu={handleTileContextMenu}
               onTileClick={(id) => {
-                // Optimistic: pre-fill cache with tile data + canvas tag
+                // Merge with cached tile to preserve sparks already fetched
                 const t = tiles.find((tile) => tile.id === id);
                 if (t) {
                   const canvasTag = tag ? { id: tag.id, name: tag.name, tag_type: tag.tag_type } : null;
                   const tileWithTag = { ...t, tags: canvasTag ? [canvasTag] : (t.tags || []) };
-                  queryClient.setQueryData(['tile-detail', id], { data: tileWithTag });
+                  queryClient.setQueryData(['tile-detail', id], (old: any) => ({
+                    data: { ...tileWithTag, sparks: old?.data?.sparks }
+                  }));
+                  queryClient.invalidateQueries({ queryKey: ['tile-detail', id] });
                 }
                 setSelectedTileId(id);
                 setSidebarOpen(true);
@@ -445,9 +474,32 @@ export default function CanvasPage() {
           )}
         </div>
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-500">
-          <IconComponents size={32} strokeWidth={1} />
-          <p className="text-sm">Seleziona un tag dalla sidebar per aprire la lavagna</p>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <CanvasTopbar
+            tag={null}
+            tileCount={0}
+            textMode={false}
+            tileMode={false}
+            onToggleTextMode={() => {}}
+            onToggleTileMode={() => {}}
+            onReset={() => {}}
+            onFit={() => {}}
+            onZoom100={() => {}}
+            pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}
+            onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
+            onUnpinTag={async (id) => {
+              queryClient.setQueryData(['tags'], (old: any) => {
+                if (!old?.data) return old;
+                return { ...old, data: old.data.map((t: Tag) => t.id === id ? { ...t, is_pinned: false } : t) };
+              });
+              try { await tagsApi.update(id, { is_pinned: false }); }
+              finally { queryClient.invalidateQueries({ queryKey: ['tags'] }); }
+            }}
+          />
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-500">
+            <IconComponents size={32} strokeWidth={1} />
+            <p className="text-sm">Seleziona un tag dalla sidebar per aprire la lavagna</p>
+          </div>
         </div>
       )}
     </div>
