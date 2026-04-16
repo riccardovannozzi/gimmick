@@ -18,6 +18,7 @@ import { patternsRouter } from './routes/patterns.js';
 import { canvasRouter } from './routes/canvas.js';
 import { statusIconsRouter } from './routes/status-icons.js';
 import { subtasksRouter } from './routes/subtasks.js';
+import { kanbanRouter } from './routes/kanban.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -70,6 +71,7 @@ app.use('/api/patterns', patternsRouter);
 app.use('/api/canvas', canvasRouter);
 app.use('/api/status-icons', statusIconsRouter);
 app.use('/api/subtasks', subtasksRouter);
+app.use('/api/kanban', kanbanRouter);
 
 // Error handling
 app.use(notFoundHandler);

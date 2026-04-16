@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask, KanbanColumn, KanbanFilter } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -632,6 +632,38 @@ export const statusIconsApi = {
     return apiRequest('/api/status-icons/assign', {
       method: 'PUT',
       body: JSON.stringify({ tile_id, status_icon_id }),
+    });
+  },
+};
+
+// ============ Kanban API ============
+export const kanbanApi = {
+  async listColumns() {
+    return apiRequest<KanbanColumn[]>('/api/kanban/columns');
+  },
+
+  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number }) {
+    return apiRequest<KanbanColumn>('/api/kanban/columns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number }) {
+    return apiRequest<KanbanColumn>(`/api/kanban/columns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteColumn(id: string) {
+    return apiRequest(`/api/kanban/columns/${id}`, { method: 'DELETE' });
+  },
+
+  async reorderColumns(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/kanban/columns/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     });
   },
 };

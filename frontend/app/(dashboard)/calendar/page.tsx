@@ -584,7 +584,7 @@ export default function CalendarPage() {
         id: t.id,
         title: t.title || 'Senza titolo',
         start: t.action_type === 'deadline' ? (t.end_at || t.created_at) : (t.start_at || t.created_at),
-        end: isAllDay ? undefined : (t.end_at || new Date(new Date(t.start_at || t.created_at).getTime() + 3600000).toISOString()),
+        end: t.end_at || (isAllDay ? undefined : new Date(new Date(t.start_at || t.created_at).getTime() + 3600000).toISOString()),
         allDay: isAllDay,
         backgroundColor: 'rgba(24, 24, 27, 0.9)',
         borderColor: `${color}60`,

@@ -156,6 +156,22 @@ export interface Subtask {
   updated_at: string;
 }
 
+// Kanban
+export interface KanbanFilter {
+  type: 'action_type' | 'tag' | 'status' | 'pattern';
+  value: string;
+}
+
+export interface KanbanColumn {
+  id: string;
+  user_id: string;
+  title: string;
+  sort_order: number;
+  filters: KanbanFilter[];
+  created_at: string;
+  updated_at: string;
+}
+
 // Auth Tokens
 export interface AuthTokens {
   access_token: string;
