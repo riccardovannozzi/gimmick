@@ -157,8 +157,13 @@ export interface Subtask {
 }
 
 // Kanban
+export type KanbanFilterType = 'action_type' | 'tag' | 'status' | 'pattern' | 'status_icon' | 'date_range';
+export type KanbanSortBy = 'date_start' | 'date_end' | 'date_created' | 'date_updated' | null;
+export type KanbanSortDir = 'asc' | 'desc';
+
 export interface KanbanFilter {
-  type: 'action_type' | 'tag' | 'status' | 'pattern';
+  type: KanbanFilterType;
+  // For date_range: "from|to" (ISO date strings, either side can be empty)
   value: string;
 }
 
@@ -168,6 +173,8 @@ export interface KanbanColumn {
   title: string;
   sort_order: number;
   filters: KanbanFilter[];
+  sort_by?: KanbanSortBy;
+  sort_dir?: KanbanSortDir;
   created_at: string;
   updated_at: string;
 }

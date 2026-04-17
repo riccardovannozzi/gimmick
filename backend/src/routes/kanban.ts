@@ -9,20 +9,27 @@ export const kanbanRouter = Router();
 kanbanRouter.use(authenticate);
 
 const filterRuleSchema = z.object({
-  type: z.enum(['action_type', 'tag', 'status', 'pattern']),
+  type: z.enum(['action_type', 'tag', 'status', 'pattern', 'status_icon', 'date_range']),
   value: z.string().min(1),
 });
+
+const sortBySchema = z.enum(['date_start', 'date_end', 'date_created', 'date_updated']).nullable();
+const sortDirSchema = z.enum(['asc', 'desc']);
 
 const createColumnSchema = z.object({
   title: z.string().min(1).default('Nuova colonna'),
   filters: z.array(filterRuleSchema).default([]),
   sort_order: z.number().int().optional(),
+  sort_by: sortBySchema.optional(),
+  sort_dir: sortDirSchema.optional(),
 });
 
 const updateColumnSchema = z.object({
   title: z.string().min(1).optional(),
   filters: z.array(filterRuleSchema).optional(),
   sort_order: z.number().int().optional(),
+  sort_by: sortBySchema.optional(),
+  sort_dir: sortDirSchema.optional(),
 });
 
 const reorderSchema = z.object({
@@ -60,7 +67,7 @@ kanbanRouter.post(
   validate(createColumnSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { title, filters, sort_order } = req.body;
+      const { title, filters, sort_order, sort_by, sort_dir } = req.body;
 
       // Auto sort_order: append at end
       let order = sort_order;
@@ -81,6 +88,8 @@ kanbanRouter.post(
           title,
           filters,
           sort_order: order,
+          sort_by: sort_by ?? null,
+          sort_dir: sort_dir ?? 'asc',
         })
         .select()
         .single();

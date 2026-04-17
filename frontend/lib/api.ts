@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask, KanbanColumn, KanbanFilter } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -642,14 +642,14 @@ export const kanbanApi = {
     return apiRequest<KanbanColumn[]>('/api/kanban/columns');
   },
 
-  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number }) {
+  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir }) {
     return apiRequest<KanbanColumn>('/api/kanban/columns', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number }) {
+  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir }) {
     return apiRequest<KanbanColumn>(`/api/kanban/columns/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
