@@ -52,6 +52,7 @@ const TAG_NODE_COLOR = '#94A3B8';
 
 // ─── Physics defaults ───
 const defaultPhysics = {
+  showTagClusters: 0, // 0 = off, 1 = on (number for uniform slider handling)
   chargeTag: -400,
   chargeTile: -250,
   chargeSpark: -100,
@@ -65,6 +66,7 @@ const defaultPhysics = {
   collisionTile: 50,
   collisionSpark: 24,
   centerStrength: 0.02,
+  tagClusterStrength: 0.12,
   velocityDecay: 0.3,
   linkWidth: 2,
 };
@@ -106,7 +108,7 @@ export default function GraphPage() {
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
   const ACTION_TYPE_COLORS = useActionColors();
-  const { tagTypes: tagTypeEntities, getEmoji: getTagTypeEmoji } = useTagTypes();
+  const { tagTypes: tagTypeEntities, getEmoji: getTagTypeEmoji, getColor: getTagTypeColor } = useTagTypes();
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -360,16 +362,21 @@ export default function GraphPage() {
     if (selectedTag && !isEditMode) {
       // ─── Focused tag mode ───
       const tagTileIdSet = new Set(selectedTag.tile_ids || []);
+      const tagTypeOf = (tagId: string): string =>
+        allTags.find((tg) => tg.id === tagId)?.tag_type || 'topic';
+      const colorFor = (tagId: string): string =>
+        getTagTypeColor(tagTypeOf(tagId)) || TAG_NODE_COLOR;
       const centerNode: GraphNode = {
         id: `tag-${selectedTag.id}`,
         type: 'tag',
         label: selectedTag.name,
-        color: TAG_NODE_COLOR,
+        color: colorFor(selectedTag.id),
         fx: width / 2,
         fy: height / 2,
         tileCount: selectedTag.tile_ids.length,
         tagId: selectedTag.id,
         usageCount: tagNodes.find((t) => t.id === selectedTag.id)?.usage_count || 0,
+        tagType: tagTypeOf(selectedTag.id),
       };
       nodes.push(centerNode);
 
@@ -392,10 +399,11 @@ export default function GraphPage() {
           id: `tag-${otherTagId}`,
           type: 'tag',
           label: otherTag.name,
-          color: TAG_NODE_COLOR,
+          color: colorFor(otherTagId),
           tagId: otherTagId,
           usageCount: otherTag.usage_count || 0,
           tileCount: graphTags.find((gt) => gt.id === otherTagId)?.tile_ids.length || 0,
+          tagType: tagTypeOf(otherTagId),
         });
         links.push({
           source: `tag-${selectedTag.id}`,
@@ -451,17 +459,19 @@ export default function GraphPage() {
       // Tag nodes from tagGraph (include GIMMICK root as a regular tag node)
       const tagNodeMap = new Map<string, GraphNode>();
       let gimmickNodeId: string | null = null;
+      const colorForTagType = (tt: string): string => getTagTypeColor(tt) || TAG_NODE_COLOR;
       for (const t of tagNodes) {
+        const tt = tagTypeMap.get(t.id) || 'topic';
         const node: GraphNode = {
           id: `tag-${t.id}`,
           type: 'tag',
           label: t.name,
-          color: TAG_NODE_COLOR,
+          color: colorForTagType(tt),
           tagId: t.id,
           usageCount: t.usage_count || 0,
           isRoot: t.is_root || false,
           tileCount: 0,
-          tagType: tagTypeMap.get(t.id) || 'topic',
+          tagType: tt,
         };
         tagNodeMap.set(t.id, node);
         nodes.push(node);
@@ -471,14 +481,15 @@ export default function GraphPage() {
       // Also add tags from content data that might not be in tagGraph
       for (const tag of graphTags) {
         if (!tagNodeMap.has(tag.id)) {
+          const tt = tagTypeMap.get(tag.id) || 'topic';
           const node: GraphNode = {
             id: `tag-${tag.id}`,
             type: 'tag',
             label: tag.name,
-            color: TAG_NODE_COLOR,
+            color: colorForTagType(tt),
             tagId: tag.id,
             tileCount: tag.tile_ids.length,
-            tagType: tagTypeMap.get(tag.id) || 'topic',
+            tagType: tt,
           };
           tagNodeMap.set(tag.id, node);
           nodes.push(node);
@@ -577,6 +588,8 @@ export default function GraphPage() {
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     const g = svg.append('g');
+    // Tag cluster hull layer (rendered first so it sits behind everything else)
+    const hullLayer = g.append('g').attr('class', 'tag-cluster-hulls').attr('pointer-events', 'none');
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
@@ -644,6 +657,60 @@ export default function GraphPage() {
           return p.collisionSpark;
         }).strength(0.8)
       );
+
+    // ─── Tag-type cluster force ───
+    // Gathers tag nodes of the same tag_type around a shared center, so the
+    // view visually groups tags by type without adding extra nodes. The centers
+    // are laid out on a circle around the canvas center; non-tag nodes are
+    // unaffected. Adjustable via physics.tagClusterStrength.
+    const tagTypesPresent = Array.from(new Set(
+      nodes.filter((n) => n.type === 'tag' && n.tagType).map((n) => n.tagType as string),
+    ));
+    const typeCenters = new Map<string, { cx: number; cy: number }>();
+    if (tagTypesPresent.length > 0) {
+      const cx0 = width / 2, cy0 = height / 2;
+      const radius = Math.min(width, height) * 0.28;
+      tagTypesPresent.forEach((tt, i) => {
+        const angle = (i / tagTypesPresent.length) * Math.PI * 2 - Math.PI / 2;
+        typeCenters.set(tt, {
+          cx: cx0 + Math.cos(angle) * radius,
+          cy: cy0 + Math.sin(angle) * radius,
+        });
+      });
+    }
+    simulation.force('tagCluster', (alpha: number) => {
+      const s = p.tagClusterStrength;
+      if (s <= 0 || typeCenters.size === 0) return;
+      for (const node of nodes) {
+        if (node.type !== 'tag' || node.isRoot || !node.tagType) continue;
+        const center = typeCenters.get(node.tagType);
+        if (!center) continue;
+        const k = s * alpha;
+        node.vx = (node.vx || 0) + (center.cx - (node.x ?? center.cx)) * k;
+        node.vy = (node.vy || 0) + (center.cy - (node.y ?? center.cy)) * k;
+      }
+    });
+
+    // Pre-bind hull group per tag type (updated on tick). One group = one type.
+    const hullGroups = hullLayer
+      .selectAll<SVGGElement, string>('g')
+      .data(tagTypesPresent, (d) => d as string)
+      .join((enter) => {
+        const grp = enter.append('g').attr('class', 'tag-cluster');
+        grp.append('circle').attr('class', 'hull-bg').attr('fill-opacity', 0.1).attr('stroke-opacity', 0.4).attr('stroke-dasharray', '6,4').attr('stroke-width', 1.5);
+        grp.append('text').attr('class', 'hull-label').attr('text-anchor', 'middle').attr('font-size', 11).attr('font-weight', 600).attr('letter-spacing', 0.5);
+        return grp;
+      });
+    const getTypeName = (slug: string): string => {
+      const te = tagTypeEntities.find((t) => t.slug === slug);
+      return te?.name || slug.toUpperCase();
+    };
+    hullGroups.select<SVGCircleElement>('circle.hull-bg')
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
+      .attr('stroke', (d) => getTagTypeColor(d) || TAG_NODE_COLOR);
+    hullGroups.select<SVGTextElement>('text.hull-label')
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
+      .text((d) => getTypeName(d));
 
     // ─── Links rendering ───
     const coLinks = links.filter((l) => l.linkType === 'co-occurrence');
@@ -1101,6 +1168,33 @@ export default function GraphPage() {
 
     // ─── Tick ───
     simulation.on('tick', () => {
+      // Tag cluster hulls: compute centroid + max radius from tag nodes of each type
+      const showHulls = (p.showTagClusters || 0) > 0 && tagTypesPresent.length > 0;
+      hullLayer.style('display', showHulls ? '' : 'none');
+      if (showHulls) {
+        const byType = new Map<string, GraphNode[]>();
+        for (const n of nodes) {
+          if (n.type !== 'tag' || n.isRoot || !n.tagType) continue;
+          const list = byType.get(n.tagType) || [];
+          list.push(n);
+          byType.set(n.tagType, list);
+        }
+        hullGroups.each(function (tt) {
+          const grp = d3.select(this);
+          const members = byType.get(tt) || [];
+          if (members.length === 0) { grp.style('display', 'none'); return; }
+          grp.style('display', '');
+          const avgX = members.reduce((s, n) => s + (n.x ?? 0), 0) / members.length;
+          const avgY = members.reduce((s, n) => s + (n.y ?? 0), 0) / members.length;
+          const maxDist = members.reduce((m, n) => {
+            const dx = (n.x ?? 0) - avgX, dy = (n.y ?? 0) - avgY;
+            return Math.max(m, Math.sqrt(dx * dx + dy * dy));
+          }, 0);
+          const r = Math.max(40, maxDist + 36);
+          grp.select<SVGCircleElement>('circle.hull-bg').attr('cx', avgX).attr('cy', avgY).attr('r', r);
+          grp.select<SVGTextElement>('text.hull-label').attr('x', avgX).attr('y', avgY - r - 4);
+        });
+      }
       linkOther
         .attr('x1', (d) => ((d.source as GraphNode).x ?? 0))
         .attr('y1', (d) => ((d.source as GraphNode).y ?? 0))
@@ -1583,6 +1677,7 @@ export default function GraphPage() {
                   <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Generale</p>
                   {([
                     ['centerStrength', 'Centro', 0, 0.1],
+                    ['tagClusterStrength', 'Tag cluster', 0, 0.5],
                     ['velocityDecay', 'Friction', 0.1, 0.8],
                     ['linkWidth', 'Archi', 0.5, 6],
                   ] as const).map(([key, label, min, max]) => (
@@ -1598,6 +1693,15 @@ export default function GraphPage() {
                       <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
                     </div>
                   ))}
+                  <label className="flex items-center gap-2 mt-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={(physics.showTagClusters || 0) > 0}
+                      onChange={(e) => setPhysics((prev) => ({ ...prev, showTagClusters: e.target.checked ? 1 : 0 }))}
+                      className="accent-blue-500"
+                    />
+                    <span className="text-[10px] text-zinc-400">Evidenzia tag cluster</span>
+                  </label>
                 </div>
               </div>
             )}

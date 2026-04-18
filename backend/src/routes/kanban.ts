@@ -22,6 +22,8 @@ const createColumnSchema = z.object({
   sort_order: z.number().int().optional(),
   sort_by: sortBySchema.optional(),
   sort_dir: sortDirSchema.optional(),
+  width: z.number().int().min(1).max(10).optional(),
+  bg_color: z.string().nullable().optional(),
 });
 
 const updateColumnSchema = z.object({
@@ -30,6 +32,8 @@ const updateColumnSchema = z.object({
   sort_order: z.number().int().optional(),
   sort_by: sortBySchema.optional(),
   sort_dir: sortDirSchema.optional(),
+  width: z.number().int().min(1).max(10).optional(),
+  bg_color: z.string().nullable().optional(),
 });
 
 const reorderSchema = z.object({

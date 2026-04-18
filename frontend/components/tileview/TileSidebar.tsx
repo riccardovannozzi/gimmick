@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconPin, IconBolt, IconClock, IconCalendarEvent, IconCalendar } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconPin, IconBolt, IconClock, IconCalendarEvent, IconCalendar, IconMaximize, IconX } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -243,7 +243,7 @@ function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; si
   return <span className="rounded-full shrink-0" style={{ width: size * 0.55, height: size * 0.55, backgroundColor: color }} />;
 }
 
-function TagPicker({ tileId, tileTags, onChanged, queryClient }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient> }) {
+function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = [] }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient>; invalidateKeys?: string[] }) {
   const [open, setOpen] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
@@ -279,21 +279,30 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient }: { tileId: strin
   // Optimistic update helper: patch tag in all cached tile queries
   const optimisticUpdateTag = (newTag: { id: string; name: string; tag_type?: string } | null) => {
     const newTags = newTag ? [{ id: newTag.id, name: newTag.name, tag_type: newTag.tag_type }] : [];
-    // Update tile-detail cache
+    const patch = (t: any) => (t.id === tileId ? { ...t, tags: newTags } : t);
+    // tile-detail cache (single object)
     queryClient.setQueriesData({ queryKey: ['tile-detail', tileId] }, (old: any) => {
       if (!old?.data) return old;
       return { ...old, data: { ...old.data, tags: newTags } };
     });
-    // Update calendar-events cache
-    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map((t: any) => t.id === tileId ? { ...t, tags: newTags } : t) };
-    });
-    // Update tiles-calendar cache
-    queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map((t: any) => t.id === tileId ? { ...t, tags: newTags } : t) };
-    });
+    const patchListCache = (key: string) => {
+      queryClient.setQueriesData({ queryKey: [key] }, (old: any) => {
+        if (!old) return old;
+        if (old.pages) {
+          return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
+        }
+        if (Array.isArray(old.data)) {
+          return { ...old, data: old.data.map(patch) };
+        }
+        return old;
+      });
+    };
+    // Built-in caches
+    patchListCache('calendar-events');
+    patchListCache('tiles-calendar');
+    patchListCache('tiles');
+    // Caller-specific caches (kanban, canvas, etc.)
+    invalidateKeys.forEach(patchListCache);
   };
 
   const handleSelect = async (tag: Tag) => {
@@ -397,9 +406,18 @@ function SparkEditor({
   const [editText, setEditText] = useState(spark.content || '');
   const textDirty = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pdfModalOpen, setPdfModalOpen] = useState(false);
+
+  // Close PDF modal on Escape
+  useEffect(() => {
+    if (!pdfModalOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPdfModalOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [pdfModalOpen]);
 
   useEffect(() => {
-    if (spark.storage_path && ['photo', 'image', 'video'].includes(spark.type)) {
+    if (spark.storage_path && ['photo', 'image', 'video', 'file', 'audio_recording'].includes(spark.type)) {
       uploadApi.getSignedUrl(spark.storage_path).then((res) => {
         if (res.data?.url) setSignedUrl(res.data.url);
       }).catch(() => {});
@@ -506,6 +524,91 @@ function SparkEditor({
     );
   }
 
+  // PDF: compact thumbnail in the sidebar, click to open full-size modal
+  const isPdfFile = spark.mime_type === 'application/pdf' || spark.file_name?.toLowerCase().endsWith('.pdf');
+  if (isPdfFile && signedUrl) {
+    return (
+      <>
+        <div
+          onClick={() => setPdfModalOpen(true)}
+          className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative cursor-zoom-in hover:border-zinc-600 transition-colors"
+        >
+          {/* Thumbnail — first page, interaction blocked so click falls through to wrapper */}
+          <div className="relative h-24 bg-zinc-900 overflow-hidden pointer-events-none">
+            <iframe
+              src={`${signedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`}
+              title={spark.file_name || 'PDF'}
+              className="w-full h-full border-0"
+            />
+            <div className="absolute inset-0" /> {/* overlay to block iframe events */}
+          </div>
+          <div className="flex items-center gap-2 px-2 py-1 border-t border-zinc-700/60 bg-zinc-900/70">
+            <IconFileText className="h-3 w-3 text-zinc-400 shrink-0" />
+            <span
+              className="text-[10px] text-zinc-300 truncate flex-1"
+              title={spark.file_name || ''}
+            >
+              {spark.file_name}
+            </span>
+            <IconMaximize className="h-3 w-3 text-zinc-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+          </div>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleDeleteClick(); }}
+            className={cn(
+              'absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
+              confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400'
+            )}
+          >
+            <IconTrash className="h-3 w-3" />
+          </button>
+        </div>
+
+        {/* Expand modal */}
+        {pdfModalOpen && createPortal(
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4"
+            onClick={() => setPdfModalOpen(false)}
+          >
+            <div
+              className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+              style={{ width: 'min(95vw, 1100px)', height: 'min(95vh, 900px)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 shrink-0">
+                <IconFileText className="h-4 w-4 text-zinc-400 shrink-0" />
+                <span className="text-sm font-medium text-white truncate flex-1" title={spark.file_name || ''}>
+                  {spark.file_name || 'PDF'}
+                </span>
+                <a
+                  href={signedUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  title="Apri in nuovo tab"
+                >
+                  <IconExternalLink className="h-4 w-4" />
+                </a>
+                <button
+                  onClick={() => setPdfModalOpen(false)}
+                  className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  title="Chiudi"
+                >
+                  <IconX className="h-4 w-4" />
+                </button>
+              </div>
+              <iframe
+                src={signedUrl}
+                title={spark.file_name || 'PDF'}
+                className="flex-1 w-full bg-zinc-900 border-0"
+              />
+            </div>
+          </div>,
+          document.body,
+        )}
+      </>
+    );
+  }
+
   return (
     <a
       href={signedUrl || '#'}
@@ -583,20 +686,27 @@ export function TileSidebar({
       if (!old?.data) return old;
       return { ...old, data: { ...old.data, ...updates } };
     });
-    queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map(patch) };
-    });
-    queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map(patch) };
-    });
-    // Patch infinite query cache (tiles table)
-    queryClient.setQueriesData({ queryKey: ['tiles'] }, (old: any) => {
-      if (!old?.pages) return old;
-      return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
-    });
-  }, [queryClient, tileId]);
+    const patchListCache = (key: string) => {
+      queryClient.setQueriesData({ queryKey: [key] }, (old: any) => {
+        if (!old) return old;
+        // Paginated (infinite) cache shape
+        if (old.pages) {
+          return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
+        }
+        // Flat { data: Tile[] } cache shape
+        if (Array.isArray(old.data)) {
+          return { ...old, data: old.data.map(patch) };
+        }
+        return old;
+      });
+    };
+    // Built-in queries we always patch
+    patchListCache('calendar-events');
+    patchListCache('tiles-calendar');
+    patchListCache('tiles');
+    // Plus any caller-specific caches (kanban, canvas, etc.)
+    invalidateKeys.forEach(patchListCache);
+  }, [queryClient, tileId, invalidateKeys]);
 
   const updateTileMutation = useMutation({
     mutationFn: (updates: Record<string, unknown>) =>
@@ -815,7 +925,12 @@ export function TileSidebar({
 
               {/* Date/time fields — shown for deadline, all day, timed */}
               {(tile.action_type === 'deadline' || tile.action_type === 'event') && (() => {
-                const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
+                // Deadline primarily lives in end_at, but fall back to start_at so a
+                // date still surfaces even when the tile is mis-scheduled (and matches
+                // what the kanban column shows).
+                const dateRef = tile.action_type === 'deadline'
+                  ? (tile.end_at || tile.start_at)
+                  : tile.start_at;
                 const dateVal = dateRef ? toLocalInput(dateRef).slice(0, 10) : '';
                 const startTime = tile.start_at ? toLocalInput(tile.start_at).slice(11, 16) : '';
                 const endTime = tile.end_at ? toLocalInput(tile.end_at).slice(11, 16) : '';
@@ -882,7 +997,7 @@ export function TileSidebar({
               })()}
 
               {/* Tags */}
-              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} queryClient={queryClient} />
+              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} queryClient={queryClient} invalidateKeys={invalidateKeys} />
 
               {/* Status Icon */}
               <StatusIconPicker tileId={tile.id} />

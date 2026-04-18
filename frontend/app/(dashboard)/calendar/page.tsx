@@ -4,7 +4,7 @@ import { useCallback, useMemo, useState, useRef, useEffect, DragEvent } from 're
 import { createPortal } from 'react-dom';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
 import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
@@ -367,6 +367,27 @@ export default function CalendarPage() {
     return groups;
   }, [processedNotes, notesGroup]);
 
+  // Register NOTES + TODO columns as FullCalendar external draggable containers,
+  // so tiles can be dropped onto the calendar grid and trigger the FC `drop` handler.
+  useEffect(() => {
+    const selectors = ['[data-kanban-column="notes"]', '[data-kanban-column="todo"]'];
+    const instances: Draggable[] = [];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      if (!el) continue;
+      instances.push(new Draggable(el, {
+        itemSelector: '[data-tile-id]',
+        eventData: (eventEl) => ({
+          title: eventEl.getAttribute('data-tile-id') || '',
+        }),
+      }));
+    }
+    return () => {
+      instances.forEach((i) => i.destroy());
+    };
+    // Re-register when tiles list size changes so freshly rendered items are draggable
+  }, [processedNotes.length, processedTodos.length]);
+
   const getTagInfo = (tile: Tile): { icon: string; name: string } => {
     const tag = tile.tags?.[0];
     if (!tag) return { icon: '', name: '' };
@@ -490,11 +511,12 @@ export default function CalendarPage() {
         updates.end_at = null;
         break;
       case 'deadline':
+        // Deadlines live in end_at only — clear start_at so stale times don't linger
         updates.action_type = 'deadline';
         updates.is_event = false;
         updates.all_day = false;
+        updates.start_at = null;
         updates.end_at = new Date(`${dateStr}T23:59:59`).toISOString();
-        if (!tile.start_at) updates.start_at = null;
         break;
       case 'allday':
         updates.action_type = 'event';
@@ -567,6 +589,7 @@ export default function CalendarPage() {
 
   // FullCalendar ref + events
   const fcRef = useRef<FullCalendar>(null);
+  const externalDropRef = useRef<string | null>(null);
 
   // Navigate FullCalendar when weekOffset changes
   useEffect(() => {
@@ -817,6 +840,7 @@ export default function CalendarPage() {
 
         {/* 2 — COLONNA NOTES */}
         <div
+          data-kanban-column="notes"
           className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50')}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
           onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
@@ -977,6 +1001,7 @@ export default function CalendarPage() {
 
         {/* 3 — COLONNA TODO */}
         <div
+          data-kanban-column="todo"
           className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50')}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
           onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
@@ -1290,7 +1315,41 @@ export default function CalendarPage() {
               const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
               if (tile) { setSelectedTileId(tile.id); if (!sidebarOpen) setSidebarOpen(true); }
             }}
+            eventDragStart={() => { setDragOver(null); }}
+            eventDragStop={(info) => {
+              // If the drop landed over the NOTES or TODO column, unschedule the
+              // tile and reclassify it instead of leaving it on the calendar.
+              const { clientX, clientY } = info.jsEvent;
+              const notesEl = document.querySelector('[data-kanban-column="notes"]') as HTMLElement | null;
+              const todoEl = document.querySelector('[data-kanban-column="todo"]') as HTMLElement | null;
+              const within = (el: HTMLElement | null) => {
+                if (!el) return false;
+                const r = el.getBoundingClientRect();
+                return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+              };
+              const target: 'notes' | 'todo' | null = within(notesEl) ? 'notes' : within(todoEl) ? 'todo' : null;
+              if (!target) return;
+              // Mark the drop as externally handled so eventDrop doesn't also fire a move
+              externalDropRef.current = info.event.id;
+              info.event.remove();
+              moveTileMutation.mutate({
+                id: info.event.id,
+                updates: {
+                  action_type: target === 'notes' ? 'none' : 'anytime',
+                  is_event: false,
+                  all_day: false,
+                  start_at: null,
+                  end_at: null,
+                },
+              });
+              setDragOver(null);
+            }}
             eventDrop={(info) => {
+              // Skip if this drop was already handled by eventDragStop (external target)
+              if (externalDropRef.current === info.event.id) {
+                externalDropRef.current = null;
+                return;
+              }
               const { id } = info.event;
               const start = info.event.start;
               const end = info.event.end;

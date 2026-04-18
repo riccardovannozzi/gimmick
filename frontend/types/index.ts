@@ -175,6 +175,8 @@ export interface KanbanColumn {
   filters: KanbanFilter[];
   sort_by?: KanbanSortBy;
   sort_dir?: KanbanSortDir;
+  width?: number;
+  bg_color?: string | null;
   created_at: string;
   updated_at: string;
 }

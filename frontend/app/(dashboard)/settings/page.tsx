@@ -15,7 +15,8 @@ import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import { useActionColorsQuery, type BorderStyle } from '@/store/action-colors-store';
-import { GIMMICK_PALETTE, getColorName } from '@/lib/palette';
+import { getColorName } from '@/lib/palette';
+import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 import { PatternsModal } from '@/components/patterns/patterns-modal';
 import { StatusIconsModal } from '@/components/status-icons/status-icons-modal';
 import type { ActionType } from '@/types';
@@ -27,37 +28,6 @@ const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[]
   { type: 'event', label: 'Timed', icon: IconCalendar },
   { type: 'allday', label: 'All Day', icon: IconCalendarEvent },
 ];
-
-function ColorPickerGrid({
-  selectedColor,
-  onSelect,
-}: {
-  selectedColor: string;
-  onSelect: (hex: string) => void;
-}) {
-  return (
-    <div className="inline-grid grid-cols-5 rounded-md overflow-hidden" style={{ gap: 2 }}>
-      {GIMMICK_PALETTE.map((color) => {
-        const isSelected = color.hex.toLowerCase() === selectedColor.toLowerCase();
-        return (
-          <button
-            key={color.id}
-            onClick={() => onSelect(color.hex)}
-            title={color.name}
-            className="w-8 h-8 relative"
-            style={{ backgroundColor: color.hex }}
-          >
-            {isSelected && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-3 h-3 rounded-full bg-white shadow-sm" style={{ boxShadow: '0 0 3px rgba(0,0,0,0.5)' }} />
-              </div>
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -370,6 +340,7 @@ export default function SettingsPage() {
           <ColorPickerGrid
             selectedColor={actionColors[pickerAction]}
             onSelect={(hex) => {
+              if (!hex) return;
               updateActionColor(pickerAction, hex);
               setPickerAction(null);
               toast.success('Colore aggiornato');

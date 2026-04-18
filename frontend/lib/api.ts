@@ -642,14 +642,14 @@ export const kanbanApi = {
     return apiRequest<KanbanColumn[]>('/api/kanban/columns');
   },
 
-  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir }) {
+  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir; width?: number; bg_color?: string | null }) {
     return apiRequest<KanbanColumn>('/api/kanban/columns', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir }) {
+  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir; width?: number; bg_color?: string | null }) {
     return apiRequest<KanbanColumn>(`/api/kanban/columns/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
