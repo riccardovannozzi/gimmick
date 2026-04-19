@@ -4,12 +4,13 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { IconComponents, IconTrash } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { tagsApi, canvasApi, tilesApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
@@ -23,7 +24,6 @@ export default function CanvasPage() {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fitTrigger, setFitTrigger] = useState(0);
-  const [resetTrigger, setResetTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch tag
@@ -211,22 +211,6 @@ export default function CanvasPage() {
   // Text box context menu
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
 
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
-  const handleReset = useCallback(() => {
-    setShowResetConfirm(true);
-  }, []);
-  const confirmReset = useCallback(async () => {
-    setResetTrigger((n) => n + 1);
-    setShowResetConfirm(false);
-    if (!tagId) return;
-    // Delete all edges
-    const currentEdges = (queryClient.getQueryData(['canvas-edges', tagId]) as any)?.data || [];
-    queryClient.setQueryData(['canvas-edges', tagId], { data: [] });
-    for (const edge of currentEdges) {
-      try { await canvasApi.deleteEdge(edge.id); } catch { /* ignore */ }
-    }
-  }, [tagId, queryClient]);
-
   // Add new tile at position
   const handleAddTileAt = useCallback(async (x: number, y: number) => {
     if (!tagId) return;
@@ -282,6 +266,72 @@ export default function CanvasPage() {
     setEdgeCtx(null);
   }, [edgeCtx, handleDeleteEdge]);
 
+  // Multi-selection state (CTRL/SHIFT + drag/click in CanvasBoard).
+  // IDs are mixed: bare UUID = tile, "tb:<uuid>" = text box.
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectionBbox, setSelectionBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+
+  // Derived splits
+  const selectedTileIds = useMemo(() => selectedIds.filter((id) => !id.startsWith('tb:')), [selectedIds]);
+  const selectedTextBoxIds = useMemo(() => selectedIds.filter((id) => id.startsWith('tb:')).map((id) => id.slice(3)), [selectedIds]);
+
+  const handleSelectionChange = useCallback((ids: string[], bbox: { x: number; y: number; w: number; h: number } | null) => {
+    setSelectedIds(ids);
+    setSelectionBbox(bbox);
+    // Auto-open sidebar on multi-selection so the bulk editor is immediately visible
+    if (ids.length >= 2) setSidebarOpen(true);
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedIds([]);
+    setSelectionBbox(null);
+  }, []);
+
+  // Esc clears selection
+  useEffect(() => {
+    if (selectedIds.length === 0) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [selectedIds.length, clearSelection]);
+
+  const handleBulkDeleteSelected = useCallback(async () => {
+    if (selectedIds.length === 0 || !tagId) return;
+    const tileIds = selectedTileIds;
+    const tbIds = selectedTextBoxIds;
+    // Edges connected to any deleted endpoint must also go (avoid orphans).
+    // edge.source_id/target_id are stored bare for tiles and "tb:<uuid>" for text boxes.
+    const allEndpoints = new Set([...tileIds, ...tbIds.map((id) => `tb:${id}`)]);
+    const currentEdges = ((queryClient.getQueryData(['canvas-edges', tagId]) as any)?.data || []) as CanvasEdge[];
+    const edgesToDelete = currentEdges.filter((e) => allEndpoints.has(e.source_id) || allEndpoints.has(e.target_id));
+
+    clearSelection();
+    try {
+      await Promise.all([
+        ...tileIds.map((id) => tilesApi.delete(id).catch(() => null)),
+        ...tbIds.map((id) => canvasApi.deleteTextBox(id).catch(() => null)),
+        ...edgesToDelete.map((e) => canvasApi.deleteEdge(e.id).catch(() => null)),
+      ]);
+      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['canvas-edges', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['canvas-textboxes', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+    } catch { /* ignore */ }
+  }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection]);
+
+  const handleCreateGroupFromSelection = useCallback(() => {
+    // Groups are tile-only; require ≥2 tiles AND no text boxes in selection.
+    if (selectedTileIds.length < 2 || selectedTextBoxIds.length > 0) return;
+    const ids = selectedTileIds;
+    const ng = canvasGroups
+      .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !ids.includes(nid)) }))
+      .filter((g) => g.nodeIds.length >= 2);
+    ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
+    handleGroupsChange(ng);
+    clearSelection();
+  }, [selectedTileIds, selectedTextBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
+
   // Tile context menu
   const [tileCtx, setTileCtx] = useState<{ x: number; y: number; tileId: string; inGroup: boolean } | null>(null);
 
@@ -311,6 +361,41 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tileCtx, tagId, queryClient]);
 
+  const handleDuplicateTile = useCallback(async () => {
+    if (!tileCtx || !tagId) return;
+    const sourceId = tileCtx.tileId;
+    setTileCtx(null);
+    const source = tiles.find((t) => t.id === sourceId);
+    if (!source) return;
+    try {
+      const res = await tilesApi.create({ title: source.title });
+      const newId = res?.data?.id;
+      if (!newId) return;
+      // Copy metadata (except scheduling/event fields — a duplicate shouldn't clone a calendar slot)
+      const updates: Parameters<typeof tilesApi.update>[1] = {};
+      if (source.action_type) updates.action_type = source.action_type;
+      if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
+      if (source.pattern_id) updates.pattern_id = source.pattern_id;
+      if (Object.keys(updates).length > 0) {
+        try { await tilesApi.update(newId, updates); } catch { /* ignore */ }
+      }
+      // Assign same tag as current canvas
+      await tagsApi.tagTiles(tagId, [newId]);
+      // Place near the original (offset so it's visible but not overlapping)
+      const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
+      const sourcePos = currentLayout.find((p: { tile_id: string; x: number; y: number }) => p.tile_id === sourceId);
+      const offsetX = (sourcePos?.x ?? 0) + 40;
+      const offsetY = (sourcePos?.y ?? 0) + 40;
+      const newLayout = [...currentLayout, { tile_id: newId, x: offsetX, y: offsetY }];
+      queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
+      canvasApi.saveLayout(tagId, newLayout);
+      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      setSelectedTileId(newId);
+      setSidebarOpen(true);
+    } catch { /* ignore */ }
+  }, [tileCtx, tagId, tiles, queryClient]);
+
   return (
     <div className="flex flex-col h-full">
       <Header title="Canvas" />
@@ -325,7 +410,6 @@ export default function CanvasPage() {
             tileMode={tileMode}
             onToggleTextMode={() => setTextMode((v) => !v)}
             onToggleTileMode={() => setTileMode((v) => !v)}
-            onReset={handleReset}
             onFit={handleFit}
             onZoom100={handleZoom100}
             pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}
@@ -374,47 +458,146 @@ export default function CanvasPage() {
               onAddTextBox={handleAddTextBox}
               onUpdateTextBox={handleUpdateTextBox}
               onTextBoxContextMenu={(e) => setTbCtx(e)}
+              selectedIds={selectedTileIds}
+              onSelectionChange={handleSelectionChange}
               fitTrigger={fitTrigger}
-              resetTrigger={resetTrigger}
               zoom100Trigger={zoom100Trigger}
             />
           </div>
         </div>
 
-          {/* 5 — SIDEBAR DESTRA */}
-          <TileSidebar
-            tileId={selectedTileId}
-            open={sidebarOpen}
-            onToggle={() => setSidebarOpen(!sidebarOpen)}
-            invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
-          />
+          {/* 5 — SIDEBAR DESTRA. MultiTileSidebar solo per multi-selezioni di SOLI tile (≥2);
+              le note (text box) non hanno proprietà strutturate da bulk-editare. */}
+          {selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
+            <MultiTileSidebar
+              tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
+              onClearSelection={clearSelection}
+            />
+          ) : (
+            <TileSidebar
+              tileId={selectedTileId}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
+            />
+          )}
+
+          {/* Selection action menu (CTRL/SHIFT + drag/click → multi-select).
+              Selection may include tiles and text boxes; "Crea gruppo" is gated to tiles-only. */}
+          {selectedIds.length > 0 && selectionBbox && createPortal(
+            (() => {
+              const menuW = 200;
+              const margin = 8;
+              const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
+              const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
+              let left = selectionBbox.x + selectionBbox.w / 2 - menuW / 2;
+              left = Math.max(margin, Math.min(left, vw - menuW - margin));
+              let top = selectionBbox.y + selectionBbox.h + margin;
+              const estH = 80;
+              if (top + estH > vh - margin) top = Math.max(margin, selectionBbox.y - estH - margin);
+              const tileCount = selectedTileIds.length;
+              const tbCount = selectedTextBoxIds.length;
+              const groupAllowed = tileCount >= 2 && tbCount === 0;
+              return (
+                <div
+                  className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[9999]"
+                  style={{ top, left, width: menuW }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-700/60">
+                    {selectedIds.length} elementi
+                    {tbCount > 0 && tileCount > 0 && (
+                      <span className="ml-1 normal-case text-zinc-600">({tileCount} tile · {tbCount} note)</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleCreateGroupFromSelection}
+                    disabled={!groupAllowed}
+                    title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                  >
+                    <IconBoxMultiple className="h-3.5 w-3.5" />
+                    Crea gruppo
+                  </button>
+                  <button
+                    onClick={handleBulkDeleteSelected}
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                  >
+                    <IconTrash className="h-3.5 w-3.5" />
+                    Elimina elementi
+                  </button>
+                </div>
+              );
+            })(),
+            document.body
+          )}
 
           {/* Tile context menu */}
           {tileCtx && createPortal(
-            <>
-              <div className="fixed inset-0 z-[9998]" onClick={() => setTileCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTileCtx(null); }} />
-              <div
-                className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
-                style={{ top: tileCtx.y, left: tileCtx.x }}
-              >
-                {tileCtx.inGroup && (
-                  <button
-                    onClick={handleUngroupTile}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            (() => {
+              const inMultiSel = selectedIds.length > 1 && selectedTileIds.includes(tileCtx.tileId);
+              const groupAllowed = selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0;
+              return (
+                <>
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setTileCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTileCtx(null); }} />
+                  <div
+                    className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
+                    style={{ top: tileCtx.y, left: tileCtx.x }}
                   >
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
-                    Ungroup
-                  </button>
-                )}
-                <button
-                  onClick={handleConfirmDeleteTile}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
-                >
-                  <IconTrash className="h-3.5 w-3.5" />
-                  Delete
-                </button>
-              </div>
-            </>,
+                    {inMultiSel && (
+                      <>
+                        <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-700/60">
+                          {selectedIds.length} selezionati
+                        </div>
+                        <button
+                          onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
+                          disabled={!groupAllowed}
+                          title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                        >
+                          <IconBoxMultiple className="h-3.5 w-3.5" />
+                          Crea gruppo
+                        </button>
+                        <button
+                          onClick={() => { setTileCtx(null); handleBulkDeleteSelected(); }}
+                          className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                        >
+                          <IconTrash className="h-3.5 w-3.5" />
+                          Elimina {selectedIds.length} elementi
+                        </button>
+                        <div className="my-1 border-t border-zinc-700/60" />
+                      </>
+                    )}
+                    {tileCtx.inGroup && (
+                      <button
+                        onClick={handleUngroupTile}
+                        className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                        Ungroup
+                      </button>
+                    )}
+                    <button
+                      onClick={handleDuplicateTile}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                    >
+                      <IconCopy className="h-3.5 w-3.5" />
+                      Duplica
+                    </button>
+                    <button
+                      onClick={handleConfirmDeleteTile}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                    >
+                      <IconTrash className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </>
+              );
+            })(),
             document.body
           )}
 
@@ -435,21 +618,6 @@ export default function CanvasPage() {
                 </button>
               </div>
             </>,
-            document.body
-          )}
-
-          {/* Reset confirm */}
-          {showResetConfirm && createPortal(
-            <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60" onClick={() => setShowResetConfirm(false)}>
-              <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <h3 className="text-sm font-semibold text-white mb-2">Reset Canvas</h3>
-                <p className="text-xs text-zinc-400 mb-4">Tutti i nodi torneranno alla posizione iniziale. Gruppi e collegamenti verranno eliminati. Le note di testo verranno mantenute. Questa azione non è reversibile.</p>
-                <div className="flex justify-end gap-2">
-                  <button onClick={() => setShowResetConfirm(false)} className="px-3 py-1.5 rounded text-xs text-zinc-400 border border-zinc-700 hover:bg-zinc-800 transition-colors">Annulla</button>
-                  <button onClick={confirmReset} className="px-3 py-1.5 rounded text-xs text-white bg-red-600 hover:bg-red-500 transition-colors">Reset</button>
-                </div>
-              </div>
-            </div>,
             document.body
           )}
 
@@ -482,7 +650,6 @@ export default function CanvasPage() {
             tileMode={false}
             onToggleTextMode={() => {}}
             onToggleTileMode={() => {}}
-            onReset={() => {}}
             onFit={() => {}}
             onZoom100={() => {}}
             pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}

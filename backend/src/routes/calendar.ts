@@ -60,27 +60,51 @@ calendarRouter.get(
         tag_id?: string;
       };
 
-      // Fetch events (is_event=true) AND deadline tiles (action_type='deadline' with start_at)
-      let query = supabaseAdmin
-        .from('tiles')
-        .select('*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type))')
-        .eq('user_id', req.user!.id)
-        .or('is_event.eq.true,action_type.eq.deadline')
-        .not('start_at', 'is', null)
-        .gte('start_at', start.toISOString())
-        .lte('start_at', end.toISOString())
-        .order('start_at', { ascending: true });
+      // Events live on start_at; deadlines live on end_at. Query both independently
+      // and merge — a single OR doesn't work because each branch needs its own date column.
+      const select = '*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type))';
+      const [eventsRes, deadlinesRes] = await Promise.all([
+        supabaseAdmin
+          .from('tiles')
+          .select(select)
+          .eq('user_id', req.user!.id)
+          .eq('is_event', true)
+          .not('start_at', 'is', null)
+          .gte('start_at', start.toISOString())
+          .lte('start_at', end.toISOString()),
+        supabaseAdmin
+          .from('tiles')
+          .select(select)
+          .eq('user_id', req.user!.id)
+          .eq('action_type', 'deadline')
+          .not('end_at', 'is', null)
+          .gte('end_at', start.toISOString())
+          .lte('end_at', end.toISOString()),
+      ]);
+      if (eventsRes.error) throw eventsRes.error;
+      if (deadlinesRes.error) throw deadlinesRes.error;
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const seen = new Set<string>();
+      const merged = [...(eventsRes.data || []), ...(deadlinesRes.data || [])].filter((t: any) => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
 
-      let events = (data || []).map((tile: any) => ({
+      let events = merged.map((tile: any) => ({
         ...tile,
         spark_count: tile.sparks?.[0]?.count || 0,
         sparks: undefined,
         tags: (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean),
         tile_tags: undefined,
       }));
+
+      // Sort by effective date (deadlines by end_at, events by start_at)
+      events.sort((a: any, b: any) => {
+        const ad = a.action_type === 'deadline' ? (a.end_at || a.start_at) : (a.start_at || a.end_at);
+        const bd = b.action_type === 'deadline' ? (b.end_at || b.start_at) : (b.start_at || b.end_at);
+        return new Date(ad).getTime() - new Date(bd).getTime();
+      });
 
       if (tag_id) {
         events = events.filter((e: any) =>

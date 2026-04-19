@@ -58,8 +58,9 @@ interface CanvasBoardProps {
   onAddTextBox: (x: number, y: number, w: number, h: number) => void;
   onUpdateTextBox: (id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) => void;
   onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
+  selectedIds?: string[];
+  onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
-  resetTrigger: number;
   zoom100Trigger?: number;
 }
 
@@ -69,7 +70,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu,
-  fitTrigger, resetTrigger, zoom100Trigger,
+  selectedIds, onSelectionChange,
+  fitTrigger, zoom100Trigger,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -98,6 +100,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onDeleteEdgeRef = useRef(onDeleteEdge); onDeleteEdgeRef.current = onDeleteEdge;
   const onAddTextBoxRef = useRef(onAddTextBox); onAddTextBoxRef.current = onAddTextBox;
   const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
+  const onSelectionChangeRef = useRef(onSelectionChange); onSelectionChangeRef.current = onSelectionChange;
+  const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
 
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
@@ -201,13 +205,26 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const d3svg = d3.select(svg);
     d3svg.selectAll('*').remove();
 
+    // Forward-declared so the zoom handler (registered before the function body
+    // is reachable) can safely call it without hitting a TDZ on transform restore.
+    let computeSelectionScreenBbox: () => { x: number; y: number; w: number; h: number } | null = () => null;
+
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
         if ((textModeRef.current || tileModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile mode
-        return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && ev.target === svg);
+        return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
-      .on('zoom', (ev) => { zoomTransformRef.current = ev.transform; board.attr('transform', ev.transform); });
+      .on('zoom', (ev) => {
+        zoomTransformRef.current = ev.transform;
+        board.attr('transform', ev.transform);
+        // Reposition floating menu only on user-driven pan/zoom — programmatic
+        // transform restore (which fires every render) has no sourceEvent and
+        // would otherwise loop with the parent's setSelectionBbox.
+        if (ev.sourceEvent && selectedIdsRef.current.length > 0) {
+          onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
+        }
+      });
     d3svg.call(zoom);
     zoomRef.current = zoom;
 
@@ -221,10 +238,35 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const nodes = buildNodes();
     nodesRef.current = nodes;
 
-    // ── Selection rect (shift+drag) ──
+    // ── Compute screen-space bbox for current selection (tiles + text boxes) ──
+    computeSelectionScreenBbox = (): { x: number; y: number; w: number; h: number } | null => {
+      const ids = selectedIdsRef.current;
+      if (!ids.length || !svgRef.current) return null;
+      const idSet = new Set(ids);
+      const sel = nodes.filter((n) => idSet.has(n.id));
+      const selTbs = textBoxes.filter((tb) => idSet.has(`tb:${tb.id}`));
+      if (sel.length + selTbs.length === 0) return null;
+      const xs1 = [...sel.map((n) => n.x), ...selTbs.map((tb) => tb.x)];
+      const ys1 = [...sel.map((n) => n.y), ...selTbs.map((tb) => tb.y)];
+      const xs2 = [...sel.map((n) => n.x + TILE_W), ...selTbs.map((tb) => tb.x + tb.w)];
+      const ys2 = [...sel.map((n) => n.y + TILE_H), ...selTbs.map((tb) => tb.y + tb.h)];
+      const x1 = Math.min(...xs1), y1 = Math.min(...ys1);
+      const x2 = Math.max(...xs2), y2 = Math.max(...ys2);
+      const t = zoomTransformRef.current;
+      const r = svgRef.current.getBoundingClientRect();
+      return {
+        x: r.left + t.x + x1 * t.k,
+        y: r.top + t.y + y1 * t.k,
+        w: (x2 - x1) * t.k,
+        h: (y2 - y1) * t.k,
+      };
+    };
+
+    // ── Selection rect (ctrl/cmd/shift + drag → multi-select) ──
     const selRect = board.append('rect').attr('fill', 'rgba(59,130,246,0.1)').attr('stroke', '#3B82F6').attr('stroke-width', 1).attr('stroke-dasharray', '4,3').attr('rx', 4).attr('opacity', 0);
     let selStart: [number, number] | null = null;
-    d3svg.on('mousedown.sel', (e: MouseEvent) => { if (!e.shiftKey || e.button || e.target !== svg) return; e.preventDefault(); selStart = d3.pointer(e, boardNode) as [number, number]; selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0).attr('opacity', 1); });
+    const isSelectModifier = (e: MouseEvent) => e.ctrlKey || e.metaKey || e.shiftKey;
+    d3svg.on('mousedown.sel', (e: MouseEvent) => { if (!isSelectModifier(e) || e.button || e.target !== svg) return; e.preventDefault(); selStart = d3.pointer(e, boardNode) as [number, number]; selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0).attr('opacity', 1); });
     d3svg.on('mousemove.sel', (e: MouseEvent) => { if (!selStart) return; const [mx, my] = d3.pointer(e, boardNode); selRect.attr('x', Math.min(selStart[0], mx)).attr('y', Math.min(selStart[1], my)).attr('width', Math.abs(mx - selStart[0])).attr('height', Math.abs(my - selStart[1])); });
     d3svg.on('mouseup.sel', (e: MouseEvent) => {
       if (!selStart) return;
@@ -233,12 +275,22 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const [x2, y2] = [Math.max(selStart[0], mx), Math.max(selStart[1], my)];
       selStart = null; selRect.attr('opacity', 0);
       if (x2 - x1 < 20 || y2 - y1 < 20) return;
-      const inside = nodes.filter((n) => n.x >= x1 && n.x + TILE_W <= x2 && n.y >= y1 && n.y + TILE_H <= y2);
-      if (inside.length < 2) return;
-      const ids = inside.map((n) => n.id);
-      let ng = groupsRef.current.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !ids.includes(id)) })).filter((g) => g.nodeIds.length >= 2);
-      ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
-      onGroupsChangeRef.current(ng);
+      const insideTiles = nodes.filter((n) => n.x + TILE_W / 2 >= x1 && n.x + TILE_W / 2 <= x2 && n.y + TILE_H / 2 >= y1 && n.y + TILE_H / 2 <= y2);
+      const insideTbs = textBoxes.filter((tb) => tb.x + tb.w / 2 >= x1 && tb.x + tb.w / 2 <= x2 && tb.y + tb.h / 2 >= y1 && tb.y + tb.h / 2 <= y2);
+      if (insideTiles.length + insideTbs.length < 1) return;
+      const ids = [...insideTiles.map((n) => n.id), ...insideTbs.map((tb) => `tb:${tb.id}`)];
+      selectedIdsRef.current = ids;
+      onSelectionChangeRef.current?.(ids, computeSelectionScreenBbox());
+    });
+
+    // Clear selection on plain click on empty canvas
+    d3svg.on('click.clearsel', (e: MouseEvent) => {
+      if (e.target !== svg) return;
+      if (isSelectModifier(e)) return;
+      if (textModeRef.current || tileModeRef.current) return;
+      if (selectedIdsRef.current.length === 0) return;
+      selectedIdsRef.current = [];
+      onSelectionChangeRef.current?.([], null);
     });
 
     // ── Temp line for link drag ──
@@ -441,13 +493,23 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         const sColor = s ? getColor(s.actionType) : '#3F3F46';
         const tColor = t ? getColor(t.actionType) : '#3F3F46';
-        const g = edgesG.append('g');
+        const selIds = selectedIdsRef.current;
+        const isSelectedEdge = selIds.length >= 2 && selIds.includes(edge.source_id) && selIds.includes(edge.target_id);
+        const baseStroke = isSelectedEdge ? '#3B82F6' : '#444';
+        const baseWidth = isSelectedEdge ? 2.5 : 1.5;
+        const g = edgesG.append('g').attr('class', 'edge-node').attr('data-source', edge.source_id).attr('data-target', edge.target_id);
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
-        const vl = g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', '#444').attr('stroke-width', 1.5).attr('stroke-dasharray', '4,3').style('pointer-events', 'none');
+        const vl = g.append('line').attr('class', 'edge-visible').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', baseStroke).attr('stroke-width', baseWidth).attr('stroke-dasharray', '4,3').style('pointer-events', 'none');
         // Anchor dots at port positions
         g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
         g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
-        g.on('mouseenter', () => vl.attr('stroke', '#EF4444').attr('stroke-width', 2.5)).on('mouseleave', () => vl.attr('stroke', '#444').attr('stroke-width', 1.5));
+        g.on('mouseenter', () => vl.attr('stroke', '#EF4444').attr('stroke-width', 2.5))
+         .on('mouseleave', () => {
+           // Restore selection-aware baseline (selection may have changed during hover)
+           const sel = selectedIdsRef.current;
+           const sel2 = sel.length >= 2 && sel.includes(edge.source_id) && sel.includes(edge.target_id);
+           vl.attr('stroke', sel2 ? '#3B82F6' : '#444').attr('stroke-width', sel2 ? 2.5 : 1.5);
+         });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
     };
@@ -455,7 +517,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
     // ── Nodes ──
     const nodesG = board.append('g');
-    const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('transform', (d) => `translate(${d.x},${d.y})`);
+    const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
     // Apply border style per action type
     const getBorderAttrs = (at: string): { sw: number; sd: string } => {
       const bs = (actionBorders as Record<string, string>)[at] as BorderStyle || 'solid';
@@ -573,6 +635,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
 
+    // Selection ring (toggled per tile based on selectedIds)
+    nodeGrps.append('rect').attr('class', 'sel-ring')
+      .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', 6)
+      .attr('fill', 'none').attr('stroke', '#3B82F6').attr('stroke-width', 2)
+      .style('pointer-events', 'none')
+      .attr('opacity', (d) => selectedIdsRef.current.includes((d as CanvasNode).id) ? 1 : 0);
+
     // Tile ports
     const portG = nodeGrps.append('g').attr('class', 'ports').attr('opacity', 0);
     PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2).style('cursor', 'crosshair'); });
@@ -591,14 +660,69 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       .on('end', () => { endLink(); nodeGrps.selectAll('.ports').attr('opacity', 0); });
     portG.selectAll('circle.port').call(portDrag as any);
 
-    // Node drag
+    // Node drag (supports multi-drag including text boxes when the dragged tile is part of selectedIds).
+    let dragMultiNodes: CanvasNode[] | null = null;
+    let dragMultiSelection: d3.Selection<SVGGElement, CanvasNode, SVGGElement, unknown> | null = null;
+    let dragMultiTbs: CanvasTextBox[] | null = null;
+    let dragSuppressedBbox = false;
     nodeGrps.call(d3.drag<SVGGElement, CanvasNode>()
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
-      .on('start', function () {})
-      .on('drag', function (ev, d) { d3.select(this).raise(); d.x = ev.x; d.y = ev.y; d3.select(this).attr('transform', `translate(${d.x},${d.y})`); drawEdges(); drawGroups(); })
+      .on('start', function (_, d) {
+        const sel = selectedIdsRef.current;
+        if (sel.length > 1 && sel.includes(d.id)) {
+          const idSet = new Set(sel);
+          dragMultiNodes = nodes.filter((n) => idSet.has(n.id));
+          dragMultiSelection = nodeGrps.filter((dd: any) => idSet.has(dd.id));
+          dragMultiTbs = textBoxes.filter((tb) => idSet.has(`tb:${tb.id}`));
+          dragSuppressedBbox = true;
+          onSelectionChangeRef.current?.(sel, null);
+        } else {
+          dragMultiNodes = null;
+          dragMultiSelection = null;
+          dragMultiTbs = null;
+          dragSuppressedBbox = false;
+        }
+      })
+      .on('drag', function (ev, d) {
+        d3.select(this).raise();
+        if (dragMultiNodes && dragMultiSelection) {
+          const dx = ev.dx, dy = ev.dy;
+          for (const n of dragMultiNodes) { n.x += dx; n.y += dy; }
+          dragMultiSelection.attr('transform', (dd: any) => `translate(${dd.x},${dd.y})`);
+          if (dragMultiTbs && dragMultiTbs.length > 0) {
+            const tbIdSet = new Set(dragMultiTbs.map((tb) => tb.id));
+            for (const tb of dragMultiTbs) { tb.x += dx; tb.y += dy; }
+            tbG.selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
+              const id = (this as SVGGElement).getAttribute('data-tb-id');
+              if (!id || !tbIdSet.has(id)) return;
+              const tb = dragMultiTbs!.find((t) => t.id === id);
+              if (tb) d3.select(this).attr('transform', `translate(${tb.x},${tb.y})`);
+            });
+          }
+        } else {
+          d.x = ev.x; d.y = ev.y;
+          d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
+        }
+        drawEdges(); drawGroups();
+      })
       .on('end', (_, d) => {
         onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
-        // Check if tile was dropped inside a group it doesn't belong to → add it
+        // Persist text-box positions if they moved as part of a multi-drag
+        if (dragMultiTbs) {
+          for (const tb of dragMultiTbs) {
+            onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y });
+          }
+        }
+        if (dragSuppressedBbox) {
+          onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
+        }
+        const wasMulti = !!dragMultiNodes;
+        dragMultiNodes = null;
+        dragMultiSelection = null;
+        dragMultiTbs = null;
+        dragSuppressedBbox = false;
+        // Drop-into-group only for single-tile drag (multi-drag shouldn't auto-merge into a group)
+        if (wasMulti) return;
         const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
         const currentGroups = groupsRef.current;
         const alreadyIn = currentGroups.find((g) => g.nodeIds.includes(d.id));
@@ -617,8 +741,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         }
       }));
 
-    // Click / context on tiles
-    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => { ev.stopPropagation(); onTileClickRef.current(d.id); });
+    // Click / context on tiles.
+    // - CTRL/CMD/SHIFT + click → toggle the tile in the multi-selection (no sidebar open)
+    // - Plain click → clear any active multi-selection and open the tile in the sidebar
+    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => {
+      ev.stopPropagation();
+      if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+        const cur = selectedIdsRef.current;
+        const has = cur.includes(d.id);
+        const next = has ? cur.filter((id) => id !== d.id) : [...cur, d.id];
+        selectedIdsRef.current = next;
+        onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+        return;
+      }
+      if (selectedIdsRef.current.length > 0) {
+        selectedIdsRef.current = [];
+        onSelectionChangeRef.current?.([], null);
+      }
+      onTileClickRef.current(d.id);
+    });
     nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
 
     // ── Text boxes ──
@@ -628,12 +769,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       tbG.selectAll('*').remove();
       textBoxes.forEach((tb) => {
         const tw = tb.w, th = tb.h;
-        const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node');
+        const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node').attr('data-tb-id', tb.id);
 
         // Background
         g.append('rect')
           .attr('width', tw).attr('height', th).attr('rx', 6)
           .attr('fill', '#0C0C0E').attr('stroke', '#3F3F46').attr('stroke-width', 0.5);
+
+        // Selection ring (toggled per text box based on selectedIds)
+        g.append('rect').attr('class', 'sel-ring')
+          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', 8)
+          .attr('fill', 'none').attr('stroke', '#3B82F6').attr('stroke-width', 2)
+          .style('pointer-events', 'none')
+          .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);
 
         // Text editing via foreignObject
         const fo = g.append('foreignObject')
@@ -648,9 +796,24 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         const divEl = div.node() as HTMLElement;
 
-        // Click to enter edit mode
+        // Click handler:
+        // - CTRL/CMD/SHIFT + click → toggle this text box in the multi-selection
+        // - Plain click → clear any active multi-selection and enter edit mode
         g.on('click.edit', (ev: MouseEvent) => {
           ev.stopPropagation();
+          const tbId = `tb:${tb.id}`;
+          if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+            const cur = selectedIdsRef.current;
+            const has = cur.includes(tbId);
+            const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
+            selectedIdsRef.current = next;
+            onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+            return;
+          }
+          if (selectedIdsRef.current.length > 0) {
+            selectedIdsRef.current = [];
+            onSelectionChangeRef.current?.([], null);
+          }
           if (!divEl) return;
           divEl.setAttribute('contenteditable', 'true');
           divEl.style.pointerEvents = 'auto';
@@ -714,10 +877,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .on('end', () => { endLink(); tbPorts.attr('opacity', 0); });
         tbPorts.selectAll('circle.port').call(tbPortDrag as any);
 
-        // Drag to move (on background rect, not on ports/resize/text)
+        // Drag to move (on background rect, not on ports/resize/text). Supports multi-drag
+        // when this text box is part of selectedIds (moves all selected tiles + text boxes).
         g.select('rect').style('cursor', moveRef.current ? 'grab' : 'default');
         g.call((() => {
           let prev: [number, number] | null = null;
+          let multi = false;
+          let mTiles: CanvasNode[] = [];
+          let mTbs: CanvasTextBox[] = [];
           return d3.drag<SVGGElement, unknown>()
             .filter((ev) => {
               const el = ev.target as SVGElement | HTMLElement;
@@ -726,20 +893,58 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               if ((el as HTMLElement)?.getAttribute?.('contenteditable')) return false;
               return moveRef.current;
             })
-            .on('start', (ev) => { prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number]; })
+            .on('start', (ev) => {
+              prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
+              const sel = selectedIdsRef.current;
+              const tbId = `tb:${tb.id}`;
+              multi = sel.length > 1 && sel.includes(tbId);
+              if (multi) {
+                const idSet = new Set(sel);
+                mTiles = nodes.filter((n) => idSet.has(n.id));
+                mTbs = textBoxes.filter((t) => idSet.has(`tb:${t.id}`));
+                onSelectionChangeRef.current?.(sel, null); // hide menu during drag
+              } else {
+                mTiles = []; mTbs = [];
+              }
+            })
             .on('drag', (ev) => {
               const cur = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
               if (!prev) { prev = cur; return; }
-              tb.x += cur[0] - prev[0]; tb.y += cur[1] - prev[1];
+              const dx = cur[0] - prev[0], dy = cur[1] - prev[1];
               prev = cur;
-              g.attr('transform', `translate(${tb.x},${tb.y})`);
+              if (multi) {
+                for (const n of mTiles) { n.x += dx; n.y += dy; }
+                for (const t of mTbs) { t.x += dx; t.y += dy; }
+                const tIdSet = new Set(mTiles.map((n) => n.id));
+                nodeGrps.filter((dd: any) => tIdSet.has(dd.id))
+                  .attr('transform', (dd: any) => `translate(${dd.x},${dd.y})`);
+                const tbIdSet = new Set(mTbs.map((t) => t.id));
+                tbG.selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
+                  const id = (this as SVGGElement).getAttribute('data-tb-id');
+                  if (!id || !tbIdSet.has(id)) return;
+                  const t = mTbs.find((tt) => tt.id === id);
+                  if (t) d3.select(this).attr('transform', `translate(${t.x},${t.y})`);
+                });
+              } else {
+                tb.x += dx; tb.y += dy;
+                g.attr('transform', `translate(${tb.x},${tb.y})`);
+              }
               drawEdges();
             })
             .on('end', () => {
               prev = null;
-              const currentContent = divEl?.innerText ?? tb.content ?? '';
-              tb.content = currentContent;
-              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, content: currentContent });
+              if (multi) {
+                onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+                for (const t of mTbs) {
+                  onUpdateTextBoxRef.current(t.id, { x: t.x, y: t.y });
+                }
+                onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
+              } else {
+                const currentContent = divEl?.innerText ?? tb.content ?? '';
+                tb.content = currentContent;
+                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, content: currentContent });
+              }
+              multi = false; mTiles = []; mTbs = [];
             });
         })() as any);
 
@@ -881,6 +1086,29 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
   useEffect(() => { render(); }, [render]);
 
+  // Toggle the per-item selection ring (tiles + text boxes) without rebuilding the SVG.
+  // Also refreshes connected-edge highlights.
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const ids = new Set(selectedIds || []);
+    d3.select(svg).selectAll<SVGGElement, CanvasNode>('g.tile-node').each(function (d) {
+      d3.select(this).select('.sel-ring').attr('opacity', ids.has(d.id) ? 1 : 0);
+    });
+    d3.select(svg).selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
+      const id = (this as SVGGElement).getAttribute('data-tb-id');
+      d3.select(this).select('.sel-ring').attr('opacity', id && ids.has(`tb:${id}`) ? 1 : 0);
+    });
+    // Edges between two selected items
+    d3.select(svg).selectAll<SVGGElement, unknown>('g.edge-node').each(function () {
+      const el = this as SVGGElement;
+      const src = el.getAttribute('data-source');
+      const tgt = el.getAttribute('data-target');
+      const isSel = !!(src && tgt && ids.has(src) && ids.has(tgt) && ids.size >= 2);
+      d3.select(el).select('line.edge-visible').attr('stroke', isSel ? '#3B82F6' : '#444').attr('stroke-width', isSel ? 2.5 : 1.5);
+    });
+  }, [selectedIds]);
+
   useEffect(() => {
     if (!fitTrigger) return;
     const svg = svgRef.current, z = zoomRef.current, ns = nodesRef.current;
@@ -904,12 +1132,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const newT = d3.zoomIdentity.translate(cx - (cx - t.x) / t.k, cy - (cy - t.y) / t.k).scale(1);
     d3.select(svg).transition().duration(300).call(z.transform as any, newT);
   }, [zoom100Trigger]);
-
-  useEffect(() => {
-    if (!resetTrigger) return;
-    onPositionChangeRef.current(tiles.map((t, i) => ({ tile_id: t.id, x: OFFSET_X, y: OFFSET_Y + i * (TILE_H + TILE_GAP) })));
-    onGroupsChangeRef.current([]);
-  }, [resetTrigger]);
 
   return <svg ref={svgRef} className="w-full h-full bg-zinc-950" />;
 });
