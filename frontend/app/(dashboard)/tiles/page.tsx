@@ -621,14 +621,14 @@ function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
       return (
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
           <defs><pattern id={`${id}-dltr`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect width={80} height={32} fill={`url(#${id}-dltr)`} />
+          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-dltr)`} />
         </svg>
       );
     case 'diagonal_rtl':
       return (
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
           <defs><pattern id={`${id}-drtl`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect width={80} height={32} fill={`url(#${id}-drtl)`} />
+          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-drtl)`} />
         </svg>
       );
     case 'vertical':
@@ -655,18 +655,22 @@ function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
     case 'cross':
       return (
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <line x1={10} y1={4} x2={70} y2={28} stroke={color} strokeWidth={3} strokeOpacity={1} strokeLinecap="round" />
-          <line x1={70} y1={4} x2={10} y2={28} stroke={color} strokeWidth={3} strokeOpacity={1} strokeLinecap="round" />
+          <line x1={10} y1={10} x2={70} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
+          <line x1={70} y1={10} x2={10} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
         </svg>
       );
     case 'bubble':
       return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <circle cx={15} cy={10} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={45} cy={8} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
-          <circle cx={30} cy={22} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={60} cy={18} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={70} cy={28} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
+          <circle cx={42} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.85} />
+          <circle cx={56} cy={14} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
+          <circle cx={70} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
         </svg>
       );
     case 'question':
@@ -693,7 +697,7 @@ function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
     case 'hourglass':
       return (
         <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <path d="M32,4 L48,4 L40,16 L48,28 L32,28 L40,16 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={1} strokeLinejoin="round" />
+          <path d="M32,7 L48,7 L40,16 L48,25 L32,25 L40,16 Z" fill="none" stroke={color} strokeWidth={3.5} strokeOpacity={1} strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       );
     case 'pause_bars':
@@ -710,11 +714,10 @@ function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
           <rect x={30} y={14} width={20} height={14} rx={2} fill={color} fillOpacity={0.9} />
         </svg>
       );
-    case 'check_badge':
+    case 'shade':
       return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMaxYMid meet">
-          <circle cx={68} cy={16} r={7} fill="#10B981" />
-          <path d="M65,16 L67,18 L71,14" stroke="white" strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <rect width={80} height={32} fill="#000000" opacity={0.5} />
         </svg>
       );
     default:

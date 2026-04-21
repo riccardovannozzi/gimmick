@@ -132,7 +132,7 @@ export interface TagGraph {
 }
 
 // Status shapes
-export type StatusShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows' | 'vertical' | 'hourglass' | 'pause_bars' | 'lock' | 'check_badge';
+export type StatusShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows' | 'vertical' | 'hourglass' | 'pause_bars' | 'lock' | 'shade';
 
 // Status entity
 export interface Status {

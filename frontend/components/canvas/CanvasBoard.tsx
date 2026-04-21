@@ -132,7 +132,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Type icon
       const tiId = typeTileIcons[t.id];
       const ti = tiId ? typeIcons.find((ic) => ic.id === tiId) : null;
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
+      // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
+      // resolve against the ALL DAY palette (not the TIMED one used for plain event).
+      const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
     });
   }, [tiles, layout, allStatuses, doneShape, getActionTypeShape, typeIcons, typeTileIcons]);
 
@@ -562,34 +565,42 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         case 'diagonal_ltr':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
+          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 3).attr('fill', `url(#${pid})`);
           break;
         case 'diagonal_rtl':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
+          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 3).attr('fill', `url(#${pid})`);
           break;
         case 'vertical':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 16).attr('height', 20)
             .append('line').attr('x1', 8).attr('y1', 0).attr('x2', 8).attr('y2', 20).attr('stroke', color).attr('stroke-width', 6).attr('stroke-opacity', o);
           pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
           break;
-        case 'bubble':
-          pg.append('circle').attr('cx', 18).attr('cy', 14).attr('r', 8).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
-          pg.append('circle').attr('cx', 58).attr('cy', 10).attr('r', 5).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
-          pg.append('circle').attr('cx', 40).attr('cy', 30).attr('r', 11).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
-          pg.append('circle').attr('cx', TILE_W - 20).attr('cy', TILE_H - 15).attr('r', 9).attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', o);
+        case 'bubble': {
+          // Scattered across the tile (padding 10, TILE_W=128 TILE_H=79), varied sizes.
+          const bubbles: Array<[number, number, number, number]> = [
+            [20, 18, 6, o + 0.05], [44, 14, 4, o], [68, 20, 7, o + 0.1], [94, 16, 5, o], [114, 22, 4, o - 0.02],
+            [28, 40, 4, o], [54, 42, 6, o + 0.08], [80, 38, 5, o + 0.05], [104, 42, 4, o],
+            [22, 62, 5, o + 0.05], [46, 64, 4, o], [70, 60, 6, o + 0.08], [96, 64, 4, o], [116, 60, 5, o + 0.05],
+          ];
+          bubbles.forEach(([cx, cy, r, op]) => {
+            pg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r)
+              .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', op);
+          });
           break;
+        }
         case 'cross':
-          pg.append('line').attr('x1', 0).attr('y1', 0).attr('x2', TILE_W).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
-          pg.append('line').attr('x1', TILE_W).attr('y1', 0).attr('x2', 0).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
+          // 10-unit padding from edges (TILE_W=128, TILE_H=79), thicker stroke.
+          pg.append('line').attr('x1', 10).attr('y1', 10).attr('x2', TILE_W - 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
+          pg.append('line').attr('x1', TILE_W - 10).attr('y1', 10).attr('x2', 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
           break;
         case 'hourglass': {
           // Two triangles meeting at apex, centered. TILE_W=128, TILE_H=79.
           pg.append('path')
-            .attr('d', 'M54,18 L74,18 L64,39 L74,60 L54,60 L64,39 Z')
-            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
-            .attr('stroke-opacity', o + 0.15).attr('stroke-linejoin', 'round');
+            .attr('d', 'M54,24 L74,24 L64,39 L74,54 L54,54 L64,39 Z')
+            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 4)
+            .attr('stroke-opacity', o + 0.25).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
           break;
         }
         case 'pause_bars':
@@ -604,12 +615,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           pg.append('rect').attr('x', 52).attr('y', 36).attr('width', 24).attr('height', 20).attr('rx', 3).attr('fill', color).attr('fill-opacity', o + 0.1);
           pg.append('circle').attr('cx', 64).attr('cy', 46).attr('r', 2).attr('fill', '#1C1C1E');
           break;
-        case 'check_badge':
-          pg.append('circle').attr('cx', TILE_W - 13).attr('cy', TILE_H - 14).attr('r', 8).attr('fill', '#10B981');
-          pg.append('path')
-            .attr('d', `M${TILE_W - 17},${TILE_H - 14} L${TILE_W - 14},${TILE_H - 11} L${TILE_W - 9},${TILE_H - 17}`)
-            .attr('stroke', 'white').attr('stroke-width', 1.8).attr('fill', 'none')
-            .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
+        case 'shade':
+          // 50% dark overlay covering the whole tile — the "faded / done" treatment.
+          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', '#000000').attr('opacity', 0.5);
           break;
       }
     });

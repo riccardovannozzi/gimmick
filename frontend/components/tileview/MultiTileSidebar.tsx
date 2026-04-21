@@ -78,10 +78,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const allStatusSame = tiles.length > 0 && tiles.every((t) => (t.status_id || null) === (tiles[0].status_id || null));
   const commonStatusId: string | null = allStatusSame ? (tiles[0]?.status_id || null) : null;
 
-  // Done
-  const allDone = tiles.length > 0 && tiles.every((t) => !!t.is_completed);
-  const someDone = tiles.length > 0 && tiles.some((t) => !!t.is_completed);
-  const doneIndeterminate = someDone && !allDone;
 
   // Type icon
   const allIconsSame = tiles.length > 0 && tiles.every((t) => (tileIcons[t.id] || '') === (tileIcons[tiles[0].id] || ''));
@@ -153,7 +149,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   };
 
   const setStatus = (id: string | null) => bulkUpdate({ status_id: id });
-  const setDone = (val: boolean) => bulkUpdate({ is_completed: val });
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
   // Action button styling helper (mirrors TileSidebar)
@@ -282,23 +277,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
               disabled={saving}
             />
           )}
-
-          {/* Done */}
-          <div className="flex gap-3">
-            <label className="flex items-center gap-1.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={allDone}
-                ref={(el) => { if (el) el.indeterminate = doneIndeterminate; }}
-                onChange={(e) => setDone(e.target.checked)}
-                disabled={saving}
-                className="accent-green-500 w-3.5 h-3.5"
-              />
-              <span className="text-[11px] text-zinc-400">
-                Done {doneIndeterminate && <span className="text-amber-400">(misto)</span>}
-              </span>
-            </label>
-          </div>
 
           <div className="text-[10px] text-zinc-600 italic pt-2 border-t border-zinc-800 leading-relaxed">
             Title, tag e contenuti sono modificabili solo aprendo un singolo tile.

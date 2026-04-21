@@ -9,7 +9,7 @@ export const statusesRouter = Router();
 
 statusesRouter.use(authenticate);
 
-const shapeEnum = z.enum(['cross', 'target', 'solid', 'diagonal_ltr', 'diagonal_rtl', 'square', 'bubble', 'question', 'exclamation', 'arrows', 'vertical', 'hourglass', 'pause_bars', 'lock', 'check_badge']);
+const shapeEnum = z.enum(['cross', 'target', 'solid', 'diagonal_ltr', 'diagonal_rtl', 'square', 'bubble', 'question', 'exclamation', 'arrows', 'vertical', 'hourglass', 'pause_bars', 'lock', 'shade']);
 
 const actionTypeEnum = z.enum(['none', 'anytime', 'deadline', 'event']).nullable().optional();
 

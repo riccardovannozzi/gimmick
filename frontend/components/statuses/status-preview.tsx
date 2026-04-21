@@ -25,7 +25,7 @@ function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
               <line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={0.18} />
             </pattern>
           </defs>
-          <rect width={80} height={68} fill="url(#prev-diag-ltr)" />
+          <rect x={5} y={5} width={70} height={58} rx={4} fill="url(#prev-diag-ltr)" />
         </svg>
       );
     case 'diagonal_rtl':
@@ -36,7 +36,7 @@ function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
               <line x1={0} y1={0} x2={0} y2={20} stroke={color} strokeWidth={10} strokeOpacity={0.18} />
             </pattern>
           </defs>
-          <rect width={80} height={68} fill="url(#prev-diag-rtl)" />
+          <rect x={5} y={5} width={70} height={58} rx={4} fill="url(#prev-diag-rtl)" />
         </svg>
       );
     case 'target':
@@ -48,22 +48,26 @@ function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
         </svg>
       );
     case 'cross':
+      // 10-unit padding from edges, thicker stroke.
       return (
         <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="none">
-          <line x1={10} y1={6} x2={70} y2={62} stroke={color} strokeWidth={5} strokeOpacity={0.4} strokeLinecap="round" />
-          <line x1={70} y1={6} x2={10} y2={62} stroke={color} strokeWidth={5} strokeOpacity={0.4} strokeLinecap="round" />
+          <line x1={10} y1={10} x2={70} y2={58} stroke={color} strokeWidth={8} strokeOpacity={0.45} strokeLinecap="round" />
+          <line x1={70} y1={10} x2={10} y2={58} stroke={color} strokeWidth={8} strokeOpacity={0.45} strokeLinecap="round" />
         </svg>
       );
     case 'bubble':
+      // Scattered across the tile (padding 10 from each edge), varied sizes.
       return (
-        <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
-          <circle cx={18} cy={14} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.25} />
-          <circle cx={58} cy={10} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.2} />
-          <circle cx={40} cy={30} r={11} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.3} />
-          <circle cx={14} cy={48} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.2} />
-          <circle cx={62} cy={38} r={9} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.25} />
-          <circle cx={35} cy={56} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.22} />
-          <circle cx={68} cy={58} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.18} />
+        <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="none">
+          <circle cx={18} cy={16} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.3} />
+          <circle cx={38} cy={14} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.22} />
+          <circle cx={58} cy={18} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.32} />
+          <circle cx={16} cy={34} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.25} />
+          <circle cx={38} cy={36} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.35} />
+          <circle cx={60} cy={38} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.25} />
+          <circle cx={20} cy={54} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.28} />
+          <circle cx={42} cy={54} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.22} />
+          <circle cx={60} cy={52} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.3} />
         </svg>
       );
     case 'question':
@@ -102,7 +106,7 @@ function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
       // Two triangles meeting at the apex: top pointing down, bottom pointing up.
       return (
         <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
-          <path d="M24,10 L56,10 L40,34 L56,58 L24,58 L40,34 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={0.4} strokeLinejoin="round" />
+          <path d="M24,18 L56,18 L40,34 L56,50 L24,50 L40,34 Z" fill="none" stroke={color} strokeWidth={4} strokeOpacity={0.5} strokeLinejoin="round" strokeLinecap="round" />
         </svg>
       );
     case 'pause_bars':
@@ -122,12 +126,11 @@ function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
           <circle cx={40} cy={40} r={2} fill="#1C1C1E" />
         </svg>
       );
-    case 'check_badge':
-      // No pattern overlay on the tile bg — just a small green badge in the bottom-right.
+    case 'shade':
+      // 50% dark overlay covering the whole tile — the "faded out / done" treatment.
       return (
-        <svg className={svgClass} style={{ top: '0', bottom: '0' }} viewBox="0 0 80 68" preserveAspectRatio="xMaxYMax meet">
-          <circle cx={66} cy={54} r={9} fill="#10B981" />
-          <path d="M62,54 L65,57 L70,51" stroke="white" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        <svg className={svgClass} style={{ top: '0', bottom: '0' }} viewBox="0 0 80 68" preserveAspectRatio="none">
+          <rect width={80} height={68} fill="#000000" opacity={0.5} />
         </svg>
       );
     default:
@@ -181,10 +184,10 @@ export const SHAPE_LABELS: Record<StatusShape, string> = {
   hourglass: 'Hourglass',
   pause_bars: 'Pause',
   lock: 'Lock',
-  check_badge: 'Check badge',
+  shade: 'Shade',
 };
 
 export const ALL_SHAPES: StatusShape[] = [
   'solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble', 'cross',
-  'hourglass', 'pause_bars', 'lock', 'check_badge',
+  'hourglass', 'pause_bars', 'lock', 'shade',
 ];

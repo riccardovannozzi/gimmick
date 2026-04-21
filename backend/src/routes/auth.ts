@@ -56,7 +56,7 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
       { user_id: data.user.id, category: 'system', name: 'paused',      shape: 'pause_bars' },
       { user_id: data.user.id, category: 'system', name: 'blocked',     shape: 'lock' },
       { user_id: data.user.id, category: 'system', name: 'cancelled',   shape: 'cross' },
-      { user_id: data.user.id, category: 'system', name: 'done',        shape: 'check_badge' },
+      { user_id: data.user.id, category: 'system', name: 'done',        shape: 'shade' },
     ]);
 
     res.status(201).json({

@@ -40,7 +40,7 @@ WITH new_statuses(name, shape) AS (
     ('paused',      'pause_bars'),
     ('blocked',     'lock'),
     ('cancelled',   'cross'),
-    ('done',        'check_badge')
+    ('done',        'shade')
 )
 INSERT INTO statuses (user_id, category, name, shape, action_type)
 SELECT u.id, 'system', ns.name, ns.shape, NULL

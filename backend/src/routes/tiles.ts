@@ -320,6 +320,23 @@ tilesRouter.patch(
         updates.action_type_reviewed = true;
       }
 
+      // Sync is_completed with the 'done' system status whenever status_id changes.
+      // The status is now the single source of truth for completion; is_completed
+      // is kept around only so existing filters/sorts/doneShape keep working.
+      if ('status_id' in updates) {
+        if (updates.status_id === null || updates.status_id === undefined) {
+          updates.is_completed = false;
+        } else {
+          const { data: st } = await supabaseAdmin
+            .from('statuses')
+            .select('name, category')
+            .eq('id', updates.status_id)
+            .eq('user_id', req.user!.id)
+            .maybeSingle();
+          updates.is_completed = !!(st && st.category === 'system' && st.name === 'done');
+        }
+      }
+
       updates.updated_at = new Date().toISOString();
 
       const { data, error } = await supabaseAdmin
