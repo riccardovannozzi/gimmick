@@ -3,17 +3,17 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
-export const statusIconsRouter = Router();
-statusIconsRouter.use(authenticate);
+export const typeIconsRouter = Router();
+typeIconsRouter.use(authenticate);
 
 /**
- * GET /api/status-icons
- * List user's status icons
+ * GET /api/type-icons
+ * List user's type icons
  */
-statusIconsRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('status_icons')
+      .from('type_icons')
       .select('id, name, icon, color, sort_order')
       .eq('user_id', req.user!.id)
       .order('sort_order', { ascending: true });
@@ -24,15 +24,14 @@ statusIconsRouter.get('/', async (req: AuthenticatedRequest, res: Response, next
 });
 
 /**
- * POST /api/status-icons
- * Create a status icon
+ * POST /api/type-icons
+ * Create a type icon
  */
-statusIconsRouter.post('/', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.post('/', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { name, icon, color } = req.body;
-    // Get max sort_order
     const { data: existing } = await supabaseAdmin
-      .from('status_icons')
+      .from('type_icons')
       .select('sort_order')
       .eq('user_id', req.user!.id)
       .order('sort_order', { ascending: false })
@@ -40,7 +39,7 @@ statusIconsRouter.post('/', async (req: AuthenticatedRequest, res: Response, nex
     const sortOrder = (existing?.[0]?.sort_order ?? -1) + 1;
 
     const { data, error } = await supabaseAdmin
-      .from('status_icons')
+      .from('type_icons')
       .insert({
         user_id: req.user!.id,
         name,
@@ -57,10 +56,10 @@ statusIconsRouter.post('/', async (req: AuthenticatedRequest, res: Response, nex
 });
 
 /**
- * PATCH /api/status-icons/:id
- * Update a status icon
+ * PATCH /api/type-icons/:id
+ * Update a type icon
  */
-statusIconsRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
@@ -69,7 +68,7 @@ statusIconsRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response,
     if (req.body.color !== undefined) updates.color = req.body.color || null;
 
     const { error } = await supabaseAdmin
-      .from('status_icons')
+      .from('type_icons')
       .update(updates)
       .eq('id', id)
       .eq('user_id', req.user!.id);
@@ -80,21 +79,21 @@ statusIconsRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response,
 });
 
 /**
- * DELETE /api/status-icons/:id
- * Delete a status icon
+ * DELETE /api/type-icons/:id
+ * Delete a type icon
  */
-statusIconsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
     // Also remove all tile assignments
     await supabaseAdmin
-      .from('tile_status_icons')
+      .from('tile_type_icons')
       .delete()
-      .eq('status_icon_id', id)
+      .eq('type_icon_id', id)
       .eq('user_id', req.user!.id);
 
     const { error } = await supabaseAdmin
-      .from('status_icons')
+      .from('type_icons')
       .delete()
       .eq('id', id)
       .eq('user_id', req.user!.id);
@@ -105,14 +104,14 @@ statusIconsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response
 });
 
 /**
- * GET /api/status-icons/assignments
- * Get all tile → status icon assignments
+ * GET /api/type-icons/assignments
+ * Get all tile → type icon assignments
  */
-statusIconsRouter.get('/assignments', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.get('/assignments', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { data, error } = await supabaseAdmin
-      .from('tile_status_icons')
-      .select('tile_id, status_icon_id')
+      .from('tile_type_icons')
+      .select('tile_id, type_icon_id')
       .eq('user_id', req.user!.id);
 
     if (error) throw error;
@@ -121,28 +120,26 @@ statusIconsRouter.get('/assignments', async (req: AuthenticatedRequest, res: Res
 });
 
 /**
- * PUT /api/status-icons/assign
- * Assign/unassign a status icon to a tile
+ * PUT /api/type-icons/assign
+ * Assign/unassign a type icon to a tile
  */
-statusIconsRouter.put('/assign', async (req: AuthenticatedRequest, res: Response, next) => {
+typeIconsRouter.put('/assign', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { tile_id, status_icon_id } = req.body;
+    const { tile_id, type_icon_id } = req.body;
 
-    if (!status_icon_id) {
-      // Unassign
+    if (!type_icon_id) {
       await supabaseAdmin
-        .from('tile_status_icons')
+        .from('tile_type_icons')
         .delete()
         .eq('tile_id', tile_id)
         .eq('user_id', req.user!.id);
     } else {
-      // Upsert assignment
       await supabaseAdmin
-        .from('tile_status_icons')
+        .from('tile_type_icons')
         .upsert({
           user_id: req.user!.id,
           tile_id,
-          status_icon_id,
+          type_icon_id,
         }, { onConflict: 'user_id,tile_id' });
     }
 

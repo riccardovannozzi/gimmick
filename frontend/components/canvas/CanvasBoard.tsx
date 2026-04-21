@@ -4,8 +4,8 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
-import { usePatterns } from '@/store/patterns-store';
-import { useStatusIcons } from '@/store/status-icons-store';
+import { useStatuses } from '@/store/statuses-store';
+import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 
 const TILE_W = 128;
@@ -17,7 +17,7 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; patternShape?: string; statusIcon?: string; statusColor?: string; startAt?: string; endAt?: string; allDay?: boolean; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
@@ -80,9 +80,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
   const actionBorders = useActionBorders();
-  const { customPatterns, doneShape, getActionTypeShape } = usePatterns();
-  const statusIcons = useStatusIcons((s) => s.icons);
-  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
+  const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
@@ -119,22 +119,22 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // If DB has a position, use it. In-memory is only a fallback (e.g. for freshly created tiles not yet persisted).
       const x = s?.x ?? cur?.x ?? OFFSET_X;
       const y = s?.y ?? cur?.y ?? (OFFSET_Y + i * (TILE_H + TILE_GAP));
-      // Resolve pattern shape
+      // Resolve status shape (lookup against all statuses — system + custom)
       let shape = 'solid';
-      if (t.pattern_id) {
-        const cp = customPatterns.find((p) => p.id === t.pattern_id);
-        if (cp) shape = cp.shape;
+      if (t.status_id) {
+        const st = allStatuses.find((s) => s.id === t.status_id);
+        if (st) shape = st.shape;
       } else if (t.is_completed) {
         shape = doneShape;
       } else {
         shape = getActionTypeShape(t.action_type || 'none');
       }
-      // Status icon
-      const siId = statusTileIcons[t.id];
-      const si = siId ? statusIcons.find((ic) => ic.id === siId) : null;
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', patternShape: shape, statusIcon: si?.icon, statusColor: si?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
+      // Type icon
+      const tiId = typeTileIcons[t.id];
+      const ti = tiId ? typeIcons.find((ic) => ic.id === tiId) : null;
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: t.action_type || 'none', statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
     });
-  }, [tiles, layout, customPatterns, doneShape, getActionTypeShape, statusIcons, statusTileIcons]);
+  }, [tiles, layout, allStatuses, doneShape, getActionTypeShape, typeIcons, typeTileIcons]);
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
@@ -532,7 +532,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       }
     };
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
-      .attr('fill', (d) => d.statusColor ? d.statusColor + '80' : '#1C1C1E')
+      .attr('fill', (d) => d.typeColor ? d.typeColor + '80' : '#1C1C1E')
       .attr('stroke', (d) => getColor(d.actionType))
       .attr('stroke-width', (d) => getBorderAttrs(d.actionType).sw)
       .attr('stroke-dasharray', (d) => getBorderAttrs(d.actionType).sd)
@@ -547,10 +547,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .style('pointer-events', 'none');
       }
     });
-    // Pattern overlay
+    // Status shape overlay (uses SVG <pattern> elements under the hood)
     let patIdx = 0;
     nodeGrps.each(function (d) {
-      if (!d.patternShape || d.patternShape === 'solid') return;
+      if (!d.statusShape || d.statusShape === 'solid') return;
       const g = d3.select(this);
       const color = getColor(d.actionType);
       const o = 0.2;
@@ -558,7 +558,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const clip = g.append('clipPath').attr('id', `${pid}-clip`);
       clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4);
       const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
-      switch (d.patternShape) {
+      switch (d.statusShape) {
         case 'diagonal_ltr':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
@@ -583,6 +583,33 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         case 'cross':
           pg.append('line').attr('x1', 0).attr('y1', 0).attr('x2', TILE_W).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
           pg.append('line').attr('x1', TILE_W).attr('y1', 0).attr('x2', 0).attr('y2', TILE_H).attr('stroke', color).attr('stroke-width', 8).attr('stroke-opacity', o * 0.7).attr('stroke-linecap', 'round');
+          break;
+        case 'hourglass': {
+          // Two triangles meeting at apex, centered. TILE_W=128, TILE_H=79.
+          pg.append('path')
+            .attr('d', 'M54,18 L74,18 L64,39 L74,60 L54,60 L64,39 Z')
+            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
+            .attr('stroke-opacity', o + 0.15).attr('stroke-linejoin', 'round');
+          break;
+        }
+        case 'pause_bars':
+          pg.append('rect').attr('x', 56).attr('y', 20).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
+          pg.append('rect').attr('x', 66).attr('y', 20).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
+          break;
+        case 'lock':
+          pg.append('path')
+            .attr('d', 'M57,36 V30 a7,7 0 0 1 14,0 V36')
+            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
+            .attr('stroke-opacity', o + 0.15).attr('stroke-linecap', 'round');
+          pg.append('rect').attr('x', 52).attr('y', 36).attr('width', 24).attr('height', 20).attr('rx', 3).attr('fill', color).attr('fill-opacity', o + 0.1);
+          pg.append('circle').attr('cx', 64).attr('cy', 46).attr('r', 2).attr('fill', '#1C1C1E');
+          break;
+        case 'check_badge':
+          pg.append('circle').attr('cx', TILE_W - 13).attr('cy', TILE_H - 14).attr('r', 8).attr('fill', '#10B981');
+          pg.append('path')
+            .attr('d', `M${TILE_W - 17},${TILE_H - 14} L${TILE_W - 14},${TILE_H - 11} L${TILE_W - 9},${TILE_H - 17}`)
+            .attr('stroke', 'white').attr('stroke-width', 1.8).attr('fill', 'none')
+            .attr('stroke-linecap', 'round').attr('stroke-linejoin', 'round');
           break;
       }
     });
@@ -617,12 +644,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       }
     });
     nodeGrps.append('text').attr('x', 6).attr('y', TILE_H - 6).attr('fill', '#71717A').attr('font-size', 9).text((d) => typeLabels[d.actionType] || d.actionType.toUpperCase());
-    // Status icon as SVG directly (no React rendering needed)
+    // Type icon as SVG directly (no React rendering needed)
     nodeGrps.each(function (d) {
-      if (!d.statusIcon) return;
+      if (!d.typeIcon) return;
       const g = d3.select(this);
       // Render a placeholder icon using a foreignObject + innerHTML from a temporary DOM element
-      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.statusIcon];
+      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
       if (!IconComp) return;
       // Create a temporary container, use React createElement + renderToString
       const React = require('react');

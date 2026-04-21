@@ -28,8 +28,8 @@ import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
-import { useStatusIcons } from '@/store/status-icons-store';
-import { usePatterns } from '@/store/patterns-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useStatuses } from '@/store/statuses-store';
 import { TimePicker } from '@/components/ui/time-picker';
 
 // Helper: render emoji string or Tabler icon component
@@ -613,8 +613,8 @@ function TagDropdown({
 }
 
 // ─── Spark thumbnail (loads signed URL for images) ───
-// ─── Pattern SVG for table cells ───
-function CellPatternSvg({ shape, color }: { shape: string; color: string }) {
+// ─── Status shape SVG for table cells ───
+function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
   const id = `cell-${shape}-${color.replace('#', '')}`;
   switch (shape) {
     case 'diagonal_ltr':
@@ -688,6 +688,33 @@ function CellPatternSvg({ shape, color }: { shape: string; color: string }) {
           <polyline points="48,5 58,11 48,17" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
           <line x1={70} y1={21} x2={25} y2={21} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
           <polyline points="32,15 22,21 32,27" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'hourglass':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <path d="M32,4 L48,4 L40,16 L48,28 L32,28 L40,16 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={1} strokeLinejoin="round" />
+        </svg>
+      );
+    case 'pause_bars':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <rect x={34} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
+          <rect x={42} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
+        </svg>
+      );
+    case 'lock':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <path d="M34,14 V10 a6,6 0 0 1 12,0 V14" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={1} strokeLinecap="round" />
+          <rect x={30} y={14} width={20} height={14} rx={2} fill={color} fillOpacity={0.9} />
+        </svg>
+      );
+    case 'check_badge':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMaxYMid meet">
+          <circle cx={68} cy={16} r={7} fill="#10B981" />
+          <path d="M65,16 L67,18 L71,14" stroke="white" strokeWidth={1.6} fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       );
     default:
@@ -831,16 +858,16 @@ function ResizableHead({
 const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>>;
 
-function TipoStatusPatternCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; status: number; pattern: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | null }) {
-  const statusIcons = useStatusIcons((s) => s.icons);
-  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
-  const { patterns } = usePatterns();
+function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | null }) {
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const { statuses } = useStatuses();
 
-  const siId = statusTileIcons[tile.id];
-  const si = siId ? statusIcons.find((i) => i.id === siId) : null;
-  const SiComp = si?.icon ? AllIcons[si.icon] : null;
+  const tiId = typeTileIcons[tile.id];
+  const ti = tiId ? typeIcons.find((i) => i.id === tiId) : null;
+  const TiComp = ti?.icon ? AllIcons[ti.icon] : null;
 
-  const pattern = tile.pattern_id ? patterns.find((p) => p.id === tile.pattern_id) : null;
+  const status = tile.status_id ? statuses.find((s) => s.id === tile.status_id) : null;
 
   const typeLabel = tile.all_day ? 'ALL DAY' : (TYPE_LABELS[tile.action_type || 'none'] || tile.action_type);
 
@@ -869,26 +896,26 @@ function TipoStatusPatternCells({ tile, colWidths, onUpdate, getColor }: { tile:
 
   return (
     <>
-      {/* Status */}
-      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
-        {si && SiComp ? (
+      {/* Type */}
+      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type }}>
+        {ti && TiComp ? (
           <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: si.color || '#27272A' }}>
-              <SiComp size={16} className="text-white" />
+            <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: ti.color || '#27272A' }}>
+              <TiComp size={16} className="text-white" />
             </div>
-            <span className="text-xs text-zinc-400 truncate">{si.name}</span>
+            <span className="text-xs text-zinc-400 truncate">{ti.name}</span>
           </div>
         ) : (
           <span className="text-zinc-600 text-xs">—</span>
         )}
       </TableCell>
-      <TableCell className="border-r border-zinc-800 overflow-hidden" style={{ width: colWidths.pattern, minWidth: colWidths.pattern, maxWidth: colWidths.pattern }}>
-        {pattern && pattern.shape !== 'solid' ? (
+      <TableCell className="border-r border-zinc-800 overflow-hidden" style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
+        {status && status.shape !== 'solid' ? (
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="relative w-6 h-6 rounded overflow-hidden shrink-0" style={{ backgroundColor: '#27272A' }}>
-              <CellPatternSvg shape={pattern.shape} color="#e4e4e7" />
+              <CellStatusSvg shape={status.shape} color="#e4e4e7" />
             </div>
-            <span className="text-xs text-zinc-400 truncate">{pattern.name}</span>
+            <span className="text-xs text-zinc-400 truncate">{status.name}</span>
           </div>
         ) : (
           <span className="text-zinc-600 text-xs">—</span>
@@ -916,7 +943,7 @@ function TileRow({
   selected: boolean;
   selectedIds: Set<string>;
   allTags: Tag[];
-  colWidths: { title: number; actionType: number; sparks: number; tags: number; dataScad: number; status: number; pattern: number };
+  colWidths: { title: number; actionType: number; sparks: number; tags: number; dataScad: number; type: number; status: number };
   onSelect: (id: string, checked: boolean) => void;
   onSparkClick: (spark: Spark) => void;
   onTileClick: (tile: Tile) => void;
@@ -1074,7 +1101,7 @@ function TileRow({
             anchorRef={tagCellRef}
           />
         </TableCell>
-        <TipoStatusPatternCells tile={tile} colWidths={colWidths} onUpdate={(id, updates) => onActionTypeChange(id, updates as any)} getColor={getColor} />
+        <TipoTypeStatusCells tile={tile} colWidths={colWidths} onUpdate={(id, updates) => onActionTypeChange(id, updates as any)} getColor={getColor} />
         <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, maxWidth: colWidths.sparks }}>
           {tile.sparks && tile.sparks.length > 0 ? (
             <div className="flex gap-1.5 items-center min-w-0 w-full">
@@ -1150,8 +1177,8 @@ export default function TilesPage() {
     sparks: 340,
     tags: 160,
     dataScad: 95,
-    status: 160,
-    pattern: 80,
+    type: 160,
+    status: 80,
   });
   const setColWidth = useCallback(
     (col: keyof typeof colWidths, w: number) =>
@@ -1453,7 +1480,7 @@ export default function TilesPage() {
         ) : (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex-1 overflow-auto">
-              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.status + colWidths.pattern + 40 + 60 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.status + colWidths.pattern + 40 + 60 + 60 + 80 + 56 }}>
+              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 60 + 80 + 56 }}>
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900">
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
@@ -1514,8 +1541,8 @@ export default function TilesPage() {
                       onToggleFilter={() => setOpenFilter(openFilter === 'tags' ? null : 'tags')}
                       headRef={tagsHeadRef}
                     />
+                    <ResizableHead width={colWidths.type} onResize={(w) => setColWidth('type', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Type</ResizableHead>
                     <ResizableHead width={colWidths.status} onResize={(w) => setColWidth('status', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Status</ResizableHead>
-                    <ResizableHead width={colWidths.pattern} onResize={(w) => setColWidth('pattern', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Pattern</ResizableHead>
                     <FilterableHead
                       label="Sparks"
                       width={colWidths.sparks}

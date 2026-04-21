@@ -1,13 +1,12 @@
 'use client';
 
-import type { PatternShape } from '@/types';
+import type { StatusShape } from '@/types';
 
 const PREVIEW_COLOR = '#888780';
 
-function PatternSvg({ shape, color }: { shape: PatternShape; color: string }) {
-  // Pattern positioned below the header stripe, same as in TileSquare
+function StatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
+  // Shape positioned below the header stripe, same as in TileSquare
   const svgStyle = "absolute left-0 right-0 w-full";
-  // Use top ~15% for stripe, bottom ~5% for footer margin
   const svgClass = `${svgStyle}`;
   switch (shape) {
     case 'solid':
@@ -99,19 +98,51 @@ function PatternSvg({ shape, color }: { shape: PatternShape; color: string }) {
           <rect width={80} height={68} fill="url(#prev-vert)" />
         </svg>
       );
+    case 'hourglass':
+      // Two triangles meeting at the apex: top pointing down, bottom pointing up.
+      return (
+        <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+          <path d="M24,10 L56,10 L40,34 L56,58 L24,58 L40,34 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={0.4} strokeLinejoin="round" />
+        </svg>
+      );
+    case 'pause_bars':
+      // Two thick vertical bars centered — the classic ⏸ icon.
+      return (
+        <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+          <rect x={31} y={14} width={7} height={40} rx={1} fill={color} fillOpacity={0.35} />
+          <rect x={42} y={14} width={7} height={40} rx={1} fill={color} fillOpacity={0.35} />
+        </svg>
+      );
+    case 'lock':
+      // Padlock: body + shackle arc.
+      return (
+        <svg className={svgClass} style={{ top: '15%', bottom: '5%' }} viewBox="0 0 80 68" preserveAspectRatio="xMidYMid meet">
+          <path d="M32,28 V20 a8,8 0 0 1 16,0 V28" fill="none" stroke={color} strokeWidth={2.5} strokeOpacity={0.4} strokeLinecap="round" />
+          <rect x={26} y={28} width={28} height={24} rx={3} fill={color} fillOpacity={0.3} />
+          <circle cx={40} cy={40} r={2} fill="#1C1C1E" />
+        </svg>
+      );
+    case 'check_badge':
+      // No pattern overlay on the tile bg — just a small green badge in the bottom-right.
+      return (
+        <svg className={svgClass} style={{ top: '0', bottom: '0' }} viewBox="0 0 80 68" preserveAspectRatio="xMaxYMax meet">
+          <circle cx={66} cy={54} r={9} fill="#10B981" />
+          <path d="M62,54 L65,57 L70,51" stroke="white" strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
     default:
       return null;
   }
 }
 
-interface PatternPreviewProps {
-  shape: PatternShape;
+interface StatusPreviewProps {
+  shape: StatusShape;
   size?: number;
   color?: string;
   selected?: boolean;
 }
 
-export function PatternPreview({ shape, size = 40, color = PREVIEW_COLOR, selected }: PatternPreviewProps) {
+export function StatusPreview({ shape, size = 40, color = PREVIEW_COLOR, selected }: StatusPreviewProps) {
   const stripeH = Math.max(4, Math.round(size * 0.12));
   return (
     <div
@@ -129,13 +160,13 @@ export function PatternPreview({ shape, size = 40, color = PREVIEW_COLOR, select
         className="absolute top-0 left-0 right-0"
         style={{ height: stripeH, backgroundColor: color }}
       />
-      {/* Pattern */}
-      <PatternSvg shape={shape} color={color} />
+      {/* Shape */}
+      <StatusSvg shape={shape} color={color} />
     </div>
   );
 }
 
-export const SHAPE_LABELS: Record<PatternShape, string> = {
+export const SHAPE_LABELS: Record<StatusShape, string> = {
   solid: 'Solid',
   diagonal_ltr: 'Diagonal /',
   diagonal_rtl: 'Diagonal \\',
@@ -147,6 +178,13 @@ export const SHAPE_LABELS: Record<PatternShape, string> = {
   question: '?',
   exclamation: '!',
   arrows: 'Arrows',
+  hourglass: 'Hourglass',
+  pause_bars: 'Pause',
+  lock: 'Lock',
+  check_badge: 'Check badge',
 };
 
-export const ALL_SHAPES: PatternShape[] = ['solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble', 'cross'];
+export const ALL_SHAPES: StatusShape[] = [
+  'solid', 'diagonal_ltr', 'diagonal_rtl', 'vertical', 'bubble', 'cross',
+  'hourglass', 'pause_bars', 'lock', 'check_badge',
+];

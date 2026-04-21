@@ -8,12 +8,12 @@ import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
-import { usePatterns } from '@/store/patterns-store';
+import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
-import { useStatusIcons } from '@/store/status-icons-store';
+import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
-import type { PatternShape } from '@/types';
+import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import type { Tile, Spark } from '@/types';
@@ -36,8 +36,8 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
 
-function StatusIconPicker({ tileId }: { tileId: string }) {
-  const { icons, tileIcons, assignIcon } = useStatusIcons();
+function TypeIconPicker({ tileId }: { tileId: string }) {
+  const { icons, tileIcons, assignIcon } = useTypeIcons();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -65,7 +65,7 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
 
   return (
     <div className="relative">
-      <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+      <label className="text-[11px] text-zinc-500 mb-1 block">Type</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
@@ -80,7 +80,7 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
             <span className="truncate flex-1 text-left">{current!.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona status...</span>
+          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona tipo...</span>
         )}
       </button>
       {open && dropPos && createPortal(
@@ -133,7 +133,7 @@ function StatusIconPicker({ tileId }: { tileId: string }) {
   );
 }
 
-function InlinePatternSvg({ shape, color }: { shape: PatternShape; color: string }) {
+function InlineStatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
   const o = 0.35;
   switch (shape) {
     case 'solid': return null;
@@ -141,12 +141,16 @@ function InlinePatternSvg({ shape, color }: { shape: PatternShape; color: string
     case 'diagonal_rtl': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-rtl-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-rtl-${color.replace('#','')})`} /></svg>;
     case 'vertical': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-vert-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-vert-${color.replace('#','')})`} /></svg>;
     case 'bubble': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><circle cx={15} cy={10} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={40} cy={18} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={65} cy={8} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /></svg>;
+    case 'hourglass': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><path d="M30,5 L50,5 L40,15 L50,25 L30,25 L40,15 Z" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={o} strokeLinejoin="round" /></svg>;
+    case 'pause_bars': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><rect x={33} y={7} width={5} height={16} rx={1} fill={color} fillOpacity={o} /><rect x={42} y={7} width={5} height={16} rx={1} fill={color} fillOpacity={o} /></svg>;
+    case 'lock': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><path d="M34,13 V9 a6,6 0 0 1 12,0 V13" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={o} strokeLinecap="round" /><rect x={30} y={13} width={20} height={13} rx={2} fill={color} fillOpacity={o} /></svg>;
+    case 'check_badge': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMaxYMax meet"><circle cx={68} cy={22} r={6} fill="#10B981" /><path d="M65,22 L67,24 L71,20" stroke="white" strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" /></svg>;
     default: return null;
   }
 }
 
-function PatternPickerField({ patterns, value, tagColor, onChange }: {
-  patterns: { id: string; name: string; shape: string }[];
+function StatusPickerField({ statuses, value, tagColor, onChange }: {
+  statuses: { id: string; name: string; shape: string }[];
   value: string | null;
   tagColor: string;
   onChange: (id: string | null) => void;
@@ -156,7 +160,7 @@ function PatternPickerField({ patterns, value, tagColor, onChange }: {
   const dropRef = useRef<HTMLDivElement>(null);
   const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
 
-  const selected = patterns.find((p) => p.id === value) || null;
+  const selected = statuses.find((p) => p.id === value) || null;
 
   useEffect(() => {
     if (!open) return;
@@ -175,7 +179,7 @@ function PatternPickerField({ patterns, value, tagColor, onChange }: {
 
   return (
     <div>
-      <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
+      <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
@@ -183,11 +187,11 @@ function PatternPickerField({ patterns, value, tagColor, onChange }: {
       >
         {selected ? (
           <>
-            <InlinePatternSvg shape={selected.shape as PatternShape} color={tagColor} />
+            <InlineStatusSvg shape={selected.shape as StatusShape} color={tagColor} />
             <span className="relative z-10 truncate flex-1 text-left">{selected.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona pattern...</span>
+          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona status...</span>
         )}
       </button>
       {open && dropPos && createPortal(
@@ -196,19 +200,7 @@ function PatternPickerField({ patterns, value, tagColor, onChange }: {
           className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
         >
-          <button
-            onClick={() => { onChange(null); setOpen(false); }}
-            className={cn(
-              'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-              !value && 'bg-zinc-700/30'
-            )}
-          >
-            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
-            {!value && (
-              <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            )}
-          </button>
-          {patterns.map((p) => {
+          {statuses.map((p) => {
             const isSelected = value === p.id;
             return (
               <button
@@ -219,7 +211,7 @@ function PatternPickerField({ patterns, value, tagColor, onChange }: {
                   isSelected && 'bg-zinc-700/30'
                 )}
               >
-                <InlinePatternSvg shape={p.shape as PatternShape} color={tagColor} />
+                <InlineStatusSvg shape={p.shape as StatusShape} color={tagColor} />
                 <span className="relative z-10 text-zinc-300 truncate flex-1">{p.name}</span>
                 {isSelected && (
                   <svg className="relative z-10 w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -649,7 +641,7 @@ export function TileSidebar({
   invalidateKeys?: string[];
 }) {
   const queryClient = useQueryClient();
-  const { customPatterns } = usePatterns();
+  const { statuses: allStatuses } = useStatuses();
   const { getColor: getTypeColor } = useTagTypes();
   const actionColors = useActionColors();
   const actionBorders = useActionBorders();
@@ -999,19 +991,19 @@ export function TileSidebar({
               {/* Tags */}
               <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} queryClient={queryClient} invalidateKeys={invalidateKeys} />
 
-              {/* Status Icon */}
-              <StatusIconPicker tileId={tile.id} />
+              {/* Type Icon */}
+              <TypeIconPicker tileId={tile.id} />
 
-              {/* Pattern */}
-              {customPatterns.length > 0 && (
-                <PatternPickerField
-                  patterns={customPatterns}
-                  value={tile.pattern_id || null}
+              {/* Status */}
+              {allStatuses.length > 0 && (
+                <StatusPickerField
+                  statuses={allStatuses}
+                  value={tile.status_id || null}
                   tagColor={(() => {
                     const tt = tile.tags?.[0]?.tag_type || 'topic';
                     return getTypeColor(tt) || '#64748B';
                   })()}
-                  onChange={(id) => updateTileMutation.mutate({ pattern_id: id })}
+                  onChange={(id) => updateTileMutation.mutate({ status_id: id })}
                 />
               )}
 

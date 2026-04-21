@@ -14,53 +14,53 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { patternsApi } from '@/lib/api';
-import { PatternPreview, SHAPE_LABELS, ALL_SHAPES } from '@/components/patterns/pattern-preview';
-import type { Pattern, PatternShape } from '@/types';
+import { statusesApi } from '@/lib/api';
+import { StatusPreview, SHAPE_LABELS, ALL_SHAPES } from '@/components/statuses/status-preview';
+import type { Status, StatusShape } from '@/types';
 
-interface PatternsModalProps {
+interface StatusesModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
+export function StatusesModal({ open, onOpenChange }: StatusesModalProps) {
   const queryClient = useQueryClient();
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<'create' | 'edit'>('create');
-  const [pickerPattern, setPickerPattern] = useState<Pattern | null>(null);
+  const [pickerStatus, setPickerStatus] = useState<Status | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['patterns'],
-    queryFn: () => patternsApi.list(),
+  const { data } = useQuery({
+    queryKey: ['statuses'],
+    queryFn: () => statusesApi.list(),
     enabled: open,
   });
 
-  const patterns = data?.data || [];
-  const systemPatterns = patterns.filter((p) => p.category === 'system' && p.name !== 'Call to action');
-  const customPatterns = patterns.filter((p) => p.category === 'custom');
+  const statuses = data?.data || [];
+  const systemStatuses = statuses.filter((s) => s.category === 'system');
+  const customStatuses = statuses.filter((s) => s.category === 'custom');
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => patternsApi.delete(id),
+    mutationFn: (id: string) => statusesApi.delete(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['patterns'] });
-      toast.success('Pattern eliminato');
+      queryClient.invalidateQueries({ queryKey: ['statuses'] });
+      toast.success('Status eliminato');
     },
     onError: () => toast.error('Errore eliminazione'),
   });
 
-  const openPicker = (mode: 'create' | 'edit', pattern?: Pattern) => {
+  const openPicker = (mode: 'create' | 'edit', status?: Status) => {
     setPickerMode(mode);
-    setPickerPattern(pattern || null);
+    setPickerStatus(status || null);
     setPickerOpen(true);
   };
 
   const handlePickerSave = () => {
-    queryClient.invalidateQueries({ queryKey: ['patterns'] });
+    queryClient.invalidateQueries({ queryKey: ['statuses'] });
     setPickerOpen(false);
   };
 
   const systemDescriptions: Record<string, string> = {
-    Done: 'Applicato al completamento',
+    done: 'Applicato al completamento',
   };
 
   return (
@@ -68,32 +68,32 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white">Patterns</DialogTitle>
+            <DialogTitle className="text-white">Statuses</DialogTitle>
             <DialogDescription className="text-zinc-400">
-              Gestisci i pattern visivi dei tile.
+              Gestisci gli status visivi dei tile.
             </DialogDescription>
           </DialogHeader>
 
           <div className="max-h-[60vh] overflow-y-auto space-y-4">
-            {/* System Patterns */}
+            {/* System Statuses */}
             <div>
-              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">System Patterns</span>
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">System Statuses</span>
               <div className="mt-2 space-y-2">
-                {systemPatterns.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
-                    <PatternPreview shape={p.shape} size={40} />
+                {systemStatuses.map((s) => (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
+                    <StatusPreview shape={s.shape} size={40} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-white">{p.name}</span>
-                        {p.name === 'Done' && (
+                        <span className="text-sm font-medium text-white">{s.name}</span>
+                        {s.name === 'done' && (
                           <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">auto</span>
                         )}
                       </div>
-                      <span className="text-[11px] text-zinc-500">{systemDescriptions[p.name] || ''}</span>
+                      <span className="text-[11px] text-zinc-500">{systemDescriptions[s.name] || ''}</span>
                     </div>
                     <div className="flex items-center gap-10">
                       <button
-                        onClick={() => openPicker('edit', p)}
+                        onClick={() => openPicker('edit', s)}
                         className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                       >
                         Edit
@@ -108,11 +108,10 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
 
             <div className="border-t border-zinc-800" />
 
-            {/* Custom Patterns */}
+            {/* Custom Statuses */}
             <div>
-              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Custom Patterns</span>
+              <span className="text-[10px] uppercase tracking-widest text-zinc-500 font-semibold">Custom Statuses</span>
               <div className="mt-2 space-y-2">
-                {/* Add button */}
                 <button
                   onClick={() => openPicker('create')}
                   className="flex items-center gap-3 w-full px-3 py-2 rounded-lg border border-dashed border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors"
@@ -120,22 +119,22 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
                   <div className="w-10 h-10 rounded-md border border-dashed border-zinc-600 flex items-center justify-center">
                     <IconPlus className="h-4 w-4" />
                   </div>
-                  <span className="text-sm">Add pattern</span>
+                  <span className="text-sm">Add status</span>
                 </button>
 
-                {customPatterns.map((p) => (
-                  <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
-                    <PatternPreview shape={p.shape} size={40} />
+                {customStatuses.map((s) => (
+                  <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
+                    <StatusPreview shape={s.shape} size={40} />
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-white">{p.name}</span>
+                      <span className="text-sm font-medium text-white">{s.name}</span>
                       <div className="text-[11px] text-zinc-500">
-                        {SHAPE_LABELS[p.shape]}
-                        {p.action_type && <span className="ml-1 text-blue-400">→ {p.action_type}</span>}
+                        {SHAPE_LABELS[s.shape]}
+                        {s.action_type && <span className="ml-1 text-blue-400">→ {s.action_type}</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-10">
                       <button
-                        onClick={() => openPicker('edit', p)}
+                        onClick={() => openPicker('edit', s)}
                         className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                       >
                         Edit
@@ -143,8 +142,8 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
                       </button>
                       <button
                         onClick={() => {
-                          if (confirm(`Eliminare il pattern "${p.name}"?`)) {
-                            deleteMutation.mutate(p.id);
+                          if (confirm(`Eliminare lo status "${s.name}"?`)) {
+                            deleteMutation.mutate(s.id);
                           }
                         }}
                         className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
@@ -160,11 +159,10 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Pattern Picker Modal */}
-      <PatternPickerModal
+      <StatusPickerModal
         open={pickerOpen}
         mode={pickerMode}
-        pattern={pickerPattern}
+        status={pickerStatus}
         onSave={handlePickerSave}
         onClose={() => setPickerOpen(false)}
       />
@@ -172,28 +170,27 @@ export function PatternsModal({ open, onOpenChange }: PatternsModalProps) {
   );
 }
 
-// ─── Pattern Picker Modal ───
-function PatternPickerModal({
+// ─── Status Picker Modal ───
+function StatusPickerModal({
   open,
   mode,
-  pattern,
+  status,
   onSave,
   onClose,
 }: {
   open: boolean;
   mode: 'create' | 'edit';
-  pattern: Pattern | null;
+  status: Status | null;
   onSave: () => void;
   onClose: () => void;
 }) {
   const [name, setName] = useState('');
-  const [shape, setShape] = useState<PatternShape>('solid');
+  const [shape, setShape] = useState<StatusShape>('solid');
 
-  // Reset form when opening
   const handleOpenChange = (isOpen: boolean) => {
-    if (isOpen && pattern) {
-      setName(pattern.name);
-      setShape(pattern.shape);
+    if (isOpen && status) {
+      setName(status.name);
+      setShape(status.shape);
     } else if (isOpen) {
       setName('');
       setShape('solid');
@@ -201,16 +198,15 @@ function PatternPickerModal({
     if (!isOpen) onClose();
   };
 
-  // Initialize on open
-  if (open && mode === 'edit' && pattern && name === '' && shape === 'solid') {
-    setName(pattern.name);
-    setShape(pattern.shape);
+  if (open && mode === 'edit' && status && name === '' && shape === 'solid') {
+    setName(status.name);
+    setShape(status.shape);
   }
 
   const createMutation = useMutation({
-    mutationFn: () => patternsApi.create({ name: name.trim(), shape }),
+    mutationFn: () => statusesApi.create({ name: name.trim(), shape }),
     onSuccess: () => {
-      toast.success('Pattern creato');
+      toast.success('Status creato');
       onSave();
     },
     onError: () => toast.error('Errore creazione'),
@@ -219,17 +215,17 @@ function PatternPickerModal({
   const updateMutation = useMutation({
     mutationFn: () => {
       const updates: { name?: string; shape?: string } = { shape };
-      if (pattern?.category === 'custom') updates.name = name.trim();
-      return patternsApi.update(pattern!.id, updates);
+      if (status?.category === 'custom') updates.name = name.trim();
+      return statusesApi.update(status!.id, updates);
     },
     onSuccess: () => {
-      toast.success('Pattern aggiornato');
+      toast.success('Status aggiornato');
       onSave();
     },
     onError: () => toast.error('Errore aggiornamento'),
   });
 
-  const isSystem = pattern?.category === 'system';
+  const isSystem = status?.category === 'system';
   const canSave = mode === 'create' ? (name.trim() && shape) : !!shape;
 
   return (
@@ -237,19 +233,18 @@ function PatternPickerModal({
       <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-sm">
         <DialogHeader>
           <DialogTitle className="text-white">
-            {mode === 'create' ? 'New pattern' : 'Edit pattern'}
+            {mode === 'create' ? 'New status' : 'Edit status'}
           </DialogTitle>
           <DialogDescription className="text-zinc-400">
-            {mode === 'create' ? 'Crea un nuovo pattern custom.' : 'Modifica la forma del pattern.'}
+            {mode === 'create' ? 'Crea un nuovo status custom.' : 'Modifica la forma dello status.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Name */}
           {isSystem ? (
             <div>
               <label className="text-[11px] text-zinc-500">Nome</label>
-              <p className="text-sm text-zinc-300 mt-0.5">{pattern?.name}</p>
+              <p className="text-sm text-zinc-300 mt-0.5">{status?.name}</p>
             </div>
           ) : (
             <div>
@@ -263,7 +258,6 @@ function PatternPickerModal({
             </div>
           )}
 
-          {/* Shape grid */}
           <div>
             <label className="text-[11px] text-zinc-500">Forma</label>
             <div className="grid grid-cols-3 gap-2 mt-1.5">
@@ -278,14 +272,13 @@ function PatternPickerModal({
                       : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
                   )}
                 >
-                  <PatternPreview shape={s} size={56} selected={shape === s} />
+                  <StatusPreview shape={s} size={56} selected={shape === s} />
                   <span className="text-[10px] text-zinc-400">{SHAPE_LABELS[s]}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Actions */}
           <div className="flex gap-2 justify-end">
             <Button variant="ghost" onClick={onClose} className="text-zinc-400">
               Annulla

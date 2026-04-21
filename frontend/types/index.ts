@@ -25,7 +25,7 @@ export interface Tile {
   action_type_reviewed?: boolean;
   is_completed?: boolean;
   is_cta?: boolean;
-  pattern_id?: string;
+  status_id?: string;
   color?: string;
   sort_order?: number;
   created_at: string;
@@ -131,16 +131,16 @@ export interface TagGraph {
   edges: TagEdge[];
 }
 
-// Pattern shapes
-export type PatternShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows' | 'vertical';
+// Status shapes
+export type StatusShape = 'cross' | 'target' | 'solid' | 'diagonal_ltr' | 'diagonal_rtl' | 'square' | 'bubble' | 'question' | 'exclamation' | 'arrows' | 'vertical' | 'hourglass' | 'pause_bars' | 'lock' | 'check_badge';
 
-// Pattern entity
-export interface Pattern {
+// Status entity
+export interface Status {
   id: string;
   user_id: string;
   category: 'system' | 'custom';
   name: string;
-  shape: PatternShape;
+  shape: StatusShape;
   action_type?: string;
   created_at: string;
 }
@@ -157,7 +157,7 @@ export interface Subtask {
 }
 
 // Kanban
-export type KanbanFilterType = 'action_type' | 'tag' | 'status' | 'pattern' | 'status_icon' | 'date_range';
+export type KanbanFilterType = 'action_type' | 'tag' | 'completion' | 'status' | 'type_icon' | 'date_range';
 export type KanbanSortBy = 'date_start' | 'date_end' | 'date_created' | 'date_updated' | null;
 export type KanbanSortDir = 'asc' | 'desc';
 

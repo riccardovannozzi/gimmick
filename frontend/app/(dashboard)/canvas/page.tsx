@@ -375,7 +375,7 @@ export default function CanvasPage() {
       const updates: Parameters<typeof tilesApi.update>[1] = {};
       if (source.action_type) updates.action_type = source.action_type;
       if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
-      if (source.pattern_id) updates.pattern_id = source.pattern_id;
+      if (source.status_id) updates.status_id = source.status_id;
       if (Object.keys(updates).length > 0) {
         try { await tilesApi.update(newId, updates); } catch { /* ignore */ }
       }

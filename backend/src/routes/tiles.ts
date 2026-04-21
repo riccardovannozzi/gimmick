@@ -27,7 +27,7 @@ const updateTileSchema = z.object({
   end_at: z.string().nullable().optional(),
   is_completed: z.boolean().optional(),
   is_cta: z.boolean().optional(),
-  pattern_id: z.string().uuid().nullable().optional(),
+  status_id: z.string().uuid().nullable().optional(),
   sort_order: z.number().int().optional(),
 });
 
@@ -235,10 +235,23 @@ tilesRouter.post(
   validate(createTileSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const tileData = {
+      const tileData: Record<string, unknown> = {
         ...req.body,
         user_id: req.user!.id,
       };
+
+      // Default new tiles to the system 'active' status (unless the caller
+      // already provided a status_id).
+      if (!tileData.status_id) {
+        const { data: activeStatus } = await supabaseAdmin
+          .from('statuses')
+          .select('id')
+          .eq('user_id', req.user!.id)
+          .eq('category', 'system')
+          .eq('name', 'active')
+          .maybeSingle();
+        if (activeStatus?.id) tileData.status_id = activeStatus.id;
+      }
 
       const { data, error } = await supabaseAdmin
         .from('tiles')

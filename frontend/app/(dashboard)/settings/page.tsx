@@ -17,8 +17,8 @@ import { useAuthStore } from '@/store/auth-store';
 import { useActionColorsQuery, type BorderStyle } from '@/store/action-colors-store';
 import { getColorName } from '@/lib/palette';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
-import { PatternsModal } from '@/components/patterns/patterns-modal';
-import { StatusIconsModal } from '@/components/status-icons/status-icons-modal';
+import { StatusesModal } from '@/components/statuses/statuses-modal';
+import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
 import type { ActionType } from '@/types';
 
 const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[] = [
@@ -35,8 +35,8 @@ export default function SettingsPage() {
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
   const [pickerAction, setPickerAction] = useState<ActionType | null>(null);
-  const [patternsOpen, setPatternsOpen] = useState(false);
-  const [statusIconsOpen, setStatusIconsOpen] = useState(false);
+  const [statusesOpen, setStatusesOpen] = useState(false);
+  const [typeIconsOpen, setTypeIconsOpen] = useState(false);
   const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
   const pickerRef = useRef<HTMLDivElement>(null);
   const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -172,15 +172,15 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Patterns Section */}
+        {/* Statuses Section */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
               <IconBrush className="h-5 w-5 text-zinc-400" />
               <div>
-                <CardTitle className="text-white">Tile Patterns</CardTitle>
+                <CardTitle className="text-white">Tile Statuses</CardTitle>
                 <CardDescription className="text-zinc-400">
-                  Gestisci i pattern visivi dei tile
+                  Gestisci gli status visivi dei tile
                 </CardDescription>
               </div>
             </div>
@@ -189,22 +189,22 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               className="border-zinc-700 text-zinc-300"
-              onClick={() => setPatternsOpen(true)}
+              onClick={() => setStatusesOpen(true)}
             >
-              Gestisci patterns
+              Gestisci statuses
             </Button>
           </CardContent>
         </Card>
 
-        {/* Tile Status Icons Section */}
+        {/* Tile Type Icons Section */}
         <Card className="bg-zinc-900 border-zinc-800">
           <CardHeader>
             <div className="flex items-center gap-3">
               <IconMoodSmile className="h-5 w-5 text-zinc-400" />
               <div>
-                <CardTitle className="text-white">Tile Status Icons</CardTitle>
+                <CardTitle className="text-white">Tile Type Icons</CardTitle>
                 <CardDescription className="text-zinc-400">
-                  Gestisci le icone di stato da assegnare ai tile
+                  Gestisci le icone di tipo da assegnare ai tile
                 </CardDescription>
               </div>
             </div>
@@ -213,9 +213,9 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               className="border-zinc-700 text-zinc-300"
-              onClick={() => setStatusIconsOpen(true)}
+              onClick={() => setTypeIconsOpen(true)}
             >
-              Gestisci status icons
+              Gestisci type icons
             </Button>
           </CardContent>
         </Card>
@@ -326,9 +326,9 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      {/* Patterns modal */}
-      <PatternsModal open={patternsOpen} onOpenChange={setPatternsOpen} />
-      <StatusIconsModal open={statusIconsOpen} onOpenChange={setStatusIconsOpen} />
+      {/* Statuses modal */}
+      <StatusesModal open={statusesOpen} onOpenChange={setStatusesOpen} />
+      <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
 
       {/* Color picker popup */}
       {pickerAction && createPortal(

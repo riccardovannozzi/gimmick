@@ -25,15 +25,15 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
-import { kanbanApi, tilesApi, tagsApi, patternsApi } from '@/lib/api';
+import { kanbanApi, tilesApi, tagsApi, statusesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
-import { useStatusIcons } from '@/store/status-icons-store';
-import { usePatterns } from '@/store/patterns-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
 import { formatDay, getDayKey } from '@/lib/tile-helpers';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
-import type { Tile, Tag, KanbanColumn, KanbanFilter, KanbanFilterType, KanbanSortBy, KanbanSortDir, Pattern, ActionType, PatternShape } from '@/types';
+import type { Tile, Tag, KanbanColumn, KanbanFilter, KanbanFilterType, KanbanSortBy, KanbanSortDir, Status, ActionType, StatusShape } from '@/types';
 
 const FALLBACK_COLOR = '#94A3B8';
 // Canvas tile dimensions (shared with CanvasBoard + calendar columns)
@@ -42,14 +42,14 @@ const TILE_H = 79;
 
 // ─── Shared tile visual helpers (mirror of calendar page) ───
 
-function StatusIconRender({ iconName, size = 14 }: { iconName: string; size?: number }) {
+function TypeIconRender({ iconName, size = 14 }: { iconName: string; size?: number }) {
   const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>)[iconName];
   if (!Comp) return null;
   return <Comp size={size} className="text-zinc-300" />;
 }
 
 let _patId = 0;
-function InlinePattern({ shape, color }: { shape: PatternShape; color: string }) {
+function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
   const o = 0.2;
   const id = useMemo(() => `kb-il-${++_patId}`, []);
   switch (shape) {
@@ -58,6 +58,10 @@ function InlinePattern({ shape, color }: { shape: PatternShape; color: string })
     case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
     case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
     case 'bubble': return <><circle cx={18} cy={14} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={58} cy={10} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.1} /><circle cx={40} cy={30} r={11} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={62} cy={38} r={9} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={35} cy={56} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.05} /></>;
+    case 'hourglass': return <path d="M54,18 L74,18 L64,39 L74,60 L54,60 L64,39 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinejoin="round" />;
+    case 'pause_bars': return <><rect x={56} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={66} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
+    case 'lock': return <><path d="M57,36 V30 a7,7 0 0 1 14,0 V36" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={52} y={36} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={64} cy={46} r={2} fill="#1C1C1E" /></>;
+    case 'check_badge': return <><circle cx={115} cy={65} r={8} fill="#10B981" /><path d="M111,65 L114,68 L119,62" stroke="white" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></>;
     default: return null;
   }
 }
@@ -94,9 +98,9 @@ const SORT_BY_LABELS: Record<string, string> = {
 const FILTER_TYPE_LABELS: Record<string, string> = {
   action_type: 'Action',
   tag: 'Tag',
-  status: 'Done/Undone',
-  pattern: 'Pattern',
-  status_icon: 'Status',
+  completion: 'Done/Undone',
+  status: 'Status',
+  type_icon: 'Type',
   date_range: 'Data',
 };
 
@@ -173,7 +177,7 @@ function DaysInput({ value, onChange }: { value: number | null; onChange: (n: nu
 function tileMatchesFilters(
   tile: Tile,
   filters: KanbanFilter[],
-  statusTileIcons: Record<string, string>,
+  typeTileIcons: Record<string, string>,
 ): boolean {
   if (filters.length === 0) return true;
 
@@ -195,12 +199,12 @@ function tileMatchesFilters(
           return tile.action_type === f.value;
         case 'tag':
           return tile.tags?.some((t) => t.id === f.value) ?? false;
-        case 'status':
+        case 'completion':
           return f.value === 'completed' ? !!tile.is_completed : !tile.is_completed;
-        case 'pattern':
-          return tile.pattern_id === f.value;
-        case 'status_icon':
-          return statusTileIcons[tile.id] === f.value;
+        case 'status':
+          return tile.status_id === f.value;
+        case 'type_icon':
+          return typeTileIcons[tile.id] === f.value;
         case 'date_range': {
           const d = tileDateForRange(tile);
           if (!d) return false;
@@ -254,8 +258,8 @@ function sortTiles(tiles: Tile[], sortBy: KanbanSortBy, sortDir: KanbanSortDir):
 function getFilterLabel(
   f: KanbanFilter,
   tags: Tag[],
-  patterns: Pattern[],
-  statusIcons: { id: string; name: string }[],
+  statuses: Status[],
+  typeIcons: { id: string; name: string }[],
 ): string {
   switch (f.type) {
     case 'action_type':
@@ -264,15 +268,15 @@ function getFilterLabel(
       const tag = tags.find((t) => t.id === f.value);
       return tag?.name || 'Tag ?';
     }
-    case 'status':
+    case 'completion':
       return f.value === 'completed' ? 'Done' : 'Undone';
-    case 'pattern': {
-      const pat = patterns.find((p) => p.id === f.value);
-      return pat?.name || 'Pattern ?';
+    case 'status': {
+      const st = statuses.find((s) => s.id === f.value);
+      return st?.name || 'Status ?';
     }
-    case 'status_icon': {
-      const si = statusIcons.find((s) => s.id === f.value);
-      return si?.name || 'Status ?';
+    case 'type_icon': {
+      const ti = typeIcons.find((s) => s.id === f.value);
+      return ti?.name || 'Type ?';
     }
     case 'date_range': {
       const kind = dateRangeKind(f.value);
@@ -319,28 +323,29 @@ export default function KanbanPage() {
   const actionColors = useActionColors();
   const actionBorders = useActionBorders();
 
-  // Status icons store
-  const statusIcons = useStatusIcons((s) => s.icons);
-  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
-  const fetchStatusIcons = useStatusIcons((s) => s.fetchAll);
-  const statusIconsLoaded = useStatusIcons((s) => s.loaded);
-  useEffect(() => { if (!statusIconsLoaded) fetchStatusIcons(); }, [statusIconsLoaded, fetchStatusIcons]);
+  // Type icons store
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const fetchTypeIcons = useTypeIcons((s) => s.fetchAll);
+  const typeIconsLoaded = useTypeIcons((s) => s.loaded);
+  useEffect(() => { if (!typeIconsLoaded) fetchTypeIcons(); }, [typeIconsLoaded, fetchTypeIcons]);
   const getIconForTile = useCallback((tileId: string) => {
-    const iconId = statusTileIcons[tileId];
+    const iconId = typeTileIcons[tileId];
     if (!iconId) return null;
-    return statusIcons.find((i) => i.id === iconId) || null;
-  }, [statusIcons, statusTileIcons]);
+    return typeIcons.find((i) => i.id === iconId) || null;
+  }, [typeIcons, typeTileIcons]);
 
-  // Patterns (for shape overlay on tiles)
-  const { customPatterns, doneShape, getActionTypeShape } = usePatterns();
-  const resolveShape = useCallback((tile: Tile): PatternShape => {
-    if (tile.pattern_id) {
-      const custom = customPatterns.find((p) => p.id === tile.pattern_id);
-      if (custom) return custom.shape as PatternShape;
+  // Statuses (for shape overlay on tiles). Resolve against the full list
+  // (system + custom) because canonical system statuses drive the shape now.
+  const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
+  const resolveShape = useCallback((tile: Tile): StatusShape => {
+    if (tile.status_id) {
+      const st = allStatuses.find((s) => s.id === tile.status_id);
+      if (st) return st.shape as StatusShape;
     }
     if (tile.is_completed) return doneShape;
     return getActionTypeShape(tile.action_type || 'none');
-  }, [customPatterns, doneShape, getActionTypeShape]);
+  }, [allStatuses, doneShape, getActionTypeShape]);
 
   // ─── Data ───
   const { data: columnsData } = useQuery({
@@ -361,11 +366,11 @@ export default function KanbanPage() {
   });
   const tags: Tag[] = useMemo(() => (tagsData as any)?.data || [], [tagsData]);
 
-  const { data: patternsData } = useQuery({
-    queryKey: ['patterns'],
-    queryFn: () => patternsApi.list(),
+  const { data: statusesData } = useQuery({
+    queryKey: ['statuses'],
+    queryFn: () => statusesApi.list(),
   });
-  const patterns: Pattern[] = useMemo(() => (patternsData as any)?.data || [], [patternsData]);
+  const statuses: Status[] = useMemo(() => (statusesData as any)?.data || [], [statusesData]);
 
   // ─── Sidebar ───
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
@@ -545,11 +550,11 @@ export default function KanbanPage() {
             updates.action_type = f.value;
           }
           break;
-        case 'status':
+        case 'completion':
           updates.is_completed = f.value === 'completed';
           break;
-        case 'pattern':
-          updates.pattern_id = f.value;
+        case 'status':
+          updates.status_id = f.value;
           break;
         case 'tag':
           // Tag changes need separate API call
@@ -634,7 +639,7 @@ export default function KanbanPage() {
         {/* Board */}
         <div className="flex-1 flex overflow-x-auto gap-4 p-4">
           {columns.map((col) => {
-            const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, statusTileIcons));
+            const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
             const colTiles = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
             const isEditing = editingTitle === col.id;
             const isFilterOpen = filterEditorCol === col.id;
@@ -796,7 +801,7 @@ export default function KanbanPage() {
                         className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700/50"
                       >
                         <span className="text-zinc-500 uppercase">{FILTER_TYPE_LABELS[f.type]}:</span>
-                        {getFilterLabel(f, tags, patterns, statusIcons)}
+                        {getFilterLabel(f, tags, statuses, typeIcons)}
                         <button
                           onClick={() => {
                             const newFilters = col.filters.filter((_, j) => j !== i);
@@ -861,7 +866,7 @@ export default function KanbanPage() {
                       // (GIMMICK inbox) only surfaces if the tile has no other tag.
                       const rootTagId = tags.find((x) => x.is_root)?.id;
                       const tileTag = (t.tags || []).find((tg) => tg.id !== rootTagId) || t.tags?.[0];
-                      // Pattern overlay uses the action color (matches canvas)
+                      // Status shape overlay uses the action color (matches canvas)
                       const actionLabel = t.all_day
                         ? 'ALL DAY'
                         : ({ none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' } as Record<string, string>)[t.action_type || 'none']
@@ -927,12 +932,12 @@ export default function KanbanPage() {
                           )}
                           <div className="flex items-end justify-between mt-auto">
                             <span className="text-[9px] text-[#71717A] uppercase">{actionLabel}</span>
-                            {si && <StatusIconRender iconName={si.icon} />}
+                            {si && <TypeIconRender iconName={si.icon} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
-                                <InlinePattern shape={shape} color={actionColor} />
+                                <InlineStatus shape={shape} color={actionColor} />
                               </svg>
                             </div>
                           )}
@@ -978,7 +983,7 @@ export default function KanbanPage() {
         const filterCol = columns.find((c) => c.id === filterEditorCol);
         if (!filterCol) return null;
         const section = addFilterType ?? 'action_type';
-        const SECTIONS: KanbanFilterType[] = ['action_type', 'tag', 'status', 'status_icon', 'pattern', 'date_range'];
+        const SECTIONS: KanbanFilterType[] = ['action_type', 'tag', 'completion', 'type_icon', 'status', 'date_range'];
         const countFor = (t: KanbanFilterType) => filterCol.filters.filter((f) => f.type === t).length;
         const clearSection = (t: KanbanFilterType) => {
           const newFilters = filterCol.filters.filter((f) => f.type !== t);
@@ -1118,17 +1123,17 @@ export default function KanbanPage() {
 
                 {/* Column 3 — Done/Undone */}
                 <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
-                  {renderSectionHeader('status', 'Done/Undone')}
+                  {renderSectionHeader('completion', 'Done/Undone')}
                   <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
                   {STATUS_OPTIONS.map(({ value, label }) => {
-                    const active = filterCol.filters.some((f) => f.type === 'status' && f.value === value);
+                    const active = filterCol.filters.some((f) => f.type === 'completion' && f.value === value);
                     return (
                       <div key={value} className="flex items-center gap-1.5">
                         <button
                           onClick={() => {
                             const newFilters = active
-                              ? filterCol.filters.filter((f) => !(f.type === 'status' && f.value === value))
-                              : [...filterCol.filters, { type: 'status' as const, value }];
+                              ? filterCol.filters.filter((f) => !(f.type === 'completion' && f.value === value))
+                              : [...filterCol.filters, { type: 'completion' as const, value }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
                           className={cn(
@@ -1150,20 +1155,20 @@ export default function KanbanPage() {
                   </div>
                 </div>
 
-                {/* Column 4 — Status */}
+                {/* Column 4 — Type */}
                 <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
-                  {renderSectionHeader('status_icon', 'Status')}
+                  {renderSectionHeader('type_icon', 'Type')}
                   <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
-                  {statusIcons.map((si) => {
-                    const active = filterCol.filters.some((f) => f.type === 'status_icon' && f.value === si.id);
+                  {typeIcons.map((si) => {
+                    const active = filterCol.filters.some((f) => f.type === 'type_icon' && f.value === si.id);
                     const Ico = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>>)[si.icon] || IconCheck;
                     return (
                       <div key={si.id} className="flex items-center gap-1.5">
                         <button
                           onClick={() => {
                             const newFilters = active
-                              ? filterCol.filters.filter((f) => !(f.type === 'status_icon' && f.value === si.id))
-                              : [...filterCol.filters, { type: 'status_icon' as const, value: si.id }];
+                              ? filterCol.filters.filter((f) => !(f.type === 'type_icon' && f.value === si.id))
+                              : [...filterCol.filters, { type: 'type_icon' as const, value: si.id }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
                           className={cn(
@@ -1187,26 +1192,26 @@ export default function KanbanPage() {
                       </div>
                     );
                   })}
-                  {statusIcons.length === 0 && (
-                    <span className="text-[11px] text-zinc-500">Nessuno status</span>
+                  {typeIcons.length === 0 && (
+                    <span className="text-[11px] text-zinc-500">Nessun tipo</span>
                   )}
                   </div>
                 </div>
 
-                {/* Column 5 — Pattern */}
+                {/* Column 5 — Status */}
                 <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
-                  {renderSectionHeader('pattern', 'Pattern')}
+                  {renderSectionHeader('status', 'Status')}
                   <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
-                  {patterns.filter((p) => p.category === 'custom').map((pat) => {
-                    const active = filterCol.filters.some((f) => f.type === 'pattern' && f.value === pat.id);
-                    const patColor = pat.action_type ? (actionColors[pat.action_type as ActionType] || FALLBACK_COLOR) : FALLBACK_COLOR;
+                  {statuses.filter((s) => s.category === 'custom').map((st) => {
+                    const active = filterCol.filters.some((f) => f.type === 'status' && f.value === st.id);
+                    const stColor = st.action_type ? (actionColors[st.action_type as ActionType] || FALLBACK_COLOR) : FALLBACK_COLOR;
                     return (
-                      <div key={pat.id} className="flex items-center gap-1.5">
+                      <div key={st.id} className="flex items-center gap-1.5">
                         <button
                           onClick={() => {
                             const newFilters = active
-                              ? filterCol.filters.filter((f) => !(f.type === 'pattern' && f.value === pat.id))
-                              : [...filterCol.filters, { type: 'pattern' as const, value: pat.id }];
+                              ? filterCol.filters.filter((f) => !(f.type === 'status' && f.value === st.id))
+                              : [...filterCol.filters, { type: 'status' as const, value: st.id }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
                           className={cn(
@@ -1214,14 +1219,14 @@ export default function KanbanPage() {
                             active ? 'bg-zinc-800 text-white font-medium border-zinc-600' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 border-zinc-700/50',
                           )}
                           style={{ width: TILE_W }}
-                          title={pat.name}
+                          title={st.name}
                         >
                           <span className="absolute inset-0 pointer-events-none">
                             <svg className="w-full h-full">
-                              <InlinePattern shape={pat.shape} color={patColor} />
+                              <InlineStatus shape={st.shape} color={stColor} />
                             </svg>
                           </span>
-                          <span className="relative z-10 flex-1 text-left truncate">{pat.name}</span>
+                          <span className="relative z-10 flex-1 text-left truncate">{st.name}</span>
                         </button>
                         <span className="w-4 flex items-center justify-center shrink-0">
                           {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
@@ -1229,8 +1234,8 @@ export default function KanbanPage() {
                       </div>
                     );
                   })}
-                  {patterns.filter((p) => p.category === 'custom').length === 0 && (
-                    <span className="text-[11px] text-zinc-500">Nessun pattern</span>
+                  {statuses.filter((s) => s.category === 'custom').length === 0 && (
+                    <span className="text-[11px] text-zinc-500">Nessuno status</span>
                   )}
                   </div>
                 </div>

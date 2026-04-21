@@ -9,7 +9,7 @@ export const kanbanRouter = Router();
 kanbanRouter.use(authenticate);
 
 const filterRuleSchema = z.object({
-  type: z.enum(['action_type', 'tag', 'status', 'pattern', 'status_icon', 'date_range']),
+  type: z.enum(['action_type', 'tag', 'completion', 'status', 'type_icon', 'date_range']),
   value: z.string().min(1),
 });
 

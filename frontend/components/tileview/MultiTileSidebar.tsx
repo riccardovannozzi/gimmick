@@ -11,10 +11,10 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { tilesApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { useStatusIcons } from '@/store/status-icons-store';
-import { usePatterns } from '@/store/patterns-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useStatuses } from '@/store/statuses-store';
 import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
-import type { Tile, ActionType, PatternShape } from '@/types';
+import type { Tile, ActionType, StatusShape } from '@/types';
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
 
@@ -48,10 +48,10 @@ interface Props {
 
 export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['tiles-calendar'], onClearSelection }: Props) {
   const queryClient = useQueryClient();
-  const { customPatterns } = usePatterns();
+  const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
   const actionBorders = useActionBorders();
-  const { icons: statusIcons, tileIcons, assignIcon } = useStatusIcons();
+  const { icons: typeIcons, tileIcons, assignIcon } = useTypeIcons();
 
   const ids = tiles.map((t) => t.id);
 
@@ -74,16 +74,16 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   })();
   const dateMixed = showDate && !dateValue;
 
-  // Pattern
-  const allPatternSame = tiles.length > 0 && tiles.every((t) => (t.pattern_id || null) === (tiles[0].pattern_id || null));
-  const commonPatternId: string | null = allPatternSame ? (tiles[0]?.pattern_id || null) : null;
+  // Status
+  const allStatusSame = tiles.length > 0 && tiles.every((t) => (t.status_id || null) === (tiles[0].status_id || null));
+  const commonStatusId: string | null = allStatusSame ? (tiles[0]?.status_id || null) : null;
 
   // Done
   const allDone = tiles.length > 0 && tiles.every((t) => !!t.is_completed);
   const someDone = tiles.length > 0 && tiles.some((t) => !!t.is_completed);
   const doneIndeterminate = someDone && !allDone;
 
-  // Status icon
+  // Type icon
   const allIconsSame = tiles.length > 0 && tiles.every((t) => (tileIcons[t.id] || '') === (tileIcons[tiles[0].id] || ''));
   const commonIconId: string | null = allIconsSame ? (tileIcons[tiles[0]?.id] || null) : null;
 
@@ -152,7 +152,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
     }
   };
 
-  const setPattern = (id: string | null) => bulkUpdate({ pattern_id: id });
+  const setStatus = (id: string | null) => bulkUpdate({ status_id: id });
   const setDone = (val: boolean) => bulkUpdate({ is_completed: val });
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
@@ -261,10 +261,10 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
             </div>
           )}
 
-          {/* Status icon */}
-          {statusIcons.length > 0 && (
-            <MixedStatusIconPicker
-              icons={statusIcons}
+          {/* Type icon */}
+          {typeIcons.length > 0 && (
+            <MixedTypeIconPicker
+              icons={typeIcons}
               currentId={commonIconId}
               mixed={!allIconsSame}
               onChange={setIcon}
@@ -272,13 +272,13 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
             />
           )}
 
-          {/* Pattern */}
-          {customPatterns.length > 0 && (
-            <MixedPatternPicker
-              patterns={customPatterns}
-              value={commonPatternId}
-              mixed={!allPatternSame}
-              onChange={setPattern}
+          {/* Status */}
+          {allStatuses.length > 0 && (
+            <MixedStatusPicker
+              statuses={allStatuses}
+              value={commonStatusId}
+              mixed={!allStatusSame}
+              onChange={setStatus}
               disabled={saving}
             />
           )}
@@ -311,7 +311,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
 // ── Inline pickers (simpler than the single-tile versions; aware of "mixed" state) ──
 
-function MixedStatusIconPicker({
+function MixedTypeIconPicker({
   icons, currentId, mixed, onChange, disabled,
 }: {
   icons: { id: string; icon: string; color?: string; name: string }[];
@@ -345,7 +345,7 @@ function MixedStatusIconPicker({
   return (
     <div className="relative">
       <label className="text-[11px] text-zinc-500 mb-1 block">
-        Status {mixed && <span className="text-amber-400">— misto</span>}
+        Type {mixed && <span className="text-amber-400">— misto</span>}
       </label>
       <button
         ref={triggerRef}
@@ -408,10 +408,10 @@ function MixedStatusIconPicker({
   );
 }
 
-function MixedPatternPicker({
-  patterns, value, mixed, onChange, disabled,
+function MixedStatusPicker({
+  statuses, value, mixed, onChange, disabled,
 }: {
-  patterns: { id: string; name: string; shape: string }[];
+  statuses: { id: string; name: string; shape: string }[];
   value: string | null;
   mixed: boolean;
   onChange: (id: string | null) => void;
@@ -421,7 +421,7 @@ function MixedPatternPicker({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
   const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const selected = !mixed && value ? patterns.find((p) => p.id === value) || null : null;
+  const selected = !mixed && value ? statuses.find((p) => p.id === value) || null : null;
 
   useEffect(() => {
     if (!open) return;
@@ -441,7 +441,7 @@ function MixedPatternPicker({
   return (
     <div>
       <label className="text-[11px] text-zinc-500 mb-1 block">
-        Pattern {mixed && <span className="text-amber-400">— misto</span>}
+        Status {mixed && <span className="text-amber-400">— misto</span>}
       </label>
       <button
         ref={triggerRef}
@@ -463,13 +463,7 @@ function MixedPatternPicker({
           className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
         >
-          <button
-            onClick={() => { onChange(null); setOpen(false); }}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors"
-          >
-            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
-          </button>
-          {patterns.map((p) => {
+          {statuses.map((p) => {
             const isSel = !mixed && value === p.id;
             return (
               <button
@@ -492,4 +486,4 @@ function MixedPatternPicker({
 }
 
 // Suppress unused-shape-type warning while keeping the type meaningful for future renderers
-type _MaybeUsed = PatternShape;
+type _MaybeUsed = StatusShape;

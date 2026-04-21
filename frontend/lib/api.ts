@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Pattern, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -215,7 +215,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; pattern_id?: string | null; sort_order?: number }) {
+  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; status_id?: string | null; sort_order?: number }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -499,28 +499,28 @@ export const tagTypesApi = {
   },
 };
 
-// ============ Patterns API ============
-export const patternsApi = {
+// ============ Statuses API ============
+export const statusesApi = {
   async list() {
-    return apiRequest<Pattern[]>('/api/patterns');
+    return apiRequest<Status[]>('/api/statuses');
   },
 
   async create(data: { name: string; shape: string; action_type?: string | null }) {
-    return apiRequest<Pattern>('/api/patterns', {
+    return apiRequest<Status>('/api/statuses', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async update(id: string, updates: { name?: string; shape?: string; action_type?: string | null }) {
-    return apiRequest<Pattern>(`/api/patterns/${id}`, {
+    return apiRequest<Status>(`/api/statuses/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
   async delete(id: string) {
-    return apiRequest(`/api/patterns/${id}`, { method: 'DELETE' });
+    return apiRequest(`/api/statuses/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -600,38 +600,38 @@ export const canvasApi = {
   },
 };
 
-// ============ Status Icons API ============
-export const statusIconsApi = {
+// ============ Type Icons API ============
+export const typeIconsApi = {
   async list() {
-    return apiRequest<{ id: string; name: string; icon: string; color?: string; sort_order: number }[]>('/api/status-icons');
+    return apiRequest<{ id: string; name: string; icon: string; color?: string; sort_order: number }[]>('/api/type-icons');
   },
 
   async create(data: { name: string; icon: string; color?: string }) {
-    return apiRequest<{ id: string; name: string; icon: string; color?: string }>('/api/status-icons', {
+    return apiRequest<{ id: string; name: string; icon: string; color?: string }>('/api/type-icons', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
   async update(id: string, updates: { name?: string; icon?: string; color?: string }) {
-    return apiRequest(`/api/status-icons/${id}`, {
+    return apiRequest(`/api/type-icons/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
   async delete(id: string) {
-    return apiRequest(`/api/status-icons/${id}`, { method: 'DELETE' });
+    return apiRequest(`/api/type-icons/${id}`, { method: 'DELETE' });
   },
 
   async getAssignments() {
-    return apiRequest<{ tile_id: string; status_icon_id: string }[]>('/api/status-icons/assignments');
+    return apiRequest<{ tile_id: string; type_icon_id: string }[]>('/api/type-icons/assignments');
   },
 
-  async assign(tile_id: string, status_icon_id: string | null) {
-    return apiRequest('/api/status-icons/assign', {
+  async assign(tile_id: string, type_icon_id: string | null) {
+    return apiRequest('/api/type-icons/assign', {
       method: 'PUT',
-      body: JSON.stringify({ tile_id, status_icon_id }),
+      body: JSON.stringify({ tile_id, type_icon_id }),
     });
   },
 };

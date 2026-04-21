@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { IconPicker } from '@/components/ui/icon-picker';
-import { useStatusIcons, type StatusIcon } from '@/store/status-icons-store';
+import { useTypeIcons, type TypeIcon } from '@/store/type-icons-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
 
 type IconComp = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
@@ -26,25 +26,25 @@ function RenderIcon({ name, size = 20, className }: { name: string; size?: numbe
   return <Comp size={size} className={className} />;
 }
 
-interface StatusIconsModalProps {
+interface TypeIconsModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
-export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) {
-  const { icons, addIcon, updateIcon, removeIcon } = useStatusIcons();
+export function TypeIconsModal({ open, onOpenChange }: TypeIconsModalProps) {
+  const { icons, addIcon, updateIcon, removeIcon } = useTypeIcons();
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editingIcon, setEditingIcon] = useState<StatusIcon | null>(null);
+  const [editingIcon, setEditingIcon] = useState<TypeIcon | null>(null);
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
   const [color, setColor] = useState('');
 
-  const openEditor = (si?: StatusIcon) => {
-    if (si) {
-      setEditingIcon(si);
-      setName(si.name);
-      setIcon(si.icon);
-      setColor(si.color || '');
+  const openEditor = (ti?: TypeIcon) => {
+    if (ti) {
+      setEditingIcon(ti);
+      setName(ti.name);
+      setIcon(ti.icon);
+      setColor(ti.color || '');
     } else {
       setEditingIcon(null);
       setName('');
@@ -69,9 +69,9 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white">Tile Status Icons</DialogTitle>
+            <DialogTitle className="text-white">Tile Type Icons</DialogTitle>
             <DialogDescription className="text-zinc-400">
-              Gestisci le icone di stato dei tile.
+              Gestisci le icone di tipo dei tile.
             </DialogDescription>
           </DialogHeader>
 
@@ -87,31 +87,31 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
                   <div className="w-10 h-10 rounded-lg border border-zinc-700 flex items-center justify-center">
                     <IconPlus className="h-4 w-4" />
                   </div>
-                  <span className="text-sm">Add status icon</span>
+                  <span className="text-sm">Add type icon</span>
                 </button>
 
-                {icons.map((si) => (
-                  <div key={si.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
+                {icons.map((ti) => (
+                  <div key={ti.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
                     <div
                       className="w-10 h-10 rounded-lg border border-zinc-700 flex items-center justify-center"
-                      style={{ backgroundColor: si.color || '#27272A' }}
+                      style={{ backgroundColor: ti.color || '#27272A' }}
                     >
-                      <RenderIcon name={si.icon} size={22} className="text-white" />
+                      <RenderIcon name={ti.icon} size={22} className="text-white" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm font-medium text-white block truncate">{si.name}</span>
-                      <span className="text-[11px] text-zinc-500">{(si.icon || '').replace(/^Icon/, '')}</span>
+                      <span className="text-sm font-medium text-white block truncate">{ti.name}</span>
+                      <span className="text-[11px] text-zinc-500">{(ti.icon || '').replace(/^Icon/, '')}</span>
                     </div>
                     <div className="flex items-center gap-10">
                       <button
-                        onClick={() => openEditor(si)}
+                        onClick={() => openEditor(ti)}
                         className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
                       >
                         Edit
                         <IconChevronRight className="h-3 w-3" />
                       </button>
                       <button
-                        onClick={() => removeIcon(si.id)}
+                        onClick={() => removeIcon(ti.id)}
                         className="p-1 text-zinc-600 hover:text-red-400 transition-colors"
                       >
                         <IconTrash className="h-3.5 w-3.5" />
@@ -121,7 +121,7 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
                 ))}
 
                 {icons.length === 0 && (
-                  <p className="text-xs text-zinc-500 text-center py-4">Nessuna icona di stato definita</p>
+                  <p className="text-xs text-zinc-500 text-center py-4">Nessuna icona di tipo definita</p>
                 )}
               </div>
             </div>
@@ -134,10 +134,10 @@ export function StatusIconsModal({ open, onOpenChange }: StatusIconsModalProps) 
         <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-white">
-              {editingIcon ? 'Modifica icona' : 'Nuova icona di stato'}
+              {editingIcon ? 'Modifica icona' : 'Nuova icona di tipo'}
             </DialogTitle>
             <DialogDescription className="text-zinc-400">
-              {editingIcon ? 'Modifica nome, icona e colore.' : 'Crea una nuova icona di stato personalizzata.'}
+              {editingIcon ? 'Modifica nome, icona e colore.' : 'Crea una nuova icona di tipo personalizzata.'}
             </DialogDescription>
           </DialogHeader>
 

@@ -13,20 +13,20 @@ import { IconLoader2, IconPlus, IconX, IconSparkles, IconTrash, IconChecklist, I
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Tile, Tag, ApiResponse, PatternShape } from '@/types';
+import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange } from '@/lib/tile-helpers';
-import { usePatterns } from '@/store/patterns-store';
+import { useStatuses } from '@/store/statuses-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
-import { useStatusIcons } from '@/store/status-icons-store';
+import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
 
 const FALLBACK_COLOR = '#888780';
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
 
-function StatusIconRender({ iconName, size = 18 }: { iconName: string; size?: number }) {
+function TypeIconRender({ iconName, size = 18 }: { iconName: string; size?: number }) {
   const Comp = AllIcons[iconName];
   if (!Comp) return null;
   return <Comp size={size} className="text-zinc-300" />;
@@ -124,8 +124,8 @@ interface EventModalState {
   autoDetect: boolean;
   tagIds: string[];
   actionType: string;
-  statusIconId: string | null;
-  patternId: string | null;
+  typeIconId: string | null;
+  statusId: string | null;
   isCompleted: boolean;
 }
 
@@ -139,8 +139,8 @@ const emptyModal: EventModalState = {
   autoDetect: true,
   tagIds: [],
   actionType: 'none',
-  statusIconId: null,
-  patternId: null,
+  typeIconId: null,
+  statusId: null,
   isCompleted: false,
 };
 
@@ -154,7 +154,7 @@ const ACTION_OPTIONS = [
 
 
 let _patId = 0;
-function InlinePattern({ shape, color }: { shape: PatternShape; color: string }) {
+function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
   const o = 0.2;
   const id = useMemo(() => `il-${++_patId}`, []);
   switch (shape) {
@@ -163,6 +163,10 @@ function InlinePattern({ shape, color }: { shape: PatternShape; color: string })
     case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
     case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
     case 'bubble': return <><circle cx={18} cy={14} r={8} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={58} cy={10} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.1} /><circle cx={40} cy={30} r={11} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={62} cy={38} r={9} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={35} cy={56} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o-0.05} /></>;
+    case 'hourglass': return <path d="M54,18 L74,18 L64,39 L74,60 L54,60 L64,39 Z" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinejoin="round" />;
+    case 'pause_bars': return <><rect x={56} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={66} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
+    case 'lock': return <><path d="M57,36 V30 a7,7 0 0 1 14,0 V36" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={52} y={36} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={64} cy={46} r={2} fill="#1C1C1E" /></>;
+    case 'check_badge': return <><circle cx={115} cy={65} r={8} fill="#10B981" /><path d="M111,65 L114,68 L119,62" stroke="white" strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" /></>;
     default: return null;
   }
 }
@@ -175,23 +179,23 @@ export default function CalendarPage() {
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
   const actionColors = useActionColors();
   const { selectedTagIds } = useTagFilterStore();
-  const statusIcons = useStatusIcons((s) => s.icons);
-  const statusTileIcons = useStatusIcons((s) => s.tileIcons);
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const getIconForTile = useCallback((tileId: string) => {
-    const iconId = statusTileIcons[tileId];
+    const iconId = typeTileIcons[tileId];
     if (!iconId) return null;
-    return statusIcons.find((i) => i.id === iconId) || null;
-  }, [statusIcons, statusTileIcons]);
-  const { doneShape, getActionTypeShape, customPatterns } = usePatterns();
+    return typeIcons.find((i) => i.id === iconId) || null;
+  }, [typeIcons, typeTileIcons]);
+  const { doneShape, getActionTypeShape, statuses: allStatuses } = useStatuses();
 
-  const resolveShape = useCallback((tile: Tile): PatternShape => {
-    if (tile.pattern_id) {
-      const custom = customPatterns.find((p) => p.id === tile.pattern_id);
-      if (custom) return custom.shape as PatternShape;
+  const resolveShape = useCallback((tile: Tile): StatusShape => {
+    if (tile.status_id) {
+      const st = allStatuses.find((s) => s.id === tile.status_id);
+      if (st) return st.shape as StatusShape;
     }
     if (tile.is_completed) return doneShape;
     return getActionTypeShape(tile.action_type || 'none');
-  }, [doneShape, customPatterns, getActionTypeShape]);
+  }, [doneShape, allStatuses, getActionTypeShape]);
 
   const getTagColor = (tile: Tile): string => {
     const tagType = tile.tags?.[0]?.tag_type || '';
@@ -234,7 +238,7 @@ export default function CalendarPage() {
 
   // Notes column controls
   type NotesSort = 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
-  type NotesFilter = 'all' | 'status' | 'pattern';
+  type NotesFilter = 'all' | 'completion' | 'status';
   type NotesGroup = 'none' | 'date' | 'tag';
   const [notesSort, setNotesSort] = useState<NotesSort>('date_desc');
   const [notesFilter, setNotesFilter] = useState<NotesFilter>('all');
@@ -243,7 +247,7 @@ export default function CalendarPage() {
 
   // Todo column controls
   type TodoSort = 'order' | 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
-  type TodoFilter = 'all' | 'active' | 'completed' | 'pattern';
+  type TodoFilter = 'all' | 'active' | 'completed' | 'status';
   type TodoGroup = 'none' | 'date' | 'tag';
   const [todoSort, setTodoSort] = useState<TodoSort>('order');
   const [todoFilter, setTodoFilter] = useState<TodoFilter>('all');
@@ -297,8 +301,8 @@ export default function CalendarPage() {
     // Hide tiles excluded by sidebar tag filter
     if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
     // Filter
-    if (notesFilter === 'status') list = list.filter((t) => t.is_completed);
-    if (notesFilter === 'pattern') list = list.filter((t) => !!t.pattern_id);
+    if (notesFilter === 'completion') list = list.filter((t) => t.is_completed);
+    if (notesFilter === 'status') list = list.filter((t) => !!t.status_id);
     // Sort
     switch (notesSort) {
       case 'date_desc': list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
@@ -317,7 +321,7 @@ export default function CalendarPage() {
     // Filter
     if (todoFilter === 'active') list = list.filter((t) => !t.is_completed);
     if (todoFilter === 'completed') list = list.filter((t) => t.is_completed);
-    if (todoFilter === 'pattern') list = list.filter((t) => !!t.pattern_id);
+    if (todoFilter === 'status') list = list.filter((t) => !!t.status_id);
     // Sort
     switch (todoSort) {
       case 'order':
@@ -654,7 +658,7 @@ export default function CalendarPage() {
           start_at: clipboardTile.start_at,
           end_at: clipboardTile.end_at,
           is_completed: clipboardTile.is_completed,
-          pattern_id: clipboardTile.pattern_id,
+          status_id: clipboardTile.status_id,
         });
         const tagId = clipboardTile.tags?.[0]?.id;
         if (tagId) await syncTags(newId, [tagId]);
@@ -703,7 +707,7 @@ export default function CalendarPage() {
           start_at: null,
           end_at: null,
           is_completed: clipboardTile.is_completed,
-          pattern_id: clipboardTile.pattern_id,
+          status_id: clipboardTile.status_id,
         });
         const tagId = clipboardTile.tags?.[0]?.id;
         if (tagId) await syncTags(newId, [tagId]);
@@ -730,7 +734,7 @@ export default function CalendarPage() {
   }, [slotCtxMenu]);
 
   // Handle create/edit submit
-  const { assignIcon } = useStatusIcons();
+  const { assignIcon } = useTypeIcons();
   const handleSubmit = useCallback(async () => {
     const computeDates = () => {
       if (modal.allDay && modal.startAt) {
@@ -756,7 +760,7 @@ export default function CalendarPage() {
         if (modal.tagIds.length > 0) {
           await syncTags(modal.tileId, modal.tagIds);
         }
-        if (modal.statusIconId) assignIcon(modal.tileId, modal.statusIconId);
+        if (modal.typeIconId) assignIcon(modal.tileId, modal.typeIconId);
       } else {
         // Create tile, then apply all settings
         const result = await new Promise<ApiResponse<Tile>>((resolve) => {
@@ -767,16 +771,16 @@ export default function CalendarPage() {
         });
         const newId = result?.data?.id;
         if (newId) {
-          // Apply action_type, pattern, done
+          // Apply action_type, status, done
           await tilesApi.update(newId, {
             action_type: modal.actionType as any,
             all_day: modal.allDay,
             is_event: modal.actionType === 'event',
             is_completed: modal.isCompleted,
-            pattern_id: modal.patternId,
+            status_id: modal.statusId,
           });
           if (modal.tagIds.length > 0) await syncTags(newId, modal.tagIds);
-          if (modal.statusIconId) assignIcon(newId, modal.statusIconId);
+          if (modal.typeIconId) assignIcon(newId, modal.typeIconId);
           queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
           queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
           queryClient.invalidateQueries({ queryKey: ['tags'] });
@@ -803,7 +807,7 @@ export default function CalendarPage() {
           all_day: modal.allDay,
         },
       });
-      if (modal.statusIconId !== undefined) assignIcon(modal.tileId, modal.statusIconId);
+      if (modal.typeIconId !== undefined) assignIcon(modal.tileId, modal.typeIconId);
     }
   }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient, assignIcon]);
 
@@ -879,7 +883,7 @@ export default function CalendarPage() {
                 </button>
                 {notesMenuOpen === 'filter' && (
                   <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
-                    {([['all', 'Tutti'], ['status', 'Completati'], ['pattern', 'Con pattern']] as const).map(([val, label]) => (
+                    {([['all', 'Tutti'], ['completion', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
                       <button key={val} onClick={() => { setNotesFilter(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
                         {notesFilter === val && <span className="text-blue-400">•</span>}
                         <span>{label}</span>
@@ -938,12 +942,12 @@ export default function CalendarPage() {
                           </div>
                           <div className="flex items-end justify-between mt-auto">
                             <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                            {si && <StatusIconRender iconName={si.icon} />}
+                            {si && <TypeIconRender iconName={si.icon} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
-                                <InlinePattern shape={shape} color={color} />
+                                <InlineStatus shape={shape} color={color} />
                               </svg>
                             </div>
                           )}
@@ -981,12 +985,12 @@ export default function CalendarPage() {
                       </div>
                       <div className="flex items-end justify-between mt-auto">
                         <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                        {si && <StatusIconRender iconName={si.icon} />}
+                        {si && <TypeIconRender iconName={si.icon} />}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
-                            <InlinePattern shape={shape} color={color} />
+                            <InlineStatus shape={shape} color={color} />
                           </svg>
                         </div>
                       )}
@@ -1040,7 +1044,7 @@ export default function CalendarPage() {
                 </button>
                 {todoMenuOpen === 'filter' && (
                   <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
-                    {([['all', 'Tutti'], ['active', 'Attivi'], ['completed', 'Completati'], ['pattern', 'Con pattern']] as const).map(([val, label]) => (
+                    {([['all', 'Tutti'], ['active', 'Attivi'], ['completed', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
                       <button key={val} onClick={() => { setTodoFilter(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
                         {todoFilter === val && <span className="text-blue-400">•</span>}
                         <span>{label}</span>
@@ -1099,12 +1103,12 @@ export default function CalendarPage() {
                           </div>
                           <div className="flex items-end justify-between mt-auto">
                             <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                            {si && <StatusIconRender iconName={si.icon} />}
+                            {si && <TypeIconRender iconName={si.icon} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
-                                <InlinePattern shape={shape} color={color} />
+                                <InlineStatus shape={shape} color={color} />
                               </svg>
                             </div>
                           )}
@@ -1142,12 +1146,12 @@ export default function CalendarPage() {
                       </div>
                       <div className="flex items-end justify-between mt-auto">
                         <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                        {si && <StatusIconRender iconName={si.icon} />}
+                        {si && <TypeIconRender iconName={si.icon} />}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
-                            <InlinePattern shape={shape} color={color} />
+                            <InlineStatus shape={shape} color={color} />
                           </svg>
                         </div>
                       )}
@@ -1503,7 +1507,7 @@ export default function CalendarPage() {
                           end_at: allDay
                             ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString()
                             : new Date(date.getTime() + 3600000).toISOString(),
-                          pattern_id: clipboardTile.pattern_id,
+                          status_id: clipboardTile.status_id,
                         });
                         const tagId = clipboardTile.tags?.[0]?.id;
                         if (tagId) await syncTags(newId, [tagId]);
@@ -1587,11 +1591,11 @@ export default function CalendarPage() {
         };
 
         // Status icons from store
-        const allStatusIcons = statusIcons;
-        const currentStatusIcon = modal.statusIconId ? allStatusIcons.find((i) => i.id === modal.statusIconId) : null;
-        const CurrentStatusComp = currentStatusIcon?.icon ? AllIcons[currentStatusIcon.icon] : null;
+        const allTypeIcons = typeIcons;
+        const currentTypeIcon = modal.typeIconId ? allTypeIcons.find((i) => i.id === modal.typeIconId) : null;
+        const CurrentTypeComp = currentTypeIcon?.icon ? AllIcons[currentTypeIcon.icon] : null;
 
-        // Tag info for pattern color
+        // Tag info for status shape color
         const selectedTag = tags.find((t: Tag) => modal.tagIds.includes(t.id));
         const tagColor = selectedTag ? (getTypeColor(selectedTag.tag_type || 'topic') || '#64748B') : '#64748B';
 
@@ -1704,13 +1708,13 @@ export default function CalendarPage() {
                 <div>
                   <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
                   <ModalDropdown
-                    value={modal.statusIconId}
+                    value={modal.typeIconId}
                     options={[
                       { id: null as any, label: 'Nessuno' },
-                      ...allStatusIcons.map((si) => ({ id: si.id, label: si.name, icon: si.icon })),
+                      ...allTypeIcons.map((si) => ({ id: si.id, label: si.name, icon: si.icon })),
                     ]}
-                    placeholder="Seleziona status..."
-                    onChange={(id) => setModal({ ...modal, statusIconId: id })}
+                    placeholder="Seleziona tipo..."
+                    onChange={(id) => setModal({ ...modal, typeIconId: id })}
                     renderOption={(opt) => {
                       if (!opt.icon) return <span className="text-zinc-400">{opt.label}</span>;
                       const Comp = AllIcons[opt.icon];
@@ -1722,29 +1726,26 @@ export default function CalendarPage() {
                       );
                     }}
                     renderSelected={() => {
-                      if (!CurrentStatusComp) return null;
+                      if (!CurrentTypeComp) return null;
                       return (
                         <>
-                          <CurrentStatusComp size={14} className="text-zinc-200 shrink-0" />
-                          <span className="text-xs text-zinc-200 truncate">{currentStatusIcon!.name}</span>
+                          <CurrentTypeComp size={14} className="text-zinc-200 shrink-0" />
+                          <span className="text-xs text-zinc-200 truncate">{currentTypeIcon!.name}</span>
                         </>
                       );
                     }}
                   />
                 </div>
 
-                {/* Pattern — dropdown like sidebar */}
-                {customPatterns.length > 0 && (
+                {/* Status — dropdown like sidebar */}
+                {allStatuses.length > 0 && (
                   <div>
-                    <label className="text-[11px] text-zinc-500 mb-1 block">Pattern</label>
+                    <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
                     <ModalDropdown
-                      value={modal.patternId}
-                      options={[
-                        { id: null as any, label: 'Nessuno' },
-                        ...customPatterns.map((p) => ({ id: p.id, label: p.name, shape: p.shape })),
-                      ]}
-                      placeholder="Seleziona pattern..."
-                      onChange={(id) => setModal({ ...modal, patternId: id })}
+                      value={modal.statusId}
+                      options={allStatuses.map((s) => ({ id: s.id, label: s.name, shape: s.shape }))}
+                      placeholder="Seleziona status..."
+                      onChange={(id) => setModal({ ...modal, statusId: id })}
                     />
                   </div>
                 )}
