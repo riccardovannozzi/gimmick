@@ -12,7 +12,7 @@ import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
-import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
+import { useActionColors } from '@/store/action-colors-store';
 import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
@@ -142,18 +142,17 @@ function InlineStatusSvg({ shape, color }: { shape: StatusShape; color: string }
     case 'vertical': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-vert-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-vert-${color.replace('#','')})`} /></svg>;
     case 'bubble': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.08} /><circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={42} cy={13} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.05} /><circle cx={56} cy={15} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={68} cy={13} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.08} /><circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.05} /><circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.1} /><circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.1} /></svg>;
     case 'cross': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><line x1={10} y1={10} x2={70} y2={20} stroke={color} strokeWidth={4} strokeOpacity={o + 0.2} strokeLinecap="round" /><line x1={70} y1={10} x2={10} y2={20} stroke={color} strokeWidth={4} strokeOpacity={o + 0.2} strokeLinecap="round" /></svg>;
-    case 'hourglass': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><path d="M30,8 L50,8 L40,15 L50,22 L30,22 L40,15 Z" fill="none" stroke={color} strokeWidth={3.5} strokeOpacity={o + 0.15} strokeLinejoin="round" strokeLinecap="round" /></svg>;
-    case 'pause_bars': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><rect x={33} y={7} width={5} height={16} rx={1} fill={color} fillOpacity={o} /><rect x={42} y={7} width={5} height={16} rx={1} fill={color} fillOpacity={o} /></svg>;
-    case 'lock': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="xMidYMid meet"><path d="M34,13 V9 a6,6 0 0 1 12,0 V13" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={o} strokeLinecap="round" /><rect x={30} y={13} width={20} height={13} rx={2} fill={color} fillOpacity={o} /></svg>;
+    case 'hourglass': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><path d="M5,4 L15,4 L10,10 L15,16 L5,16 L10,10 Z" fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" /></svg>;
+    case 'pause_bars': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><rect x={6.5} y={4} width={2.5} height={12} rx={0.5} fill={color} /><rect x={11} y={4} width={2.5} height={12} rx={0.5} fill={color} /></svg>;
+    case 'lock': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><path d="M7,10 V7 a3,3 0 0 1 6,0 V10" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" /><rect x={5} y={10} width={10} height={7} rx={1} fill={color} /></svg>;
     case 'shade': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><rect width={80} height={30} fill="#000000" opacity={0.5} /></svg>;
     default: return null;
   }
 }
 
-function StatusPickerField({ statuses, value, tagColor, onChange }: {
+function StatusPickerField({ statuses, value, onChange }: {
   statuses: { id: string; name: string; shape: string }[];
   value: string | null;
-  tagColor: string;
   onChange: (id: string | null) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -184,12 +183,14 @@ function StatusPickerField({ statuses, value, tagColor, onChange }: {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors relative overflow-hidden"
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
       >
         {selected ? (
           <>
-            <InlineStatusSvg shape={selected.shape as StatusShape} color={tagColor} />
-            <span className="relative z-10 truncate flex-1 text-left">{selected.name}</span>
+            <div className="w-5 h-5 rounded overflow-hidden shrink-0 relative" style={{ backgroundColor: '#27272A' }}>
+              <InlineStatusSvg shape={selected.shape as StatusShape} color="#a1a1aa" />
+            </div>
+            <span className="truncate flex-1 text-left">{selected.name}</span>
           </>
         ) : (
           <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona status...</span>
@@ -208,14 +209,16 @@ function StatusPickerField({ statuses, value, tagColor, onChange }: {
                 key={p.id}
                 onClick={() => { onChange(p.id); setOpen(false); }}
                 className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors relative overflow-hidden',
+                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
                   isSelected && 'bg-zinc-700/30'
                 )}
               >
-                <InlineStatusSvg shape={p.shape as StatusShape} color={tagColor} />
-                <span className="relative z-10 text-zinc-300 truncate flex-1">{p.name}</span>
+                <div className="w-5 h-5 rounded overflow-hidden shrink-0 relative" style={{ backgroundColor: '#27272A' }}>
+                  <InlineStatusSvg shape={p.shape as StatusShape} color="#a1a1aa" />
+                </div>
+                <span className="text-zinc-300 truncate flex-1">{p.name}</span>
                 {isSelected && (
-                  <svg className="relative z-10 w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
             );
@@ -643,9 +646,7 @@ export function TileSidebar({
 }) {
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
-  const { getColor: getTypeColor } = useTagTypes();
   const actionColors = useActionColors();
-  const actionBorders = useActionBorders();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -852,18 +853,9 @@ export function TileSidebar({
                 <label className="text-[11px] text-zinc-500 mb-1 block">Action</label>
                 {(() => {
                   const ac = actionColors;
-                  const ab = actionBorders;
                   const getBorderStyle = (at: string): React.CSSProperties => {
-                    const bs = (ab as Record<string, string>)[at] as BorderStyle || 'solid';
                     const c = (ac as Record<string, string>)[at] || '#3F3F46';
-                    switch (bs) {
-                      case 'solid': return { border: `1.5px solid ${c}` };
-                      case 'dashed': return { border: `1.5px dashed ${c}` };
-                      case 'dotted': return { border: `1.5px dotted ${c}` };
-                      case 'thick': return { border: `3px solid ${c}` };
-                      case 'double': return { border: `3px double ${c}` };
-                      case 'none': return { border: '1.5px solid transparent' };
-                    }
+                    return { border: `1.5px solid ${c}` };
                   };
                   const allOpts = [
                     { value: 'none', label: 'NOTES', icon: IconPin },
@@ -1000,10 +992,6 @@ export function TileSidebar({
                 <StatusPickerField
                   statuses={allStatuses}
                   value={tile.status_id || null}
-                  tagColor={(() => {
-                    const tt = tile.tags?.[0]?.tag_type || 'topic';
-                    return getTypeColor(tt) || '#64748B';
-                  })()}
                   onChange={(id) => updateTileMutation.mutate({ status_id: id })}
                 />
               )}

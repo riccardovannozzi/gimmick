@@ -1,10 +1,9 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconBrush, IconMoodSmile } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBolt, IconClock, IconCalendar, IconArrowUp, IconBrush, IconMoodSmile } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,47 +11,35 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
-import { useActionColorsQuery, type BorderStyle } from '@/store/action-colors-store';
-import { getColorName } from '@/lib/palette';
+import { useActionColorsQuery } from '@/store/action-colors-store';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
 import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
 import type { ActionType } from '@/types';
 
-const ACTION_LABELS: { type: ActionType; label: string; icon: typeof IconPin }[] = [
-  { type: 'none', label: 'Notes', icon: IconPin },
-  { type: 'anytime', label: 'To Do', icon: IconBolt },
-  { type: 'deadline', label: 'Deadline', icon: IconClock },
-  { type: 'event', label: 'Timed', icon: IconCalendar },
-  { type: 'allday', label: 'All Day', icon: IconCalendarEvent },
+type ActionDef = { type: ActionType; label: string; icon: typeof IconArrowUp | null };
+const ACTION_LABELS: ActionDef[] = [
+  { type: 'none',     label: 'Notes',    icon: null },
+  { type: 'anytime',  label: 'To Do',    icon: IconArrowUp },
+  { type: 'deadline', label: 'Deadline', icon: IconBolt },
+  { type: 'allday',   label: 'All Day',  icon: IconCalendar },
+  { type: 'event',    label: 'Timed',    icon: IconClock },
 ];
+
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, signOut } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
-  const [pickerAction, setPickerAction] = useState<ActionType | null>(null);
+  const [editingAction, setEditingAction] = useState<ActionType | null>(null);
   const [statusesOpen, setStatusesOpen] = useState(false);
   const [typeIconsOpen, setTypeIconsOpen] = useState(false);
-  const [pickerPos, setPickerPos] = useState({ top: 0, left: 0 });
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const triggerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const { actionColors, updateActionColor, actionBorders, updateActionBorder } = useActionColorsQuery();
-
-  useEffect(() => {
-    if (!pickerAction) return;
-    const handleClick = (e: MouseEvent) => {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setPickerAction(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, [pickerAction]);
+  const { actionColors, updateActionColor } = useActionColorsQuery();
 
   const handleLogout = async () => {
     await signOut();
@@ -103,70 +90,33 @@ export default function SettingsPage() {
               <div>
                 <CardTitle className="text-white">Style of actions</CardTitle>
                 <CardDescription className="text-zinc-400">
-                  Associa colore e stile bordo a ogni tipo di azione
+                  Associa un colore a ogni tipo di azione
                 </CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-2">
             {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
               const color = actionColors[type];
-              const border = actionBorders[type] || 'solid';
-              const BORDER_OPTIONS: { value: BorderStyle; label: string }[] = [
-                { value: 'solid', label: 'Normale' },
-                { value: 'dashed', label: 'Tratteggiato' },
-                { value: 'dotted', label: 'Puntinato' },
-                { value: 'thick', label: 'Spesso' },
-                { value: 'double', label: 'Doppio' },
-                { value: 'none', label: 'Nessuno' },
-              ];
-              const getBorderCSS = (bs: BorderStyle, c: string): React.CSSProperties => {
-                switch (bs) {
-                  case 'solid': return { border: `2px solid ${c}` };
-                  case 'dashed': return { border: `2px dashed ${c}` };
-                  case 'dotted': return { border: `2px dotted ${c}` };
-                  case 'thick': return { border: `4px solid ${c}` };
-                  case 'double': return { border: `4px double ${c}` };
-                  case 'none': return { border: '2px solid transparent' };
-                }
-              };
+              const isNotes = type === 'none';
               return (
-                <div key={type} className="rounded-lg bg-zinc-800/30 px-3 py-2">
-                  {/* Color row */}
-                  <button
-                    ref={(el) => { triggerRefs.current[type] = el; }}
-                    onClick={() => {
-                      const el = triggerRefs.current[type];
-                      if (el) {
-                        const rect = el.getBoundingClientRect();
-                        setPickerPos({ top: rect.bottom + 4, left: rect.left });
-                      }
-                      setPickerAction(pickerAction === type ? null : type);
-                    }}
-                    className="flex items-center gap-3 w-full py-1 rounded hover:bg-zinc-800/60 transition-colors text-left"
-                  >
-                    <div className="w-5 h-5 rounded-full border border-white/20 shrink-0" style={{ backgroundColor: color }} />
-                    <ActionIcon className="h-4 w-4 text-zinc-400 shrink-0" />
-                    <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
-                    <span className="text-xs text-zinc-500">{getColorName(color)}</span>
-                  </button>
-                  {/* Border style picker — tile preview + select */}
-                  <div className="flex items-center gap-3 mt-2">
+                <button
+                  key={type}
+                  onClick={() => setEditingAction(type)}
+                  className="flex items-center gap-3 w-full rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 px-3 py-2 transition-colors text-left"
+                >
+                  {isNotes || !ActionIcon ? (
+                    <div className="w-7 h-7 shrink-0" />
+                  ) : (
                     <div
-                      className="shrink-0 rounded-lg bg-zinc-900"
-                      style={{ width: 89, height: 55, ...getBorderCSS(border, color) }}
-                    />
-                    <select
-                      value={border}
-                      onChange={(e) => updateActionBorder(type, e.target.value as BorderStyle)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500"
+                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
+                      style={{ backgroundColor: color }}
                     >
-                      {BORDER_OPTIONS.map((opt) => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                      <ActionIcon className="h-4 w-4 text-white" />
+                    </div>
+                  )}
+                  <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
+                </button>
               );
             })}
           </CardContent>
@@ -330,25 +280,64 @@ export default function SettingsPage() {
       <StatusesModal open={statusesOpen} onOpenChange={setStatusesOpen} />
       <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
 
-      {/* Color picker popup */}
-      {pickerAction && createPortal(
-        <div
-          ref={pickerRef}
-          className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl p-3"
-          style={{ top: pickerPos.top, left: pickerPos.left, zIndex: 9999 }}
-        >
-          <ColorPickerGrid
-            selectedColor={actionColors[pickerAction]}
-            onSelect={(hex) => {
-              if (!hex) return;
-              updateActionColor(pickerAction, hex);
-              setPickerAction(null);
-              toast.success('Colore aggiornato');
-            }}
-          />
-        </div>,
-        document.body
-      )}
+      {/* Style-of-action editor modal */}
+      <Dialog open={editingAction !== null} onOpenChange={(o) => !o && setEditingAction(null)}>
+        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+          {editingAction && (() => {
+            const def = ACTION_LABELS.find((a) => a.type === editingAction)!;
+            const color = actionColors[editingAction];
+            const ActionIcon = def.icon;
+            const isNotes = editingAction === 'none';
+            return (
+              <>
+                <DialogHeader>
+                  <DialogTitle className="text-white flex items-center gap-2">
+                    {!isNotes && ActionIcon && (
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
+                        <ActionIcon className="h-3.5 w-3.5 text-white" />
+                      </div>
+                    )}
+                    {def.label}
+                  </DialogTitle>
+                  <DialogDescription className="text-zinc-400">
+                    Colore associato a questa action.
+                  </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                  {isNotes ? (
+                    <p className="text-xs text-zinc-500 italic text-center py-4">
+                      Notes non ha un colore personalizzato.
+                    </p>
+                  ) : (
+                    <>
+                      {/* Preview */}
+                      <div className="flex justify-center py-2">
+                        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
+                          {ActionIcon && <ActionIcon className="h-7 w-7 text-white" />}
+                        </div>
+                      </div>
+
+                      {/* Color picker */}
+                      <div>
+                        <label className="text-[11px] text-zinc-400 mb-2 block uppercase tracking-wide">Colore</label>
+                        <ColorPickerGrid
+                          selectedColor={color}
+                          onSelect={(hex) => {
+                            if (!hex) return;
+                            updateActionColor(editingAction, hex);
+                            toast.success('Colore aggiornato');
+                          }}
+                        />
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

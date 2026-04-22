@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
-import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
+import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
@@ -79,7 +79,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
-  const actionBorders = useActionBorders();
   const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -348,7 +347,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dropTarget.current = null;
       }
       // Reset all highlights
-      nodeGrps.each(function (d: any) { d3.select(this).select('.tile-bg').attr('stroke', getColor(d.actionType) + '60').attr('stroke-width', 1); });
+      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0); });
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       // Highlight target
       if (dropTarget.current) {
@@ -366,7 +365,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
     const endLink = () => {
       tempLine.attr('opacity', 0);
-      nodeGrps.each(function (d: any) { d3.select(this).select('.tile-bg').attr('stroke', getColor(d.actionType) + '60').attr('stroke-width', 1); });
+      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0); });
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
@@ -521,41 +520,18 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
-    // Apply border style per action type
-    const getBorderAttrs = (at: string): { sw: number; sd: string } => {
-      const bs = (actionBorders as Record<string, string>)[at] as BorderStyle || 'solid';
-      switch (bs) {
-        case 'solid': return { sw: 1, sd: '' };
-        case 'dashed': return { sw: 1.5, sd: '6,3' };
-        case 'dotted': return { sw: 1.5, sd: '2,3' };
-        case 'thick': return { sw: 3, sd: '' };
-        case 'double': return { sw: 3, sd: '' };
-        case 'none': return { sw: 0, sd: '' };
-        default: return { sw: 1, sd: '' };
-      }
-    };
+    // No border; fill only. Action/type are communicated by icons in the footer.
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
       .attr('fill', (d) => d.typeColor ? d.typeColor + '80' : '#1C1C1E')
-      .attr('stroke', (d) => getColor(d.actionType))
-      .attr('stroke-width', (d) => getBorderAttrs(d.actionType).sw)
-      .attr('stroke-dasharray', (d) => getBorderAttrs(d.actionType).sd)
       .style('cursor', moveRef.current ? 'grab' : 'default');
-    // Double border: add inner rect
-    nodeGrps.each(function (d) {
-      const bs = (actionBorders as Record<string, string>)[d.actionType] as BorderStyle;
-      if (bs === 'double') {
-        d3.select(this).append('rect').attr('class', 'tile-inner-border')
-          .attr('x', 4).attr('y', 4).attr('width', TILE_W - 8).attr('height', TILE_H - 8).attr('rx', 3)
-          .attr('fill', 'none').attr('stroke', getColor(d.actionType)).attr('stroke-width', 1)
-          .style('pointer-events', 'none');
-      }
-    });
     // Status shape overlay (uses SVG <pattern> elements under the hood)
     let patIdx = 0;
     nodeGrps.each(function (d) {
       if (!d.statusShape || d.statusShape === 'solid') return;
       const g = d3.select(this);
-      const color = getColor(d.actionType);
+      // For NOTES (action_type === 'none'), patterns use a visible neutral gray
+      // so they stand out even without a colored action palette.
+      const color = d.actionType === 'none' ? '#e4e4e7' : getColor(d.actionType);
       const o = 0.2;
       const pid = `cpat-${patIdx++}`;
       const clip = g.append('clipPath').attr('id', `${pid}-clip`);
@@ -628,8 +604,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:500;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
         .text(d.title);
     });
-    // Footer: date info + type label + status icon
-    const typeLabels: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
+    // Footer: date info + action badge + type icon badge
     const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }); };
     const formatTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -651,21 +626,46 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         }
       }
     });
-    nodeGrps.append('text').attr('x', 6).attr('y', TILE_H - 6).attr('fill', '#71717A').attr('font-size', 9).text((d) => typeLabels[d.actionType] || d.actionType.toUpperCase());
-    // Type icon as SVG directly (no React rendering needed)
+    // Action badge (round colored circle + white icon) in bottom-left.
+    // Notes (none) shows nothing.
+    const ACTION_ICON_NAME: Record<string, string | null> = {
+      none: null,
+      anytime: 'IconArrowUp',
+      deadline: 'IconBolt',
+      event: 'IconClock',     // TIMED
+      allday: 'IconCalendar',
+    };
     nodeGrps.each(function (d) {
-      if (!d.typeIcon) return;
-      const g = d3.select(this);
-      // Render a placeholder icon using a foreignObject + innerHTML from a temporary DOM element
-      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
+      const iconName = ACTION_ICON_NAME[d.actionType];
+      if (!iconName) return;
+      const IconComp = (TablerIcons as unknown as Record<string, any>)[iconName];
       if (!IconComp) return;
-      // Create a temporary container, use React createElement + renderToString
+      const g = d3.select(this);
+      const actionColor = getColor(d.actionType);
+      g.append('circle').attr('cx', 14).attr('cy', TILE_H - 14).attr('r', 9).attr('fill', actionColor);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 20, color: '#FFFFFF' }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 26).attr('y', TILE_H - 24).attr('width', 20).attr('height', 20).style('pointer-events', 'none');
+      const html = renderToString(React.createElement(IconComp, { size: 12, color: '#FFFFFF' }));
+      const fo = g.append('foreignObject').attr('x', 8).attr('y', TILE_H - 20).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
       const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:20px;height:20px;';
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
+      container.innerHTML = html;
+      (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+    });
+    // Type icon — rounded-square colored badge + white icon in bottom-right.
+    nodeGrps.each(function (d) {
+      if (!d.typeIcon) return;
+      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
+      if (!IconComp) return;
+      const g = d3.select(this);
+      const typeBg = d.typeColor || '#27272A';
+      g.append('rect').attr('x', TILE_W - 24).attr('y', TILE_H - 24).attr('width', 18).attr('height', 18).attr('rx', 3).attr('fill', typeBg);
+      const React = require('react');
+      const { renderToString } = require('react-dom/server');
+      const html = renderToString(React.createElement(IconComp, { size: 14, color: '#FFFFFF' }));
+      const fo = g.append('foreignObject').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 14).attr('height', 14).style('pointer-events', 'none');
+      const container = document.createElement('div');
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:14px;height:14px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });

@@ -40,11 +40,11 @@ export const GIMMICK_PALETTE: PaletteColor[] = [
 ];
 
 export const DEFAULT_ACTION_COLORS: Record<ActionType, string> = {
-  none:     '#EC4899', // Rosa (Notes)
-  anytime:  '#F59E0B', // Ambra (To Do)
-  deadline: '#EF4444', // Rosso (Deadline)
-  event:    '#3B82F6', // Blu (Timed)
-  allday:   '#22C55E', // Verde (All Day)
+  none:     '#52525B', // Zinc-600 (Notes — effettivamente neutro, non mostrato in UI)
+  anytime:  '#94A3B8', // Fumo (To Do)
+  deadline: '#EF4444', // Corallo (Deadline)
+  event:    '#10B981', // Smeraldo (Timed)
+  allday:   '#1DA8D8', // Oceano (All Day)
 };
 
 export function getColorName(hex: string): string {

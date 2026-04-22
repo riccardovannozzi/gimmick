@@ -21,7 +21,7 @@ import {
 import { cn } from '@/lib/utils';
 import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
-import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
+import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
 
 import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
@@ -292,27 +292,16 @@ function InlineActionDropdown({
   };
 
   const actionColors = useActionColors();
-  const actionBorders = useActionBorders();
   const at = tile.action_type || 'none';
   const isAllDay = at === 'event' && tile.all_day;
   const displayAt = isAllDay ? 'allday' as ActionType : at;
   const cfg = ACTION_TYPE_BADGE[displayAt];
   const Icon = cfg.icon;
   const atColor = actionColors[displayAt];
-  const atBorder = (actionBorders as Record<string, string>)[displayAt] as BorderStyle || 'solid';
   const subtitle = formatActionSubtitle(tile);
   const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
 
-  const getBorderCSS = (): React.CSSProperties => {
-    switch (atBorder) {
-      case 'solid': return { border: `1.5px solid ${atColor}` };
-      case 'dashed': return { border: `1.5px dashed ${atColor}` };
-      case 'dotted': return { border: `1.5px dotted ${atColor}` };
-      case 'thick': return { border: `3px solid ${atColor}` };
-      case 'double': return { border: `3px double ${atColor}` };
-      case 'none': return { border: '1.5px solid transparent' };
-    }
-  };
+  const getBorderCSS = (): React.CSSProperties => ({ border: `1.5px solid ${atColor}` });
 
   const showPortal = open || pickerMode;
 

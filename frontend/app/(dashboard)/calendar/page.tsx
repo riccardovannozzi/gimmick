@@ -9,7 +9,7 @@ import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconSparkles, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconSparkles, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -26,10 +26,34 @@ import { useActionColors } from '@/store/action-colors-store';
 const FALLBACK_COLOR = '#888780';
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
 
-function TypeIconRender({ iconName, size = 18 }: { iconName: string; size?: number }) {
+// Rounded-square badge with the type icon (bg = type color, white icon).
+function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }) {
   const Comp = AllIcons[iconName];
   if (!Comp) return null;
-  return <Comp size={size} className="text-zinc-300" />;
+  return (
+    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: color || '#27272A' }}>
+      <Comp size={12} className="text-white" />
+    </div>
+  );
+}
+
+// Round action badge (bg = action color, white icon). Notes (none) renders nothing.
+const ACTION_ICON: Record<string, typeof IconBolt | null> = {
+  none:     null,
+  anytime:  IconArrowUp,
+  deadline: IconBolt,
+  event:    IconClock,     // TIMED
+  allday:   IconCalendar,
+};
+
+function ActionIconBadge({ actionKey, color }: { actionKey: string; color: string }) {
+  const Icon = ACTION_ICON[actionKey];
+  if (!Icon) return null;
+  return (
+    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
+      <Icon size={10} className="text-white" />
+    </div>
+  );
 }
 
 /** Convert ISO string to datetime-local input value (local time) */
@@ -929,11 +953,11 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
-                        style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
+                        style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
@@ -942,13 +966,13 @@ export default function CalendarPage() {
                             <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
                           <div className="flex items-end justify-between mt-auto">
-                            <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                            {si && <TypeIconRender iconName={si.icon} />}
+                            <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                            {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
-                                <InlineStatus shape={shape} color={color} />
+                                <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
                               </svg>
                             </div>
                           )}
@@ -972,11 +996,11 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
-                    style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
+                    style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
@@ -985,13 +1009,13 @@ export default function CalendarPage() {
                         <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
                       <div className="flex items-end justify-between mt-auto">
-                        <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                        {si && <TypeIconRender iconName={si.icon} />}
+                        <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                        {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
-                            <InlineStatus shape={shape} color={color} />
+                            <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
                           </svg>
                         </div>
                       )}
@@ -1090,11 +1114,11 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
-                        style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
+                        style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
@@ -1103,13 +1127,13 @@ export default function CalendarPage() {
                             <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
                           <div className="flex items-end justify-between mt-auto">
-                            <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                            {si && <TypeIconRender iconName={si.icon} />}
+                            <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                            {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                               <svg className="w-full h-full">
-                                <InlineStatus shape={shape} color={color} />
+                                <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
                               </svg>
                             </div>
                           )}
@@ -1133,11 +1157,11 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
-                    style={{ backgroundColor: '#1C1C1E', borderColor: color, width: 128, height: 79 }}
+                    style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
@@ -1146,13 +1170,13 @@ export default function CalendarPage() {
                         <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
                       <div className="flex items-end justify-between mt-auto">
-                        <span className="text-[9px] text-[#71717A] uppercase">{t.all_day ? 'ALL DAY' : { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' }[t.action_type || 'none'] || t.action_type}</span>
-                        {si && <TypeIconRender iconName={si.icon} />}
+                        <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                        {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
                           <svg className="w-full h-full">
-                            <InlineStatus shape={shape} color={color} />
+                            <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
                           </svg>
                         </div>
                       )}

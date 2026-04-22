@@ -21,13 +21,14 @@ import {
   IconPin,
   IconBolt,
   IconClock,
+  IconArrowUp,
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { kanbanApi, tilesApi, tagsApi, statusesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
-import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
+import { useActionColors } from '@/store/action-colors-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
@@ -42,10 +43,34 @@ const TILE_H = 79;
 
 // ─── Shared tile visual helpers (mirror of calendar page) ───
 
-function TypeIconRender({ iconName, size = 14 }: { iconName: string; size?: number }) {
+// Rounded-square badge with the type icon inside (background = type color, white icon).
+function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }) {
   const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>)[iconName];
   if (!Comp) return null;
-  return <Comp size={size} className="text-zinc-300" />;
+  return (
+    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: color || '#27272A' }}>
+      <Comp size={12} className="text-white" />
+    </div>
+  );
+}
+
+// Round colored badge with the action icon (white). Notes (none) renders nothing.
+const ACTION_ICON: Record<string, typeof IconBolt | null> = {
+  none:     null,
+  anytime:  IconArrowUp,
+  deadline: IconBolt,
+  event:    IconClock,     // TIMED
+  allday:   IconCalendar,
+};
+
+function ActionIconBadge({ actionKey, color }: { actionKey: string; color: string }) {
+  const Icon = ACTION_ICON[actionKey];
+  if (!Icon) return null;
+  return (
+    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
+      <Icon size={10} className="text-white" />
+    </div>
+  );
 }
 
 let _patId = 0;
@@ -322,7 +347,6 @@ export default function KanbanPage() {
     return <span className="inline-block rounded-full" style={{ width: size - 5, height: size - 5, backgroundColor: color || FALLBACK_COLOR }} />;
   }, [getTypeColor, getTypeEmoji]);
   const actionColors = useActionColors();
-  const actionBorders = useActionBorders();
 
   // Type icons store
   const typeIcons = useTypeIcons((s) => s.icons);
@@ -867,27 +891,12 @@ export default function KanbanPage() {
                       // (GIMMICK inbox) only surfaces if the tile has no other tag.
                       const rootTagId = tags.find((x) => x.is_root)?.id;
                       const tileTag = (t.tags || []).find((tg) => tg.id !== rootTagId) || t.tags?.[0];
-                      // Status shape overlay uses the action color (matches canvas)
-                      const actionLabel = t.all_day
-                        ? 'ALL DAY'
-                        : ({ none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED' } as Record<string, string>)[t.action_type || 'none']
-                          || (t.action_type || '').toUpperCase();
                       const isSelected = selectedTileId === t.id;
                       // Mirror canvas tile style: background ← status color (tinted), border ← action_type
                       const actionKey = t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
-                      const actionColor = (actionColors as Record<string, string>)[actionKey] || FALLBACK_COLOR;
-                      const actionBorder = ((actionBorders as Record<string, BorderStyle>)[actionKey] || 'solid') as BorderStyle;
+                      // For NOTES, override to a visible gray so the pattern stands out.
+                      const actionColor = actionKey === 'none' ? '#e4e4e7' : ((actionColors as Record<string, string>)[actionKey] || FALLBACK_COLOR);
                       const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
-                      const tileBorderCss: React.CSSProperties = (() => {
-                        switch (actionBorder) {
-                          case 'solid': return { border: `1px solid ${actionColor}` };
-                          case 'dashed': return { border: `1.5px dashed ${actionColor}` };
-                          case 'dotted': return { border: `1.5px dotted ${actionColor}` };
-                          case 'thick': return { border: `3px solid ${actionColor}` };
-                          case 'double': return { border: `3px double ${actionColor}` };
-                          case 'none': return { border: '1px solid transparent' };
-                        }
-                      })();
                       nodes.push(
                         <div
                           key={t.id}
@@ -906,7 +915,7 @@ export default function KanbanPage() {
                           'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                         )}
-                        style={{ backgroundColor: tileBg, ...tileBorderCss, width: TILE_W, height: TILE_H }}
+                        style={{ backgroundColor: tileBg, width: TILE_W, height: TILE_H }}
                       >
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
@@ -932,8 +941,8 @@ export default function KanbanPage() {
                             </div>
                           )}
                           <div className="flex items-end justify-between mt-auto">
-                            <span className="text-[9px] text-[#71717A] uppercase">{actionLabel}</span>
-                            {si && <TypeIconRender iconName={si.icon} />}
+                            <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                            {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1043,17 +1052,7 @@ export default function KanbanPage() {
                     const active = filterCol.filters.some((f) => f.type === 'action_type' && f.value === opt.value);
                     const borderKey = opt.value === 'allday' ? 'allday' : opt.value;
                     const clr = (actionColors as Record<string, string>)[borderKey] || FALLBACK_COLOR;
-                    const borderStyleVal = ((actionBorders as Record<string, BorderStyle>)[borderKey] || 'solid') as BorderStyle;
-                    const cssBorder: React.CSSProperties = (() => {
-                      switch (borderStyleVal) {
-                        case 'solid': return { border: `1.5px solid ${clr}` };
-                        case 'dashed': return { border: `1.5px dashed ${clr}` };
-                        case 'dotted': return { border: `1.5px dotted ${clr}` };
-                        case 'thick': return { border: `2.5px solid ${clr}` };
-                        case 'double': return { border: `3px double ${clr}` };
-                        case 'none': return { border: '1.5px solid transparent' };
-                      }
-                    })();
+                    const cssBorder: React.CSSProperties = { border: `1.5px solid ${clr}` };
                     const OptIcon = opt.icon;
                     return (
                       <div key={opt.label} className="flex items-center gap-1.5">

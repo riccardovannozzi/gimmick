@@ -13,7 +13,7 @@ import { tilesApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
-import { useActionColors, useActionBorders, type BorderStyle } from '@/store/action-colors-store';
+import { useActionColors } from '@/store/action-colors-store';
 import type { Tile, ActionType, StatusShape } from '@/types';
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
@@ -50,7 +50,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
-  const actionBorders = useActionBorders();
   const { icons: typeIcons, tileIcons, assignIcon } = useTypeIcons();
 
   const ids = tiles.map((t) => t.id);
@@ -151,18 +150,10 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const setStatus = (id: string | null) => bulkUpdate({ status_id: id });
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
-  // Action button styling helper (mirrors TileSidebar)
+  // Action button styling helper (mirrors TileSidebar) — plain solid 1.5px border.
   const getBorderStyle = (at: string): React.CSSProperties => {
-    const bs = ((actionBorders as Record<string, string>)[at] as BorderStyle) || 'solid';
     const c = (actionColors as Record<string, string>)[at] || '#3F3F46';
-    switch (bs) {
-      case 'solid': return { border: `1.5px solid ${c}` };
-      case 'dashed': return { border: `1.5px dashed ${c}` };
-      case 'dotted': return { border: `1.5px dotted ${c}` };
-      case 'thick': return { border: `3px solid ${c}` };
-      case 'double': return { border: `3px double ${c}` };
-      case 'none': return { border: '1.5px solid transparent' };
-    }
+    return { border: `1.5px solid ${c}` };
   };
 
   // ── Render ──
