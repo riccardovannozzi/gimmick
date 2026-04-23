@@ -14,16 +14,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { useTypeIcons, type TypeIcon } from '@/store/type-icons-store';
-import { GIMMICK_PALETTE } from '@/lib/palette';
+import { GIMMICK_PALETTE, readableOn } from '@/lib/palette';
 
-type IconComp = React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>;
+type IconComp = React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>;
 const Icons = TablerIcons as unknown as Record<string, IconComp>;
 
-function RenderIcon({ name, size = 20, className }: { name: string; size?: number; className?: string }) {
+function RenderIcon({ name, size = 20, className, color }: { name: string; size?: number; className?: string; color?: string }) {
   if (!name) return <span className="text-zinc-500 text-xs">?</span>;
   const Comp = Icons[name];
   if (!Comp) return <span className="text-zinc-500 text-xs">?</span>;
-  return <Comp size={size} className={className} />;
+  return <Comp size={size} className={className} color={color} />;
 }
 
 interface TypeIconsModalProps {
@@ -96,7 +96,7 @@ export function TypeIconsModal({ open, onOpenChange }: TypeIconsModalProps) {
                       className="w-10 h-10 rounded-lg border border-zinc-700 flex items-center justify-center"
                       style={{ backgroundColor: ti.color || '#27272A' }}
                     >
-                      <RenderIcon name={ti.icon} size={22} className="text-white" />
+                      <RenderIcon name={ti.icon} size={22} color={readableOn(ti.color || '#27272A')} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <span className="text-sm font-medium text-white block truncate">{ti.name}</span>
@@ -148,7 +148,7 @@ export function TypeIconsModal({ open, onOpenChange }: TypeIconsModalProps) {
                 className="w-16 h-16 rounded-xl border border-zinc-700 flex items-center justify-center"
                 style={{ backgroundColor: color || '#27272A' }}
               >
-                {icon ? <RenderIcon name={icon} size={36} className="text-white" /> : <span className="text-zinc-500 text-2xl">?</span>}
+                {icon ? <RenderIcon name={icon} size={36} color={readableOn(color || '#27272A')} /> : <span className="text-zinc-500 text-2xl">?</span>}
               </div>
             </div>
 

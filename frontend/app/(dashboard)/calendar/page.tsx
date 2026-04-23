@@ -22,17 +22,19 @@ import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
+import { readableOn } from '@/lib/palette';
 
 const FALLBACK_COLOR = '#888780';
-const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
 // Rounded-square badge with the type icon (bg = type color, white icon).
 function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }) {
   const Comp = AllIcons[iconName];
   if (!Comp) return null;
+  const bg = color || '#27272A';
   return (
-    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: color || '#27272A' }}>
-      <Comp size={12} className="text-white" />
+    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+      <Comp size={12} color={readableOn(bg)} />
     </div>
   );
 }
@@ -51,7 +53,7 @@ function ActionIconBadge({ actionKey, color }: { actionKey: string; color: strin
   if (!Icon) return null;
   return (
     <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
-      <Icon size={10} className="text-white" />
+      <Icon size={10} color={readableOn(color)} />
     </div>
   );
 }
@@ -183,15 +185,15 @@ function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
   const id = useMemo(() => `il-${++_patId}`, []);
   switch (shape) {
     case 'solid': return null;
-    case 'diagonal_ltr': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={118} height={69} rx={3} fill={`url(#${id})`} /></>;
-    case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={118} height={69} rx={3} fill={`url(#${id})`} /></>;
+    case 'diagonal_ltr': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
+    case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
     case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
-    case 'bubble': return <><circle cx={20} cy={18} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={44} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={68} cy={20} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.1} /><circle cx={94} cy={16} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={114} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.02} /><circle cx={28} cy={40} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={54} cy={42} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={80} cy={38} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={104} cy={42} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={22} cy={62} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={46} cy={64} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={70} cy={60} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={96} cy={64} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={116} cy={60} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /></>;
-    case 'cross': return <><line x1={10} y1={10} x2={118} y2={69} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /><line x1={118} y1={10} x2={10} y2={69} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /></>;
-    case 'hourglass': return <path d="M54,24 L74,24 L64,39 L74,54 L54,54 L64,39 Z" fill="none" stroke={color} strokeWidth={4} strokeOpacity={o + 0.25} strokeLinejoin="round" strokeLinecap="round" />;
-    case 'pause_bars': return <><rect x={56} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={66} y={20} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
-    case 'lock': return <><path d="M57,36 V30 a7,7 0 0 1 14,0 V36" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={52} y={36} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={64} cy={46} r={2} fill="#1C1C1E" /></>;
-    case 'shade': return <rect width={128} height={79} fill="#000000" opacity={0.5} />;
+    case 'bubble': return <><circle cx={20} cy={20} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={44} cy={16} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={68} cy={22} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.1} /><circle cx={94} cy={18} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={114} cy={24} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.02} /><circle cx={28} cy={45} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={54} cy={47} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={80} cy={43} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={104} cy={47} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={22} cy={70} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={46} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={70} cy={68} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={96} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={116} cy={68} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /></>;
+    case 'cross': return <><line x1={10} y1={10} x2={120} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /><line x1={120} y1={10} x2={10} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /></>;
+    case 'hourglass': return <path d="M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z" fill="none" stroke={color} strokeWidth={4} strokeOpacity={o + 0.25} strokeLinejoin="round" strokeLinecap="round" />;
+    case 'pause_bars': return <><rect x={57} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={67} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
+    case 'lock': return <><path d="M58,41 V35 a7,7 0 0 1 14,0 V41" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={53} y={41} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={65} cy={51} r={2} fill="#1C1C1E" /></>;
+    case 'shade': return <rect width={130} height={90} fill="#000000" opacity={0.5} />;
     default: return null;
   }
 }
@@ -957,7 +959,7 @@ export default function CalendarPage() {
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
-                        style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
+                        style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
@@ -965,9 +967,11 @@ export default function CalendarPage() {
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          <div className="flex items-end justify-between mt-auto">
-                            <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                            {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                          <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                            <div className="flex items-end justify-between">
+                              <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                              {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                            </div>
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1000,7 +1004,7 @@ export default function CalendarPage() {
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
-                    style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
+                    style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
@@ -1008,9 +1012,11 @@ export default function CalendarPage() {
                       <div className="flex-1 min-h-0 overflow-hidden">
                         <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      <div className="flex items-end justify-between mt-auto">
-                        <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                        {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                      <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                        <div className="flex items-end justify-between">
+                          <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                          {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                        </div>
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1118,7 +1124,7 @@ export default function CalendarPage() {
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
-                        style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
+                        style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                         onContextMenu={(e) => onTileContextMenu(e, t)}
                       >
@@ -1126,9 +1132,11 @@ export default function CalendarPage() {
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          <div className="flex items-end justify-between mt-auto">
-                            <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                            {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                          <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                            <div className="flex items-end justify-between">
+                              <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                              {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                            </div>
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1161,7 +1169,7 @@ export default function CalendarPage() {
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
-                    style={{ backgroundColor: '#1C1C1E', width: 128, height: 79 }}
+                    style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
                     onContextMenu={(e) => onTileContextMenu(e, t)}
                   >
@@ -1169,9 +1177,11 @@ export default function CalendarPage() {
                       <div className="flex-1 min-h-0 overflow-hidden">
                         <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      <div className="flex items-end justify-between mt-auto">
-                        <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                        {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                      <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                        <div className="flex items-end justify-between">
+                          <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                          {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                        </div>
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">

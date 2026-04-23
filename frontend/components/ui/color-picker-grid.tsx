@@ -7,9 +7,9 @@ import { cn } from '@/lib/utils';
 interface ColorPickerGridProps {
   selectedColor: string | null;
   onSelect: (hex: string | null) => void;
-  /** Pixel size of each color swatch (square). Default 32. */
+  /** Pixel size of each color swatch (square). Default 24. */
   size?: number;
-  /** Number of columns in the grid. Default 5. */
+  /** Number of columns in the grid. Default 10 (matches GIMMICK_PALETTE 10×4 layout). */
   cols?: number;
   /** Gap in px between swatches. Default 2. */
   gap?: number;
@@ -19,13 +19,14 @@ interface ColorPickerGridProps {
 
 /**
  * Shared color picker backed by GIMMICK_PALETTE.
+ * Default layout: 10 columns × 4 rows (Airtable SDK palette).
  * Used in settings (action colors), kanban (column background), etc.
  */
 export function ColorPickerGrid({
   selectedColor,
   onSelect,
-  size = 32,
-  cols = 5,
+  size = 24,
+  cols = 10,
   gap = 2,
   showReset = false,
 }: ColorPickerGridProps) {

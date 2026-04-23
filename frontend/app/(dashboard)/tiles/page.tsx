@@ -23,6 +23,7 @@ import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
+import { readableOn } from '@/lib/palette';
 
 import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
@@ -848,7 +849,7 @@ function ResizableHead({
 }
 
 const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
-const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>>;
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>>;
 
 function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | null }) {
   const typeIcons = useTypeIcons((s) => s.icons);
@@ -893,7 +894,7 @@ function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Ti
         {ti && TiComp ? (
           <div className="flex items-center gap-2.5">
             <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: ti.color || '#27272A' }}>
-              <TiComp size={16} className="text-white" />
+              <TiComp size={16} color={readableOn(ti.color || '#27272A')} />
             </div>
             <span className="text-xs text-zinc-400 truncate">{ti.name}</span>
           </div>

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBolt, IconClock, IconCalendar, IconArrowUp, IconBrush, IconMoodSmile } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,35 +11,19 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
-import { useActionColorsQuery } from '@/store/action-colors-store';
-import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
+import { ActionsModal } from '@/components/actions/actions-modal';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
 import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
-import type { ActionType } from '@/types';
-
-type ActionDef = { type: ActionType; label: string; icon: typeof IconArrowUp | null };
-const ACTION_LABELS: ActionDef[] = [
-  { type: 'none',     label: 'Notes',    icon: null },
-  { type: 'anytime',  label: 'To Do',    icon: IconArrowUp },
-  { type: 'deadline', label: 'Deadline', icon: IconBolt },
-  { type: 'allday',   label: 'All Day',  icon: IconCalendar },
-  { type: 'event',    label: 'Timed',    icon: IconClock },
-];
-
 
 export default function SettingsPage() {
   const router = useRouter();
   const { user, signOut } = useAuthStore();
   const [notifications, setNotifications] = useState(true);
   const [autoSync, setAutoSync] = useState(true);
-  const [editingAction, setEditingAction] = useState<ActionType | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(false);
   const [statusesOpen, setStatusesOpen] = useState(false);
   const [typeIconsOpen, setTypeIconsOpen] = useState(false);
-
-  const { actionColors, updateActionColor } = useActionColorsQuery();
 
   const handleLogout = async () => {
     await signOut();
@@ -95,30 +79,14 @@ export default function SettingsPage() {
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
-              const color = actionColors[type];
-              const isNotes = type === 'none';
-              return (
-                <button
-                  key={type}
-                  onClick={() => setEditingAction(type)}
-                  className="flex items-center gap-3 w-full rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 px-3 py-2 transition-colors text-left"
-                >
-                  {isNotes || !ActionIcon ? (
-                    <div className="w-7 h-7 shrink-0" />
-                  ) : (
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: color }}
-                    >
-                      <ActionIcon className="h-4 w-4 text-white" />
-                    </div>
-                  )}
-                  <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
-                </button>
-              );
-            })}
+          <CardContent>
+            <Button
+              variant="outline"
+              className="border-zinc-700 text-zinc-300"
+              onClick={() => setActionsOpen(true)}
+            >
+              Gestisci actions
+            </Button>
           </CardContent>
         </Card>
 
@@ -276,68 +244,10 @@ export default function SettingsPage() {
         </Card>
       </div>
 
-      {/* Statuses modal */}
+      {/* Modals */}
+      <ActionsModal open={actionsOpen} onOpenChange={setActionsOpen} />
       <StatusesModal open={statusesOpen} onOpenChange={setStatusesOpen} />
       <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
-
-      {/* Style-of-action editor modal */}
-      <Dialog open={editingAction !== null} onOpenChange={(o) => !o && setEditingAction(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-          {editingAction && (() => {
-            const def = ACTION_LABELS.find((a) => a.type === editingAction)!;
-            const color = actionColors[editingAction];
-            const ActionIcon = def.icon;
-            const isNotes = editingAction === 'none';
-            return (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="text-white flex items-center gap-2">
-                    {!isNotes && ActionIcon && (
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
-                        <ActionIcon className="h-3.5 w-3.5 text-white" />
-                      </div>
-                    )}
-                    {def.label}
-                  </DialogTitle>
-                  <DialogDescription className="text-zinc-400">
-                    Colore associato a questa action.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4">
-                  {isNotes ? (
-                    <p className="text-xs text-zinc-500 italic text-center py-4">
-                      Notes non ha un colore personalizzato.
-                    </p>
-                  ) : (
-                    <>
-                      {/* Preview */}
-                      <div className="flex justify-center py-2">
-                        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
-                          {ActionIcon && <ActionIcon className="h-7 w-7 text-white" />}
-                        </div>
-                      </div>
-
-                      {/* Color picker */}
-                      <div>
-                        <label className="text-[11px] text-zinc-400 mb-2 block uppercase tracking-wide">Colore</label>
-                        <ColorPickerGrid
-                          selectedColor={color}
-                          onSelect={(hex) => {
-                            if (!hex) return;
-                            updateActionColor(editingAction, hex);
-                            toast.success('Colore aggiornato');
-                          }}
-                        />
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

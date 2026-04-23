@@ -14,9 +14,10 @@ import { cn } from '@/lib/utils';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType, StatusShape } from '@/types';
 
-const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
 function toLocalDate(iso: string): string {
   const d = new Date(iso);
@@ -328,7 +329,7 @@ function MixedTypeIconPicker({
         ) : CurrentComp && current ? (
           <>
             <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: current.color || '#27272A' }}>
-              <CurrentComp size={12} className="text-white" />
+              <CurrentComp size={12} color={readableOn(current.color || '#27272A')} />
             </div>
             <span className="truncate flex-1 text-left">{current.name}</span>
           </>
@@ -363,7 +364,7 @@ function MixedTypeIconPicker({
               >
                 {Comp && (
                   <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: icon.color || '#27272A' }}>
-                    <Comp size={12} className="text-white" />
+                    <Comp size={12} color={readableOn(icon.color || '#27272A')} />
                   </div>
                 )}
                 <span className="text-zinc-300 truncate flex-1">{icon.name}</span>

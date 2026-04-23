@@ -7,9 +7,10 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
+import { readableOn } from '@/lib/palette';
 
-const TILE_W = 128;
-const TILE_H = 79;
+const TILE_W = 130;
+const TILE_H = 90;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -554,11 +555,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
           break;
         case 'bubble': {
-          // Scattered across the tile (padding 10, TILE_W=128 TILE_H=79), varied sizes.
+          // Scattered across the tile (padding 10, TILE_W=130 TILE_H=90), varied sizes.
           const bubbles: Array<[number, number, number, number]> = [
-            [20, 18, 6, o + 0.05], [44, 14, 4, o], [68, 20, 7, o + 0.1], [94, 16, 5, o], [114, 22, 4, o - 0.02],
-            [28, 40, 4, o], [54, 42, 6, o + 0.08], [80, 38, 5, o + 0.05], [104, 42, 4, o],
-            [22, 62, 5, o + 0.05], [46, 64, 4, o], [70, 60, 6, o + 0.08], [96, 64, 4, o], [116, 60, 5, o + 0.05],
+            [20, 20, 6, o + 0.05], [44, 16, 4, o], [68, 22, 7, o + 0.1], [94, 18, 5, o], [114, 24, 4, o - 0.02],
+            [28, 45, 4, o], [54, 47, 6, o + 0.08], [80, 43, 5, o + 0.05], [104, 47, 4, o],
+            [22, 70, 5, o + 0.05], [46, 72, 4, o], [70, 68, 6, o + 0.08], [96, 72, 4, o], [116, 68, 5, o + 0.05],
           ];
           bubbles.forEach(([cx, cy, r, op]) => {
             pg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r)
@@ -567,29 +568,29 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           break;
         }
         case 'cross':
-          // 10-unit padding from edges (TILE_W=128, TILE_H=79), thicker stroke.
+          // 10-unit padding from edges (TILE_W=130, TILE_H=90), thicker stroke.
           pg.append('line').attr('x1', 10).attr('y1', 10).attr('x2', TILE_W - 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
           pg.append('line').attr('x1', TILE_W - 10).attr('y1', 10).attr('x2', 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
           break;
         case 'hourglass': {
-          // Two triangles meeting at apex, centered. TILE_W=128, TILE_H=79.
+          // Two triangles meeting at apex, centered. TILE_W=130, TILE_H=90.
           pg.append('path')
-            .attr('d', 'M54,24 L74,24 L64,39 L74,54 L54,54 L64,39 Z')
+            .attr('d', 'M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z')
             .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 4)
             .attr('stroke-opacity', o + 0.25).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
           break;
         }
         case 'pause_bars':
-          pg.append('rect').attr('x', 56).attr('y', 20).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
-          pg.append('rect').attr('x', 66).attr('y', 20).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
+          pg.append('rect').attr('x', 57).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
+          pg.append('rect').attr('x', 67).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
           break;
         case 'lock':
           pg.append('path')
-            .attr('d', 'M57,36 V30 a7,7 0 0 1 14,0 V36')
+            .attr('d', 'M58,41 V35 a7,7 0 0 1 14,0 V41')
             .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
             .attr('stroke-opacity', o + 0.15).attr('stroke-linecap', 'round');
-          pg.append('rect').attr('x', 52).attr('y', 36).attr('width', 24).attr('height', 20).attr('rx', 3).attr('fill', color).attr('fill-opacity', o + 0.1);
-          pg.append('circle').attr('cx', 64).attr('cy', 46).attr('r', 2).attr('fill', '#1C1C1E');
+          pg.append('rect').attr('x', 53).attr('y', 41).attr('width', 24).attr('height', 20).attr('rx', 3).attr('fill', color).attr('fill-opacity', o + 0.1);
+          pg.append('circle').attr('cx', 65).attr('cy', 51).attr('r', 2).attr('fill', '#1C1C1E');
           break;
         case 'shade':
           // 50% dark overlay covering the whole tile — the "faded / done" treatment.
@@ -604,8 +605,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:500;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
         .text(d.title);
     });
-    // Footer: date info + action badge + type icon badge
-    const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }); };
+    // Footer: date info + divider + action badge + type icon badge
+    nodeGrps.each(function () {
+      d3.select(this).append('line')
+        .attr('x1', 6).attr('y1', TILE_H - 26).attr('x2', TILE_W - 6).attr('y2', TILE_H - 26)
+        .attr('stroke', '#FFFFFF').attr('stroke-opacity', 0.06).attr('stroke-width', 1);
+    });
+    const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' }); };
     const formatTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
     nodeGrps.each(function (d) {
@@ -622,7 +628,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
         }
         if (dateStr) {
-          g.append('text').attr('x', 6).attr('y', TILE_H - 19).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
+          g.append('text').attr('x', 6).attr('y', TILE_H - 30).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
         }
       }
     });
@@ -645,7 +651,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       g.append('circle').attr('cx', 14).attr('cy', TILE_H - 14).attr('r', 9).attr('fill', actionColor);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 12, color: '#FFFFFF' }));
+      const html = renderToString(React.createElement(IconComp, { size: 12, color: readableOn(actionColor) }));
       const fo = g.append('foreignObject').attr('x', 8).attr('y', TILE_H - 20).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
       const container = document.createElement('div');
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
@@ -662,7 +668,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       g.append('rect').attr('x', TILE_W - 24).attr('y', TILE_H - 24).attr('width', 18).attr('height', 18).attr('rx', 3).attr('fill', typeBg);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 14, color: '#FFFFFF' }));
+      const html = renderToString(React.createElement(IconComp, { size: 14, color: readableOn(typeBg) }));
       const fo = g.append('foreignObject').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 14).attr('height', 14).style('pointer-events', 'none');
       const container = document.createElement('div');
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:14px;height:14px;';

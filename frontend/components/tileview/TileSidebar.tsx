@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { readableOn } from '@/lib/palette';
 import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
@@ -34,7 +35,7 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
   file: IconFile,
 };
 
-const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>;
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
 function TypeIconPicker({ tileId }: { tileId: string }) {
   const { icons, tileIcons, assignIcon } = useTypeIcons();
@@ -75,7 +76,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
         {CurrentComp ? (
           <>
             <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: current?.color || '#27272A' }}>
-              <CurrentComp size={12} className="text-white" />
+              <CurrentComp size={12} color={readableOn(current?.color || '#27272A')} />
             </div>
             <span className="truncate flex-1 text-left">{current!.name}</span>
           </>
@@ -116,7 +117,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
               >
                 {Comp && (
                   <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: icon.color || '#27272A' }}>
-                    <Comp size={12} className="text-white" />
+                    <Comp size={12} color={readableOn(icon.color || '#27272A')} />
                   </div>
                 )}
                 <span className="text-zinc-300 truncate flex-1">{icon.name}</span>
