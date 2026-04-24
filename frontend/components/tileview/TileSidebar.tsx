@@ -70,7 +70,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        className="w-full flex items-center gap-2 border border-zinc-700 rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
         style={{ backgroundColor: current?.color ? current.color + '40' : 'rgba(39,39,42,0.6)' }}
       >
         {CurrentComp ? (
@@ -184,7 +184,7 @@ function StatusPickerField({ statuses, value, onChange }: {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
       >
         {selected ? (
           <>
@@ -332,7 +332,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
       <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
       <div
         ref={triggerRef}
-        className="flex items-center gap-2 min-h-[28px] bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1 cursor-pointer hover:border-zinc-600 transition-colors"
+        className="flex items-center gap-2 h-8 bg-zinc-800/60 border border-zinc-700 rounded px-2 cursor-pointer hover:border-zinc-600 transition-colors"
         onClick={() => setOpen(!open)}
       >
         {selectedTag ? (
@@ -762,6 +762,7 @@ export function TileSidebar({
 
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
+  const [dropTargetIcon, setDropTargetIcon] = useState<string | null>(null);
   const addTextMutation = useMutation({
     mutationFn: async () => {
       if (!tileId) throw new Error('Nessun tile selezionato');
@@ -786,20 +787,30 @@ export function TileSidebar({
       'border-l border-zinc-800 bg-zinc-900/50 transition-all duration-200 flex flex-col shrink-0',
       open ? 'w-60' : 'w-8'
     )}>
-      <button
-        onClick={onToggle}
-        className="h-10 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
-      >
-        {open
-          ? <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
-          : <IconLayoutSidebarRightExpand className="h-4 w-4 text-zinc-400" />
-        }
-      </button>
+      {/* Header: collapse button — alone if no tile, inlined with tabs if tile selected */}
+      {(!open || !tileId) && (
+        <button
+          onClick={onToggle}
+          className="h-10 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+        >
+          {open
+            ? <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
+            : <IconLayoutSidebarRightExpand className="h-4 w-4 text-zinc-400" />
+          }
+        </button>
+      )}
 
       {open && (<>
-        {/* Tab bar */}
+        {/* Tab bar — collapse button inline on the left to save vertical space */}
         {tileId && (
           <div className="flex border-b border-zinc-800 shrink-0">
+            <button
+              onClick={onToggle}
+              className="px-2 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0 border-b-2 border-transparent"
+              title="Collassa sidebar"
+            >
+              <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
+            </button>
             <button
               onClick={() => setActiveTab('edit')}
               className={cn(
@@ -952,7 +963,7 @@ export function TileSidebar({
                           type="date"
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
-                          className="bg-zinc-800/60 border border-zinc-700 rounded px-1 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
+                          className="bg-zinc-800/60 border border-zinc-700 rounded px-2 h-8 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
                           style={{ width: 'auto', maxWidth: 110, colorScheme: 'dark' }}
                         />
                       </div>
@@ -1000,7 +1011,7 @@ export function TileSidebar({
               <div className="border-t border-zinc-800" />
 
               <div>
-                <div className="text-[11px] text-zinc-500 mb-2">Contenuti ({sparks.length})</div>
+                <div className="text-[11px] text-zinc-500 mb-2">Sparks ({sparks.length})</div>
                 <div className="flex gap-1 justify-center mb-3">
                   {[
                     { id: 'photo', icon: IconCamera, color: '#5B8DEF', bg: '#1A2540', accept: 'image/*' },
@@ -1011,6 +1022,8 @@ export function TileSidebar({
                     { id: 'file', icon: IconPaperclip, color: '#F2C94C', bg: '#2D2A1A', accept: '*/*' },
                   ].map((opt) => {
                     const BtnIcon = opt.icon;
+                    const isDropTarget = dropTargetIcon === opt.id;
+                    const acceptsDrop = opt.id !== 'text';
                     return (
                       <button
                         key={opt.id}
@@ -1026,8 +1039,24 @@ export function TileSidebar({
                             input.click();
                           }
                         }}
-                        className="w-8 h-8 rounded flex items-center justify-center transition-colors"
-                        style={{ backgroundColor: opt.bg, borderWidth: 1, borderColor: `${opt.color}40` }}
+                        onDragOver={acceptsDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } : undefined}
+                        onDragEnter={acceptsDrop ? (e) => { e.preventDefault(); setDropTargetIcon(opt.id); } : undefined}
+                        onDragLeave={acceptsDrop ? () => setDropTargetIcon((v) => (v === opt.id ? null : v)) : undefined}
+                        onDrop={acceptsDrop ? (e) => {
+                          e.preventDefault();
+                          setDropTargetIcon(null);
+                          if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
+                        } : undefined}
+                        className={cn(
+                          'w-8 h-8 rounded flex items-center justify-center transition-all',
+                          isDropTarget && 'ring-2 ring-offset-1 ring-offset-zinc-900/50 scale-110',
+                        )}
+                        style={{
+                          backgroundColor: opt.bg,
+                          borderWidth: 1,
+                          borderColor: isDropTarget ? opt.color : `${opt.color}40`,
+                          ...(isDropTarget ? { boxShadow: `0 0 0 2px ${opt.color}` } : {}),
+                        }}
                         title={opt.id}
                       >
                         <BtnIcon style={{ color: opt.color }} className="h-3.5 w-3.5" />

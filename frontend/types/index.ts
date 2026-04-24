@@ -33,6 +33,8 @@ export interface Tile {
   spark_count?: number;
   sparks?: Spark[];
   tags?: { id: string; name: string; tag_type?: string }[];
+  // Compact checklist payload (sorted by sort_order) for rendering the checklist bar.
+  subtasks?: { is_done: boolean }[];
 }
 
 // Spark entity

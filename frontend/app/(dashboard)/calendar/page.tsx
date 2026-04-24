@@ -23,6 +23,7 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
 import { readableOn } from '@/lib/palette';
+import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 
 const FALLBACK_COLOR = '#888780';
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
@@ -972,6 +973,11 @@ export default function CalendarPage() {
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mt-1">
+                                <ChecklistBar items={t.subtasks} availableWidth={118} />
+                              </div>
+                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1017,6 +1023,11 @@ export default function CalendarPage() {
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="mt-1">
+                            <ChecklistBar items={t.subtasks} availableWidth={118} />
+                          </div>
+                        )}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1130,13 +1141,18 @@ export default function CalendarPage() {
                       >
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
-                            <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                            <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
                           <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mt-1">
+                                <ChecklistBar items={t.subtasks} availableWidth={118} />
+                              </div>
+                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1175,13 +1191,18 @@ export default function CalendarPage() {
                   >
                     <div className="relative h-full flex flex-col p-1.5">
                       <div className="flex-1 min-h-0 overflow-hidden">
-                        <p className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')} style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                        <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
                       <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="mt-1">
+                            <ChecklistBar items={t.subtasks} availableWidth={118} />
+                          </div>
+                        )}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1426,20 +1447,61 @@ export default function CalendarPage() {
                 info.el.style.borderColor = `${color}60`;
                 info.el.style.borderLeftColor = color;
               }
-              // Inject status icon (if any) into the event
+              // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
+              // We attach to the `.fc-event-main` child instead of `info.el` because
+              // FullCalendar uses absolute positioning on `info.el` itself to place
+              // the event in the grid — overriding its position would break layout.
+              if (tile) {
+                const shape = resolveShape(tile);
+                if (shape !== 'solid') {
+                  const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                  if (main) {
+                    const tagColor = getTagColor(tile);
+                    const shapeColor = tile.action_type === 'none' ? '#e4e4e7' : tagColor;
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const { renderToString: rts } = require('react-dom/server');
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const ReactM = require('react');
+                    const svgInner = rts(ReactM.createElement(InlineStatus, { shape, color: shapeColor }));
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;';
+                    overlay.innerHTML = `<svg style="display:block;width:100%;height:100%" viewBox="0 0 130 90" preserveAspectRatio="none">${svgInner}</svg>`;
+                    if (getComputedStyle(main).position === 'static') {
+                      main.style.position = 'relative';
+                    }
+                    main.insertBefore(overlay, main.firstChild);
+                    // Lift FC's text content above the overlay
+                    Array.from(main.children).forEach((child) => {
+                      if (child !== overlay && child instanceof HTMLElement) {
+                        if (!child.style.position) child.style.position = 'relative';
+                        if (!child.style.zIndex) child.style.zIndex = '1';
+                      }
+                    });
+                  }
+                }
+              }
+              // Inject status icon (if any) into the event.
+              // Attach to `.fc-event-main` (NOT `info.el`) — FullCalendar uses
+              // absolute positioning on `info.el` to place the event in the time
+              // grid, so overriding its position would collapse the event height.
               const si = tile ? getIconForTile(tile.id) : null;
               if (si?.icon) {
                 const IconComp = AllIcons[si.icon];
                 if (IconComp) {
-                  // eslint-disable-next-line @typescript-eslint/no-require-imports
-                  const { renderToString } = require('react-dom/server');
-                  const React = require('react');
-                  const svg = renderToString(React.createElement(IconComp, { size: 12, color: '#D4D4D8' }));
-                  const badge = document.createElement('div');
-                  badge.style.cssText = 'position:absolute;top:2px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0.85;';
-                  badge.innerHTML = svg;
-                  info.el.style.position = 'relative';
-                  info.el.appendChild(badge);
+                  const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                  if (main) {
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const { renderToString } = require('react-dom/server');
+                    const React = require('react');
+                    const svg = renderToString(React.createElement(IconComp, { size: 12, color: '#D4D4D8' }));
+                    const badge = document.createElement('div');
+                    badge.style.cssText = 'position:absolute;top:2px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0.85;z-index:2;';
+                    badge.innerHTML = svg;
+                    if (getComputedStyle(main).position === 'static') {
+                      main.style.position = 'relative';
+                    }
+                    main.appendChild(badge);
+                  }
                 }
               }
             }}

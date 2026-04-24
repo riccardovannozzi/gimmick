@@ -51,10 +51,10 @@ tilesRouter.get(
       };
       const offset = (page - 1) * limit;
 
-      // Get tiles with sparks and tags
+      // Get tiles with sparks, tags, and subtasks (for checklist bar)
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, tag_type))', { count: 'exact' })
+        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(is_done, sort_order)', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -88,7 +88,7 @@ tilesRouter.get(
         }
       }
 
-      // Transform data to include spark_count, sparks preview, and tags
+      // Transform data to include spark_count, sparks preview, tags, and subtasks
       const tilesWithCount = data?.map((tile: any) => {
         const sparks = Array.isArray(tile.sparks) ? tile.sparks : [];
         const tags = (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
@@ -96,12 +96,20 @@ tilesRouter.get(
         if (tags.length === 0 && rootTag) {
           tags.push({ id: rootTag.id, name: rootTag.name });
         }
+        // Compact subtasks payload: sorted by sort_order, only is_done kept
+        const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+        const subtasks = subtasksRaw
+          .slice()
+          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((s: any) => ({ is_done: !!s.is_done }));
         return {
           ...tile,
           spark_count: sparks.length,
           sparks,
           tags,
+          subtasks,
           tile_tags: undefined,
+          tile_subtasks: undefined,
         };
       });
 

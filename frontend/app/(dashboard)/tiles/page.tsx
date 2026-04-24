@@ -1005,7 +1005,7 @@ function TileRow({
             )}
           </div>
         </TableCell>
-        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', tile.is_completed ? 'text-zinc-500 line-through' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
+        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', tile.is_completed ? 'text-zinc-500' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
           {tile.title || `Tile ${tile.id.slice(0, 8)}`}
         </TableCell>
         <TableCell className="border-r border-zinc-800 overflow-visible" style={{ width: colWidths.actionType, minWidth: colWidths.actionType, maxWidth: colWidths.actionType }}>

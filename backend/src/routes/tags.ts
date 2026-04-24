@@ -400,12 +400,19 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
 
     const { data, error } = await supabaseAdmin
       .from('tile_tags')
-      .select('tile_id, tiles(*)')
+      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order))')
       .eq('tag_id', tagId);
 
     if (error) throw error;
 
-    const tiles = data?.map((row: any) => row.tiles).filter(Boolean) || [];
+    const tiles = (data?.map((row: any) => row.tiles).filter(Boolean) || []).map((tile: any) => {
+      const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+      const subtasks = subtasksRaw
+        .slice()
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((s: any) => ({ is_done: !!s.is_done }));
+      return { ...tile, subtasks, tile_subtasks: undefined };
+    });
     res.json({ success: true, data: tiles });
   } catch (error) {
     next(error);

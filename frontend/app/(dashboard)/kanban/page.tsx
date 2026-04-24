@@ -35,6 +35,7 @@ import { cn } from '@/lib/utils';
 import { formatDay, getDayKey } from '@/lib/tile-helpers';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 import { readableOn } from '@/lib/palette';
+import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 import type { Tile, Tag, KanbanColumn, KanbanFilter, KanbanFilterType, KanbanSortBy, KanbanSortDir, Status, ActionType, StatusShape } from '@/types';
 
 const FALLBACK_COLOR = '#94A3B8';
@@ -922,7 +923,7 @@ export default function KanbanPage() {
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p
-                              className={cn('text-[11px] font-medium leading-[14px] text-[#D4D4D8]', t.is_completed && 'line-through')}
+                              className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]"
                               style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}
                             >
                               {t.title || 'Senza titolo'}
@@ -947,6 +948,11 @@ export default function KanbanPage() {
                               <ActionIconBadge actionKey={actionKey} color={actionColor} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mt-1">
+                                <ChecklistBar items={t.subtasks} availableWidth={TILE_W - 12} />
+                              </div>
+                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">

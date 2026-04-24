@@ -71,7 +71,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
           borderless
             ? 'px-0 py-0 text-[11px] text-zinc-500 bg-transparent cursor-pointer'
             : compact
-              ? 'px-1 py-1 text-[11px] text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
+              ? 'px-2 h-8 text-[11px] text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
               : 'px-2 py-1.5 text-xs text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
         )}
       >

@@ -18,7 +18,7 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
@@ -135,7 +135,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
       // resolve against the ALL DAY palette (not the TIMED one used for plain event).
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, x, y };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
   }, [tiles, layout, allStatuses, doneShape, getActionTypeShape, typeIcons, typeTileIcons]);
 
@@ -674,6 +674,31 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:14px;height:14px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+    });
+
+    // Checklist bar — thin row of green (done) / red (todo) rects at the tile bottom.
+    // Fixed item width for ≤10 items; adaptive for >10.
+    nodeGrps.each(function (d) {
+      const items = d.subtasks || [];
+      if (items.length === 0) return;
+      const g = d3.select(this);
+      const innerX = 6;
+      const innerW = TILE_W - 12;
+      const y = TILE_H - 5;
+      const h = 4;
+      const gap = 2;
+      const n = items.length;
+      const itemW = n <= 10 ? 8 : Math.max(1, (innerW - (n - 1) * gap) / n);
+      items.forEach((sub, i) => {
+        g.append('rect')
+          .attr('x', innerX + i * (itemW + gap))
+          .attr('y', y)
+          .attr('width', itemW)
+          .attr('height', h)
+          .attr('rx', 1)
+          .attr('fill', sub.is_done ? '#20C933' : '#F82B60')
+          .style('pointer-events', 'none');
+      });
     });
 
     // Selection ring (toggled per tile based on selectedIds)
