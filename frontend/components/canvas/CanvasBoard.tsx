@@ -605,12 +605,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:500;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
         .text(d.title);
     });
-    // Footer: date info + divider + action badge + type icon badge
-    nodeGrps.each(function () {
-      d3.select(this).append('line')
-        .attr('x1', 6).attr('y1', TILE_H - 26).attr('x2', TILE_W - 6).attr('y2', TILE_H - 26)
-        .attr('stroke', '#FFFFFF').attr('stroke-opacity', 0.06).attr('stroke-width', 1);
-    });
+    // Footer: date info + checklist (LIST) + action badge + type icon badge
     const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' }); };
     const formatTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
 
@@ -628,9 +623,32 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
         }
         if (dateStr) {
-          g.append('text').attr('x', 6).attr('y', TILE_H - 30).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
+          g.append('text').attr('x', 6).attr('y', TILE_H - 38).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
         }
       }
+    });
+    // Checklist bar (LIST) — sits between date and the badges row.
+    nodeGrps.each(function (d) {
+      const items = d.subtasks || [];
+      if (items.length === 0) return;
+      const g = d3.select(this);
+      const innerX = 6;
+      const innerW = TILE_W - 12;
+      const y = TILE_H - 32;
+      const h = 4;
+      const gap = 2;
+      const n = items.length;
+      const itemW = n <= 10 ? 8 : Math.max(1, (innerW - (n - 1) * gap) / n);
+      items.forEach((sub, i) => {
+        g.append('rect')
+          .attr('x', innerX + i * (itemW + gap))
+          .attr('y', y)
+          .attr('width', itemW)
+          .attr('height', h)
+          .attr('rx', 1)
+          .attr('fill', sub.is_done ? '#20C933' : '#F82B60')
+          .style('pointer-events', 'none');
+      });
     });
     // Action badge (round colored circle + white icon) in bottom-left.
     // Notes (none) shows nothing.
@@ -674,31 +692,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:14px;height:14px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
-    });
-
-    // Checklist bar — thin row of green (done) / red (todo) rects at the tile bottom.
-    // Fixed item width for ≤10 items; adaptive for >10.
-    nodeGrps.each(function (d) {
-      const items = d.subtasks || [];
-      if (items.length === 0) return;
-      const g = d3.select(this);
-      const innerX = 6;
-      const innerW = TILE_W - 12;
-      const y = TILE_H - 5;
-      const h = 4;
-      const gap = 2;
-      const n = items.length;
-      const itemW = n <= 10 ? 8 : Math.max(1, (innerW - (n - 1) * gap) / n);
-      items.forEach((sub, i) => {
-        g.append('rect')
-          .attr('x', innerX + i * (itemW + gap))
-          .attr('y', y)
-          .attr('width', itemW)
-          .attr('height', h)
-          .attr('rx', 1)
-          .attr('fill', sub.is_done ? '#20C933' : '#F82B60')
-          .style('pointer-events', 'none');
-      });
     });
 
     // Selection ring (toggled per tile based on selectedIds)

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconPin, IconBolt, IconClock, IconCalendarEvent, IconCalendar, IconMaximize, IconX } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconArrowUp, IconMaximize, IconX } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -865,16 +865,21 @@ export function TileSidebar({
                 <label className="text-[11px] text-zinc-500 mb-1 block">Action</label>
                 {(() => {
                   const ac = actionColors;
-                  const getBorderStyle = (at: string): React.CSSProperties => {
-                    const c = (ac as Record<string, string>)[at] || '#3F3F46';
-                    return { border: `1.5px solid ${c}` };
+                  // Same icon mapping used in tile renderers (kanban/calendar/canvas).
+                  // Notes (none) shows no badge.
+                  const TILE_ACTION_ICON: Record<string, typeof IconBolt | null> = {
+                    none:     null,
+                    anytime:  IconArrowUp,
+                    deadline: IconBolt,
+                    event:    IconClock,
+                    allday:   IconCalendar,
                   };
                   const allOpts = [
-                    { value: 'none', label: 'NOTES', icon: IconPin },
-                    { value: 'anytime', label: 'TO DO', icon: IconBolt },
-                    { value: 'deadline', label: 'DEADLINE', icon: IconClock },
-                    { value: 'event', label: 'ALL DAY', icon: IconCalendarEvent, extra: { all_day: true } },
-                    { value: 'event', label: 'TIMED', icon: IconCalendar, extra: { all_day: false } },
+                    { value: 'none', label: 'NOTES' },
+                    { value: 'anytime', label: 'TO DO' },
+                    { value: 'deadline', label: 'DUE' },
+                    { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
+                    { value: 'event', label: 'TIMED', extra: { all_day: false } },
                   ] as const;
                   const row1 = allOpts.slice(0, 2);
                   const row2 = allOpts.slice(2);
@@ -882,7 +887,9 @@ export function TileSidebar({
                     const isActive = opt.value === 'event'
                       ? tile.action_type === 'event' && ((opt as any).extra?.all_day ? !!tile.all_day : !tile.all_day)
                       : tile.action_type === opt.value;
-                    const OptIcon = opt.icon;
+                    const actionKey = opt.value === 'event' && (opt as any).extra?.all_day ? 'allday' : opt.value;
+                    const actionColor = (ac as Record<string, string>)[actionKey] || '#3F3F46';
+                    const Icon = TILE_ACTION_ICON[actionKey];
                     return (
                       <button
                         key={opt.label}
@@ -898,21 +905,23 @@ export function TileSidebar({
                           updateTileMutation.mutate(updates);
                         }}
                         className={cn(
-                          'flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[9px] font-medium transition-all relative',
+                          'flex-1 flex items-center justify-center gap-1.5 h-8 rounded border text-[9px] font-medium transition-colors',
                           isActive
-                            ? 'bg-zinc-800/60 text-zinc-200'
-                            : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800 opacity-70'
+                            ? 'bg-zinc-800/60 text-zinc-200 border-zinc-500'
+                            : 'bg-zinc-800/60 text-zinc-500 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600'
                         )}
-                        style={getBorderStyle(opt.value === 'event' && (opt as any).extra?.all_day ? 'allday' : opt.value)}
                       >
-                        {isActive && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-white" />}
-                        <OptIcon size={11} />
+                        {Icon && (
+                          <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: actionColor }}>
+                            <Icon size={10} color={readableOn(actionColor)} />
+                          </div>
+                        )}
                         {opt.label}
                       </button>
                     );
                   };
                   return (
-                    <div className="flex flex-col" style={{ gap: 12 }}>
+                    <div className="flex flex-col" style={{ gap: 6 }}>
                       <div className="flex gap-1">{row1.map(renderBtn)}</div>
                       <div className="flex gap-1">{row2.map(renderBtn)}</div>
                     </div>

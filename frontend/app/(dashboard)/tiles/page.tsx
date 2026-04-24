@@ -45,7 +45,7 @@ function TagTypeIcon({ emoji, size = 16, color }: { emoji: string; size?: number
 const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
   none: { icon: IconPin, label: 'Notes' },
   anytime: { icon: IconBolt, label: 'To Do' },
-  deadline: { icon: IconClock, label: 'Deadline' },
+  deadline: { icon: IconClock, label: 'Due' },
   event: { icon: IconCalendar, label: 'Timed' },
   allday: { icon: IconCalendarEvent, label: 'All Day' },
 };
@@ -333,7 +333,7 @@ function InlineActionDropdown({
               {([
                 { value: 'none' as ActionType, label: 'Notes', allDay: false },
                 { value: 'anytime' as ActionType, label: 'To Do', allDay: false },
-                { value: 'deadline' as ActionType, label: 'Deadline', allDay: false },
+                { value: 'deadline' as ActionType, label: 'Due', allDay: false },
                 { value: 'event' as ActionType, label: 'All Day', allDay: true },
                 { value: 'event' as ActionType, label: 'Timed', allDay: false },
               ]).map((opt) => {
@@ -848,7 +848,7 @@ function ResizableHead({
   );
 }
 
-const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DEADLINE', event: 'TIMED', allday: 'ALL DAY' };
+const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DUE', event: 'TIMED', allday: 'ALL DAY' };
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>>;
 
 function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | null }) {

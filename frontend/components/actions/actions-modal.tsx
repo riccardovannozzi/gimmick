@@ -19,7 +19,7 @@ type ActionDef = { type: ActionType; label: string; icon: typeof IconArrowUp | n
 const ACTION_LABELS: ActionDef[] = [
   { type: 'none',     label: 'Notes',    icon: null },
   { type: 'anytime',  label: 'To Do',    icon: IconArrowUp },
-  { type: 'deadline', label: 'Deadline', icon: IconBolt },
+  { type: 'deadline', label: 'Due', icon: IconBolt },
   { type: 'allday',   label: 'All Day',  icon: IconCalendar },
   { type: 'event',    label: 'Timed',    icon: IconClock },
 ];

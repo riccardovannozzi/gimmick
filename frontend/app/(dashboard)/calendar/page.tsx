@@ -174,7 +174,7 @@ const emptyModal: EventModalState = {
 const ACTION_OPTIONS = [
   { value: 'none', label: 'NOTES' },
   { value: 'anytime', label: 'TO DO' },
-  { value: 'deadline', label: 'DEADLINE' },
+  { value: 'deadline', label: 'DUE' },
   { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
   { value: 'event', label: 'TIMED', extra: { all_day: false } },
 ] as const;
@@ -968,16 +968,16 @@ export default function CalendarPage() {
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                          <div className="mt-auto relative z-10">
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mb-2">
+                                <ChecklistBar items={t.subtasks} availableWidth={118} />
+                              </div>
+                            )}
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
-                            {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mt-1">
-                                <ChecklistBar items={t.subtasks} availableWidth={118} />
-                              </div>
-                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1018,16 +1018,16 @@ export default function CalendarPage() {
                       <div className="flex-1 min-h-0 overflow-hidden">
                         <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                      <div className="mt-auto relative z-10">
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="mb-2">
+                            <ChecklistBar items={t.subtasks} availableWidth={118} />
+                          </div>
+                        )}
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
-                        {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mt-1">
-                            <ChecklistBar items={t.subtasks} availableWidth={118} />
-                          </div>
-                        )}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1143,16 +1143,16 @@ export default function CalendarPage() {
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
-                          <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                          <div className="mt-auto relative z-10">
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mb-2">
+                                <ChecklistBar items={t.subtasks} availableWidth={118} />
+                              </div>
+                            )}
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
-                            {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mt-1">
-                                <ChecklistBar items={t.subtasks} availableWidth={118} />
-                              </div>
-                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
@@ -1193,16 +1193,16 @@ export default function CalendarPage() {
                       <div className="flex-1 min-h-0 overflow-hidden">
                         <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
-                      <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                      <div className="mt-auto relative z-10">
+                        {t.subtasks && t.subtasks.length > 0 && (
+                          <div className="mb-2">
+                            <ChecklistBar items={t.subtasks} availableWidth={118} />
+                          </div>
+                        )}
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
-                        {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mt-1">
-                            <ChecklistBar items={t.subtasks} availableWidth={118} />
-                          </div>
-                        )}
                       </div>
                       {shape !== 'solid' && (
                         <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">

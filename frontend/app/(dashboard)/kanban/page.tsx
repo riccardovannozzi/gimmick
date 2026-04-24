@@ -98,7 +98,7 @@ function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
 const ACTION_TYPE_LABELS: Record<string, string> = {
   none: 'NOTES',
   anytime: 'TO DO',
-  deadline: 'DEADLINE',
+  deadline: 'DUE',
   event: 'TIMED',
   allday: 'ALL DAY',
 };
@@ -107,7 +107,7 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 const ACTION_OPTIONS: { value: string; label: string; icon: React.ComponentType<{ size?: number; className?: string }> }[] = [
   { value: 'none', label: 'NOTES', icon: IconPin },
   { value: 'anytime', label: 'TO DO', icon: IconBolt },
-  { value: 'deadline', label: 'DEADLINE', icon: IconClock },
+  { value: 'deadline', label: 'DUE', icon: IconClock },
   { value: 'allday', label: 'ALL DAY', icon: IconCalendarEvent },
   { value: 'event', label: 'TIMED', icon: IconCalendar },
 ];
@@ -943,16 +943,16 @@ export default function KanbanPage() {
                               </span>
                             </div>
                           )}
-                          <div className="mt-auto pt-1 border-t border-white/[0.06] relative z-10">
+                          <div className="mt-auto relative z-10">
+                            {t.subtasks && t.subtasks.length > 0 && (
+                              <div className="mb-2">
+                                <ChecklistBar items={t.subtasks} availableWidth={TILE_W - 12} />
+                              </div>
+                            )}
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={actionKey} color={actionColor} />
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
-                            {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mt-1">
-                                <ChecklistBar items={t.subtasks} availableWidth={TILE_W - 12} />
-                              </div>
-                            )}
                           </div>
                           {shape !== 'solid' && (
                             <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">

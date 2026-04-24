@@ -34,7 +34,7 @@ function actionKey(t: Tile): string {
 const ACTION_OPTS = [
   { key: 'none', label: 'NOTES', icon: IconPin, action_type: 'none' as ActionType, all_day: false, is_event: false },
   { key: 'anytime', label: 'TO DO', icon: IconBolt, action_type: 'anytime' as ActionType, all_day: false, is_event: false },
-  { key: 'deadline', label: 'DEADLINE', icon: IconClock, action_type: 'deadline' as ActionType, all_day: false, is_event: false },
+  { key: 'deadline', label: 'DUE', icon: IconClock, action_type: 'deadline' as ActionType, all_day: false, is_event: false },
   { key: 'event:allday', label: 'ALL DAY', icon: IconCalendarEvent, action_type: 'event' as ActionType, all_day: true, is_event: true },
   { key: 'event:timed', label: 'TIMED', icon: IconCalendar, action_type: 'event' as ActionType, all_day: false, is_event: true },
 ] as const;
