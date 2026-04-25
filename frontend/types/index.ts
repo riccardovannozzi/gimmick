@@ -108,6 +108,7 @@ export interface Tag {
   is_root?: boolean;
   is_pinned?: boolean;
   is_archived?: boolean;
+  pin_order?: number;
   created_at: string;
 }
 

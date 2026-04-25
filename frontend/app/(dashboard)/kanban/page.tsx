@@ -51,8 +51,8 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
   if (!Comp) return null;
   const bg = color || '#27272A';
   return (
-    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
-      <Comp size={12} color={readableOn(bg)} />
+    <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+      <Comp size={10} color={readableOn(bg)} />
     </div>
   );
 }
@@ -915,7 +915,7 @@ export default function KanbanPage() {
                         onDragEnd={onTileDragEnd}
                         onClick={() => { setSelectedTileId(t.id); setSidebarOpen(true); }}
                         className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                         )}
                         style={{ backgroundColor: tileBg, width: TILE_W, height: TILE_H }}
@@ -923,7 +923,7 @@ export default function KanbanPage() {
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
                             <p
-                              className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]"
+                              className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]"
                               style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}
                             >
                               {t.title || 'Senza titolo'}
@@ -935,8 +935,7 @@ export default function KanbanPage() {
                                 {renderTagTypeIcon(tileTag.tag_type || '', 10)}
                               </span>
                               <span
-                                className="text-[9px] truncate"
-                                style={{ color: tagColor }}
+                                className="text-[10px] font-normal truncate text-[#D4D4D8]"
                                 title={tileTag.name}
                               >
                                 {tileTag.name}

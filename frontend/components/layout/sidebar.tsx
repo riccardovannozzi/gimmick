@@ -5,8 +5,6 @@ import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
-  IconLogout,
-  IconRobot,
   IconX,
   IconChevronDown,
   IconFolder,
@@ -19,14 +17,10 @@ import {
   IconLayoutBoard,
   IconPin,
   IconPinFilled,
-  IconArchive,
-  IconArchiveOff,
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
-import { useAuthStore } from '@/store/auth-store';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -84,9 +78,7 @@ function TagSidebarGroup({
   color,
   emoji,
   pinnedIds,
-  archivedIds,
   onTogglePin,
-  onToggleArchive,
 }: {
   tagType: string;
   label?: string;
@@ -100,9 +92,7 @@ function TagSidebarGroup({
   color?: string;
   emoji?: string;
   pinnedIds: Set<string>;
-  archivedIds: Set<string>;
   onTogglePin: (tagId: string) => void;
-  onToggleArchive: (tagId: string) => void;
 }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
@@ -136,7 +126,7 @@ function TagSidebarGroup({
       {/* Group header */}
       <button
         onClick={onToggleGroup}
-        className="w-full flex items-center justify-between px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-400 bg-zinc-800/50 hover:bg-zinc-800 rounded transition-colors duration-150"
+        className="w-full h-8 flex items-center justify-between px-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400 bg-zinc-800/50 hover:bg-zinc-800 rounded transition-colors duration-150"
       >
         <span className="flex items-center gap-1.5">
           {resolveIcon()}
@@ -178,7 +168,7 @@ function TagSidebarGroup({
               )}
             >
               <div className={cn(
-                'group flex items-center rounded transition-colors duration-150',
+                'group flex items-center h-8 rounded transition-colors duration-150',
                 isSelected
                   ? 'bg-zinc-800'
                   : 'hover:bg-zinc-900',
@@ -187,7 +177,7 @@ function TagSidebarGroup({
                 <button
                   onClick={(e) => { e.stopPropagation(); onTogglePin(tag.id); }}
                   className={cn(
-                    'w-3.5 flex items-center justify-center shrink-0 transition-opacity ml-2',
+                    'w-3.5 h-full flex items-center justify-center shrink-0 transition-opacity ml-2',
                     pinnedIds.has(tag.id) ? 'opacity-100 text-amber-500' : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-amber-400'
                   )}
                   title={pinnedIds.has(tag.id) ? 'Rimuovi pin' : 'Aggiungi pin'}
@@ -197,23 +187,11 @@ function TagSidebarGroup({
                 <button
                   onClick={() => onToggle(tag.id)}
                   className={cn(
-                    'flex-1 text-left pl-1.5 py-1 text-xs truncate min-w-0',
+                    'flex-1 h-full text-left pl-1.5 text-xs truncate min-w-0',
                     isSelected ? 'text-white font-medium' : 'text-zinc-400 hover:text-zinc-300',
                   )}
                 >
                   {tag.name}
-                </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onToggleArchive(tag.id); }}
-                  className={cn(
-                    'w-4 h-4 flex items-center justify-center rounded border mr-1 shrink-0 transition-opacity',
-                    archivedIds.has(tag.id)
-                      ? 'opacity-100 border-zinc-600 text-zinc-400 hover:text-zinc-200'
-                      : 'opacity-0 group-hover:opacity-100 border-zinc-700 hover:bg-zinc-700 text-zinc-400'
-                  )}
-                  title={archivedIds.has(tag.id) ? 'Ripristina da archivio' : 'Archivia (Old)'}
-                >
-                  {archivedIds.has(tag.id) ? <IconArchiveOff size={9} /> : <IconArchive size={9} />}
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onOpenCanvas(tag.id); }}
@@ -232,14 +210,10 @@ function TagSidebarGroup({
 }
 
 // ─── Main Sidebar ───
-interface SidebarProps {
-  onOpenChat?: () => void;
-}
 
-export function Sidebar({ onOpenChat }: SidebarProps) {
+export function Sidebar() {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut } = useAuthStore();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
   const { tagTypes, getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
 
@@ -269,10 +243,9 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
 
   const hasFilter = selectedTagIds.size > 0;
 
-  // ─── Pin/Archive state (DB-backed) ───
+  // ─── Pin state (DB-backed) ───
   const pinnedIds = useMemo(() => new Set(tags.filter((t) => t.is_pinned).map((t) => t.id)), [tags]);
-  const archivedIds = useMemo(() => new Set(tags.filter((t) => t.is_archived).map((t) => t.id)), [tags]);
-  const [viewMode, setViewMode] = useState<'all' | 'pin' | 'old'>('all');
+  const [viewMode, setViewMode] = useState<'all' | 'pin'>('all');
 
   const tagsQc = useQueryClient();
   const togglePin = useCallback(async (tagId: string) => {
@@ -281,25 +254,10 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
     const next = !tag.is_pinned;
     tagsQc.setQueryData(['tags'], (old: any) => {
       if (!old?.data) return old;
-      return { ...old, data: old.data.map((t: Tag) => t.id === tagId ? { ...t, is_pinned: next, is_archived: next ? false : t.is_archived } : t) };
+      return { ...old, data: old.data.map((t: Tag) => t.id === tagId ? { ...t, is_pinned: next } : t) };
     });
     try {
-      await tagsApi.update(tagId, { is_pinned: next, ...(next ? { is_archived: false } : {}) });
-    } finally {
-      tagsQc.invalidateQueries({ queryKey: ['tags'] });
-    }
-  }, [tags, tagsQc]);
-
-  const toggleArchive = useCallback(async (tagId: string) => {
-    const tag = tags.find((t) => t.id === tagId);
-    if (!tag) return;
-    const next = !tag.is_archived;
-    tagsQc.setQueryData(['tags'], (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: old.data.map((t: Tag) => t.id === tagId ? { ...t, is_archived: next, is_pinned: next ? false : t.is_pinned } : t) };
-    });
-    try {
-      await tagsApi.update(tagId, { is_archived: next, ...(next ? { is_pinned: false } : {}) });
+      await tagsApi.update(tagId, { is_pinned: next });
     } finally {
       tagsQc.invalidateQueries({ queryKey: ['tags'] });
     }
@@ -432,10 +390,25 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
     saveGroupOrderMutation.mutate(next);
   }, [sortedGrouped, queryClient, saveGroupOrderMutation]);
 
-  // ─── Resizable sidebar width ───
+  // ─── Resizable sidebar width — clamped to [192, 240], default 240, persisted in localStorage ───
+  const SIDEBAR_MIN_W = 192;
+  const SIDEBAR_MAX_W = 240;
+  const SIDEBAR_DEFAULT_W = 240;
+  const SIDEBAR_WIDTH_VERSION = '2';
   const [sidebarWidth, setSidebarWidth] = useState(() => {
-    try { const w = localStorage.getItem('sidebar_width'); return w ? parseInt(w, 10) : 192; }
-    catch { return 192; }
+    try {
+      // One-shot migration: if the version flag isn't current, force-reset to the new default.
+      // This catches users who had an older saved value (e.g. 192) and brings them to 240.
+      const v = localStorage.getItem('sidebar_width_v');
+      if (v !== SIDEBAR_WIDTH_VERSION) {
+        localStorage.setItem('sidebar_width', String(SIDEBAR_DEFAULT_W));
+        localStorage.setItem('sidebar_width_v', SIDEBAR_WIDTH_VERSION);
+        return SIDEBAR_DEFAULT_W;
+      }
+      const w = localStorage.getItem('sidebar_width');
+      const parsed = w ? parseInt(w, 10) : SIDEBAR_DEFAULT_W;
+      return Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, parsed));
+    } catch { return SIDEBAR_DEFAULT_W; }
   });
   const resizing = useRef(false);
 
@@ -446,7 +419,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
     const startW = sidebarWidth;
     let lastW = startW;
     const onMove = (ev: MouseEvent) => {
-      lastW = Math.max(192, Math.min(400, startW + ev.clientX - startX));
+      lastW = Math.max(SIDEBAR_MIN_W, Math.min(SIDEBAR_MAX_W, startW + ev.clientX - startX));
       setSidebarWidth(lastW);
     };
     const onUp = () => {
@@ -460,7 +433,7 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
   }, [sidebarWidth]);
 
   return (
-    <div className="flex h-full flex-col border-r border-zinc-800 relative" style={{ width: sidebarWidth, minWidth: 192, backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
+    <div className="flex h-full flex-col border-r border-zinc-800 relative" style={{ width: sidebarWidth, minWidth: SIDEBAR_MIN_W, maxWidth: SIDEBAR_MAX_W, backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
       {/* Resize handle */}
       <div
         className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10"
@@ -482,65 +455,61 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
 
       <Separator className="bg-zinc-800" />
 
-      {/* Tags header with ALL/PIN/OLD toggle */}
-      <div className="flex items-center justify-between px-3 pt-3 pb-1">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => setViewMode('all')}
-            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors',
-              viewMode === 'all' ? 'text-white bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
-            )}
-          >All</button>
-          <button
-            onClick={() => setViewMode('pin')}
-            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors flex items-center gap-0.5',
-              viewMode === 'pin' ? 'text-amber-400 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
-            )}
-          >
-            <IconPinFilled size={9} />
-            Pin
-            {pinnedIds.size > 0 && <span className="text-[8px] text-zinc-500">({pinnedIds.size})</span>}
-          </button>
-          <button
-            onClick={() => setViewMode('old')}
-            className={cn('text-[10px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded transition-colors',
-              viewMode === 'old' ? 'text-zinc-300 bg-zinc-800' : 'text-zinc-500 hover:text-zinc-300'
-            )}
-          >
-            Old
-            {archivedIds.size > 0 && <span className="text-[8px] text-zinc-500 ml-0.5">({archivedIds.size})</span>}
-          </button>
-        </div>
-        <div className="flex items-center gap-1">
-          {hasFilter && (
-            <button onClick={clear} className="text-[10px] text-blue-400 hover:text-blue-300 flex items-center gap-0.5">
-              <IconX className="h-2.5 w-2.5" /> Clear
-            </button>
+      {/* Tags header — All Tags / Pinned occupy all available width (48px) */}
+      <div className="h-12 flex items-center gap-1 px-2 border-b border-zinc-800">
+        <button
+          onClick={() => setViewMode('all')}
+          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center',
+            viewMode === 'all' ? 'bg-blue-600/20 text-blue-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
           )}
-          {viewMode === 'all' && (
-            <button
-              onClick={allExpanded ? collapseAll : expandAll}
-              className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
-              title={allExpanded ? 'Collapse all' : 'Expand all'}
-            >
-              {allExpanded ? <IconArrowsMinimize className="h-3 w-3" /> : <IconArrowsMaximize className="h-3 w-3" />}
-            </button>
+        >All Tags</button>
+        <button
+          onClick={() => setViewMode('pin')}
+          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center gap-1',
+            viewMode === 'pin' ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
           )}
-        </div>
+        >
+          <IconPinFilled size={11} />
+          Pinned
+          {pinnedIds.size > 0 && <span className="text-[9px] opacity-70">({pinnedIds.size})</span>}
+        </button>
+        {hasFilter && (
+          <button
+            onClick={clear}
+            className="shrink-0 h-8 px-2 rounded text-xs leading-none font-medium bg-zinc-800/60 text-blue-400 hover:bg-zinc-800 hover:text-blue-300 transition-colors flex items-center gap-1"
+            title="Pulisci filtro"
+          >
+            <IconX className="h-3 w-3" />
+            Clear
+          </button>
+        )}
       </div>
 
+      {/* Expand/Collapse all groups — own row, only in ALL view */}
+      {viewMode === 'all' && (
+        <div className="px-2 py-1.5 flex justify-end">
+          <button
+            onClick={allExpanded ? collapseAll : expandAll}
+            className="h-7 px-1 flex items-center gap-1.5 text-[11px] leading-none font-medium text-zinc-500 hover:text-zinc-200 transition-colors"
+            title={allExpanded ? 'Collapse all' : 'Expand all'}
+          >
+            {allExpanded
+              ? <><IconArrowsMinimize className="h-3 w-3" /> Collapse all</>
+              : <><IconArrowsMaximize className="h-3 w-3" /> Expand all</>
+            }
+          </button>
+        </div>
+      )}
+
       {/* Grouped tag list (filtered by viewMode) */}
-      <div className="flex-1 overflow-y-auto px-2 pb-2">
-        {viewMode === 'pin' || viewMode === 'old' ? (
+      <div className="flex-1 overflow-y-auto px-2 pb-2 sidebar-scroll">
+        {viewMode === 'pin' ? (
           (() => {
-            const filterFn = viewMode === 'pin'
-              ? (t: Tag) => pinnedIds.has(t.id)
-              : (t: Tag) => archivedIds.has(t.id);
             const filteredGrouped = sortedGrouped
-              .map((g) => ({ ...g, tags: g.tags.filter(filterFn) }))
+              .map((g) => ({ ...g, tags: g.tags.filter((t) => pinnedIds.has(t.id)) }))
               .filter((g) => g.tags.length > 0);
             if (filteredGrouped.length === 0) {
-              return <p className="text-[10px] text-zinc-500 text-center py-4">{viewMode === 'pin' ? 'Nessun tag pinnato' : 'Nessun tag archiviato'}</p>;
+              return <p className="text-[10px] text-zinc-500 text-center py-4">Nessun tag pinnato</p>;
             }
             return filteredGrouped.map((group) => (
               <TagSidebarGroup
@@ -561,16 +530,12 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
                 color={getTypeColor(group.type)}
                 emoji={getTypeEmoji(group.type)}
                 pinnedIds={pinnedIds}
-                archivedIds={archivedIds}
                 onTogglePin={togglePin}
-                onToggleArchive={toggleArchive}
               />
             ));
           })()
         ) : (
-        // ALL view: exclude archived tags
         sortedGrouped
-          .map((g) => ({ ...g, tags: g.tags.filter((t) => !archivedIds.has(t.id)) }))
           .filter((g) => g.tags.length > 0)
           .map((group, idx) => (
           <div
@@ -625,44 +590,12 @@ export function Sidebar({ onOpenChat }: SidebarProps) {
               color={getTypeColor(group.type)}
               emoji={getTypeEmoji(group.type)}
               pinnedIds={pinnedIds}
-              archivedIds={archivedIds}
               onTogglePin={togglePin}
-              onToggleArchive={toggleArchive}
             />
           </div>
         )))}
       </div>
 
-      {/* Ask Gimmick */}
-      <div className="px-2 pb-2">
-        <Button
-          onClick={onOpenChat}
-          variant="ghost"
-          className="w-full h-8 justify-start gap-2 text-xs text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 rounded-lg"
-        >
-          <IconRobot className="h-4 w-4" />
-          Ask Gimmick
-        </Button>
-      </div>
-
-      <Separator className="bg-zinc-800" />
-
-      {/* User + Logout */}
-      <div className="px-3 py-2 flex items-center gap-2">
-        <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white text-[10px] font-semibold shrink-0" title={user?.email}>
-          {user?.email?.substring(0, 2).toUpperCase() || 'U'}
-        </div>
-        <span className="text-[11px] text-zinc-500 truncate flex-1">{user?.email}</span>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 text-zinc-500 hover:text-white hover:bg-zinc-800 shrink-0"
-          onClick={() => signOut()}
-          title="Logout"
-        >
-          <IconLogout className="h-3.5 w-3.5" />
-        </Button>
-      </div>
     </div>
   );
 }

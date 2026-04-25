@@ -370,6 +370,13 @@ export const tagsApi = {
     return apiRequest(`/api/tags/${id}`, { method: 'DELETE' });
   },
 
+  async reorderPinned(ids: string[]) {
+    return apiRequest('/api/tags/reorder-pinned', {
+      method: 'PUT',
+      body: JSON.stringify({ ids }),
+    });
+  },
+
   async tagTiles(tagId: string, tileIds: string[]) {
     return apiRequest(`/api/tags/${tagId}/tiles`, {
       method: 'POST',

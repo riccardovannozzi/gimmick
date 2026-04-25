@@ -243,15 +243,15 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] z-50 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
+    <div className="fixed top-12 bottom-0 right-0 w-60 z-50 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 h-16 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <IconRobot className="h-5 w-5 text-blue-400" />
-          <span className="text-base font-semibold text-white">Ask Gimmick</span>
+      <div className="flex items-center justify-between px-3 h-10 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <IconRobot className="h-4 w-4 text-blue-400" />
+          <span className="text-sm font-semibold text-white">Ask Gimmick</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:text-white">
-          <IconX className="h-5 w-5" />
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 text-zinc-400 hover:text-white">
+          <IconX className="h-4 w-4" />
         </Button>
       </div>
 
@@ -369,22 +369,22 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-zinc-800">
-        <div className="flex gap-2">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Scrivi un messaggio..."
-            className="min-h-[44px] max-h-[120px] resize-none bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus-visible:ring-blue-500"
-            rows={1}
-          />
+      <div className="p-3 border-t border-zinc-800 space-y-2">
+        <Textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Scrivi un messaggio..."
+          className="h-16 min-h-[64px] resize-none bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus-visible:ring-blue-500"
+          rows={3}
+        />
+        <div className="flex gap-2 justify-end">
           {/* Mic button */}
           <Button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isLoading}
-            className={`shrink-0 h-[44px] w-[44px] p-0 ${
+            className={`shrink-0 h-8 w-8 p-0 ${
               isRecording
                 ? 'bg-red-600 hover:bg-red-700 animate-pulse'
                 : 'bg-zinc-700 hover:bg-zinc-600'
@@ -396,7 +396,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-[44px] w-[44px] p-0"
+            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-8 w-8 p-0"
           >
             <IconSend className="h-4 w-4" />
           </Button>

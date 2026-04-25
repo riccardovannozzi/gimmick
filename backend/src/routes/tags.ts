@@ -23,6 +23,11 @@ const updateTagSchema = z.object({
   tag_type: z.string().max(30).optional(),
   is_pinned: z.boolean().optional(),
   is_archived: z.boolean().optional(),
+  pin_order: z.number().int().optional(),
+});
+
+const reorderPinnedSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
 });
 
 // ─── Static routes (before :id params) ───────────────────────
@@ -184,6 +189,34 @@ tagsRouter.delete('/relations', async (req: AuthenticatedRequest, res: Response,
   }
 });
 
+/**
+ * PUT /api/tags/reorder-pinned
+ * Bulk-update pin_order for the user's pinned tags. Body: { ids: [string] }
+ * The position in the array becomes the pin_order (0-based).
+ */
+tagsRouter.put(
+  '/reorder-pinned',
+  validate(reorderPinnedSchema),
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    try {
+      const { ids } = req.body as { ids: string[] };
+      // One UPDATE per id is fine for typical pin counts (<20).
+      await Promise.all(
+        ids.map((id, index) =>
+          supabaseAdmin
+            .from('tags')
+            .update({ pin_order: index })
+            .eq('id', id)
+            .eq('user_id', req.user!.id)
+        )
+      );
+      res.json({ success: true, message: 'Pinned tags reordered' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ─── Parameterized routes (:id) ──────────────────────────────
 
 /**
@@ -214,6 +247,20 @@ tagsRouter.patch(
       const updates = { ...req.body };
       if (updates.name) {
         updates.slug = updates.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
+      }
+
+      // Pinning a tag (is_pinned: true) without an explicit pin_order: append to
+      // the end of the pinned list — pin_order = current max + 1.
+      if (updates.is_pinned === true && updates.pin_order === undefined) {
+        const { data: maxRow } = await supabaseAdmin
+          .from('tags')
+          .select('pin_order')
+          .eq('user_id', req.user!.id)
+          .eq('is_pinned', true)
+          .order('pin_order', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        updates.pin_order = ((maxRow?.pin_order ?? -1) as number) + 1;
       }
 
       const { data, error } = await supabaseAdmin

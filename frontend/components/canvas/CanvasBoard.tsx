@@ -348,7 +348,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dropTarget.current = null;
       }
       // Reset all highlights
-      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0); });
+      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       // Highlight target
       if (dropTarget.current) {
@@ -366,7 +366,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
     const endLink = () => {
       tempLine.attr('opacity', 0);
-      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0); });
+      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
       groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
@@ -521,9 +521,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
-    // No border; fill only. Action/type are communicated by icons in the footer.
+    // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
       .attr('fill', (d) => d.typeColor ? d.typeColor + '80' : '#1C1C1E')
+      .attr('stroke', 'rgba(255,255,255,0.08)')
+      .attr('stroke-width', 1)
       .style('cursor', moveRef.current ? 'grab' : 'default');
     // Status shape overlay (uses SVG <pattern> elements under the hood)
     let patIdx = 0;
@@ -602,7 +604,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const g = d3.select(this);
       const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
       fo.append('xhtml:div')
-        .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:500;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
+        .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge
@@ -623,7 +625,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
         }
         if (dateStr) {
-          g.append('text').attr('x', 6).attr('y', TILE_H - 38).attr('fill', '#71717A').attr('font-size', 10).text(dateStr);
+          g.append('text').attr('x', 6).attr('y', TILE_H - 38).attr('fill', '#D4D4D8').attr('font-size', 10).attr('font-weight', 400).text(dateStr);
         }
       }
     });
@@ -666,13 +668,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (!IconComp) return;
       const g = d3.select(this);
       const actionColor = getColor(d.actionType);
-      g.append('circle').attr('cx', 14).attr('cy', TILE_H - 14).attr('r', 9).attr('fill', actionColor);
+      g.append('circle').attr('cx', 14).attr('cy', TILE_H - 14).attr('r', 8).attr('fill', actionColor);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 12, color: readableOn(actionColor) }));
-      const fo = g.append('foreignObject').attr('x', 8).attr('y', TILE_H - 20).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
+      const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
+      const fo = g.append('foreignObject').attr('x', 9).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
       const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
@@ -683,13 +685,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (!IconComp) return;
       const g = d3.select(this);
       const typeBg = d.typeColor || '#27272A';
-      g.append('rect').attr('x', TILE_W - 24).attr('y', TILE_H - 24).attr('width', 18).attr('height', 18).attr('rx', 3).attr('fill', typeBg);
+      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', 3).attr('fill', typeBg);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 14, color: readableOn(typeBg) }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 14).attr('height', 14).style('pointer-events', 'none');
+      const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(typeBg) }));
+      const fo = g.append('foreignObject').attr('x', TILE_W - 19).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
       const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:14px;height:14px;';
+      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });

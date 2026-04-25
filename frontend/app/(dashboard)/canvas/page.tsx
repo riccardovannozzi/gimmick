@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { IconComponents, IconTrash, IconCopy, IconBoxMultiple } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { tagsApi, canvasApi, tilesApi } from '@/lib/api';
@@ -246,6 +247,39 @@ export default function CanvasPage() {
     setZoom100Trigger((n) => n + 1);
   }, []);
 
+  // Pinned tags ordering (Canvas topbar breadcrumb chips, drag-reorderable).
+  const pinnedTags = useMemo(
+    () => tags
+      .filter((t) => t.is_pinned && !t.is_archived)
+      .sort((a, b) => (a.pin_order ?? 0) - (b.pin_order ?? 0)),
+    [tags]
+  );
+
+  const handleReorderPinned = useCallback(async (orderedIds: string[]) => {
+    // Snapshot for rollback if the API call fails.
+    const prev = queryClient.getQueryData(['tags']);
+    // Optimistic: reorder locally so UI updates immediately
+    queryClient.setQueryData(['tags'], (old: any) => {
+      if (!old?.data) return old;
+      const indexMap = new Map(orderedIds.map((id, i) => [id, i]));
+      return {
+        ...old,
+        data: old.data.map((t: Tag) =>
+          indexMap.has(t.id) ? { ...t, pin_order: indexMap.get(t.id)! } : t
+        ),
+      };
+    });
+    const res = await tagsApi.reorderPinned(orderedIds);
+    if (!res.success) {
+      // Rollback + tell the user — usually means migration 018 not applied
+      // or backend not restarted.
+      queryClient.setQueryData(['tags'], prev);
+      toast.error(res.error || 'Riordinamento non riuscito');
+      return;
+    }
+    queryClient.invalidateQueries({ queryKey: ['tags'] });
+  }, [queryClient]);
+
   // Edge context menu
   const [edgeCtx, setEdgeCtx] = useState<{ x: number; y: number; edgeId: string } | null>(null);
 
@@ -405,15 +439,15 @@ export default function CanvasPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <CanvasTopbar
             tag={tag}
-            tileCount={tiles.length}
             textMode={textMode}
             tileMode={tileMode}
             onToggleTextMode={() => setTextMode((v) => !v)}
             onToggleTileMode={() => setTileMode((v) => !v)}
             onFit={handleFit}
             onZoom100={handleZoom100}
-            pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}
+            pinnedTags={pinnedTags}
             onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
+            onReorderPinned={handleReorderPinned}
             onUnpinTag={async (id) => {
               queryClient.setQueryData(['tags'], (old: any) => {
                 if (!old?.data) return old;
@@ -645,15 +679,15 @@ export default function CanvasPage() {
         <div className="flex-1 flex flex-col overflow-hidden">
           <CanvasTopbar
             tag={null}
-            tileCount={0}
             textMode={false}
             tileMode={false}
             onToggleTextMode={() => {}}
             onToggleTileMode={() => {}}
             onFit={() => {}}
             onZoom100={() => {}}
-            pinnedTags={tags.filter((t) => t.is_pinned && !t.is_archived)}
+            pinnedTags={pinnedTags}
             onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
+            onReorderPinned={handleReorderPinned}
             onUnpinTag={async (id) => {
               queryClient.setQueryData(['tags'], (old: any) => {
                 if (!old?.data) return old;

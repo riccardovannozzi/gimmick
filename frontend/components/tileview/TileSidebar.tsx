@@ -70,7 +70,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 border border-zinc-700 rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        className="w-full flex items-center gap-2 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
         style={{ backgroundColor: current?.color ? current.color + '40' : 'rgba(39,39,42,0.6)' }}
       >
         {CurrentComp ? (
@@ -87,7 +87,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
         >
           <button
@@ -184,7 +184,7 @@ function StatusPickerField({ statuses, value, onChange }: {
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
       >
         {selected ? (
           <>
@@ -200,7 +200,7 @@ function StatusPickerField({ statuses, value, onChange }: {
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
         >
           {statuses.map((p) => {
@@ -332,7 +332,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
       <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
       <div
         ref={triggerRef}
-        className="flex items-center gap-2 h-8 bg-zinc-800/60 border border-zinc-700 rounded px-2 cursor-pointer hover:border-zinc-600 transition-colors"
+        className="flex items-center gap-2 h-8 bg-zinc-800/60 border border-white/[0.08] rounded px-2 cursor-pointer hover:border-zinc-600 transition-colors"
         onClick={() => setOpen(!open)}
       >
         {selectedTag ? (
@@ -351,7 +351,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl max-h-64 overflow-y-auto py-1"
+          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl max-h-64 overflow-y-auto py-1"
           style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
         >
           {allTags.length === 0 ? (
@@ -428,7 +428,7 @@ function SparkEditor({
 
   if (spark.type === 'text') {
     return (
-      <div className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 group relative h-32 flex flex-col">
+      <div className="rounded border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 group relative h-32 flex flex-col">
         <div className="flex items-center gap-1 mb-1 shrink-0">
           <IconFileText className="h-3 w-3 text-zinc-500" />
           <span className="text-[10px] text-zinc-500 uppercase">Testo</span>
@@ -458,7 +458,7 @@ function SparkEditor({
 
   if ((spark.type === 'photo' || spark.type === 'image') && signedUrl) {
     return (
-      <div className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative">
+      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
         <img src={signedUrl} alt="" className="w-full h-32 object-cover" />
         <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
           <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="p-1 bg-zinc-900/80 rounded text-zinc-300 hover:text-white">
@@ -477,7 +477,7 @@ function SparkEditor({
 
   if (spark.type === 'video' && signedUrl) {
     return (
-      <div className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative">
+      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
         <video src={signedUrl} className="w-full h-32 object-cover" />
         <div className="absolute inset-0 flex items-center justify-center">
           <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-zinc-900/70 rounded-full text-white hover:bg-zinc-900/90">
@@ -501,7 +501,7 @@ function SparkEditor({
   const isImageFile = spark.mime_type?.startsWith('image/');
   if (isImageFile && signedUrl) {
     return (
-      <div className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative">
+      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
         <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="block">
           <img src={signedUrl} alt={spark.file_name || ''} className="w-full h-32 object-cover" />
         </a>
@@ -528,7 +528,7 @@ function SparkEditor({
       <>
         <div
           onClick={() => setPdfModalOpen(true)}
-          className="rounded border border-zinc-700 overflow-hidden bg-zinc-800/40 group relative cursor-zoom-in hover:border-zinc-600 transition-colors"
+          className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative cursor-zoom-in hover:border-zinc-600 transition-colors"
         >
           {/* Thumbnail — first page, interaction blocked so click falls through to wrapper */}
           <div className="relative h-24 bg-zinc-900 overflow-hidden pointer-events-none">
@@ -567,7 +567,7 @@ function SparkEditor({
             onClick={() => setPdfModalOpen(false)}
           >
             <div
-              className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl flex flex-col overflow-hidden"
+              className="bg-zinc-900 border border-white/[0.08] rounded-xl shadow-2xl flex flex-col overflow-hidden"
               style={{ width: 'min(95vw, 1100px)', height: 'min(95vh, 900px)' }}
               onClick={(e) => e.stopPropagation()}
             >
@@ -612,7 +612,7 @@ function SparkEditor({
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
-      className="rounded border border-zinc-700 bg-zinc-800/40 px-2.5 py-2 flex items-center gap-2 group relative hover:bg-zinc-800/70 transition-colors cursor-pointer"
+      className="rounded border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 flex items-center gap-2 group relative hover:bg-zinc-800/70 transition-colors cursor-pointer"
     >
       <div className="w-10 h-10 rounded bg-zinc-700/50 flex items-center justify-center shrink-0">
         <SparkIcon className="h-5 w-5 text-zinc-400" />
@@ -791,7 +791,7 @@ export function TileSidebar({
       {(!open || !tileId) && (
         <button
           onClick={onToggle}
-          className="h-10 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+          className="h-12 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0 border-b border-zinc-800"
         >
           {open
             ? <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
@@ -801,23 +801,23 @@ export function TileSidebar({
       )}
 
       {open && (<>
-        {/* Tab bar — collapse button inline on the left to save vertical space */}
+        {/* Header bar (48px) — collapse button + Edit/List tabs (32px), Canvas Topbar styling */}
         {tileId && (
-          <div className="flex border-b border-zinc-800 shrink-0">
+          <div className="h-12 px-2 flex items-center gap-1 border-b border-zinc-800 shrink-0">
             <button
               onClick={onToggle}
-              className="px-2 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0 border-b-2 border-transparent"
+              className="flex items-center justify-center w-8 h-8 rounded bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors shrink-0"
               title="Collassa sidebar"
             >
-              <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
+              <IconLayoutSidebarRightCollapse className="h-4 w-4" />
             </button>
             <button
               onClick={() => setActiveTab('edit')}
               className={cn(
-                'flex-1 text-[11px] font-medium py-2 transition-colors border-b-2',
+                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
                 activeTab === 'edit'
-                  ? 'text-zinc-200 border-blue-500'
-                  : 'text-zinc-500 border-transparent hover:text-zinc-300'
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
               )}
             >
               Edit
@@ -825,10 +825,10 @@ export function TileSidebar({
             <button
               onClick={() => setActiveTab('list')}
               className={cn(
-                'flex-1 text-[11px] font-medium py-2 transition-colors border-b-2',
+                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
                 activeTab === 'list'
-                  ? 'text-zinc-200 border-blue-500'
-                  : 'text-zinc-500 border-transparent hover:text-zinc-300'
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
               )}
             >
               List
@@ -854,7 +854,7 @@ export function TileSidebar({
                   onBlur={saveTitle}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
                   rows={2}
-                  className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs leading-6 text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5 resize-none"
+                  className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 py-1.5 text-xs leading-6 text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5 resize-none"
                   placeholder="Title..."
                 />
               </div>
@@ -908,7 +908,7 @@ export function TileSidebar({
                           'flex-1 flex items-center justify-center gap-1.5 h-8 rounded border text-[9px] font-medium transition-colors',
                           isActive
                             ? 'bg-zinc-800/60 text-zinc-200 border-zinc-500'
-                            : 'bg-zinc-800/60 text-zinc-500 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600'
+                            : 'bg-zinc-800/60 text-zinc-500 border-white/[0.08] hover:bg-zinc-800 hover:border-white/20'
                         )}
                       >
                         {Icon && (
@@ -972,7 +972,7 @@ export function TileSidebar({
                           type="date"
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
-                          className="bg-zinc-800/60 border border-zinc-700 rounded px-2 h-8 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
+                          className="bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
                           style={{ width: 'auto', maxWidth: 110, colorScheme: 'dark' }}
                         />
                       </div>
@@ -1091,7 +1091,7 @@ export function TileSidebar({
                       onChange={(e) => setNewTextContent(e.target.value)}
                       rows={3}
                       autoFocus
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 resize-y"
+                      className="w-full bg-zinc-800 border border-white/[0.08] rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 resize-y"
                       placeholder="Scrivi testo..."
                     />
                     <div className="flex gap-1">

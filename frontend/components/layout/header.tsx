@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   IconBell,
-  IconSearch,
+  IconRobot,
   IconSettings,
   IconSparkles,
   IconLayoutGrid,
@@ -14,7 +14,6 @@ import {
   IconLayoutBoard,
   IconColumns,
 } from '@tabler/icons-react';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,6 +23,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuthStore } from '@/store/auth-store';
+import { useChatStore } from '@/store/chat-store';
 import { cn } from '@/lib/utils';
 
 const TAB_GROUP_DATA = [
@@ -42,7 +42,7 @@ const TAB_GROUP_VIEWS = [
 function TabGroup({ items }: { items: typeof TAB_GROUP_DATA }) {
   const pathname = usePathname();
   return (
-    <div className="flex items-center bg-zinc-900 rounded-lg border border-zinc-800 p-0.5">
+    <div className="flex items-center gap-1">
       {items.map((item) => {
         const isActive = pathname === item.href;
         return (
@@ -50,10 +50,10 @@ function TabGroup({ items }: { items: typeof TAB_GROUP_DATA }) {
             key={item.href}
             href={item.href}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
+              'h-8 flex items-center gap-1.5 px-3 rounded text-xs leading-none font-medium transition-colors',
               isActive
-                ? 'bg-zinc-800 text-white'
-                : 'text-zinc-400 hover:text-zinc-200'
+                ? 'bg-blue-600/20 text-blue-400'
+                : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
             )}
           >
             <item.icon className="h-3.5 w-3.5" />
@@ -72,6 +72,7 @@ interface HeaderProps {
 
 export function Header({ actions }: HeaderProps) {
   const { user, signOut } = useAuthStore();
+  const setChatOpen = useChatStore((s) => s.setOpen);
 
   const initials = user?.email
     ? user.email.substring(0, 2).toUpperCase()
@@ -79,26 +80,25 @@ export function Header({ actions }: HeaderProps) {
 
   return (
     <header className="flex h-12 items-center border-b border-zinc-800 bg-zinc-950 px-4">
-      {/* Center — Tab groups */}
+      {/* Left — primary nav */}
+      <TabGroup items={TAB_GROUP_DATA} />
       <div className="flex-1" />
-      <div className="flex items-center">
-        <TabGroup items={TAB_GROUP_DATA} />
-        <div style={{ width: 100 }} />
-        <TabGroup items={TAB_GROUP_VIEWS} />
-      </div>
+      {/* Center — view tabs */}
+      <TabGroup items={TAB_GROUP_VIEWS} />
       <div className="flex-1" />
 
       {/* Right side */}
       <div className="flex items-center gap-2 shrink-0">
         {actions}
-        {/* Search */}
-        <div className="relative">
-          <IconSearch className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
-          <Input
-            placeholder="Cerca..."
-            className="w-48 h-8 bg-zinc-900 border-zinc-800 pl-8 text-xs text-white placeholder:text-zinc-500"
-          />
-        </div>
+        {/* Ask Gimmick */}
+        <Button
+          onClick={() => setChatOpen(true)}
+          variant="ghost"
+          className="h-8 px-3 gap-1.5 text-xs text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 rounded-lg"
+        >
+          <IconRobot className="h-4 w-4" />
+          Ask Gimmick
+        </Button>
 
         {/* Settings */}
         <Link href="/settings">

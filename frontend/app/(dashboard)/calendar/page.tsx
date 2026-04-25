@@ -34,8 +34,8 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
   if (!Comp) return null;
   const bg = color || '#27272A';
   return (
-    <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
-      <Comp size={12} color={readableOn(bg)} />
+    <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+      <Comp size={10} color={readableOn(bg)} />
     </div>
   );
 }
@@ -956,7 +956,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
@@ -1006,7 +1006,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
@@ -1131,7 +1131,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1',
+                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
@@ -1181,7 +1181,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all',
+                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
