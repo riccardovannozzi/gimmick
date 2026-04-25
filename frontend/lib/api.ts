@@ -310,10 +310,11 @@ export const chatApi = {
 
 // ============ Upload API ============
 export const uploadApi = {
-  async uploadFile(file: File, folder: string = 'files') {
+  async uploadFile(file: File, folder: string = 'files', bucket: 'sparks' | 'canvas-assets' = 'sparks') {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
+    formData.append('bucket', bucket);
 
     const response = await fetch(`${API_URL}/api/upload/file`, {
       method: 'POST',
@@ -324,6 +325,7 @@ export const uploadApi = {
     });
 
     return response.json() as Promise<ApiResponse<{
+      bucket: string;
       path: string;
       url: string;
       file_name: string;
@@ -584,26 +586,30 @@ export const canvasApi = {
     });
   },
 
-  async getTextBoxes(tagId: string) {
-    return apiRequest<{ id: string; content: string; x: number; y: number; w: number; h: number }[]>(`/api/canvas/textboxes/${tagId}`);
+  // ─── Polymorphic boxes (text, image, ...) ───
+  // Content shape per type:
+  //   text  → { html: string }
+  //   image → { src: string, alt?: string }
+  async getBoxes(tagId: string) {
+    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }[]>(`/api/canvas/boxes/${tagId}`);
   },
 
-  async addTextBox(tagId: string, data: { content?: string; x: number; y: number; w?: number; h?: number }) {
-    return apiRequest<{ id: string; content: string; x: number; y: number }>(`/api/canvas/textboxes/${tagId}`, {
+  async addBox(tagId: string, data: { type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
+    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateTextBox(id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) {
-    return apiRequest(`/api/canvas/textboxes/${id}`, {
+  async updateBox(id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
+    return apiRequest(`/api/canvas/boxes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
   },
 
-  async deleteTextBox(id: string) {
-    return apiRequest(`/api/canvas/textboxes/${id}`, { method: 'DELETE' });
+  async deleteBox(id: string) {
+    return apiRequest(`/api/canvas/boxes/${id}`, { method: 'DELETE' });
   },
 };
 

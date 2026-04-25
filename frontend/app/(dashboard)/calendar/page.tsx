@@ -966,7 +966,7 @@ export default function CalendarPage() {
                       >
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
-                            <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                            <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
                           <div className="mt-auto relative z-10">
                             {t.subtasks && t.subtasks.length > 0 && (
@@ -1016,7 +1016,7 @@ export default function CalendarPage() {
                   >
                     <div className="relative h-full flex flex-col p-1.5">
                       <div className="flex-1 min-h-0 overflow-hidden">
-                        <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                        <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
                       <div className="mt-auto relative z-10">
                         {t.subtasks && t.subtasks.length > 0 && (
@@ -1141,7 +1141,7 @@ export default function CalendarPage() {
                       >
                         <div className="relative h-full flex flex-col p-1.5">
                           <div className="flex-1 min-h-0 overflow-hidden">
-                            <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                            <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                           </div>
                           <div className="mt-auto relative z-10">
                             {t.subtasks && t.subtasks.length > 0 && (
@@ -1191,7 +1191,7 @@ export default function CalendarPage() {
                   >
                     <div className="relative h-full flex flex-col p-1.5">
                       <div className="flex-1 min-h-0 overflow-hidden">
-                        <p className="text-[11px] font-medium leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
+                        <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
                       </div>
                       <div className="mt-auto relative z-10">
                         {t.subtasks && t.subtasks.length > 0 && (

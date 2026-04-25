@@ -7,7 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { IconComponents, IconTrash, IconCopy, IconBoxMultiple } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
-import { tagsApi, canvasApi, tilesApi } from '@/lib/api';
+import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
@@ -22,6 +22,7 @@ export default function CanvasPage() {
 
   const [textMode, setTextMode] = useState(false);
   const [tileMode, setTileMode] = useState(false);
+  const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [fitTrigger, setFitTrigger] = useState(0);
@@ -155,58 +156,125 @@ export default function CanvasPage() {
     await canvasApi.deleteEdge(id);
   }, [tagId, queryClient]);
 
-  // ── Text boxes ──
-  const { data: textBoxesData } = useQuery({
-    queryKey: ['canvas-textboxes', tagId],
-    queryFn: () => canvasApi.getTextBoxes(tagId!),
+  // ── Boxes (text/image, polymorphic) ──
+  const { data: boxesData } = useQuery({
+    queryKey: ['canvas-boxes', tagId],
+    queryFn: () => canvasApi.getBoxes(tagId!),
     enabled: !!tagId,
   });
-  const textBoxes = useMemo(() => (textBoxesData?.data || []) as CanvasTextBox[], [textBoxesData]);
+  const textBoxes = useMemo(() => (boxesData?.data || []) as unknown as CanvasTextBox[], [boxesData]);
 
   const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;
     setTextMode(false);
     const tempId = `temp-tb-${Date.now()}`;
-    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
-      data: [...(old?.data || []), { id: tempId, content: '', x, y, w, h }],
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, type: 'text', content: { html: '' }, x, y, w, h }],
     }));
     try {
-      const res = await canvasApi.addTextBox(tagId, { content: '', x, y, w, h });
+      const res = await canvasApi.addBox(tagId, { type: 'text', content: { html: '' }, x, y, w, h });
       if (res?.data) {
         const d = res.data as any;
-        queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
           data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
         }));
       }
     } catch {
-      queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: (old?.data || []).filter((tb: any) => tb.id !== tempId),
       }));
     }
   }, [tagId, queryClient]);
 
   const tbUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleUpdateTextBox = useCallback((id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) => {
+  const handleUpdateTextBox = useCallback((id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) => {
     if (!tagId) return;
     // For content-only updates, skip cache write: the contenteditable DOM already reflects
     // the typed text and updating the cache would trigger a re-render that rebuilds the SVG,
     // losing focus and dropping in-flight keystrokes.
     const isContentOnly = 'content' in updates && !('x' in updates) && !('y' in updates) && !('w' in updates) && !('h' in updates);
     if (!isContentOnly) {
-      queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
       }));
     }
     if (tbUpdateTimer.current) clearTimeout(tbUpdateTimer.current);
-    tbUpdateTimer.current = setTimeout(() => { canvasApi.updateTextBox(id, updates); }, 800);
+    tbUpdateTimer.current = setTimeout(() => { canvasApi.updateBox(id, updates); }, 800);
   }, [tagId, queryClient]);
 
   const handleDeleteTextBox = useCallback(async (id: string) => {
     if (!tagId) return;
-    queryClient.setQueryData(['canvas-textboxes', tagId], (old: any) => ({
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
       data: (old?.data || []).filter((tb: any) => tb.id !== id),
     }));
-    await canvasApi.deleteTextBox(id);
+    await canvasApi.deleteBox(id);
+  }, [tagId, queryClient]);
+
+  // Image box: drag a rectangle (w,h) → file picker → measure the image LOCALLY
+  // from the File (so CORS / CDN delays can't cause a fallback) → upload to
+  // canvas-assets → fit the box to the picture's aspect ratio so the frame
+  // matches the image (no empty letterbox bands).
+  const handleAddImageBox = useCallback(async (file: File, x: number, y: number, w: number, h: number) => {
+    if (!tagId) return;
+    setImageMode(false);
+    if (!file.type.startsWith('image/')) {
+      toast.error('Il file deve essere un\'immagine');
+      return;
+    }
+    try {
+      // Measure natural dimensions from the local file via a blob URL.
+      const blobUrl = URL.createObjectURL(file);
+      const dims = await new Promise<{ nw: number; nh: number } | null>((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve({ nw: img.naturalWidth, nh: img.naturalHeight });
+        img.onerror = () => resolve(null);
+        img.src = blobUrl;
+      });
+      URL.revokeObjectURL(blobUrl);
+      // CanvasBoard insets the image by IMG_PAD (2px) on every side. So the
+      // box dimensions = inner image area + 2*IMG_PAD. Compute the inner area
+      // from drawn rect (minus padding), fit aspect ratio, then add padding
+      // back to get the final box size.
+      const PAD_TOTAL = 4; // 2 * IMG_PAD
+      const innerW = Math.max(40, w - PAD_TOTAL);
+      const innerH = Math.max(40, h - PAD_TOTAL);
+      let finalW = w;
+      let finalH = h;
+      if (dims && dims.nw > 0 && dims.nh > 0) {
+        const aspect = dims.nw / dims.nh;
+        const innerAspect = innerW / innerH;
+        let fitW = innerW;
+        let fitH = innerH;
+        if (aspect > innerAspect) {
+          // Picture is wider than the inner rect → keep width, shrink height.
+          fitH = Math.max(40, Math.round(innerW / aspect));
+        } else {
+          // Picture is taller than the inner rect → keep height, shrink width.
+          fitW = Math.max(40, Math.round(innerH * aspect));
+        }
+        finalW = fitW + PAD_TOTAL;
+        finalH = fitH + PAD_TOTAL;
+      }
+      const upRes = await uploadApi.uploadFile(file, 'canvas', 'canvas-assets');
+      if (!upRes.success || !upRes.data) {
+        toast.error(upRes.error || 'Upload fallito');
+        return;
+      }
+      const src = upRes.data.url;
+      const tempId = `temp-img-${Date.now()}`;
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+        data: [...(old?.data || []), { id: tempId, type: 'image', content: { src }, x, y, w: finalW, h: finalH }],
+      }));
+      const res = await canvasApi.addBox(tagId, { type: 'image', content: { src }, x, y, w: finalW, h: finalH });
+      if (res?.data) {
+        const d = res.data as any;
+        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
+        }));
+      }
+    } catch (err: any) {
+      toast.error(err?.message || 'Errore inserimento immagine');
+    }
   }, [tagId, queryClient]);
 
   // Text box context menu
@@ -343,13 +411,13 @@ export default function CanvasPage() {
     try {
       await Promise.all([
         ...tileIds.map((id) => tilesApi.delete(id).catch(() => null)),
-        ...tbIds.map((id) => canvasApi.deleteTextBox(id).catch(() => null)),
+        ...tbIds.map((id) => canvasApi.deleteBox(id).catch(() => null)),
         ...edgesToDelete.map((e) => canvasApi.deleteEdge(e.id).catch(() => null)),
       ]);
       queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
       queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
       queryClient.invalidateQueries({ queryKey: ['canvas-edges', tagId] });
-      queryClient.invalidateQueries({ queryKey: ['canvas-textboxes', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
     } catch { /* ignore */ }
   }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection]);
@@ -441,8 +509,10 @@ export default function CanvasPage() {
             tag={tag}
             textMode={textMode}
             tileMode={tileMode}
-            onToggleTextMode={() => setTextMode((v) => !v)}
-            onToggleTileMode={() => setTileMode((v) => !v)}
+            imageMode={imageMode}
+            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); }}
+            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); }}
+            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); }}
             onFit={handleFit}
             onZoom100={handleZoom100}
             pinnedTags={pinnedTags}
@@ -457,7 +527,7 @@ export default function CanvasPage() {
               finally { queryClient.invalidateQueries({ queryKey: ['tags'] }); }
             }}
           />
-          <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode) ? 'crosshair' : undefined }}>
+          <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode || imageMode) ? 'crosshair' : undefined }}>
             <CanvasBoard
               tiles={tiles}
               layout={layout}
@@ -468,6 +538,8 @@ export default function CanvasPage() {
               linkEnabled={true}
               textMode={textMode}
               tileMode={tileMode}
+              imageMode={imageMode}
+              onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
@@ -681,8 +753,10 @@ export default function CanvasPage() {
             tag={null}
             textMode={false}
             tileMode={false}
+            imageMode={false}
             onToggleTextMode={() => {}}
             onToggleTileMode={() => {}}
+            onToggleImageMode={() => {}}
             onFit={() => {}}
             onZoom100={() => {}}
             pinnedTags={pinnedTags}

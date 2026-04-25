@@ -185,14 +185,21 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// ─── Text Boxes ───
+// ─── Boxes (polymorphic: text, image, ...) ───
+//
+// Box payload shape:
+//   { type: 'text' | 'image', content: <type-specific JSON>, x, y, w, h }
+//
+// Content shapes:
+//   text:  { html: string }
+//   image: { src: string, alt?: string }
 
-canvasRouter.get('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+canvasRouter.get('/boxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
-      .from('canvas_textboxes')
-      .select('id, content, x, y, w, h')
+      .from('canvas_boxes')
+      .select('id, type, content, x, y, w, h')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
     if (error) throw error;
@@ -200,13 +207,25 @@ canvasRouter.get('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Res
   } catch (error) { next(error); }
 });
 
-canvasRouter.post('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
+canvasRouter.post('/boxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tagId } = req.params;
-    const { content, x, y, w, h } = req.body;
+    const { type, content, x, y, w, h } = req.body;
+    if (type !== 'text' && type !== 'image') {
+      return res.status(400).json({ success: false, error: 'type must be text or image' });
+    }
     const { data, error } = await supabaseAdmin
-      .from('canvas_textboxes')
-      .insert({ user_id: req.user!.id, tag_id: tagId, content: content || '', x: x || 0, y: y || 0, w: w || 200, h: h || 60 })
+      .from('canvas_boxes')
+      .insert({
+        user_id: req.user!.id,
+        tag_id: tagId,
+        type,
+        content: content || {},
+        x: x || 0,
+        y: y || 0,
+        w: w || 200,
+        h: h || 60,
+      })
       .select()
       .single();
     if (error) throw error;
@@ -214,10 +233,16 @@ canvasRouter.post('/textboxes/:tagId', async (req: AuthenticatedRequest, res: Re
   } catch (error) { next(error); }
 });
 
-canvasRouter.patch('/textboxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+canvasRouter.patch('/boxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
+    if (req.body.type !== undefined) {
+      if (req.body.type !== 'text' && req.body.type !== 'image') {
+        return res.status(400).json({ success: false, error: 'type must be text or image' });
+      }
+      updates.type = req.body.type;
+    }
     if (req.body.content !== undefined) updates.content = req.body.content;
     if (req.body.x !== undefined) updates.x = req.body.x;
     if (req.body.y !== undefined) updates.y = req.body.y;
@@ -225,7 +250,7 @@ canvasRouter.patch('/textboxes/:id', async (req: AuthenticatedRequest, res: Resp
     if (req.body.h !== undefined) updates.h = req.body.h;
     updates.updated_at = new Date().toISOString();
     const { error } = await supabaseAdmin
-      .from('canvas_textboxes')
+      .from('canvas_boxes')
       .update(updates)
       .eq('id', id)
       .eq('user_id', req.user!.id);
@@ -234,11 +259,11 @@ canvasRouter.patch('/textboxes/:id', async (req: AuthenticatedRequest, res: Resp
   } catch (error) { next(error); }
 });
 
-canvasRouter.delete('/textboxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+canvasRouter.delete('/boxes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
     const { error } = await supabaseAdmin
-      .from('canvas_textboxes')
+      .from('canvas_boxes')
       .delete()
       .eq('id', id)
       .eq('user_id', req.user!.id);

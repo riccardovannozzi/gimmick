@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   IconPlus,
   IconMinus,
@@ -22,6 +23,9 @@ import {
   IconBolt,
   IconClock,
   IconArrowUp,
+  IconChevronDown,
+  IconChevronRight,
+  IconLayoutGrid,
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
@@ -619,6 +623,9 @@ export default function KanbanPage() {
   // ─── Delete confirm ───
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
+  // ─── Expanded filter rows per column ───
+  const [expandedFilterCols, setExpandedFilterCols] = useState<Set<string>>(new Set());
+
   // ─── Column menu (three-dots) ───
   const [colMenu, setColMenu] = useState<{ x: number; y: number; colId: string } | null>(null);
   useEffect(() => {
@@ -639,6 +646,25 @@ export default function KanbanPage() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [tileCtxMenu]);
+
+  const handleAddTile = useCallback(async () => {
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      const newTile = (res as { data?: Tile })?.data;
+      if (newTile) {
+        const rootTag = tags.find((t) => t.is_root);
+        if (rootTag) {
+          await tagsApi.tagTiles(rootTag.id, [newTile.id]);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['tiles-kanban'] });
+        await queryClient.invalidateQueries({ queryKey: ['tags'] });
+        setSelectedTileId(newTile.id);
+        setSidebarOpen(true);
+      }
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tags]);
 
   const deleteTileMutation = useMutation({
     mutationFn: (id: string) => tilesApi.delete(id),
@@ -664,8 +690,29 @@ export default function KanbanPage() {
       <Header title="Kanban" />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Board */}
-        <div className="flex-1 flex overflow-x-auto gap-4 p-4">
+        {/* Board column: toolbar + columns */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Toolbar */}
+        <div className="h-12 border-b border-zinc-800 flex items-center gap-1 px-4 shrink-0 bg-zinc-950">
+          <button
+            onClick={handleAddTile}
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title="Aggiungi tile"
+          >
+            <IconLayoutGrid size={13} />
+            Tile
+          </button>
+          <button
+            onClick={() => createColMutation.mutate({ title: 'Nuova colonna' })}
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title="Aggiungi colonna"
+          >
+            <IconPlus size={13} />
+            Colonna
+          </button>
+        </div>
+        {/* Columns */}
+        <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
           {columns.map((col) => {
             const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
             const colTiles = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
@@ -680,11 +727,16 @@ export default function KanbanPage() {
               <div
                 key={col.id}
                 className={cn(
-                  'shrink-0 flex flex-col rounded-xl border border-zinc-800 transition-all bg-zinc-900 overflow-hidden',
+                  'shrink-0 flex flex-col rounded border border-zinc-800 transition-all bg-zinc-900 overflow-hidden',
                   dragOverCol === col.id && 'ring-2 ring-blue-500/50',
                   dragOverTileCol === col.id && 'ring-2 ring-green-500/40',
                 )}
-                style={{ width: colPxWidth }}
+                style={{
+                  width: colPxWidth,
+                  ...(col.bg_color
+                    ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), linear-gradient(${col.bg_color}33, ${col.bg_color}33)` }
+                    : {}),
+                }}
                 draggable
                 onDragStart={(e) => {
                   // Only column drag if not from a tile
@@ -712,17 +764,17 @@ export default function KanbanPage() {
               >
                 {/* Column header — single row: grip + title + count + menu */}
                 <div
-                  className="flex items-start gap-1 px-2 py-2 border-b border-zinc-800"
+                  className="h-8 flex items-center gap-1 px-2 border-b border-zinc-800"
                   style={col.bg_color
                     ? { backgroundImage: `linear-gradient(${col.bg_color}4D, ${col.bg_color}4D)` }
                     : undefined}
                 >
-                  <IconGripVertical className="h-3 w-3 text-zinc-600 cursor-grab shrink-0 mt-0.5" />
+                  <IconGripVertical className="h-3 w-3 text-zinc-600 cursor-grab shrink-0" />
 
                   {isEditing ? (
                     <input
                       autoFocus
-                      className="flex-1 min-w-0 min-h-[26px] bg-transparent text-[11px] font-semibold text-white outline-none border-b border-blue-500"
+                      className="flex-1 min-w-0 bg-transparent text-xs leading-none font-medium text-white outline-none border-b border-blue-500"
                       value={titleDraft}
                       onChange={(e) => setTitleDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -741,15 +793,31 @@ export default function KanbanPage() {
                     />
                   ) : (
                     <span
-                      className="flex-1 min-w-0 min-h-[26px] text-[11px] font-semibold leading-[13px] text-white cursor-pointer hover:text-zinc-300 break-words"
-                      style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}
+                      className="flex-1 min-w-0 text-xs leading-none font-medium text-white cursor-pointer hover:text-zinc-300 truncate"
                       onClick={() => { setEditingTitle(col.id); setTitleDraft(col.title); }}
                     >
                       {col.title}
                     </span>
                   )}
 
-                  <span className="text-[10px] text-zinc-500 tabular-nums shrink-0 mt-0.5">{colTiles.length}</span>
+                  {(col.filters.length > 0 || col.sort_by) && (
+                    <button
+                      onClick={() => {
+                        setExpandedFilterCols((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(col.id)) next.delete(col.id);
+                          else next.add(col.id);
+                          return next;
+                        });
+                      }}
+                      className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+                      title={expandedFilterCols.has(col.id) ? 'Nascondi filtri' : 'Mostra filtri'}
+                    >
+                      {expandedFilterCols.has(col.id)
+                        ? <IconChevronDown className="h-3.5 w-3.5" />
+                        : <IconChevronRight className="h-3.5 w-3.5" />}
+                    </button>
+                  )}
 
                   <button
                     onClick={(e) => {
@@ -805,8 +873,8 @@ export default function KanbanPage() {
                   </div>
                 )}
 
-                {/* Filter + sort badges */}
-                {(col.filters.length > 0 || col.sort_by) && (
+                {/* Filter + sort badges (collapsed/expanded by chevron in header) */}
+                {(col.filters.length > 0 || col.sort_by) && expandedFilterCols.has(col.id) && (
                   <div className="flex flex-wrap gap-1 px-3 py-1.5 border-b border-zinc-800/50">
                     {col.sort_by && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/30">
@@ -847,7 +915,7 @@ export default function KanbanPage() {
                 {/* Filter editor is rendered as a modal portal at the end of the component */}
 
                 {/* Tile list — grouped by day; full-width date header forces row break */}
-                <div className="flex-1 overflow-y-auto p-3 flex flex-row flex-wrap justify-start content-start gap-y-2 gap-x-3">
+                <div className="flex-1 overflow-y-auto p-3 flex flex-row flex-wrap justify-start content-start gap-y-2 gap-x-3 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
                   {(() => {
                     const dateFieldFor = (t: Tile): string | null => {
                       switch (col.sort_by) {
@@ -977,15 +1045,7 @@ export default function KanbanPage() {
             );
           })}
 
-          {/* Add column button */}
-          <button
-            onClick={() => createColMutation.mutate({ title: 'Nuova colonna' })}
-            className="shrink-0 h-20 flex items-center justify-center gap-1 rounded-xl border-2 border-dashed border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-400 transition-colors self-start mt-0 px-2"
-            style={{ width: TILE_W + 32 }}
-          >
-            <IconPlus className="h-3.5 w-3.5" />
-            <span className="text-xs font-medium">Aggiungi</span>
-          </button>
+        </div>
         </div>
 
         {/* 5 — SIDEBAR DESTRA */}
@@ -1385,8 +1445,8 @@ export default function KanbanPage() {
           <>
             <div className="fixed inset-0 z-[9998]" onClick={() => setColMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColMenu(null); }} />
             <div
-              className="fixed bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl py-1 w-56 z-[9999]"
-              style={{ top: Math.min(colMenu.y + 4, window.innerHeight - 360), left: Math.min(colMenu.x - 224, window.innerWidth - 240) }}
+              className="fixed bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl py-1 w-80 z-[9999]"
+              style={{ top: Math.min(colMenu.y + 4, window.innerHeight - 360), left: Math.min(colMenu.x - 320, window.innerWidth - 336) }}
             >
               <button
                 onClick={() => {
@@ -1394,7 +1454,7 @@ export default function KanbanPage() {
                   setFilterEditorCol(menuCol.id);
                   setAddFilterType((prev) => prev ?? 'action_type');
                 }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
               >
                 <IconFilter className={cn('h-3.5 w-3.5', menuCol.filters.length > 0 ? 'text-blue-400' : 'text-zinc-500')} />
                 Filtri
@@ -1407,7 +1467,7 @@ export default function KanbanPage() {
                   setColMenu(null);
                   setSortEditorCol(menuCol.id);
                 }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 transition-colors"
+                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
               >
                 {menuCol.sort_by ? (
                   (menuCol.sort_dir ?? 'asc') === 'desc'
@@ -1430,7 +1490,7 @@ export default function KanbanPage() {
                   if (next !== menuWidth) updateColMutation.mutate({ id: menuCol.id, updates: { width: next } });
                 }}
                 disabled={menuWidth >= 10}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
               >
                 <IconPlus className="h-3.5 w-3.5 text-zinc-500" />
                 Aumenta colonna
@@ -1442,7 +1502,7 @@ export default function KanbanPage() {
                   if (next !== menuWidth) updateColMutation.mutate({ id: menuCol.id, updates: { width: next } });
                 }}
                 disabled={menuWidth <= 1}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
               >
                 <IconMinus className="h-3.5 w-3.5 text-zinc-500" />
                 Diminuisci colonna
@@ -1455,9 +1515,6 @@ export default function KanbanPage() {
                 <ColorPickerGrid
                   selectedColor={menuCol.bg_color ?? null}
                   onSelect={(hex) => updateColMutation.mutate({ id: menuCol.id, updates: { bg_color: hex } })}
-                  size={24}
-                  cols={6}
-                  gap={4}
                   showReset
                 />
               </div>
@@ -1469,7 +1526,7 @@ export default function KanbanPage() {
                   setColMenu(null);
                   setDeleteConfirm(menuCol.id);
                 }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-red-400 hover:bg-red-950/30 transition-colors"
               >
                 <IconTrash className="h-3.5 w-3.5" />
                 Elimina colonna

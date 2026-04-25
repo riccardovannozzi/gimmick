@@ -8,6 +8,7 @@ import { useStatuses } from '@/store/statuses-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
+import { TextEditor } from './TextEditor';
 
 const TILE_W = 130;
 const TILE_H = 90;
@@ -23,12 +24,19 @@ export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
 export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
-export interface CanvasTextBox { id: string; content: string; x: number; y: number; w: number; h: number; }
+// Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
+//   type 'text'  → content = { html: string }
+//   type 'image' → content = { src: string; alt?: string }
+export type CanvasBoxTextContent = { html: string };
+export type CanvasBoxImageContent = { src: string; alt?: string };
+export type CanvasBox =
+  | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
+  | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number };
+// Backward-compat alias (kept until all consumers are migrated).
+export type CanvasTextBox = CanvasBox;
 
 const TB_MIN_W = 100;
 const TB_MIN_H = 40;
-const TB_FONT = 11;
-const TB_LINE_H = 16;
 const TB_PAD = 8;
 
 const PORTS = [
@@ -57,8 +65,12 @@ interface CanvasBoardProps {
   onTileClick: (tileId: string) => void;
   onGroupsChange: (groups: CanvasGroup[]) => void;
   onAddTextBox: (x: number, y: number, w: number, h: number) => void;
-  onUpdateTextBox: (id: string, updates: { content?: string; x?: number; y?: number; w?: number; h?: number }) => void;
+  onUpdateTextBox: (id: string, updates: { type?: 'text' | 'image'; content?: CanvasBoxTextContent | CanvasBoxImageContent; x?: number; y?: number; w?: number; h?: number }) => void;
   onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
+  /** Image mode: when true, drag on empty canvas draws a rectangle, then a file
+      picker opens; the picked image fills the rectangle. */
+  imageMode?: boolean;
+  onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
@@ -67,14 +79,19 @@ interface CanvasBoardProps {
 
 export const CanvasBoard = React.memo(function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
-  moveEnabled, linkEnabled, textMode, tileMode, onAddTileAt,
+  moveEnabled, linkEnabled, textMode, tileMode, imageMode, onAddTileAt,
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
-  onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu,
+  onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
+  // overlayInnerRef gets a CSS transform that mirrors the D3 zoom/pan, so
+  // editors stay glued to their D3-drawn box frames without React re-renders.
+  const overlayRef = useRef<HTMLDivElement>(null);
+  const overlayInnerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
   const nodesRef = useRef<CanvasNode[]>([]);
@@ -87,6 +104,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const linkRef = useRef(linkEnabled); linkRef.current = linkEnabled;
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
   const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
+  const imageModeRef = useRef(imageMode); imageModeRef.current = imageMode;
+  const onAddImageBoxRef = useRef(onAddImageBox); onAddImageBoxRef.current = onAddImageBox;
 
   // Refs for callbacks to avoid re-render of the entire SVG
   const onTileClickRef = useRef(onTileClick); onTileClickRef.current = onTileClick;
@@ -102,6 +121,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
   const onSelectionChangeRef = useRef(onSelectionChange); onSelectionChangeRef.current = onSelectionChange;
   const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
+
+  // Pending HTML save timers per text box — debounce TipTap onUpdate calls.
+  const editorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => () => {
+    editorSaveTimersRef.current.forEach((t) => clearTimeout(t));
+    editorSaveTimersRef.current.clear();
+  }, []);
 
   // Link drag state
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
@@ -215,12 +242,18 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile mode
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
         zoomTransformRef.current = ev.transform;
         board.attr('transform', ev.transform);
+        // Mirror the SVG transform on the HTML overlay so TipTap editors stay
+        // glued to their D3-drawn box frames during pan/zoom — without forcing
+        // a React re-render of the editor list.
+        if (overlayInnerRef.current) {
+          overlayInnerRef.current.style.transform = `translate(${ev.transform.x}px,${ev.transform.y}px) scale(${ev.transform.k})`;
+        }
         // Reposition floating menu only on user-driven pan/zoom — programmatic
         // transform restore (which fires every render) has no sourceEvent and
         // would otherwise loop with the parent's setSelectionBbox.
@@ -290,7 +323,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
-      if (textModeRef.current || tileModeRef.current) return;
+      if (textModeRef.current || tileModeRef.current || imageModeRef.current) return;
       if (selectedIdsRef.current.length === 0) return;
       selectedIdsRef.current = [];
       onSelectionChangeRef.current?.([], null);
@@ -614,29 +647,41 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     nodeGrps.each(function (d) {
       const g = d3.select(this);
       const hasDate = d.actionType === 'deadline' || d.actionType === 'event' || d.actionType === 'allday';
-      if (hasDate && (d.startAt || d.endAt)) {
-        let dateStr = '';
-        if (d.actionType === 'deadline' && d.endAt) {
-          dateStr = formatDate(d.endAt);
-        } else if (d.allDay && d.startAt) {
-          dateStr = formatDate(d.startAt);
-        } else if (d.startAt) {
-          dateStr = `${formatDate(d.startAt)} ${formatTime(d.startAt)}`;
-          if (d.endAt) dateStr += ` - ${formatTime(d.endAt)}`;
-        }
-        if (dateStr) {
-          g.append('text').attr('x', 6).attr('y', TILE_H - 38).attr('fill', '#D4D4D8').attr('font-size', 10).attr('font-weight', 400).text(dateStr);
-        }
+      if (!hasDate || (!d.startAt && !d.endAt)) return;
+      // Date on row 1, time on row 2 — both centered horizontally between the
+      // action (left) and type (right) badges in the bottom footer.
+      let dateLine = '';
+      let timeLine = '';
+      if (d.actionType === 'deadline' && d.endAt) {
+        dateLine = formatDate(d.endAt);
+      } else if (d.allDay && d.startAt) {
+        dateLine = formatDate(d.startAt);
+      } else if (d.startAt) {
+        dateLine = formatDate(d.startAt);
+        timeLine = formatTime(d.startAt);
+        if (d.endAt) timeLine += ` - ${formatTime(d.endAt)}`;
+      }
+      // Left-aligned just past the action badge (badge ends at x=22; pad 8px to x=30).
+      const textX = 30;
+      if (dateLine && timeLine) {
+        g.append('text').attr('x', textX).attr('y', TILE_H - 16)
+          .attr('fill', '#D4D4D8').attr('font-size', 9).attr('font-weight', 400).text(dateLine);
+        g.append('text').attr('x', textX).attr('y', TILE_H - 6)
+          .attr('fill', '#A1A1AA').attr('font-size', 8).attr('font-weight', 400).text(timeLine);
+      } else if (dateLine) {
+        // Single line — center vertically between badges.
+        g.append('text').attr('x', textX).attr('y', TILE_H - 11)
+          .attr('fill', '#D4D4D8').attr('font-size', 9).attr('font-weight', 400).text(dateLine);
       }
     });
-    // Checklist bar (LIST) — sits between date and the badges row.
+    // Checklist bar (LIST) — sits between title and the badges row.
     nodeGrps.each(function (d) {
       const items = d.subtasks || [];
       if (items.length === 0) return;
       const g = d3.select(this);
       const innerX = 6;
       const innerW = TILE_W - 12;
-      const y = TILE_H - 32;
+      const y = TILE_H - 34;
       const h = 4;
       const gap = 2;
       const n = items.length;
@@ -826,7 +871,24 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Text boxes ──
     const tbG = board.append('g').attr('class', 'textboxes');
 
+    // Move the corresponding HTML overlay div in sync with a D3 drag/resize.
+    // React only re-renders the overlay when textBoxes prop CHANGES (server
+    // round-trip), so during drag we update style directly to keep the editor
+    // glued to the D3-drawn box frame.
+    const syncOverlayBox = (tb: CanvasTextBox) => {
+      const el = overlayInnerRef.current?.querySelector(`[data-box-id="${tb.id}"]`) as HTMLElement | null;
+      if (!el) return;
+      el.style.left = `${tb.x + TB_PAD}px`;
+      el.style.top = `${tb.y + TB_PAD}px`;
+      el.style.width = `${tb.w - 2 * TB_PAD}px`;
+      el.style.height = `${tb.h - 2 * TB_PAD}px`;
+    };
+
     const drawTextBoxes = () => {
+      // Text editors live in the HTML overlay below the SVG, so this redraw
+      // only handles the SVG-side frame: background rect, selection ring,
+      // ports, and (for image boxes) the foreignObject <img>. No React mount
+      // here, so no unmount conflicts.
       tbG.selectAll('*').remove();
       textBoxes.forEach((tb) => {
         const tw = tb.w, th = tb.h;
@@ -844,71 +906,39 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .style('pointer-events', 'none')
           .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);
 
-        // Text editing via foreignObject
-        const fo = g.append('foreignObject')
-          .attr('x', TB_PAD).attr('y', TB_PAD)
-          .attr('width', tw - TB_PAD * 2).attr('height', th - TB_PAD * 2)
-          .style('pointer-events', 'none').style('cursor', 'grab');
+        // Type-specific content. Image stays in SVG via foreignObject (lightweight,
+        // no React state). Text editors are rendered in the HTML overlay (sibling
+        // of <svg>) — see the JSX at the bottom of this component. The overlay
+        // already covers the inner editor area; here we only need to leave the
+        // box's TB_PAD margin clickable for D3 drag.
+        if (tb.type === 'image') {
+          // Image inset by IMG_PAD on every side for a thin frame around the
+          // picture (the box border + a small breathing margin = a "polaroid"
+          // look). page.tsx adds 2*IMG_PAD to the box dimensions so the inner
+          // image area still matches the picture's natural aspect ratio.
+          const IMG_PAD = 2;
+          const fo = g.append('foreignObject')
+            .attr('x', IMG_PAD).attr('y', IMG_PAD)
+            .attr('width', tw - IMG_PAD * 2).attr('height', th - IMG_PAD * 2)
+            .style('pointer-events', 'none');
+          fo.append('xhtml:img')
+            .attr('src', tb.content.src)
+            .attr('alt', tb.content.alt || '')
+            .attr('style', 'display:block;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;-webkit-user-drag:none;');
+        }
 
-        const div = fo.append('xhtml:div')
-          .attr('contenteditable', 'false')
-          .attr('style', `color:#A1A1AA;font-size:${TB_FONT}px;line-height:${TB_LINE_H}px;outline:none;white-space:pre-wrap;word-break:break-word;overflow:auto;width:100%;height:100%;pointer-events:none;user-select:none;cursor:grab;`)
-          .text(tb.content || '');
-
-        const divEl = div.node() as HTMLElement;
-
-        // Click handler:
-        // - CTRL/CMD/SHIFT + click → toggle this text box in the multi-selection
-        // - Plain click → clear any active multi-selection and enter edit mode
-        g.on('click.edit', (ev: MouseEvent) => {
+        // Multi-selection toggle via CTRL/CMD/SHIFT + click on the box background
+        // rect. Plain click is handled by TipTap (text) or no-op (image).
+        g.on('click.select', (ev: MouseEvent) => {
+          if (!ev.ctrlKey && !ev.metaKey && !ev.shiftKey) return;
           ev.stopPropagation();
           const tbId = `tb:${tb.id}`;
-          if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
-            const cur = selectedIdsRef.current;
-            const has = cur.includes(tbId);
-            const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
-            selectedIdsRef.current = next;
-            onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
-            return;
-          }
-          if (selectedIdsRef.current.length > 0) {
-            selectedIdsRef.current = [];
-            onSelectionChangeRef.current?.([], null);
-          }
-          if (!divEl) return;
-          divEl.setAttribute('contenteditable', 'true');
-          divEl.style.pointerEvents = 'auto';
-          divEl.style.userSelect = 'auto';
-          divEl.style.cursor = 'text';
-          fo.style('pointer-events', 'auto').style('cursor', 'text');
-          divEl.focus();
+          const cur = selectedIdsRef.current;
+          const has = cur.includes(tbId);
+          const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
+          selectedIdsRef.current = next;
+          onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
         });
-
-        // Blur to exit edit mode
-        if (divEl) {
-          divEl.addEventListener('blur', () => {
-            divEl.setAttribute('contenteditable', 'false');
-            divEl.style.pointerEvents = 'none';
-            divEl.style.userSelect = 'none';
-            divEl.style.cursor = 'grab';
-            fo.style('pointer-events', 'none').style('cursor', 'grab');
-          });
-
-          // Save on input
-          let saveTimer: ReturnType<typeof setTimeout> | null = null;
-          divEl.addEventListener('input', () => {
-            const text = divEl.innerText || '';
-            if (saveTimer) clearTimeout(saveTimer);
-            saveTimer = setTimeout(() => onUpdateTextBoxRef.current(tb.id, { content: text }), 600);
-          });
-
-          // Stop propagation only when editing
-          divEl.addEventListener('mousedown', (e) => {
-            if (divEl.getAttribute('contenteditable') === 'true') {
-              e.stopPropagation();
-            }
-          });
-        }
 
         // 4 ports
         const tbPorts = g.append('g').attr('class', 'tb-ports').attr('opacity', 0);
@@ -1001,9 +1031,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 }
                 onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
               } else {
-                const currentContent = divEl?.innerText ?? tb.content ?? '';
-                tb.content = currentContent;
-                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, content: currentContent });
+                if (tb.type === 'text') {
+                  // Latest HTML is kept in tb.content.html by TextEditor's onChange.
+                  onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, content: { html: tb.content.html ?? '' } });
+                } else {
+                  onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y });
+                }
               }
               multi = false; mTiles = []; mTbs = [];
             });
@@ -1054,9 +1087,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             })
             .on('end', () => {
               resizeStart = null;
-              const currentContent = divEl?.innerText ?? tb.content ?? '';
-              tb.content = currentContent;
-              onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h, content: currentContent });
+              if (tb.type === 'text') {
+                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h, content: { html: tb.content.html ?? '' } });
+              } else {
+                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
+              }
             }) as any);
         });
 
@@ -1066,26 +1101,55 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('x', tw - 8).attr('y', th - 8).attr('width', 8).attr('height', 8)
           .attr('fill', 'transparent').style('cursor', 'nwse-resize');
 
-        let cornerStart: { mx: number; my: number; ow: number; oh: number } | null = null;
+        let cornerStart: { mx: number; my: number; ow: number; oh: number; aspect: number } | null = null;
         cornerHandle.call(d3.drag<SVGRectElement, unknown>()
           .on('start', (ev) => {
             ev.sourceEvent.stopPropagation();
             const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
-            cornerStart = { mx, my, ow: tb.w, oh: tb.h };
+            let aspect = tb.w / tb.h;
+            if (tb.type === 'image') {
+              // Read the picture's natural aspect ratio from the rendered <img>.
+              // This way a box that was previously stretched via edge handles
+              // snaps back to the picture's true proportions on corner drag.
+              const imgEl = (g.node() as SVGGElement | null)?.querySelector('img') as HTMLImageElement | null;
+              if (imgEl && imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) {
+                aspect = imgEl.naturalWidth / imgEl.naturalHeight;
+              }
+              // Snap the box to the natural aspect immediately, anchoring on
+              // current width so the visible size doesn't jump dramatically.
+              tb.h = Math.max(TB_MIN_H, tb.w / aspect);
+              drawTextBoxes();
+              drawEdges();
+            }
+            cornerStart = { mx, my, ow: tb.w, oh: tb.h, aspect };
           })
           .on('drag', (ev) => {
             if (!cornerStart) return;
             const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
-            tb.w = Math.max(TB_MIN_W, cornerStart.ow + (mx - cornerStart.mx));
-            tb.h = Math.max(TB_MIN_H, cornerStart.oh + (my - cornerStart.my));
+            const dx = mx - cornerStart.mx;
+            const dy = my - cornerStart.my;
+            if (tb.type === 'image') {
+              // Uniform scale preserves the (now-snapped) natural aspect ratio.
+              const scale = Math.max(
+                (cornerStart.ow + dx) / cornerStart.ow,
+                (cornerStart.oh + dy) / cornerStart.oh,
+              );
+              tb.w = Math.max(TB_MIN_W, cornerStart.ow * scale);
+              tb.h = Math.max(TB_MIN_H, cornerStart.oh * scale);
+            } else {
+              tb.w = Math.max(TB_MIN_W, cornerStart.ow + dx);
+              tb.h = Math.max(TB_MIN_H, cornerStart.oh + dy);
+            }
             drawTextBoxes();
             drawEdges();
           })
           .on('end', () => {
             cornerStart = null;
-            const currentContent = divEl?.innerText ?? tb.content ?? '';
-            tb.content = currentContent;
-            onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h, content: currentContent });
+            if (tb.type === 'text') {
+              onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h, content: { html: tb.content.html ?? '' } });
+            } else {
+              onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h });
+            }
           }) as any);
 
         // Context menu
@@ -1097,17 +1161,23 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
     drawTextBoxes();
 
-    // Drag on background to draw text box in text mode
+    // Drag on background to draw a new box in text/image mode. The same dashed
+    // outline is reused for both modes; the mode active at mouseup decides
+    // whether to insert a text box or open a file picker for an image box.
     const tbDrawRect = board.append('rect')
       .attr('fill', 'rgba(12,12,14,0.8)').attr('stroke', '#3F3F46').attr('stroke-width', 0.5)
       .attr('stroke-dasharray', '4,3').attr('rx', 6).attr('opacity', 0);
     let tbStart: [number, number] | null = null;
+    let tbStartMode: 'text' | 'image' | null = null;
 
     d3svg.on('mousedown.tb', (e: MouseEvent) => {
-      if (!textModeRef.current || e.button !== 0 || e.target !== svg) return;
+      const isTxt = textModeRef.current;
+      const isImg = imageModeRef.current;
+      if ((!isTxt && !isImg) || e.button !== 0 || e.target !== svg) return;
       e.preventDefault();
       const [mx, my] = d3.pointer(e, boardNode);
       tbStart = [mx, my];
+      tbStartMode = isTxt ? 'text' : 'image';
       tbDrawRect.attr('x', mx).attr('y', my).attr('width', 0).attr('height', 0).attr('opacity', 1);
     });
     d3svg.on('mousemove.tb', (e: MouseEvent) => {
@@ -1124,10 +1194,24 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const y = Math.min(tbStart[1], my);
       const w = Math.abs(mx - tbStart[0]);
       const h = Math.abs(my - tbStart[1]);
+      const mode = tbStartMode;
       tbStart = null;
+      tbStartMode = null;
       tbDrawRect.attr('opacity', 0);
       if (w < 30 || h < 20) return;
-      onAddTextBoxRef.current(x, y, w, h);
+      if (mode === 'text') {
+        onAddTextBoxRef.current(x, y, w, h);
+      } else if (mode === 'image') {
+        // Open file picker; on selection the parent uploads + inserts at (x,y,w,h).
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = () => {
+          const file = input.files?.[0];
+          if (file && onAddImageBoxRef.current) onAddImageBoxRef.current(file, x, y, w, h);
+        };
+        input.click();
+      }
     });
 
     // Click on background to place a new tile
@@ -1194,5 +1278,45 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     d3.select(svg).transition().duration(300).call(z.transform as any, newT);
   }, [zoom100Trigger]);
 
-  return <svg ref={svgRef} className="w-full h-full bg-zinc-950" />;
+  return (
+    <div className="relative w-full h-full bg-zinc-950">
+      <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
+      {/* HTML overlay: hosts TipTap editors as positioned divs OUTSIDE the SVG.
+          A single inner wrapper takes the SVG's pan/zoom transform, so editors
+          stay aligned with their D3-drawn box frames. Editors live in the React
+          tree (no D3 mount/unmount), so TipTap state survives box redraws. */}
+      <div ref={overlayRef} className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div ref={overlayInnerRef} style={{ transformOrigin: '0 0', position: 'absolute', inset: 0 }}>
+          {textBoxes.filter((b) => b.type === 'text').map((tb) => (
+            <div
+              key={tb.id}
+              data-box-id={tb.id}
+              className="absolute pointer-events-auto"
+              style={{
+                left: tb.x + TB_PAD,
+                top: tb.y + TB_PAD,
+                width: tb.w - 2 * TB_PAD,
+                height: tb.h - 2 * TB_PAD,
+              }}
+            >
+              <TextEditor
+                initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
+                onChange={(html) => {
+                  // Keep local box in sync so D3 drag-end save uses the latest HTML.
+                  if (tb.type === 'text') tb.content = { html };
+                  const prev = editorSaveTimersRef.current.get(tb.id);
+                  if (prev) clearTimeout(prev);
+                  const t = setTimeout(() => {
+                    onUpdateTextBoxRef.current(tb.id, { content: { html } });
+                    editorSaveTimersRef.current.delete(tb.id);
+                  }, 600);
+                  editorSaveTimersRef.current.set(tb.id, t);
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 });

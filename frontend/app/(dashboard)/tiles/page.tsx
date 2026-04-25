@@ -851,7 +851,7 @@ function ResizableHead({
 const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DUE', event: 'TIMED', allday: 'ALL DAY' };
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>>;
 
-function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | null }) {
+function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | undefined }) {
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const { statuses } = useStatuses();

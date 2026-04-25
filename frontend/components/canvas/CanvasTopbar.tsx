@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IconMaximize, IconNote, IconPlus, IconPinnedOff } from '@tabler/icons-react';
+import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
@@ -49,8 +49,10 @@ interface CanvasTopbarProps {
   tag: Tag | null;
   textMode: boolean;
   tileMode: boolean;
+  imageMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
+  onToggleImageMode: () => void;
   onFit: () => void;
   onZoom100: () => void;
   pinnedTags?: Tag[];
@@ -60,7 +62,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, onToggleTextMode, onToggleTileMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   // Drag-drop state for the pinned tag chips (HTML5 native dnd).
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -180,8 +182,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, onToggleTextMode, onTogg
       </div>
 
       <div className="flex items-center gap-1">
-        <ToolbarToggle icon={<IconPlus size={13} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ToolbarToggle icon={<IconLayoutGrid size={13} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
         <ToolbarToggle icon={<IconNote size={13} />} label="Testo" active={textMode} onClick={onToggleTextMode} />
+        <ToolbarToggle icon={<IconPhoto size={13} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
         <div className="w-px h-5 bg-zinc-700 mx-1" />
         <ToolbarButton icon={<IconMaximize size={13} />} label="Fit" onClick={onFit} />
         <ToolbarButton icon={null} label="100%" onClick={onZoom100} />

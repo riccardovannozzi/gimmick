@@ -18,7 +18,18 @@ const upload = multer({
   },
 });
 
-const BUCKET_NAME = 'sparks';
+// Allowed Supabase Storage buckets. The default ('sparks') is used by the
+// mobile/spark capture flow; 'canvas-assets' hosts canvas image boxes.
+const ALLOWED_BUCKETS = ['sparks', 'canvas-assets'] as const;
+type AllowedBucket = typeof ALLOWED_BUCKETS[number];
+const DEFAULT_BUCKET: AllowedBucket = 'sparks';
+
+function resolveBucket(input: unknown): AllowedBucket {
+  if (typeof input === 'string' && (ALLOWED_BUCKETS as readonly string[]).includes(input)) {
+    return input as AllowedBucket;
+  }
+  return DEFAULT_BUCKET;
+}
 
 /**
  * Generate unique filename
@@ -41,6 +52,7 @@ uploadRouter.post(
     try {
       const file = req.file;
       const folder = (req.body.folder as string) || 'files';
+      const bucket = resolveBucket(req.body.bucket);
 
       if (!file) {
         throw new BadRequestError('No file provided');
@@ -50,7 +62,7 @@ uploadRouter.post(
       const storagePath = `${req.user!.id}/${folder}/${fileName}`;
 
       const { data, error } = await supabaseAdmin.storage
-        .from(BUCKET_NAME)
+        .from(bucket)
         .upload(storagePath, file.buffer, {
           contentType: file.mimetype,
           upsert: false,
@@ -62,12 +74,13 @@ uploadRouter.post(
 
       // Get public URL
       const { data: urlData } = supabaseAdmin.storage
-        .from(BUCKET_NAME)
+        .from(bucket)
         .getPublicUrl(data.path);
 
       res.status(201).json({
         success: true,
         data: {
+          bucket,
           path: data.path,
           url: urlData.publicUrl,
           file_name: file.originalname,
@@ -92,6 +105,7 @@ uploadRouter.post(
     try {
       const files = req.files as Express.Multer.File[];
       const folder = (req.body.folder as string) || 'files';
+      const bucket = resolveBucket(req.body.bucket);
 
       if (!files || files.length === 0) {
         throw new BadRequestError('No files provided');
@@ -103,7 +117,7 @@ uploadRouter.post(
           const storagePath = `${req.user!.id}/${folder}/${fileName}`;
 
           const { data, error } = await supabaseAdmin.storage
-            .from(BUCKET_NAME)
+            .from(bucket)
             .upload(storagePath, file.buffer, {
               contentType: file.mimetype,
               upsert: false,
@@ -118,11 +132,12 @@ uploadRouter.post(
           }
 
           const { data: urlData } = supabaseAdmin.storage
-            .from(BUCKET_NAME)
+            .from(bucket)
             .getPublicUrl(data.path);
 
           return {
             success: true,
+            bucket,
             path: data.path,
             url: urlData.publicUrl,
             file_name: file.originalname,
@@ -160,6 +175,7 @@ uploadRouter.post(
 uploadRouter.delete('/file', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { path } = req.body;
+    const bucket = resolveBucket(req.body.bucket);
 
     if (!path) {
       throw new BadRequestError('File path is required');
@@ -171,7 +187,7 @@ uploadRouter.delete('/file', async (req: AuthenticatedRequest, res: Response, ne
     }
 
     const { error } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
+      .from(bucket)
       .remove([path]);
 
     if (error) {
@@ -194,6 +210,7 @@ uploadRouter.delete('/file', async (req: AuthenticatedRequest, res: Response, ne
 uploadRouter.get('/signed-url', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const path = req.query.path as string;
+    const bucket = resolveBucket(req.query.bucket);
 
     if (!path) {
       throw new BadRequestError('File path is required');
@@ -205,7 +222,7 @@ uploadRouter.get('/signed-url', async (req: AuthenticatedRequest, res: Response,
     }
 
     const { data, error } = await supabaseAdmin.storage
-      .from(BUCKET_NAME)
+      .from(bucket)
       .createSignedUrl(path, 3600); // 1 hour
 
     if (error) {
