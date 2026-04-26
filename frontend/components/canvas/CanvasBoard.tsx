@@ -381,7 +381,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dropTarget.current = null;
       }
       // Reset all highlights
-      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
+      nodeGrps.each(function (d) {
+        const isDeadline = (d as CanvasNode).actionType === 'deadline';
+        d3.select(this).select('.tile-bg')
+          .attr('stroke', isDeadline ? '#ef4444' : 'rgba(255,255,255,0.08)')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', isDeadline ? '4,3' : null);
+      });
       groupsBg.selectAll('rect').attr('stroke', 'none');
       // Highlight target
       if (dropTarget.current) {
@@ -399,7 +405,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
     const endLink = () => {
       tempLine.attr('opacity', 0);
-      nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
+      nodeGrps.each(function (d) {
+        const isDeadline = (d as CanvasNode).actionType === 'deadline';
+        d3.select(this).select('.tile-bg')
+          .attr('stroke', isDeadline ? '#ef4444' : 'rgba(255,255,255,0.08)')
+          .attr('stroke-width', 1)
+          .attr('stroke-dasharray', isDeadline ? '4,3' : null);
+      });
       groupsBg.selectAll('rect').attr('stroke', 'none');
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
@@ -557,8 +569,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
       .attr('fill', (d) => d.typeColor ? d.typeColor + '80' : '#1C1C1E')
-      .attr('stroke', 'rgba(255,255,255,0.08)')
+      .attr('stroke', (d) => d.actionType === 'deadline' ? '#ef4444' : 'rgba(255,255,255,0.08)')
       .attr('stroke-width', 1)
+      .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
     // Status shape overlay (uses SVG <pattern> elements under the hood)
     let patIdx = 0;

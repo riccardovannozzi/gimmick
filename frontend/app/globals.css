@@ -179,8 +179,16 @@
 .fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 11px; line-height: 1.2; cursor: grab; height: 32px; min-height: 32px; padding: 2px 4px; display: flex; align-items: center; overflow: hidden; }
   .fc-dark .fc-daygrid-event .fc-event-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; padding-right: 24px; }
 .fc-dark .fc-daygrid-day-events { min-height: 32px; }
+.fc-dark .fc-daygrid-day,
+.fc-dark .fc-daygrid-day-frame,
+.fc-dark .fc-daygrid-day-events { background: rgba(0,0,0,0.35) !important; }
+.fc-dark .fc-timegrid-col-frame { background: rgba(0,0,0,0.35); }
+/* Darken the all-day axis cell (left column at the all-day row level) so it
+   matches the surrounding all-day day cells. The body axis (with hour labels)
+   is excluded via :has() so it stays at the lighter parent bg. */
+.fc-dark .fc-timegrid-axis { background: rgba(0,0,0,0.35); }
+.fc-dark .fc-timegrid-axis:has(.fc-timegrid-slots) { background: transparent; }
 .fc-dark .fc-event-completed { opacity: 0.5; }
-.fc-dark .fc-event-deadline .fc-event-main::before { content: '⏰ '; }
 .fc-dark .fc-daygrid-day-number { color: #a1a1aa; font-size: 12px; text-decoration: none; }
 .fc-dark .fc-day-today .fc-daygrid-day-number { color: #3b82f6; font-weight: 600; }
 .fc-dark .fc-timegrid-now-indicator-line { border-color: #3b82f6; }

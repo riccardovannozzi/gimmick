@@ -44,7 +44,7 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
 const ACTION_ICON: Record<string, typeof IconBolt | null> = {
   none:     null,
   anytime:  IconArrowUp,
-  deadline: IconBolt,
+  deadline: null,         // DUE — bordo rosso tratteggiato sostituisce il badge
   event:    IconClock,     // TIMED
   allday:   IconCalendar,
 };
@@ -942,7 +942,8 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border',
+                          t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
@@ -992,7 +993,8 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
+                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
@@ -1116,7 +1118,8 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border',
+                          t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
@@ -1166,7 +1169,8 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
+                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                      t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
@@ -1391,8 +1395,13 @@ export default function CalendarPage() {
                 const tileSi = getIconForTile(tile.id);
                 const tileBg = tileSi?.color ? `${tileSi.color}80` : '#1C1C1E';
                 info.el.style.backgroundColor = tileBg;
-                info.el.style.border = '1px solid rgba(255,255,255,0.08)';
-                info.el.style.borderLeft = '1px solid rgba(255,255,255,0.08)';
+                if (tile.action_type === 'deadline') {
+                  info.el.style.border = '1px dashed #ef4444';
+                  info.el.style.borderLeft = '1px dashed #ef4444';
+                } else {
+                  info.el.style.border = '1px solid rgba(255,255,255,0.08)';
+                  info.el.style.borderLeft = '1px solid rgba(255,255,255,0.08)';
+                }
               }
               // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
               // We attach to the `.fc-event-main` child instead of `info.el` because
@@ -1409,10 +1418,22 @@ export default function CalendarPage() {
                     const { renderToString: rts } = require('react-dom/server');
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const ReactM = require('react');
-                    const svgInner = rts(ReactM.createElement(InlineStatus, { shape, color: shapeColor }));
+                    let svgInner: string = rts(ReactM.createElement(InlineStatus, { shape, color: shapeColor }));
+                    // For pattern-based shapes, expand the inner rect to fill the
+                    // entire event (instead of fixed 120×80 / 130×90 from the
+                    // 130×90 design viewBox). The SVG below uses no scaling
+                    // (viewBox sized to the event in pixels), so the pattern unit
+                    // (10×10 / 16×20 px) keeps its exact pixel dimensions
+                    // regardless of the tile size.
+                    svgInner = svgInner
+                      .replace(/x="5" y="5" width="120" height="80"/g, 'x="0" y="0" width="100%" height="100%"')
+                      .replace(/width="130" height="90"/g, 'width="100%" height="100%"');
                     const overlay = document.createElement('div');
                     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;';
-                    overlay.innerHTML = `<svg style="display:block;width:100%;height:100%" viewBox="0 0 130 90" preserveAspectRatio="none">${svgInner}</svg>`;
+                    const evRect = info.el.getBoundingClientRect();
+                    const w = Math.max(1, Math.round(evRect.width));
+                    const h = Math.max(1, Math.round(evRect.height));
+                    overlay.innerHTML = `<svg style="display:block;width:100%;height:100%" viewBox="0 0 ${w} ${h}">${svgInner}</svg>`;
                     if (getComputedStyle(main).position === 'static') {
                       main.style.position = 'relative';
                     }

@@ -1035,7 +1035,8 @@ export default function KanbanPage() {
                         onDragEnd={onTileDragEnd}
                         onClick={() => { setSelectedTileId(t.id); setSidebarOpen(true); }}
                         className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+                          actionKey === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                         )}
                         style={{ backgroundColor: tileBg, width: TILE_W, height: TILE_H }}
