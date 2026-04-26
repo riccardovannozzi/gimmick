@@ -1385,14 +1385,14 @@ export default function CalendarPage() {
                 const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
                 if (tile) setCtxMenu({ x: e.clientX, y: e.clientY, tile });
               });
-              // Apply tag color to border
+              // Match generic tile style: bg = type color (80% alpha) or dark, border = subtle white
               const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
               if (tile) {
-                const color = getTagColor(tile);
-                info.el.style.borderLeft = `3px solid ${color}`;
-                info.el.style.backgroundColor = 'rgba(24, 24, 27, 0.9)';
-                info.el.style.borderColor = `${color}60`;
-                info.el.style.borderLeftColor = color;
+                const tileSi = getIconForTile(tile.id);
+                const tileBg = tileSi?.color ? `${tileSi.color}80` : '#1C1C1E';
+                info.el.style.backgroundColor = tileBg;
+                info.el.style.border = '1px solid rgba(255,255,255,0.08)';
+                info.el.style.borderLeft = '1px solid rgba(255,255,255,0.08)';
               }
               // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
               // We attach to the `.fc-event-main` child instead of `info.el` because
@@ -1440,9 +1440,11 @@ export default function CalendarPage() {
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const { renderToString } = require('react-dom/server');
                     const React = require('react');
-                    const svg = renderToString(React.createElement(IconComp, { size: 12, color: si.color || '#D4D4D8' }));
+                    const bg = si.color || '#27272A';
+                    const iconColor = readableOn(bg);
+                    const svg = renderToString(React.createElement(IconComp, { size: 10, color: iconColor }));
                     const badge = document.createElement('div');
-                    badge.style.cssText = 'position:absolute;top:4px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;';
+                    badge.style.cssText = `position:absolute;top:4px;right:4px;width:16px;height:16px;background-color:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;`;
                     badge.innerHTML = svg;
                     if (getComputedStyle(main).position === 'static') {
                       main.style.position = 'relative';
