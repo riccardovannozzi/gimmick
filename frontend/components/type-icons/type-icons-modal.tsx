@@ -14,7 +14,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { useTypeIcons, type TypeIcon } from '@/store/type-icons-store';
-import { GIMMICK_PALETTE, readableOn } from '@/lib/palette';
+import { readableOn } from '@/lib/palette';
+import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 
 type IconComp = React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>;
 const Icons = TablerIcons as unknown as Record<string, IconComp>;
@@ -187,22 +188,11 @@ export function TypeIconsModal({ open, onOpenChange }: TypeIconsModalProps) {
             {/* Color picker */}
             <div>
               <label className="text-xs text-zinc-400 mb-1 block">Colore sfondo</label>
-              <div className="flex flex-wrap gap-1.5">
-                <button
-                  onClick={() => setColor('')}
-                  className={`w-6 h-6 rounded border ${!color ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700'} bg-zinc-800`}
-                  title="Nessuno"
-                />
-                {GIMMICK_PALETTE.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setColor(c.hex)}
-                    className={`w-6 h-6 rounded border ${color === c.hex ? 'border-blue-500 ring-1 ring-blue-500' : 'border-zinc-700'}`}
-                    style={{ backgroundColor: c.hex }}
-                    title={c.name}
-                  />
-                ))}
-              </div>
+              <ColorPickerGrid
+                selectedColor={color || null}
+                onSelect={(hex) => setColor(hex || '')}
+                showReset
+              />
             </div>
 
             {/* Actions */}
