@@ -382,7 +382,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       }
       // Reset all highlights
       nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
-      groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
+      groupsBg.selectAll('rect').attr('stroke', 'none');
       // Highlight target
       if (dropTarget.current) {
         if (dropTarget.current.groupId) {
@@ -400,7 +400,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const endLink = () => {
       tempLine.attr('opacity', 0);
       nodeGrps.each(function () { d3.select(this).select('.tile-bg').attr('stroke', 'rgba(255,255,255,0.08)').attr('stroke-width', 1); });
-      groupsBg.selectAll('rect').attr('stroke', '#3B82F650').attr('stroke-width', 1);
+      groupsBg.selectAll('rect').attr('stroke', 'none');
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
       const sp = linkSrc.current.port;
@@ -420,7 +420,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (!b) return;
         const gw = groupsBg.append('g');
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', 8)
-          .attr('fill', 'rgba(59,130,246,0.04)').attr('stroke', '#3B82F650').attr('stroke-width', 1).attr('stroke-dasharray', '6,4')
+          .attr('fill', '#1f1f22').attr('stroke', 'none')
           .style('cursor', moveRef.current ? 'grab' : 'default')
           .call((() => {
             let prev: [number, number] | null = null;

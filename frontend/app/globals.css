@@ -171,12 +171,13 @@
 .fc-dark .fc-col-header-cell-cushion { color: #71717a; font-size: 11px; font-weight: 600; text-transform: uppercase; text-decoration: none; }
 .fc-dark .fc-day-today .fc-col-header-cell-cushion { color: #3b82f6; }
 .fc-dark .fc-timegrid-slot-label-cushion { color: #52525b; font-size: 10px; }
-.fc-dark .fc-timegrid-slot { height: 48px; }
-.fc-dark .fc-timegrid-event { border-radius: 4px; font-size: 11px; cursor: grab; }
-.fc-dark .fc-timegrid-event .fc-event-main { padding: 2px 4px; }
-.fc-dark .fc-timegrid-event .fc-event-title { font-weight: 500; }
-.fc-dark .fc-timegrid-event .fc-event-time { font-size: 9px; color: #71717a; }
-.fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 11px; cursor: grab; min-height: 24px; padding: 2px 4px; }
+.fc-dark .fc-timegrid-slot { height: 32px; }
+.fc-dark .fc-timegrid-event { border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: grab; }
+.fc-dark .fc-timegrid-event .fc-event-main { padding: 2px 4px; position: relative; }
+.fc-dark .fc-timegrid-event .fc-event-title { font-weight: 500; padding-right: 24px; word-break: break-word; }
+.fc-dark .fc-timegrid-event .fc-event-time { display: none; }
+.fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 11px; line-height: 1.2; cursor: grab; height: 32px; min-height: 32px; padding: 2px 4px; display: flex; align-items: center; overflow: hidden; }
+  .fc-dark .fc-daygrid-event .fc-event-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; padding-right: 24px; }
 .fc-dark .fc-daygrid-day-events { min-height: 32px; }
 .fc-dark .fc-event-completed { opacity: 0.5; }
 .fc-dark .fc-event-deadline .fc-event-main::before { content: '⏰ '; }

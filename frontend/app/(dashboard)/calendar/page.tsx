@@ -9,7 +9,7 @@ import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconSparkles, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -249,10 +249,6 @@ export default function CalendarPage() {
 
   // Filters
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiFilterActive, setAiFilterActive] = useState(false);
-  const [aiFilterIds, setAiFilterIds] = useState<Set<string> | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
 
   // Modal
   const [modal, setModal] = useState<EventModalState>(emptyModal);
@@ -611,13 +607,7 @@ export default function CalendarPage() {
   }, [ctxMenu]);
 
   // Categorize calendar events into lanes
-  const filteredEvents = useMemo(() => {
-    let filtered = events;
-    if (aiFilterIds) {
-      filtered = events.filter((e: Tile) => aiFilterIds.has(e.id));
-    }
-    return filtered;
-  }, [events, aiFilterIds]);
+  const filteredEvents = useMemo(() => events, [events]);
 
   // FullCalendar ref + events
   const fcRef = useRef<FullCalendar>(null);
@@ -839,41 +829,38 @@ export default function CalendarPage() {
     }
   }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient, assignIcon]);
 
-  // AI filter
-  const handleAiFilter = useCallback(async () => {
-    if (!aiQuery.trim()) {
-      setAiFilterIds(null);
-      setAiFilterActive(false);
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const result = await calendarApi.aiFilter(aiQuery, dateRange.start, dateRange.end);
-      if (result.success && result.data) {
-        setAiFilterIds(new Set((result.data as Tile[]).map((t) => t.id)));
-        setAiFilterActive(true);
-      }
-    } finally {
-      setAiLoading(false);
-    }
-  }, [aiQuery, dateRange]);
-
-  const clearAiFilter = useCallback(() => {
-    setAiQuery('');
-    setAiFilterIds(null);
-    setAiFilterActive(false);
-  }, []);
-
   return (
     <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
       <Header title="Chrono" />
 
       <div className="flex flex-1 overflow-hidden">
 
+        {/* Board area — toolbar + 3 kanban-style columns (NOTES, TODO, CALENDAR) */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Top Toolbar */}
+          <div className="h-12 flex items-center gap-1 px-4 border-b border-zinc-800 bg-zinc-950 shrink-0">
+            <button
+              onClick={() => setModal({
+                ...emptyModal,
+                open: true,
+                mode: 'create',
+                startAt: new Date().toISOString(),
+                endAt: new Date(Date.now() + 3600000).toISOString(),
+              })}
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+              title="Aggiungi tile"
+            >
+              <IconLayoutGrid size={13} />
+              Tile
+            </button>
+          </div>
+          {/* Columns container */}
+          <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
+
         {/* 2 — COLONNA NOTES */}
         <div
           data-kanban-column="notes"
-          className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50')}
+          className={cn('shrink-0 w-[162px] flex flex-col rounded bg-[#1f1f22] overflow-hidden', dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50')}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
           onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
@@ -883,10 +870,9 @@ export default function CalendarPage() {
             setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'notes' });
           }}
         >
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+          <div className="h-8 flex items-center gap-1.5 px-2 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
             <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
-            <span className="text-[10px] text-zinc-500">{processedNotes.length}</span>
             <div className="flex items-center gap-0.5 ml-auto">
               {/* Sort */}
               <div className="relative">
@@ -938,7 +924,7 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+          <div className="flex-1 overflow-y-auto p-1.5 flex flex-col items-center gap-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
             {groupedNotes ? (
               Object.entries(groupedNotes).map(([group, tiles]) => (
                 <div key={group}>
@@ -956,7 +942,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                         )}
@@ -1006,7 +992,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
+                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
                     )}
@@ -1048,7 +1034,7 @@ export default function CalendarPage() {
         {/* 3 — COLONNA TODO */}
         <div
           data-kanban-column="todo"
-          className={cn('shrink-0 w-44 border-r border-zinc-800 flex flex-col', dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50')}
+          className={cn('shrink-0 w-[162px] flex flex-col rounded bg-[#1f1f22] overflow-hidden', dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50')}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
           onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
@@ -1058,10 +1044,9 @@ export default function CalendarPage() {
             setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'todo' });
           }}
         >
-          <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-zinc-800 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+          <div className="h-8 flex items-center gap-1.5 px-2 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
             <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
-            <span className="text-[10px] text-zinc-500">{processedTodos.filter((t) => !t.is_completed).length}</span>
             <div className="flex items-center gap-0.5 ml-auto">
               {/* Sort */}
               <div className="relative">
@@ -1113,7 +1098,7 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-1.5 space-y-1">
+          <div className="flex-1 overflow-y-auto p-1.5 flex flex-col items-center gap-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
             {groupedTodos ? (
               Object.entries(groupedTodos).map(([group, tiles]) => (
                 <div key={group}>
@@ -1131,7 +1116,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                         onDragEnd={onDragEnd}
                         className={cn(
-                          'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
+                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
                           t.is_completed && 'opacity-50',
                         )}
@@ -1181,7 +1166,7 @@ export default function CalendarPage() {
                     onDragStart={(e) => onDragStart(e, t)}
                     onDragEnd={onDragEnd}
                     className={cn(
-                      'rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
+                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
                       t.is_completed && 'opacity-50',
                     )}
@@ -1220,63 +1205,25 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* 4 — PANNELLO CALENDAR */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        {/* 4 — COLONNA CALENDAR (kanban-style, flex-1) */}
+        <div className="flex-1 min-w-0 flex flex-col rounded bg-[#1f1f22] overflow-hidden">
 
-      {/* Toolbar — week nav + AI filter + buttons */}
-      <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800 bg-zinc-900 shrink-0">
-        <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
-          <IconChevronLeft size={16} />
-        </button>
-        <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
-          <IconChevronRight size={16} />
-        </button>
-        <button onClick={() => setWeekOffset(0)} className="px-2 py-0.5 rounded text-xs text-zinc-400 hover:bg-zinc-800 border border-zinc-700">
-          Oggi
-        </button>
-        <span className="text-sm text-zinc-300 font-medium capitalize">{formatWeekRange(days)}</span>
-
-        <div className="flex-1" />
-
-        {/* AI filter */}
-        <div className="relative">
-          <input
-            type="text"
-            value={aiQuery}
-            onChange={(e) => setAiQuery(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleAiFilter()}
-            placeholder="Filtra con AI..."
-            className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 w-40 pr-8"
-          />
-          {aiFilterActive ? (
-            <button onClick={clearAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-              <IconX className="h-3.5 w-3.5 text-zinc-400" />
-            </button>
-          ) : (
-            <button onClick={handleAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-              {aiLoading ? (
-                <IconLoader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
-              ) : (
-                <IconSparkles className="h-3.5 w-3.5 text-zinc-400" />
-              )}
-            </button>
-          )}
+      {/* Column header — title + week nav */}
+      <div className="h-8 flex items-center gap-1.5 px-2 relative z-20">
+        <IconCalendar className="h-3.5 w-3.5 shrink-0 text-zinc-300" />
+        <span className="text-[10px] font-bold tracking-widest text-zinc-300">CALENDARIO</span>
+        <span className="text-[10px] text-zinc-500 capitalize">{formatWeekRange(days)}</span>
+        <div className="flex items-center gap-0.5 ml-auto">
+          <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+            <IconChevronLeft size={14} />
+          </button>
+          <button onClick={() => setWeekOffset(0)} className="px-1.5 h-6 rounded text-[10px] text-zinc-400 hover:bg-zinc-800">
+            Oggi
+          </button>
+          <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+            <IconChevronRight size={14} />
+          </button>
         </div>
-
-        <Button
-          size="sm"
-          onClick={() => setModal({
-            ...emptyModal,
-            open: true,
-            mode: 'create',
-            startAt: new Date().toISOString(),
-            endAt: new Date(Date.now() + 3600000).toISOString(),
-          })}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
-        >
-          <IconPlus className="h-3.5 w-3.5 mr-1.5" />
-          Nuovo
-        </Button>
       </div>
 
       {/* FullCalendar grid */}
@@ -1493,9 +1440,9 @@ export default function CalendarPage() {
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const { renderToString } = require('react-dom/server');
                     const React = require('react');
-                    const svg = renderToString(React.createElement(IconComp, { size: 12, color: '#D4D4D8' }));
+                    const svg = renderToString(React.createElement(IconComp, { size: 12, color: si.color || '#D4D4D8' }));
                     const badge = document.createElement('div');
-                    badge.style.cssText = 'position:absolute;top:2px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0.85;z-index:2;';
+                    badge.style.cssText = 'position:absolute;top:4px;right:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;';
                     badge.innerHTML = svg;
                     if (getComputedStyle(main).position === 'static') {
                       main.style.position = 'relative';
@@ -1884,7 +1831,10 @@ export default function CalendarPage() {
         );
       })()}
 
-      </div>{/* end PANNELLO CALENDAR */}
+      </div>{/* end CALENDAR column */}
+
+          </div>{/* end columns container */}
+        </div>{/* end board area */}
 
       {/* 5 — SIDEBAR DESTRA */}
       <TileSidebar

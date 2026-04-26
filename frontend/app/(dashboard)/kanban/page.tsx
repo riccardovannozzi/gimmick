@@ -626,6 +626,24 @@ export default function KanbanPage() {
   // ─── Expanded filter rows per column ───
   const [expandedFilterCols, setExpandedFilterCols] = useState<Set<string>>(new Set());
 
+  // ─── Auto-scroll each column to "today" once tiles load ───
+  const didAutoScrollRef = useRef(false);
+  useEffect(() => {
+    if (didAutoScrollRef.current) return;
+    if (tiles.length === 0) return;
+    didAutoScrollRef.current = true;
+    // Wait one frame so the DOM has the rendered date rows.
+    requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLElement>('[data-col-list]').forEach((c) => {
+        const today = c.querySelector<HTMLElement>('[data-today-row="true"]');
+        if (!today) return;
+        const cRect = c.getBoundingClientRect();
+        const tRect = today.getBoundingClientRect();
+        c.scrollTop += tRect.top - cRect.top - 12;
+      });
+    });
+  }, [tiles]);
+
   // ─── Column menu (three-dots) ───
   const [colMenu, setColMenu] = useState<{ x: number; y: number; colId: string } | null>(null);
   useEffect(() => {
@@ -710,6 +728,22 @@ export default function KanbanPage() {
             <IconPlus size={13} />
             Colonna
           </button>
+          <button
+            onClick={() => {
+              document.querySelectorAll<HTMLElement>('[data-col-list]').forEach((c) => {
+                const today = c.querySelector<HTMLElement>('[data-today-row="true"]');
+                if (!today) return;
+                const cRect = c.getBoundingClientRect();
+                const tRect = today.getBoundingClientRect();
+                c.scrollTo({ top: c.scrollTop + (tRect.top - cRect.top) - 12, behavior: 'smooth' });
+              });
+            }}
+            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            title="Scorri tutte le colonne fino a oggi"
+          >
+            <IconCalendarEvent size={13} />
+            Oggi
+          </button>
         </div>
         {/* Columns */}
         <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
@@ -727,16 +761,11 @@ export default function KanbanPage() {
               <div
                 key={col.id}
                 className={cn(
-                  'shrink-0 flex flex-col rounded border border-zinc-800 transition-all bg-zinc-900 overflow-hidden',
+                  'shrink-0 flex flex-col rounded transition-all bg-[#1f1f22] overflow-hidden',
                   dragOverCol === col.id && 'ring-2 ring-blue-500/50',
                   dragOverTileCol === col.id && 'ring-2 ring-green-500/40',
                 )}
-                style={{
-                  width: colPxWidth,
-                  ...(col.bg_color
-                    ? { backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), linear-gradient(${col.bg_color}33, ${col.bg_color}33)` }
-                    : {}),
-                }}
+                style={{ width: colPxWidth }}
                 draggable
                 onDragStart={(e) => {
                   // Only column drag if not from a tile
@@ -764,7 +793,7 @@ export default function KanbanPage() {
               >
                 {/* Column header — single row: grip + title + count + menu */}
                 <div
-                  className="h-8 flex items-center gap-1 px-2 border-b border-zinc-800"
+                  className="h-8 flex items-center gap-1 px-2"
                   style={col.bg_color
                     ? { backgroundImage: `linear-gradient(${col.bg_color}4D, ${col.bg_color}4D)` }
                     : undefined}
@@ -915,7 +944,7 @@ export default function KanbanPage() {
                 {/* Filter editor is rendered as a modal portal at the end of the component */}
 
                 {/* Tile list — grouped by day; full-width date header forces row break */}
-                <div className="flex-1 overflow-y-auto p-3 flex flex-row flex-wrap justify-start content-start gap-y-2 gap-x-3 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
+                <div data-col-list={col.id} className="flex-1 overflow-y-auto p-3 flex flex-row flex-wrap justify-start content-start gap-y-2 gap-x-3 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
                   {(() => {
                     const dateFieldFor = (t: Tile): string | null => {
                       switch (col.sort_by) {
@@ -934,23 +963,46 @@ export default function KanbanPage() {
                     };
                     const nodes: React.ReactNode[] = [];
                     let lastKey: string | null | '___init' = '___init';
+                    const todayKey = getDayKey(new Date().toISOString());
+                    const sortDir = col.sort_dir ?? 'asc';
+                    let insertedToday = false;
+                    const pushTodayHeader = () => {
+                      if (insertedToday) return;
+                      nodes.push(
+                        <div key={`hdr-today-empty-${nodes.length}`} data-today-row="true" className="w-full flex items-center gap-2 mt-2 first:mt-0">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-red-600 text-white">
+                            {formatDay(new Date().toISOString())}
+                          </span>
+                        </div>,
+                      );
+                      insertedToday = true;
+                    };
                     colTiles.forEach((t) => {
                       const iso = dateFieldFor(t);
                       const key = iso ? getDayKey(iso) : null;
+                      // Insert "today" header lazily when we cross it without finding it.
+                      // Skip null-date tiles (group "Senza data") for the comparison.
+                      if (!insertedToday && key !== null) {
+                        const past = sortDir === 'asc' ? key > todayKey : key < todayKey;
+                        if (past) pushTodayHeader();
+                      }
                       if (key !== lastKey) {
-                        const todayKey = getDayKey(new Date().toISOString());
                         const isToday = key !== null && key === todayKey;
+                        if (isToday) insertedToday = true;
                         nodes.push(
-                          <div key={`hdr-${key ?? 'none'}-${nodes.length}`} className="w-full flex items-center gap-2 mt-2 first:mt-0">
+                          <div
+                            key={`hdr-${key ?? 'none'}-${nodes.length}`}
+                            data-today-row={isToday ? 'true' : undefined}
+                            className="w-full flex items-center gap-2 mt-2 first:mt-0"
+                          >
                             <span className={cn(
-                              'inline-flex items-center px-1.5 py-0.5 rounded border text-[9px] font-semibold uppercase tracking-wider',
+                              'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider',
                               isToday
-                                ? 'bg-red-600 border-red-500 text-white'
-                                : 'bg-zinc-800 border-zinc-700 text-zinc-200',
+                                ? 'bg-red-600 text-white'
+                                : 'bg-zinc-200 text-zinc-900',
                             )}>
                               {iso ? formatDay(iso) : 'Senza data'}
                             </span>
-                            <span className="flex-1 h-px bg-zinc-800" />
                           </div>,
                         );
                         lastKey = key;
@@ -1032,6 +1084,11 @@ export default function KanbanPage() {
                       </div>,
                       );
                     });
+                    // If we never found nor inserted "today" (e.g. all tiles are
+                    // earlier than today in asc, or all later in desc, or only
+                    // unscheduled tiles), append it at the end so the row is
+                    // always visible.
+                    if (!insertedToday) pushTodayHeader();
                     return nodes;
                   })()}
 

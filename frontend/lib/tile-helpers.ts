@@ -19,13 +19,11 @@ export function isLightColor(hex: string): boolean {
 
 export function formatDay(dateStr: string): string {
   const d = new Date(dateStr);
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diff = (target.getTime() - today.getTime()) / 86400000;
-  if (diff === 0) return 'Oggi';
-  if (diff === 1) return 'Domani';
-  return d.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric' });
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  const weekday = d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '').toUpperCase();
+  return `${dd}/${mm}/${yy} ${weekday}`;
 }
 
 export function isSunday(dateStr: string): boolean {
