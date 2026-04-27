@@ -444,6 +444,47 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+/**
+ * Upsert the embedding for a tile based on its title + description.
+ * Called fire-and-forget after tile create / title-or-description update so
+ * the unified `find` tool can run semantic search across tiles.
+ *
+ * Failures are logged but never propagated — embeddings are a search aid, not
+ * a critical write path.
+ */
+export async function upsertTileEmbedding(tileId: string): Promise<void> {
+  try {
+    const { data: tile, error } = await supabaseAdmin
+      .from('tiles')
+      .select('title, description')
+      .eq('id', tileId)
+      .maybeSingle();
+
+    if (error || !tile) {
+      console.error('[upsertTileEmbedding] fetch failed:', error);
+      return;
+    }
+
+    const text = [tile.title, tile.description].filter(Boolean).join(' — ').trim();
+    if (!text) return; // empty tile — skip
+
+    const embedding = await generateEmbedding(text);
+    const { error: updateError } = await supabaseAdmin
+      .from('tiles')
+      .update({
+        embedding,
+        embedding_updated_at: new Date().toISOString(),
+      })
+      .eq('id', tileId);
+
+    if (updateError) {
+      console.error('[upsertTileEmbedding] update failed:', updateError);
+    }
+  } catch (err) {
+    console.error('[upsertTileEmbedding] unexpected:', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------

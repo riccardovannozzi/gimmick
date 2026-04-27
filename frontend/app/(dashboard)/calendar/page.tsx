@@ -257,6 +257,15 @@ export default function CalendarPage() {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
+  // Reactively toggle the blue selection ring on FullCalendar events when
+  // selectedTileId changes. eventDidMount sets data-tile-id on each event el.
+  useEffect(() => {
+    document.querySelectorAll<HTMLElement>('.fc-event[data-tile-id]').forEach((el) => {
+      const isSelected = el.getAttribute('data-tile-id') === selectedTileId;
+      el.style.boxShadow = isSelected ? '0 0 0 2px #3b82f6' : '';
+    });
+  }, [selectedTileId]);
+
   // Schedule from existing tile
   const [showTilePicker, setShowTilePicker] = useState(false);
 
@@ -1236,7 +1245,23 @@ export default function CalendarPage() {
         onContextMenu={(e) => {
           // Only show slot context menu if not clicking on an event
           const target = e.target as HTMLElement;
-          if (target.closest('.fc-event')) return; // let event contextmenu handle it
+          const eventEl = target.closest('.fc-event') as HTMLElement | null;
+          if (eventEl) {
+            // Fallback: if the event's own contextmenu listener didn't fire
+            // (can happen for all-day events with nested handlers), trigger
+            // the tile context menu here using the data-tile-id we attach in
+            // eventDidMount.
+            const tileId = eventEl.getAttribute('data-tile-id');
+            if (tileId) {
+              const tile = filteredEvents.find((t) => t.id === tileId) || allTiles.find((t) => t.id === tileId);
+              if (tile) {
+                e.preventDefault();
+                e.stopPropagation();
+                setCtxMenu({ x: e.clientX, y: e.clientY, tile });
+              }
+            }
+            return;
+          }
           e.preventDefault();
           // Try to find the date from the slot element
           const slotEl = target.closest('[data-date]') as HTMLElement | null;
@@ -1382,6 +1407,9 @@ export default function CalendarPage() {
               moveTileMutation.mutate({ id, updates: { end_at: end.toISOString() } });
             }}
             eventDidMount={(info) => {
+              // Mark the FC event element with the tile id so a useEffect can
+              // toggle the blue selection ring reactively when selectedTileId changes.
+              info.el.setAttribute('data-tile-id', info.event.id);
               // Right-click context menu
               info.el.addEventListener('contextmenu', (e) => {
                 e.preventDefault();

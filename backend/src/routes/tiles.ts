@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
+import { upsertTileEmbedding } from '../services/indexing.js';
 import type { AuthenticatedRequest, Tile, ActionType } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
@@ -285,6 +286,10 @@ tilesRouter.post(
           .insert({ tile_id: data.id, tag_id: rootTag.id });
       }
 
+      // Fire-and-forget: generate semantic embedding for the new tile so the
+      // unified `find` tool can match it. Errors are swallowed inside.
+      void upsertTileEmbedding(data.id);
+
       res.status(201).json({
         success: true,
         data: data as Tile,
@@ -357,6 +362,13 @@ tilesRouter.patch(
 
       if (error || !data) {
         throw new NotFoundError('Tile not found');
+      }
+
+      // Refresh the embedding only when the searchable fields actually
+      // changed — avoids a wasted OpenAI call on every status / date / tag
+      // tweak.
+      if ('title' in req.body || 'description' in req.body) {
+        void upsertTileEmbedding(data.id as string);
       }
 
       res.json({

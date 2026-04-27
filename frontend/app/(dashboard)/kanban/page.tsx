@@ -953,11 +953,10 @@ export default function KanbanPage() {
                         case 'date_created': return t.created_at || null;
                         case 'date_updated': return t.updated_at || null;
                         // Default (no sort): mirror TileSidebar's "Date" field exactly.
-                        // Deadlines read from end_at; everything else reads from start_at.
-                        // No cross-field fallback — so the date shown in kanban headers is
-                        // exactly the one surfaced by the sidebar.
+                        // Deadlines read from end_at then fall back to start_at;
+                        // everything else reads from start_at.
                         default:
-                          if (t.action_type === 'deadline') return t.end_at || null;
+                          if (t.action_type === 'deadline') return t.end_at || t.start_at || null;
                           return t.start_at || null;
                       }
                     };
