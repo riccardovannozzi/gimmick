@@ -1,4 +1,5 @@
 import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
+import type { Contact, ContactKind, FlowGraph, FlowNode, FlowEdge, FlowNodeState, FlowHubItem } from '@/types/flow';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -678,5 +679,82 @@ export const kanbanApi = {
       method: 'PUT',
       body: JSON.stringify({ items }),
     });
+  },
+};
+
+// ============ Contacts API ============
+
+export const contactsApi = {
+  async list(opts?: { archived?: boolean }) {
+    const q = opts?.archived ? '?archived=true' : '';
+    return apiRequest<Contact[]>(`/api/contacts${q}`);
+  },
+  async create(body: { name: string; kind?: ContactKind; phone?: string; email?: string; notes?: string; color?: string; avatar_url?: string }) {
+    return apiRequest<Contact>('/api/contacts', { method: 'POST', body: JSON.stringify(body) });
+  },
+  async update(id: string, updates: Partial<Pick<Contact, 'name' | 'kind' | 'phone' | 'email' | 'notes' | 'color' | 'avatar_url'>>) {
+    return apiRequest<Contact>(`/api/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  },
+  async remove(id: string) {
+    return apiRequest(`/api/contacts/${id}`, { method: 'DELETE' });
+  },
+  async archive(id: string) {
+    return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
+  },
+};
+
+// ============ Flow API ============
+
+export const flowApi = {
+  async getByTile(tileId: string) {
+    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
+  },
+  async createNode(tileId: string, body: {
+    label?: string;
+    state?: FlowNodeState;
+    contact_id?: string | null;
+    occurred_at?: string | null;
+    scheduled_at?: string | null;
+    notes?: string | null;
+    parent_node_id?: string;
+    x?: number | null;
+    y?: number | null;
+  }) {
+    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+      `/api/tiles/${tileId}/flow/nodes`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  },
+  async updateNode(id: string, updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>) {
+    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async deleteNode(id: string) {
+    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
+  },
+  async setFocus(id: string, focus: boolean) {
+    return apiRequest<FlowNode>(`/api/flow/nodes/${id}/focus`, {
+      method: 'POST',
+      body: JSON.stringify({ focus }),
+    });
+  },
+  async createEdge(body: { parent_id: string; child_id: string }) {
+    return apiRequest<FlowEdge>('/api/flow/edges', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
+  },
+  async tilesWithFlows() {
+    return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');
+  },
+  async hub(filter: 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked', days?: number) {
+    const params = new URLSearchParams({ filter });
+    if (days) params.set('days', String(days));
+    return apiRequest<FlowHubItem[]>(`/api/flows/hub?${params.toString()}`);
   },
 };

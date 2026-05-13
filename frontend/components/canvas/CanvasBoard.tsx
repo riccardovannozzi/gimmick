@@ -75,6 +75,9 @@ interface CanvasBoardProps {
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
   zoom100Trigger?: number;
+  /** Set of tile ids that own at least one Flow node — used to render a
+   *  "FLOW" badge in the tile footer. */
+  tilesWithFlows?: Set<string>;
 }
 
 export const CanvasBoard = React.memo(function CanvasBoard({
@@ -85,6 +88,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
+  tilesWithFlows,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
@@ -736,6 +740,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
+    // FLOW badge — small centered chip in the footer when the tile owns at
+    // least one Flow node. Sits between the action (left) and type (right)
+    // badges so it never collides with them.
+    nodeGrps.each(function (d) {
+      if (!tilesWithFlows?.has(d.id)) return;
+      const g = d3.select(this);
+      const cx = TILE_W / 2;
+      const cy = TILE_H - 14;
+      const w = 28;
+      const h = 12;
+      g.append('rect')
+        .attr('x', cx - w / 2).attr('y', cy - h / 2)
+        .attr('width', w).attr('height', h).attr('rx', 3)
+        .attr('fill', '#3B82F6').attr('fill-opacity', 0.18)
+        .attr('stroke', '#3B82F6').attr('stroke-opacity', 0.45).attr('stroke-width', 1);
+      g.append('text')
+        .attr('x', cx).attr('y', cy + 3)
+        .attr('text-anchor', 'middle')
+        .attr('font-size', 8).attr('font-weight', 600)
+        .attr('fill', '#93C5FD')
+        .style('letter-spacing', '0.5px')
+        .text('FLOW');
+    });
+
     // Type icon — rounded-square colored badge + white icon in bottom-right.
     nodeGrps.each(function (d) {
       if (!d.typeIcon) return;
@@ -1240,7 +1268,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     tbG.raise();
     tempLine.raise();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest]);
+  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows]);
 
   useEffect(() => { render(); }, [render]);
 

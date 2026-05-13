@@ -12,12 +12,19 @@ import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
+import { FlowTrack } from '@/components/flow/FlowTrack';
+import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tagId = searchParams.get('tag');
+  // Deep-link params (typically arriving from /flows FlowHub): tile picks a
+  // specific tile to focus, flow opens FlowTrack with that node pre-selected.
+  // They're consumed once and stripped from the URL to keep history clean.
+  const tileParam = searchParams.get('tile');
+  const flowParam = searchParams.get('flow');
   const queryClient = useQueryClient();
 
   const [textMode, setTextMode] = useState(false);
@@ -25,6 +32,16 @@ export default function CanvasPage() {
   const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  // FlowTrack drawer state — opens at the bottom when user clicks a tile.
+  // Kept separate from selectedTileId so closing the drawer doesn't clear the
+  // right sidebar selection (and vice versa).
+  const [flowTrackOpen, setFlowTrackOpen] = useState(false);
+  // Multi-select state for flow nodes. The TileSidebar Inspector tab only
+  // surfaces when EXACTLY one node is selected; deletion via Delete key
+  // operates on the whole set.
+  const [flowSelectedNodeIds, setFlowSelectedNodeIds] = useState<string[]>([]);
+  // Convenience accessor for the legacy single-node consumer (TileSidebar).
+  const flowSelectedNodeId = flowSelectedNodeIds.length === 1 ? flowSelectedNodeIds[0] : null;
   const [fitTrigger, setFitTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -46,6 +63,7 @@ export default function CanvasPage() {
   // Auto-redirect to last used tag if mounted without ?tag= query
   useEffect(() => {
     if (tagId) return;
+    if (tileParam) return; // tile-deep-link effect will pick the tag
     if (tags.length === 0) return; // wait for tags to load
     try {
       const last = localStorage.getItem('canvas_last_tag');
@@ -53,7 +71,34 @@ export default function CanvasPage() {
         router.replace(`/canvas?tag=${last}`);
       }
     } catch { /* */ }
-  }, [tagId, tags, router]);
+  }, [tagId, tileParam, tags, router]);
+
+  // Deep-link resolver — if we arrived with ?tile= but no ?tag=, fetch the
+  // tile to discover a tag to open the canvas under, then redirect preserving
+  // ?tile= and ?flow= so the secondary effect below picks them up.
+  useEffect(() => {
+    if (!tileParam) return;
+    if (tagId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await tilesApi.get(tileParam);
+        if (cancelled) return;
+        const candidate =
+          res.data?.tags?.find((t) => t.name !== 'GIMMICK') ?? res.data?.tags?.[0];
+        if (candidate) {
+          const flowQs = flowParam ? `&flow=${flowParam}` : '';
+          router.replace(`/canvas?tag=${candidate.id}&tile=${tileParam}${flowQs}`);
+        } else {
+          // Tile has no tag besides GIMMICK root — nothing to anchor canvas on.
+          router.replace('/tiles');
+        }
+      } catch {
+        router.replace('/tiles');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [tileParam, tagId, flowParam, router]);
 
   // Fetch tiles for tag
   const { data: tilesData } = useQuery({
@@ -62,6 +107,22 @@ export default function CanvasPage() {
     enabled: !!tagId,
   });
   const tiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
+  // Set of tile ids that own at least one Flow node — drives the FLOW badge.
+  const tilesWithFlows = useTilesWithFlows();
+
+  // Deep-link applier — once tag is resolved AND the tile exists in the loaded
+  // set, select it, open FlowTrack, and (if ?flow= was provided) select that
+  // node. Then strip ?tile= / ?flow= from the URL so a refresh won't re-apply.
+  useEffect(() => {
+    if (!tileParam) return;
+    if (!tagId) return;
+    if (tiles.length === 0) return;
+    if (!tiles.some((t) => t.id === tileParam)) return;
+    setSelectedTileId(tileParam);
+    setFlowTrackOpen(true);
+    if (flowParam) setFlowSelectedNodeIds([flowParam]);
+    router.replace(`/canvas?tag=${tagId}`);
+  }, [tileParam, flowParam, tagId, tiles, router]);
 
   // Fetch layout
   const { data: layoutData } = useQuery({
@@ -559,6 +620,9 @@ export default function CanvasPage() {
                 }
                 setSelectedTileId(id);
                 setSidebarOpen(true);
+                // Open the FlowTrack drawer when a tile is clicked.
+                setFlowTrackOpen(true);
+                setFlowSelectedNodeIds([]);
               }}
               onGroupsChange={handleGroupsChange}
               onAddTextBox={handleAddTextBox}
@@ -568,8 +632,33 @@ export default function CanvasPage() {
               onSelectionChange={handleSelectionChange}
               fitTrigger={fitTrigger}
               zoom100Trigger={zoom100Trigger}
+              tilesWithFlows={tilesWithFlows}
             />
           </div>
+          {/* FlowTrack — drawer sotto il canvas (resta nello stesso flex-col
+              della canvas central column, quindi NON copre la sidebar sinistra
+              o quella destra). */}
+          {flowTrackOpen && selectedTileId && (
+            <FlowTrack
+              tileId={selectedTileId}
+              tileTitle={tiles.find((t) => t.id === selectedTileId)?.title || ''}
+              onClose={() => setFlowTrackOpen(false)}
+              selectedNodeIds={flowSelectedNodeIds}
+              onSelectNode={(id, opts) => {
+                if (id === null) {
+                  setFlowSelectedNodeIds([]);
+                  return;
+                }
+                if (opts?.multi) {
+                  setFlowSelectedNodeIds((prev) =>
+                    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+                  );
+                } else {
+                  setFlowSelectedNodeIds([id]);
+                }
+              }}
+            />
+          )}
         </div>
 
           {/* 5 — SIDEBAR DESTRA. MultiTileSidebar solo per multi-selezioni di SOLI tile (≥2);
@@ -588,6 +677,8 @@ export default function CanvasPage() {
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
+              flowNodeId={flowSelectedNodeId}
+              onSelectFlowNode={(id) => setFlowSelectedNodeIds(id ? [id] : [])}
             />
           )}
 
@@ -777,6 +868,7 @@ export default function CanvasPage() {
           </div>
         </div>
       )}
+
     </div>
   );
 }

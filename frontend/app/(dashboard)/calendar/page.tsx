@@ -22,6 +22,7 @@ import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
+import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { readableOn } from '@/lib/palette';
 import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 
@@ -215,6 +216,7 @@ export default function CalendarPage() {
     return typeIcons.find((i) => i.id === iconId) || null;
   }, [typeIcons, typeTileIcons]);
   const { doneShape, getActionTypeShape, statuses: allStatuses } = useStatuses();
+  const tilesWithFlows = useTilesWithFlows();
 
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
@@ -972,6 +974,12 @@ export default function CalendarPage() {
                             )}
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                              {tilesWithFlows.has(t.id) && (
+                                <span
+                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
+                                  title="Questo tile ha un Flow"
+                                >FLOW</span>
+                              )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
                           </div>
@@ -1023,6 +1031,12 @@ export default function CalendarPage() {
                         )}
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                          {tilesWithFlows.has(t.id) && (
+                            <span
+                              className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
+                              title="Questo tile ha un Flow"
+                            >FLOW</span>
+                          )}
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
                       </div>
@@ -1148,6 +1162,12 @@ export default function CalendarPage() {
                             )}
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                              {tilesWithFlows.has(t.id) && (
+                                <span
+                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
+                                  title="Questo tile ha un Flow"
+                                >FLOW</span>
+                              )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
                           </div>
@@ -1199,6 +1219,12 @@ export default function CalendarPage() {
                         )}
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
+                          {tilesWithFlows.has(t.id) && (
+                            <span
+                              className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
+                              title="Questo tile ha un Flow"
+                            >FLOW</span>
+                          )}
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
                       </div>
@@ -1500,6 +1526,17 @@ export default function CalendarPage() {
                     }
                     main.appendChild(badge);
                   }
+                }
+              }
+              // FLOW badge — small chip when this tile owns a Flow.
+              if (tile && tilesWithFlows.has(tile.id)) {
+                const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                if (main) {
+                  const chip = document.createElement('div');
+                  chip.style.cssText = 'position:absolute;bottom:2px;left:50%;transform:translateX(-50%);padding:1px 4px;border-radius:3px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.45);color:#93C5FD;font-size:8px;font-weight:600;letter-spacing:0.5px;line-height:1;pointer-events:none;z-index:2;';
+                  chip.textContent = 'FLOW';
+                  if (getComputedStyle(main).position === 'static') main.style.position = 'relative';
+                  main.appendChild(chip);
                 }
               }
             }}

@@ -19,6 +19,8 @@ import { canvasRouter } from './routes/canvas.js';
 import { typeIconsRouter } from './routes/type-icons.js';
 import { subtasksRouter } from './routes/subtasks.js';
 import { kanbanRouter } from './routes/kanban.js';
+import { contactsRouter } from './routes/contacts.js';
+import { tileFlowRouter, flowRouter, flowsHubRouter } from './routes/flow.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -72,6 +74,13 @@ app.use('/api/canvas', canvasRouter);
 app.use('/api/type-icons', typeIconsRouter);
 app.use('/api/subtasks', subtasksRouter);
 app.use('/api/kanban', kanbanRouter);
+app.use('/api/contacts', contactsRouter);
+// Mount the tile-scoped flow router BEFORE /api/tiles is also used to avoid
+// any accidental shadowing; both can coexist because tilesRouter has no
+// `/:id/flow` sub-route. mergeParams gives us req.params.tileId.
+app.use('/api/tiles/:tileId/flow', tileFlowRouter);
+app.use('/api/flow', flowRouter);
+app.use('/api/flows', flowsHubRouter);
 
 // Error handling
 app.use(notFoundHandler);

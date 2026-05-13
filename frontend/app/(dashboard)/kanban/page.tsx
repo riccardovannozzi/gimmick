@@ -35,6 +35,7 @@ import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
+import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { cn } from '@/lib/utils';
 import { formatDay, getDayKey } from '@/lib/tile-helpers';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
@@ -370,6 +371,7 @@ export default function KanbanPage() {
   // Statuses (for shape overlay on tiles). Resolve against the full list
   // (system + custom) because canonical system statuses drive the shape now.
   const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
+  const tilesWithFlows = useTilesWithFlows();
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
       const st = allStatuses.find((s) => s.id === tile.status_id);
@@ -1068,8 +1070,14 @@ export default function KanbanPage() {
                                 <ChecklistBar items={t.subtasks} availableWidth={TILE_W - 12} />
                               </div>
                             )}
-                            <div className="flex items-end justify-between">
+                            <div className="flex items-end justify-between gap-1">
                               <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                              {tilesWithFlows.has(t.id) && (
+                                <span
+                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0"
+                                  title="Questo tile ha un Flow"
+                                >FLOW</span>
+                              )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
                           </div>

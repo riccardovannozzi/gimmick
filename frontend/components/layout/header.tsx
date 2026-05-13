@@ -13,6 +13,7 @@ import {
   IconShare,
   IconLayoutBoard,
   IconColumns,
+  IconRoute,
 } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +31,7 @@ const TAB_GROUP_DATA = [
   { name: 'Sparks', href: '/sparks', icon: IconSparkles },
   { name: 'Tiles', href: '/tiles', icon: IconLayoutGrid },
   { name: 'Tags', href: '/tags', icon: IconTag },
+  { name: 'Flows', href: '/flows', icon: IconRoute },
 ];
 
 const TAB_GROUP_VIEWS = [

@@ -17,6 +17,7 @@ import { readableOn } from '@/lib/palette';
 import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
+import { FlowInspector } from '@/components/flow/FlowInspector';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -639,11 +640,17 @@ export function TileSidebar({
   open,
   onToggle,
   invalidateKeys = ['tiles-calendar'],
+  flowNodeId,
+  onSelectFlowNode,
 }: {
   tileId: string | null;
   open: boolean;
   onToggle: () => void;
   invalidateKeys?: string[];
+  /** When set, a 3rd "Flow" tab appears and shows the FlowInspector for this node. */
+  flowNodeId?: string | null;
+  /** Called when the inspector wants to deselect or jump to another node. */
+  onSelectFlowNode?: (id: string | null) => void;
 }) {
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
@@ -658,7 +665,18 @@ export function TileSidebar({
   const tile = data?.data;
   const sparks: Spark[] = (tile as Tile & { sparks?: Spark[] })?.sparks || [];
 
-  const [activeTab, setActiveTab] = useState<'edit' | 'list'>('edit');
+  const [activeTab, setActiveTab] = useState<'edit' | 'list' | 'flow'>('edit');
+
+  // Auto-switch to the Flow tab when a flow node gets selected, and back to
+  // 'edit' when the selection is cleared while sitting on the flow tab.
+  useEffect(() => {
+    if (flowNodeId) {
+      setActiveTab('flow');
+    } else if (activeTab === 'flow') {
+      setActiveTab('edit');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flowNodeId]);
   const [editTitle, setEditTitle] = useState('');
   const titleDirty = useRef(false);
 
@@ -833,15 +851,35 @@ export function TileSidebar({
             >
               List
             </button>
+            {flowNodeId && (
+              <button
+                onClick={() => setActiveTab('flow')}
+                className={cn(
+                  'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
+                  activeTab === 'flow'
+                    ? 'bg-blue-600/20 text-blue-400'
+                    : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                )}
+              >
+                Flow
+              </button>
+            )}
           </div>
         )}
-        <div className="flex-1 overflow-y-auto px-3 pb-4 pt-3">
+        <div className={cn('flex-1 overflow-hidden flex flex-col', activeTab !== 'flow' && 'overflow-y-auto px-3 pb-4 pt-3')}>
           {!tileId ? (
             <p className="text-xs text-zinc-500 mt-4">Seleziona un tile</p>
           ) : isLoading ? (
             <p className="text-xs text-zinc-500 mt-4">Caricamento...</p>
           ) : !tile ? (
             <p className="text-xs text-zinc-500 mt-4">Tile non trovato</p>
+          ) : activeTab === 'flow' && flowNodeId ? (
+            <FlowInspector
+              nodeId={flowNodeId}
+              tileId={tileId}
+              onClose={() => onSelectFlowNode?.(null)}
+              onSelectNode={(id) => onSelectFlowNode?.(id)}
+            />
           ) : activeTab === 'list' ? (
             <SubtaskList tileId={tileId} />
           ) : (
