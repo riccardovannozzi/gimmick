@@ -76,8 +76,24 @@ interface CanvasBoardProps {
   fitTrigger: number;
   zoom100Trigger?: number;
   /** Set of tile ids that own at least one Flow node — used to render a
-   *  "FLOW" badge in the tile footer. */
+   *  "FLOW" badge in the tile's top-right corner. */
   tilesWithFlows?: Set<string>;
+  /** Called when the user clicks the FLOW badge on a tile — opens the Flow
+   *  modal. Click on the badge does NOT also select the tile. */
+  onFlowBadgeClick?: (tileId: string) => void;
+  /** Optional ref the parent passes in; CanvasBoard sets `.current` to a
+   *  function that converts viewport (clientX/Y) coords to canvas-local
+   *  coords using the live zoom/pan transform. Useful for drops from outside
+   *  the canvas (e.g. the staging panel) to land under the cursor. */
+  screenToLocalRef?: React.RefObject<((clientX: number, clientY: number) => { x: number; y: number }) | null>;
+  /** Tested at the end of every tile drag — if it returns true, the tile(s)
+   *  were dropped over the staging panel and should be removed from the
+   *  canvas instead of having their new position saved. */
+  isOverStaging?: (clientX: number, clientY: number) => boolean;
+  /** Called when a tile drag ends over the staging zone (isOverStaging
+   *  returned true). Receives the dragged tile id(s) so the parent can drop
+   *  their canvas_layout entries. */
+  onTilesRemovedFromCanvas?: (ids: string[]) => void;
 }
 
 export const CanvasBoard = React.memo(function CanvasBoard({
@@ -88,7 +104,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
-  tilesWithFlows,
+  tilesWithFlows, onFlowBadgeClick,
+  screenToLocalRef,
+  isOverStaging, onTilesRemovedFromCanvas,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
@@ -124,7 +142,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onAddTextBoxRef = useRef(onAddTextBox); onAddTextBoxRef.current = onAddTextBox;
   const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
   const onSelectionChangeRef = useRef(onSelectionChange); onSelectionChangeRef.current = onSelectionChange;
+  const onFlowBadgeClickRef = useRef(onFlowBadgeClick); onFlowBadgeClickRef.current = onFlowBadgeClick;
+  const isOverStagingRef = useRef(isOverStaging); isOverStagingRef.current = isOverStaging;
+  const onTilesRemovedFromCanvasRef = useRef(onTilesRemovedFromCanvas); onTilesRemovedFromCanvasRef.current = onTilesRemovedFromCanvas;
   const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
+
+  // Publish a viewport→canvas-local coordinate converter to the parent (used
+  // for staging-panel drops). The function reads zoomTransformRef on every
+  // call, so it always reflects the latest pan/zoom.
+  useEffect(() => {
+    if (!screenToLocalRef) return;
+    screenToLocalRef.current = (clientX, clientY) => {
+      const svg = svgRef.current;
+      const t = zoomTransformRef.current;
+      if (!svg) return { x: clientX, y: clientY };
+      const r = svg.getBoundingClientRect();
+      return {
+        x: (clientX - r.left - t.x) / t.k,
+        y: (clientY - r.top - t.y) / t.k,
+      };
+    };
+    return () => {
+      if (screenToLocalRef) screenToLocalRef.current = null;
+    };
+  }, [screenToLocalRef]);
 
   // Pending HTML save timers per text box — debounce TipTap onUpdate calls.
   const editorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -740,28 +781,42 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
-    // FLOW badge — small centered chip in the footer when the tile owns at
-    // least one Flow node. Sits between the action (left) and type (right)
-    // badges so it never collides with them.
+    // FLOW badge — clickable chip pinned to the top-right of the tile,
+    // sticking out past the tile boundary so it reads as an external
+    // "handle". Click opens the Flow modal for this tile (without selecting
+    // the tile itself, hence the pointerdown stopPropagation).
     nodeGrps.each(function (d) {
       if (!tilesWithFlows?.has(d.id)) return;
       const g = d3.select(this);
-      const cx = TILE_W / 2;
-      const cy = TILE_H - 14;
-      const w = 28;
-      const h = 12;
-      g.append('rect')
-        .attr('x', cx - w / 2).attr('y', cy - h / 2)
-        .attr('width', w).attr('height', h).attr('rx', 3)
-        .attr('fill', '#3B82F6').attr('fill-opacity', 0.18)
-        .attr('stroke', '#3B82F6').attr('stroke-opacity', 0.45).attr('stroke-width', 1);
-      g.append('text')
-        .attr('x', cx).attr('y', cy + 3)
+      const w = 34;
+      const h = 15;
+      // Anchor: chip's right edge flush with the tile's right edge; vertically
+      // it still floats above the tile so it reads as an external handle.
+      const x = TILE_W - w - 8;
+      const y = -h / 2 - 1;
+      const badge = g.append('g').attr('class', 'flow-badge').style('cursor', 'pointer');
+      badge.append('rect')
+        .attr('x', x).attr('y', y)
+        .attr('width', w).attr('height', h).attr('rx', 4)
+        .attr('fill', '#1E3A8A').attr('fill-opacity', 0.95)
+        .attr('stroke', '#3B82F6').attr('stroke-opacity', 0.9).attr('stroke-width', 1);
+      badge.append('text')
+        .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
         .attr('text-anchor', 'middle')
-        .attr('font-size', 8).attr('font-weight', 600)
-        .attr('fill', '#93C5FD')
-        .style('letter-spacing', '0.5px')
+        .attr('font-size', 9).attr('font-weight', 700)
+        .attr('fill', '#DBEAFE')
+        .style('letter-spacing', '0.6px')
+        .style('pointer-events', 'none')
         .text('FLOW');
+      // Capture interaction at pointerdown to win the race with the tile's
+      // own drag/select handlers, and on click to fire the modal-open hook.
+      badge.on('pointerdown', (event: PointerEvent) => {
+        event.stopPropagation();
+      });
+      badge.on('click', (event: PointerEvent) => {
+        event.stopPropagation();
+        onFlowBadgeClickRef.current?.(d.id);
+      });
     });
 
     // Type icon — rounded-square colored badge + white icon in bottom-right.
@@ -852,8 +907,33 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         }
         drawEdges(); drawGroups();
       })
-      .on('end', (_, d) => {
-        onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+      .on('end', (ev, d) => {
+        // Determine the drop zone. If the gesture ended over the staging
+        // panel (hosted outside the SVG), drop the dragged tiles from the
+        // canvas layout instead of saving their new position.
+        const sourceEv = ev?.sourceEvent as MouseEvent | PointerEvent | undefined;
+        const isStagingDrop = !!(
+          sourceEv &&
+          isOverStagingRef.current &&
+          isOverStagingRef.current(sourceEv.clientX, sourceEv.clientY)
+        );
+        const draggedIds = dragMultiNodes ? dragMultiNodes.map((n) => n.id) : [d.id];
+
+        if (isStagingDrop) {
+          // Send the dragged tile(s) back to the staging panel. The parent
+          // updates canvas_layout accordingly; we still write a stripped
+          // position list so the visual matches the data immediately.
+          const removedSet = new Set(draggedIds);
+          onPositionChangeRef.current(
+            nodes
+              .filter((n) => !removedSet.has(n.id))
+              .map((n) => ({ tile_id: n.id, x: n.x, y: n.y })),
+          );
+          onTilesRemovedFromCanvasRef.current?.(draggedIds);
+        } else {
+          onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+        }
+
         // Persist text-box positions if they moved as part of a multi-drag
         if (dragMultiTbs) {
           for (const tb of dragMultiTbs) {
@@ -868,8 +948,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dragMultiSelection = null;
         dragMultiTbs = null;
         dragSuppressedBbox = false;
-        // Drop-into-group only for single-tile drag (multi-drag shouldn't auto-merge into a group)
-        if (wasMulti) return;
+        // Drop-into-group only for single-tile drag that didn't go to staging.
+        if (wasMulti || isStagingDrop) return;
         const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
         const currentGroups = groupsRef.current;
         const alreadyIn = currentGroups.find((g) => g.nodeIds.includes(d.id));

@@ -5,15 +5,16 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
+import { StagingPanel } from '@/components/canvas/StagingPanel';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
-import { FlowTrack } from '@/components/flow/FlowTrack';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useFlowModalStore } from '@/store/flow-modal-store';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
@@ -32,16 +33,7 @@ export default function CanvasPage() {
   const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  // FlowTrack drawer state — opens at the bottom when user clicks a tile.
-  // Kept separate from selectedTileId so closing the drawer doesn't clear the
-  // right sidebar selection (and vice versa).
-  const [flowTrackOpen, setFlowTrackOpen] = useState(false);
-  // Multi-select state for flow nodes. The TileSidebar Inspector tab only
-  // surfaces when EXACTLY one node is selected; deletion via Delete key
-  // operates on the whole set.
-  const [flowSelectedNodeIds, setFlowSelectedNodeIds] = useState<string[]>([]);
-  // Convenience accessor for the legacy single-node consumer (TileSidebar).
-  const flowSelectedNodeId = flowSelectedNodeIds.length === 1 ? flowSelectedNodeIds[0] : null;
+  const openFlowModal = useFlowModalStore((s) => s.open);
   const [fitTrigger, setFitTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -106,23 +98,23 @@ export default function CanvasPage() {
     queryFn: () => tagsApi.getTiles(tagId!),
     enabled: !!tagId,
   });
-  const tiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
+  const allTagTiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
   // Set of tile ids that own at least one Flow node — drives the FLOW badge.
   const tilesWithFlows = useTilesWithFlows();
 
   // Deep-link applier — once tag is resolved AND the tile exists in the loaded
-  // set, select it, open FlowTrack, and (if ?flow= was provided) select that
-  // node. Then strip ?tile= / ?flow= from the URL so a refresh won't re-apply.
+  // set, select it and open the Flow modal. Looks at the full tag tile set
+  // (positioned + staging) so deep-linking works even for unpositioned tiles.
   useEffect(() => {
     if (!tileParam) return;
     if (!tagId) return;
-    if (tiles.length === 0) return;
-    if (!tiles.some((t) => t.id === tileParam)) return;
+    if (allTagTiles.length === 0) return;
+    const t = allTagTiles.find((tile) => tile.id === tileParam);
+    if (!t) return;
     setSelectedTileId(tileParam);
-    setFlowTrackOpen(true);
-    if (flowParam) setFlowSelectedNodeIds([flowParam]);
+    openFlowModal(tileParam, t.title ?? undefined);
     router.replace(`/canvas?tag=${tagId}`);
-  }, [tileParam, flowParam, tagId, tiles, router]);
+  }, [tileParam, flowParam, tagId, allTagTiles, router, openFlowModal]);
 
   // Fetch layout
   const { data: layoutData } = useQuery({
@@ -131,6 +123,31 @@ export default function CanvasPage() {
     enabled: !!tagId,
   });
   const layout = useMemo(() => layoutData?.data || [], [layoutData]);
+
+  // Split tag tiles into "positioned" (have a layout entry → render on canvas)
+  // and "staging" (no entry → render in the left staging panel until the user
+  // drags them onto the canvas). Avoids cluttering the canvas with new tiles
+  // at default coordinates.
+  const positionedTileIds = useMemo(
+    () => new Set(layout.map((l: { tile_id: string }) => l.tile_id)),
+    [layout],
+  );
+  const tiles = useMemo(
+    () => allTagTiles.filter((t) => positionedTileIds.has(t.id)),
+    [allTagTiles, positionedTileIds],
+  );
+  const stagingTiles = useMemo(
+    () => allTagTiles.filter((t) => !positionedTileIds.has(t.id)),
+    [allTagTiles, positionedTileIds],
+  );
+
+  // Refs + state for drag-and-drop between staging and canvas.
+  const stagingPanelRef = useRef<HTMLDivElement | null>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+  // Populated by CanvasBoard once its zoom system is ready. Converts viewport
+  // (clientX/Y) coords to canvas-local coords accounting for current pan/zoom.
+  // Used when dropping a staged tile so it lands under the cursor.
+  const canvasScreenToLocalRef = useRef<((clientX: number, clientY: number) => { x: number; y: number }) | null>(null);
 
   // Fetch edges
   const { data: edgesData } = useQuery({
@@ -565,6 +582,11 @@ export default function CanvasPage() {
 
       {tagId && tag ? (
         <div className="flex flex-1 overflow-hidden">
+        <StagingPanel
+          tiles={stagingTiles}
+          panelRef={stagingPanelRef}
+          onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
+        />
         <div className="flex-1 flex flex-col overflow-hidden">
           <CanvasTopbar
             tag={tag}
@@ -588,7 +610,37 @@ export default function CanvasPage() {
               finally { queryClient.invalidateQueries({ queryKey: ['tags'] }); }
             }}
           />
-          <div className="flex-1 relative overflow-hidden" style={{ cursor: (textMode || tileMode || imageMode) ? 'crosshair' : undefined }}>
+          <div
+            ref={canvasWrapperRef}
+            className="flex-1 relative overflow-hidden"
+            style={{ cursor: (textMode || tileMode || imageMode) ? 'crosshair' : undefined }}
+            onDragOver={(e) => {
+              // Allow drops only when a staging tile is being dragged.
+              if (!e.dataTransfer.types.includes('text/x-canvas-tile-id')) return;
+              e.preventDefault();
+              e.dataTransfer.dropEffect = 'move';
+            }}
+            onDrop={(e) => {
+              const tileId = e.dataTransfer.getData('text/x-canvas-tile-id');
+              if (!tileId || !tagId) return;
+              e.preventDefault();
+              // Compute drop coords relative to the canvas wrapper, then
+              // invert by the current zoom transform so the tile lands under
+              // the cursor regardless of pan/zoom. The transform is exposed
+              // by CanvasBoard via the screen-to-canvas converter ref below.
+              const screen = canvasScreenToLocalRef.current;
+              const wrapper = canvasWrapperRef.current;
+              if (!wrapper) return;
+              const rect = wrapper.getBoundingClientRect();
+              const localXY = screen
+                ? screen(e.clientX, e.clientY)
+                : { x: e.clientX - rect.left, y: e.clientY - rect.top };
+              const newEntry = { tile_id: tileId, x: localXY.x, y: localXY.y };
+              const next = [...layout.filter((l: { tile_id: string }) => l.tile_id !== tileId), newEntry];
+              queryClient.setQueryData(['canvas-layout', tagId], { success: true, data: next });
+              canvasApi.saveLayout(tagId, next);
+            }}
+          >
             <CanvasBoard
               tiles={tiles}
               layout={layout}
@@ -620,9 +672,6 @@ export default function CanvasPage() {
                 }
                 setSelectedTileId(id);
                 setSidebarOpen(true);
-                // Open the FlowTrack drawer when a tile is clicked.
-                setFlowTrackOpen(true);
-                setFlowSelectedNodeIds([]);
               }}
               onGroupsChange={handleGroupsChange}
               onAddTextBox={handleAddTextBox}
@@ -633,32 +682,37 @@ export default function CanvasPage() {
               fitTrigger={fitTrigger}
               zoom100Trigger={zoom100Trigger}
               tilesWithFlows={tilesWithFlows}
-            />
-          </div>
-          {/* FlowTrack — drawer sotto il canvas (resta nello stesso flex-col
-              della canvas central column, quindi NON copre la sidebar sinistra
-              o quella destra). */}
-          {flowTrackOpen && selectedTileId && (
-            <FlowTrack
-              tileId={selectedTileId}
-              tileTitle={tiles.find((t) => t.id === selectedTileId)?.title || ''}
-              onClose={() => setFlowTrackOpen(false)}
-              selectedNodeIds={flowSelectedNodeIds}
-              onSelectNode={(id, opts) => {
-                if (id === null) {
-                  setFlowSelectedNodeIds([]);
-                  return;
-                }
-                if (opts?.multi) {
-                  setFlowSelectedNodeIds((prev) =>
-                    prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
-                  );
-                } else {
-                  setFlowSelectedNodeIds([id]);
-                }
+              onFlowBadgeClick={(id) => {
+                const t = tiles.find((tile) => tile.id === id);
+                openFlowModal(id, t?.title ?? undefined);
+              }}
+              screenToLocalRef={canvasScreenToLocalRef}
+              isOverStaging={(clientX, clientY) => {
+                const el = stagingPanelRef.current;
+                if (!el) return false;
+                const r = el.getBoundingClientRect();
+                return (
+                  clientX >= r.left &&
+                  clientX <= r.right &&
+                  clientY >= r.top &&
+                  clientY <= r.bottom
+                );
+              }}
+              onTilesRemovedFromCanvas={(ids) => {
+                if (!tagId || ids.length === 0) return;
+                const removed = new Set(ids);
+                const next = layout.filter((l: { tile_id: string }) => !removed.has(l.tile_id));
+                // Optimistic cache update so the tile jumps to the staging
+                // panel immediately. saveLayout is upsert-only; DELETE is
+                // needed for each removed tile to make the change persistent.
+                queryClient.setQueryData(['canvas-layout', tagId], { success: true, data: next });
+                Promise.all(ids.map((id) => canvasApi.removeFromLayout(tagId, id))).catch(() => {
+                  // On failure, refetch to resync with the server.
+                  queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
+                });
               }}
             />
-          )}
+          </div>
         </div>
 
           {/* 5 — SIDEBAR DESTRA. MultiTileSidebar solo per multi-selezioni di SOLI tile (≥2);
@@ -677,8 +731,6 @@ export default function CanvasPage() {
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
-              flowNodeId={flowSelectedNodeId}
-              onSelectFlowNode={(id) => setFlowSelectedNodeIds(id ? [id] : [])}
             />
           )}
 
@@ -783,6 +835,34 @@ export default function CanvasPage() {
                     >
                       <IconCopy className="h-3.5 w-3.5" />
                       Duplica
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!tileCtx) return;
+                        const t = tiles.find((x) => x.id === tileCtx.tileId);
+                        setTileCtx(null);
+                        openFlowModal(tileCtx.tileId, t?.title ?? undefined);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                    >
+                      <IconRoute className="h-3.5 w-3.5" />
+                      Apri Flow
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!tileCtx || !tagId) return;
+                        const id = tileCtx.tileId;
+                        setTileCtx(null);
+                        const next = layout.filter((l: { tile_id: string }) => l.tile_id !== id);
+                        queryClient.setQueryData(['canvas-layout', tagId], { success: true, data: next });
+                        canvasApi.removeFromLayout(tagId, id).catch(() => {
+                          queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
+                        });
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                    >
+                      <IconInbox className="h-3.5 w-3.5" />
+                      Rimuovi dal canvas
                     </button>
                     <button
                       onClick={handleConfirmDeleteTile}

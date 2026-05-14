@@ -561,6 +561,13 @@ export const canvasApi = {
     });
   },
 
+  /** Remove a single tile's position entry — the tile goes back to the
+   *  canvas-page staging panel. Used by drag canvas→staging and the
+   *  "Rimuovi dal canvas" context-menu action. */
+  async removeFromLayout(tagId: string, tileId: string) {
+    return apiRequest(`/api/canvas/layout/${tagId}/${tileId}`, { method: 'DELETE' });
+  },
+
   async getEdges(tagId: string) {
     return apiRequest<{ id: string; source_id: string; target_id: string; source_port?: string; target_port?: string }[]>(`/api/canvas/edges/${tagId}`);
   },

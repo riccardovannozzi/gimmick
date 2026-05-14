@@ -1,11 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { IconArrowLeft, IconArrowRight, IconArrowsHorizontal, IconTrash } from '@tabler/icons-react';
+import {
+  IconArrowLeft,
+  IconArrowRight,
+  IconArrowsHorizontal,
+  IconCheck,
+  IconHourglassHigh,
+  IconSlash,
+  IconTrash,
+  IconX,
+} from '@tabler/icons-react';
 import { useFlow } from '@/lib/hooks/useFlow';
-import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { FLOW_OWNER_LABELS, FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { ContactCombobox } from './ContactCombobox';
-import type { FlowNode, FlowNodeState } from '@/types/flow';
+import type { FlowNode, FlowNodeOwner, FlowNodeState } from '@/types/flow';
 
 interface Props {
   /** Id of the selected flow node — must belong to `tileId`. */
@@ -15,7 +24,27 @@ interface Props {
   onSelectNode: (id: string | null) => void;
 }
 
-const STATES: FlowNodeState[] = ['mine', 'theirs', 'done', 'blocked', 'cancelled'];
+const OWNERS: FlowNodeOwner[] = ['mine', 'theirs'];
+const OWNER_SHORT_LABELS: Record<FlowNodeOwner, string> = {
+  mine: 'MY',
+  theirs: 'OTHER',
+};
+
+// Four status decorators. 'active' is the implicit "no decorator" state —
+// clicking an already-active status button toggles back to 'active'.
+const STATUSES: Exclude<FlowNodeState, 'active'>[] = ['done', 'wait', 'undo', 'stop'];
+const STATUS_SHORT_LABELS: Record<Exclude<FlowNodeState, 'active'>, string> = {
+  done: 'DONE',
+  wait: 'WAIT',
+  undo: 'UNDO',
+  stop: 'STOP',
+};
+const STATUS_ICONS: Record<Exclude<FlowNodeState, 'active'>, typeof IconCheck> = {
+  done: IconCheck,
+  wait: IconHourglassHigh,
+  undo: IconSlash,
+  stop: IconX,
+};
 const AUTOSAVE_MS = 500;
 
 /**
@@ -38,7 +67,8 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
   // while the autosave debounce is pending. Hooks must run unconditionally,
   // so we use safe defaults when the node hasn't loaded yet.
   const [label, setLabel] = useState(node?.label ?? '');
-  const [state, setState] = useState<FlowNodeState>(node?.state ?? 'mine');
+  const [owner, setOwner] = useState<FlowNodeOwner>(node?.owner ?? 'mine');
+  const [state, setState] = useState<FlowNodeState>(node?.state ?? 'active');
   const [contactId, setContactId] = useState<string | null>(node?.contact_id ?? null);
   const [occurredAt, setOccurredAt] = useState<string>(toLocalInput(node?.occurred_at ?? null));
   const [notes, setNotes] = useState<string>(node?.notes ?? '');
@@ -52,6 +82,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (lastNodeIdRef.current !== node.id) {
       lastNodeIdRef.current = node.id;
       setLabel(node.label);
+      setOwner(node.owner);
       setState(node.state);
       setContactId(node.contact_id);
       setOccurredAt(toLocalInput(node.occurred_at));
@@ -106,7 +137,8 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
   const handleAddChild = async () => {
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      state: 'mine',
+      owner: 'mine',
+      state: 'active',
       parent_node_id: nodeId,
       x: refPos.x + GRID_X,
       y: refPos.y,
@@ -118,7 +150,8 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     // 1) Create orphan node, then 2) edge new → this
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      state: 'mine',
+      owner: 'mine',
+      state: 'active',
       x: refPos.x - GRID_X,
       y: refPos.y,
     });
@@ -149,7 +182,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (parentIds.length === 0) {
       const res = await addNode.mutateAsync({
         label: 'Nuovo nodo',
-        state: 'mine',
+        owner: 'mine', state: 'active',
         x: siblingPos.x,
         y: siblingPos.y,
       });
@@ -160,7 +193,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (parentIds.length === 1) {
       const res = await addNode.mutateAsync({
         label: 'Nuovo nodo',
-        state: 'mine',
+        owner: 'mine', state: 'active',
         parent_node_id: parentIds[0],
         x: siblingPos.x,
         y: siblingPos.y,
@@ -171,7 +204,8 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
 
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      state: 'mine',
+      owner: 'mine',
+      state: 'active',
       x: siblingPos.x,
       y: siblingPos.y,
     });
@@ -228,32 +262,70 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
           />
         </div>
 
-        {/* State segmented control */}
+        {/* Owner — chi ha la palla. Shape encodes ownership: square=mine,
+            circle=theirs. Always exactly one selected. */}
         <div>
-          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Stato</label>
-          <div className="grid grid-cols-5 gap-1">
-            {STATES.map((s) => {
+          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Palla a</label>
+          <div className="grid grid-cols-2 gap-1">
+            {OWNERS.map((o) => {
+              const isActive = owner === o;
+              return (
+                <button
+                  key={o}
+                  onClick={() => {
+                    setOwner(o);
+                    updateNode.mutate({ id: nodeId, updates: { owner: o } });
+                  }}
+                  className="h-9 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
+                  style={{
+                    backgroundColor: isActive ? '#000' : '#27272A',
+                    color: isActive ? '#fff' : '#A1A1AA',
+                    border: isActive ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.08)',
+                  }}
+                  title={FLOW_OWNER_LABELS[o]}
+                >
+                  {/* Shape preview: filled square for MY, circle for OTHER */}
+                  <span
+                    className="inline-block w-2.5 h-2.5"
+                    style={{
+                      backgroundColor: isActive ? '#fff' : '#A1A1AA',
+                      borderRadius: o === 'theirs' ? '50%' : '2px',
+                    }}
+                  />
+                  {OWNER_SHORT_LABELS[o]}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Status — lifecycle decorator. Mutually exclusive; clicking the
+            active one toggles back to 'active' (no decorator). */}
+        <div>
+          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Status</label>
+          <div className="grid grid-cols-4 gap-1">
+            {STATUSES.map((s) => {
               const isActive = state === s;
+              const Icon = STATUS_ICONS[s];
+              const color = FLOW_STATE_COLORS[s];
               return (
                 <button
                   key={s}
                   onClick={() => {
-                    setState(s);
-                    updateNode.mutate({ id: nodeId, updates: { state: s } });
+                    const next: FlowNodeState = isActive ? 'active' : s;
+                    setState(next);
+                    updateNode.mutate({ id: nodeId, updates: { state: next } });
                   }}
-                  className={`h-8 rounded text-[9px] font-medium uppercase tracking-wider transition-colors flex items-center justify-center gap-1`}
+                  className="h-9 rounded text-[9px] font-semibold uppercase tracking-wider transition-colors flex items-center justify-center gap-1"
                   style={{
-                    backgroundColor: isActive ? FLOW_STATE_COLORS[s] : '#27272A',
-                    color: isActive ? '#fff' : '#A1A1AA',
-                    border: isActive ? '1px solid rgba(255,255,255,0.3)' : '1px solid rgba(255,255,255,0.08)',
+                    backgroundColor: isActive ? '#000' : '#27272A',
+                    color: isActive ? color : '#A1A1AA',
+                    border: isActive ? `1.5px solid ${color}` : '1px solid rgba(255,255,255,0.08)',
                   }}
                   title={FLOW_STATE_LABELS[s]}
                 >
-                  <span
-                    className="inline-block w-1.5 h-1.5 rounded-full"
-                    style={{ backgroundColor: isActive ? '#fff' : FLOW_STATE_COLORS[s] }}
-                  />
-                  {s.slice(0, 3)}
+                  <Icon size={12} stroke={2.5} style={{ color: isActive ? color : '#71717A' }} />
+                  {STATUS_SHORT_LABELS[s]}
                 </button>
               );
             })}

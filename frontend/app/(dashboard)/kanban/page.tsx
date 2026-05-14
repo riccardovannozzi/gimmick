@@ -26,6 +26,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconLayoutGrid,
+  IconRoute,
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
@@ -36,6 +37,7 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useFlowModalStore } from '@/store/flow-modal-store';
 import { cn } from '@/lib/utils';
 import { formatDay, getDayKey } from '@/lib/tile-helpers';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
@@ -372,6 +374,7 @@ export default function KanbanPage() {
   // (system + custom) because canonical system statuses drive the shape now.
   const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
   const tilesWithFlows = useTilesWithFlows();
+  const openFlowModal = useFlowModalStore((s) => s.open);
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
       const st = allStatuses.find((s) => s.id === tile.status_id);
@@ -1022,8 +1025,8 @@ export default function KanbanPage() {
                       const actionColor = actionKey === 'none' ? '#e4e4e7' : ((actionColors as Record<string, string>)[actionKey] || FALLBACK_COLOR);
                       const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
                       nodes.push(
+                        <div key={t.id} className="relative shrink-0" style={{ width: TILE_W }}>
                         <div
-                          key={t.id}
                           draggable
                           data-tile-id={t.id}
                           onContextMenu={(e) => {
@@ -1072,12 +1075,6 @@ export default function KanbanPage() {
                             )}
                             <div className="flex items-end justify-between gap-1">
                               <ActionIconBadge actionKey={actionKey} color={actionColor} />
-                              {tilesWithFlows.has(t.id) && (
-                                <span
-                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0"
-                                  title="Questo tile ha un Flow"
-                                >FLOW</span>
-                              )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
                           </div>
@@ -1089,6 +1086,19 @@ export default function KanbanPage() {
                             </div>
                           )}
                         </div>
+                      </div>
+                      {/* FLOW badge — floats past the tile's top-right corner.
+                          Clicking opens the Flow modal (does NOT also select). */}
+                      {tilesWithFlows.has(t.id) && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                          onContextMenu={(e) => e.stopPropagation()}
+                          onMouseDown={(e) => e.stopPropagation()}
+                          className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+                          title="Apri Flow"
+                        >FLOW</button>
+                      )}
                       </div>,
                       );
                     });
@@ -1610,6 +1620,18 @@ export default function KanbanPage() {
             className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
             style={{ top: tileCtxMenu.y, left: tileCtxMenu.x }}
           >
+            <button
+              onClick={() => {
+                const t = tiles.find((x) => x.id === tileCtxMenu.tileId);
+                const id = tileCtxMenu.tileId;
+                setTileCtxMenu(null);
+                openFlowModal(id, t?.title ?? undefined);
+              }}
+              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            >
+              <IconRoute className="h-3.5 w-3.5" />
+              Apri Flow
+            </button>
             <button
               onClick={() => {
                 setDeleteTileConfirm(tileCtxMenu.tileId);

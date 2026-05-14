@@ -24,12 +24,13 @@ interface Props {
   focusNodeId?: string | null;
 }
 
-const NODE_RADIUS = 11;
+const NODE_RADIUS = 16;
 const NODE_WIDTH = NODE_RADIUS * 2;
 const NODE_HEIGHT = NODE_RADIUS * 2 + 36;
-// Grid: nodes snap to multiples of these values on both axes.
-const GRID_X = 120;
-const GRID_Y = 80;
+// Grid: nodes snap to multiples of these values on both axes. GRID_Y bumped
+// alongside NODE_RADIUS so vertically-stacked siblings don't crowd.
+const GRID_X = 140;
+const GRID_Y = 110;
 const DRAG_THRESHOLD_PX = 3;
 const PORT_RADIUS = 5;
 
@@ -53,7 +54,8 @@ function snap(x: number, y: number): { x: number; y: number } {
 }
 
 /**
- * Bottom drawer that shows the DAG of Flow nodes for a Tile.
+ * Panel that shows the DAG of Flow nodes for a Tile. Designed to fill its
+ * container — the parent (FlowModal) controls the surrounding size and chrome.
  *
  * Interaction model:
  *   - Node body drag → pure reposition on the grid. Existing incoming/outgoing
@@ -198,6 +200,17 @@ export function FlowTrack({
   const getSvgPoint = useCallback((e: React.PointerEvent | PointerEvent): { x: number; y: number } => {
     const svg = svgRef.current;
     if (!svg) return { x: 0, y: 0 };
+    // Convert screen → viewBox-local coords. Required because the SVG uses a
+    // viewBox with non-zero `minY` to crop top whitespace; a naive subtraction
+    // of `rect.top` would put the click in the wrong row.
+    const ctm = svg.getScreenCTM();
+    if (ctm) {
+      const pt = svg.createSVGPoint();
+      pt.x = e.clientX;
+      pt.y = e.clientY;
+      const sp = pt.matrixTransform(ctm.inverse());
+      return { x: sp.x, y: sp.y };
+    }
     const rect = svg.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }, []);
@@ -312,7 +325,7 @@ export function FlowTrack({
     const baseY = existingRoots.length > 0
       ? Math.max(...existingRoots.map((n) => getNodePos(n).y)) + GRID_Y
       : GRID_Y;
-    addNode.mutate({ label: 'Nuovo nodo', state: 'mine', x: ROOT_X, y: baseY });
+    addNode.mutate({ label: 'Nuovo nodo', owner: 'mine', state: 'active', x: ROOT_X, y: baseY });
   };
 
   /** Pin the reference node's current position before mutating the graph, so
@@ -340,13 +353,13 @@ export function FlowTrack({
 
       if (parents.length === 0) {
         // root sibling — no edges to add
-        await addNode.mutateAsync({ label: 'Nuovo nodo', state: 'mine', x: target.x, y: target.y });
+        await addNode.mutateAsync({ label: 'Nuovo nodo', owner: 'mine', state: 'active', x: target.x, y: target.y });
         return;
       }
       if (parents.length === 1) {
         await addNode.mutateAsync({
           label: 'Nuovo nodo',
-          state: 'mine',
+          owner: 'mine', state: 'active',
           parent_node_id: parents[0],
           x: target.x,
           y: target.y,
@@ -354,7 +367,7 @@ export function FlowTrack({
         return;
       }
       // Multi-parent: create node first, then fan-out edges from each parent.
-      const res = await addNode.mutateAsync({ label: 'Nuovo nodo', state: 'mine', x: target.x, y: target.y });
+      const res = await addNode.mutateAsync({ label: 'Nuovo nodo', owner: 'mine', state: 'active', x: target.x, y: target.y });
       if (!res?.node) return;
       for (const pid of parents) {
         try { await addEdge.mutateAsync({ parent_id: pid, child_id: res.node.id }); } catch { /* ignore */ }
@@ -421,7 +434,7 @@ export function FlowTrack({
     const target = snap(refPos.x - GRID_X, refPos.y);
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      state: 'mine',
+      owner: 'mine', state: 'active',
       x: target.x,
       y: target.y,
     });
@@ -443,33 +456,36 @@ export function FlowTrack({
     const target = snap(refPos.x + GRID_X, refPos.y);
     await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      state: 'mine',
+      owner: 'mine', state: 'active',
       parent_node_id: primarySelectedId,
       x: target.x,
       y: target.y,
     });
   }, [primarySelectedId, nodeById, getNodePos, addNode, pinPositionIfFloating]);
 
-  // ─── SVG dimensions: enclose every node + a little headroom ─────────────
-  const svgWidth = Math.max(
-    ...graph.nodes.map((n) => getNodePos(n).x + NODE_HEIGHT),
-    600,
-  );
-  const svgHeight = Math.max(
-    ...graph.nodes.map((n) => getNodePos(n).y + NODE_HEIGHT + 20),
-    160,
-  );
+  // ─── SVG dimensions: crop the viewBox to the actual content bounds ──────
+  // viewMinX/Y shift the visible window to wrap tightly around the node set
+  // (plus the per-side pads below). This eliminates dead space on the left
+  // (roots default to x=240) and at the top (roots default to y=80).
+  // Label visual height per node:
+  //   body radius (16) + 20 leading + 2 label lines × 13 + 13 contact subline + 5 descender ≈ 80
+  const NODE_VISUAL_BOTTOM = NODE_RADIUS + 64;
+  const LEFT_PAD = 28;   // visual breathing room on the left
+  const RIGHT_PAD = 32;  // room for "+" hover handle on the rightmost node
+  const TOP_PAD = 16;
+  const BOTTOM_PAD = 8;
+  const positions = graph.nodes.map((n) => getNodePos(n));
+  const minNodeX = positions.length ? Math.min(...positions.map((p) => p.x)) : 0;
+  const maxNodeX = positions.length ? Math.max(...positions.map((p) => p.x)) : 600;
+  const minNodeY = positions.length ? Math.min(...positions.map((p) => p.y)) : 0;
+  const maxNodeY = positions.length ? Math.max(...positions.map((p) => p.y)) : 80;
+  const viewMinX = Math.max(0, minNodeX - NODE_RADIUS - LEFT_PAD);
+  const viewMinY = Math.max(0, minNodeY - NODE_RADIUS - TOP_PAD);
+  const svgWidth = Math.max(maxNodeX + NODE_RADIUS + RIGHT_PAD - viewMinX, 600);
+  const svgHeight = Math.max(maxNodeY + NODE_VISUAL_BOTTOM + BOTTOM_PAD - viewMinY, 80);
 
   return (
-    <div
-      className="bg-zinc-950 border-t border-zinc-800 shadow-2xl flex flex-col shrink-0"
-      style={{
-        // Drawer shrinks to the minimum height needed for the flow content,
-        // but never grows beyond 40vh — beyond that the body scrolls.
-        // Computed height = header (48px) + actual SVG content + padding.
-        height: `min(40vh, ${48 + svgHeight + 16}px)`,
-      }}
-    >
+    <div className="bg-zinc-950 flex flex-col h-full min-h-0">
       <div className="h-12 flex items-center gap-2 px-4 border-b border-zinc-800 shrink-0">
         <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Flow</span>
         {tileTitle && (
@@ -512,10 +528,16 @@ export function FlowTrack({
             </button>
           </div>
         ) : (
+          // Inner wrapper: min-height ensures it always fills the available
+          // body height, so `items-center` vertically centers the SVG when
+          // the flow is short (single root, etc.). When the SVG is taller
+          // than the body, the parent's overflow-auto handles scrolling.
+          <div className="min-h-full flex items-center">
           <svg
             ref={svgRef}
             width={svgWidth}
             height={svgHeight}
+            viewBox={`${viewMinX} ${viewMinY} ${svgWidth} ${svgHeight}`}
             onPointerMove={handleSvgPointerMove}
             onPointerUp={handleSvgPointerUp}
             onPointerCancel={() => setDrag({ kind: 'none' })}
@@ -548,7 +570,7 @@ export function FlowTrack({
                   y={pos.y}
                   selected={selectedSet.has(n.id)}
                   contactName={cname}
-                  shape={n.state === 'mine' ? 'square' : 'circle'}
+                  shape={n.owner === 'mine' ? 'square' : 'circle'}
                   onPointerDownBody={handleNodeBodyPointerDown}
                   onContextMenuBody={(e, id) => {
                     e.preventDefault();
@@ -643,6 +665,7 @@ export function FlowTrack({
               );
             })()}
           </svg>
+          </div>
         )}
       </div>
 

@@ -10,7 +10,7 @@ interface Props {
   radius?: number;
   selected?: boolean;
   contactName?: string | null;
-  /** 'square' for state==='mine' (the user's ball), 'circle' otherwise. */
+  /** 'square' for owner==='mine' (the user's ball), 'circle' for 'theirs'. */
   shape?: 'square' | 'circle';
   /** Pointer-down on the node body — used by FlowTrack to start a drag
    *  (re-position). The parent decides whether the gesture ends in a
@@ -26,14 +26,19 @@ interface Props {
  *   - Label sotto: `[label or fallback] · [contact?] · [time?]`
  *   - 2px white-tinted ring when selected
  */
-export function FlowNodeView({ node, x, y, radius = 11, selected = false, contactName, shape, onPointerDownBody, onContextMenuBody }: Props) {
-  const color = FLOW_STATE_COLORS[node.state];
+export function FlowNodeView({ node, x, y, radius = 16, selected = false, contactName, shape, onPointerDownBody, onContextMenuBody }: Props) {
   const tsLabel = formatTs(node.occurred_at ?? node.scheduled_at);
   const subParts = [contactName, tsLabel].filter(Boolean) as string[];
   const labelMain = node.label.trim() || '—';
-  // Default rule: "Palla mia" = square, others = circle.
-  const useSquare = shape ? shape === 'square' : node.state === 'mine';
+  // Shape encodes ownership: 'mine' → square, 'theirs' → circle.
+  const useSquare = shape ? shape === 'square' : node.owner === 'mine';
   const side = radius * 2;
+  // Body is normally black; when the node is selected the fill switches to a
+  // mid-grey instead of drawing a white ring around the node (cleaner read in
+  // tight clusters). White border + optional status icon stay the same.
+  const bodyFill = selected ? '#3F3F46' : '#000000';
+  const bodyStroke = '#FFFFFF';
+  const statusColor = FLOW_STATE_COLORS[node.state];
 
   return (
     <g
@@ -42,45 +47,34 @@ export function FlowNodeView({ node, x, y, radius = 11, selected = false, contac
       onContextMenu={(e) => onContextMenuBody?.(e, node.id)}
       style={{ cursor: 'grab', touchAction: 'none' }}
     >
-      {/* Focus ring — red, painted UNDER the selection ring so both can
-          coexist. Sized at radius + 14 with a thick stroke so it reads as
-          a distinct "corona" around the (small) node body. */}
+      {/* Focus halo — red soft "corona" rendered as a slightly larger shape
+          behind the body with a CSS blur filter. Reads as a glowing aura
+          rather than the previous hard dashed ring, much softer in dense
+          clusters but still visually unmistakable. */}
       {node.is_focus && (
         useSquare ? (
           <rect
-            x={-radius - 14}
-            y={-radius - 14}
-            width={side + 28}
-            height={side + 28}
-            rx={6}
-            fill="none"
-            stroke="#EF4444"
-            strokeWidth={4}
-            strokeOpacity={1}
+            x={-radius - 12}
+            y={-radius - 12}
+            width={side + 24}
+            height={side + 24}
+            rx={8}
+            fill="#EF4444"
+            opacity={0.55}
+            style={{ filter: 'blur(6px)', pointerEvents: 'none' }}
           />
         ) : (
-          <circle r={radius + 14} fill="none" stroke="#EF4444" strokeWidth={4} strokeOpacity={1} />
+          <circle
+            r={radius + 12}
+            fill="#EF4444"
+            opacity={0.55}
+            style={{ filter: 'blur(6px)', pointerEvents: 'none' }}
+          />
         )
       )}
 
-      {/* Selection ring — white, on top of focus ring. */}
-      {selected && (
-        useSquare ? (
-          <rect
-            x={-radius - 4}
-            y={-radius - 4}
-            width={side + 8}
-            height={side + 8}
-            rx={4}
-            fill="none"
-            stroke="#FFFFFF"
-            strokeWidth={2}
-            strokeOpacity={0.9}
-          />
-        ) : (
-          <circle r={radius + 4} fill="none" stroke="#FFFFFF" strokeWidth={2} strokeOpacity={0.9} />
-        )
-      )}
+      {/* Selection is conveyed via bodyFill (grey) rather than a ring — see
+          the body element below. */}
 
       {useSquare ? (
         <rect
@@ -89,16 +83,27 @@ export function FlowNodeView({ node, x, y, radius = 11, selected = false, contac
           width={side}
           height={side}
           rx={4}
-          fill={color}
-          stroke="rgba(0,0,0,0.25)"
-          strokeWidth={1}
+          fill={bodyFill}
+          stroke={bodyStroke}
+          strokeWidth={1.5}
         />
       ) : (
-        <circle r={radius} fill={color} stroke="rgba(0,0,0,0.25)" strokeWidth={1} />
+        <circle r={radius} fill={bodyFill} stroke={bodyStroke} strokeWidth={1.5} />
       )}
 
-      {/* scheduled badge — empty dot inside if future-only */}
-      {!node.occurred_at && node.scheduled_at && (
+      {/* Status decorator inside the body. 'active' draws nothing.
+          - done → green check
+          - wait → orange hourglass
+          - undo → orange slash
+          - stop → red X
+          Drawn at ~60% of the node radius, centered. */}
+      {node.state !== 'active' && (
+        <StatusIcon state={node.state} color={statusColor} size={radius * 1.2} />
+      )}
+
+      {/* scheduled badge — empty dot inside if future-only and no status
+          decorator (decorator takes priority for the inner glyph). */}
+      {node.state === 'active' && !node.occurred_at && node.scheduled_at && (
         useSquare ? (
           <rect
             x={-radius * 0.45}
@@ -122,7 +127,7 @@ export function FlowNodeView({ node, x, y, radius = 11, selected = false, contac
         return lines.map((line, i) => (
           <text
             key={i}
-            y={radius + 14 + i * 13}
+            y={radius + 20 + i * 13}
             textAnchor="middle"
             fontSize={11}
             fontWeight={500}
@@ -135,7 +140,7 @@ export function FlowNodeView({ node, x, y, radius = 11, selected = false, contac
       })()}
       {subParts.length > 0 && (() => {
         const labelLines = wrapText(labelMain, 16, 2).length;
-        const subY = radius + 14 + labelLines * 13 + 1;
+        const subY = radius + 20 + labelLines * 13 + 1;
         return (
           <text
             y={subY}
@@ -148,6 +153,78 @@ export function FlowNodeView({ node, x, y, radius = 11, selected = false, contac
           </text>
         );
       })()}
+    </g>
+  );
+}
+
+/** Status decorator drawn inside the node body. Inline SVG paths sized
+ *  relative to the body's radius — no external icon library needed.
+ *  Exported so the FlowHub mini-badge can render the exact same glyphs. */
+export function StatusIcon({
+  state,
+  color,
+  size,
+}: {
+  state: 'done' | 'wait' | 'undo' | 'stop';
+  color: string;
+  size: number;
+}) {
+  const s = size / 2; // half-extent; glyphs are drawn around origin
+  const sw = Math.max(1.6, size * 0.16);
+  if (state === 'done') {
+    // Check mark: down-stroke from upper-left to mid-bottom, up-stroke to upper-right
+    return (
+      <path
+        d={`M ${-s * 0.7},0 L ${-s * 0.15},${s * 0.55} L ${s * 0.75},${-s * 0.55}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ pointerEvents: 'none' }}
+      />
+    );
+  }
+  if (state === 'wait') {
+    // Hourglass: two FILLED triangles meeting at the center. Filled looks
+    // lighter than a thick outline at this size and keeps a clean silhouette.
+    return (
+      <g style={{ pointerEvents: 'none' }}>
+        <path d={`M ${-s * 0.7},${-s * 0.75} L ${s * 0.7},${-s * 0.75} L 0,0 Z`} fill={color} />
+        <path d={`M ${-s * 0.7},${s * 0.75} L ${s * 0.7},${s * 0.75} L 0,0 Z`} fill={color} />
+      </g>
+    );
+  }
+  if (state === 'undo') {
+    // Slash: a single diagonal line from bottom-left to top-right.
+    return (
+      <path
+        d={`M ${-s * 0.7},${s * 0.7} L ${s * 0.7},${-s * 0.7}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+        style={{ pointerEvents: 'none' }}
+      />
+    );
+  }
+  // stop → X
+  return (
+    <g style={{ pointerEvents: 'none' }}>
+      <path
+        d={`M ${-s * 0.65},${-s * 0.65} L ${s * 0.65},${s * 0.65}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+      />
+      <path
+        d={`M ${s * 0.65},${-s * 0.65} L ${-s * 0.65},${s * 0.65}`}
+        fill="none"
+        stroke={color}
+        strokeWidth={sw}
+        strokeLinecap="round"
+      />
     </g>
   );
 }

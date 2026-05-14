@@ -21,9 +21,10 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { assertEdgeAcyclic, EdgeCycleError } from '../services/flow-validation.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-import type { FlowNodeState } from '../types/flow.js';
+import type { FlowNodeOwner, FlowNodeState } from '../types/flow.js';
 
-const VALID_STATES: FlowNodeState[] = ['mine', 'theirs', 'done', 'blocked', 'cancelled'];
+const VALID_OWNERS: FlowNodeOwner[] = ['mine', 'theirs'];
+const VALID_STATES: FlowNodeState[] = ['active', 'done', 'wait', 'undo', 'stop'];
 
 // ─── tileFlowRouter ────────────────────────────────────────────────────────
 
@@ -77,6 +78,7 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
     const userId = req.user!.id;
     const body = req.body as {
       label?: string;
+      owner?: string;
       state?: string;
       contact_id?: string | null;
       occurred_at?: string | null;
@@ -87,6 +89,10 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
       y?: number | null;
     };
 
+    if (body.owner && !VALID_OWNERS.includes(body.owner as FlowNodeOwner)) {
+      res.status(400).json({ success: false, error: `owner must be one of ${VALID_OWNERS.join(', ')}` });
+      return;
+    }
     if (body.state && !VALID_STATES.includes(body.state as FlowNodeState)) {
       res.status(400).json({ success: false, error: `state must be one of ${VALID_STATES.join(', ')}` });
       return;
@@ -128,7 +134,8 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
         user_id: userId,
         tile_id: tileId,
         label: body.label ?? '',
-        state: body.state ?? 'mine',
+        owner: body.owner ?? 'mine',
+        state: body.state ?? 'active',
         contact_id: body.contact_id ?? null,
         occurred_at: body.occurred_at ?? null,
         scheduled_at: body.scheduled_at ?? null,
@@ -181,13 +188,17 @@ flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, 
     const userId = req.user!.id;
     const body = req.body as Record<string, unknown>;
 
+    if (body.owner !== undefined && !VALID_OWNERS.includes(body.owner as FlowNodeOwner)) {
+      res.status(400).json({ success: false, error: `owner must be one of ${VALID_OWNERS.join(', ')}` });
+      return;
+    }
     if (body.state !== undefined && !VALID_STATES.includes(body.state as FlowNodeState)) {
       res.status(400).json({ success: false, error: `state must be one of ${VALID_STATES.join(', ')}` });
       return;
     }
 
     const updates: Record<string, unknown> = {};
-    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y', 'is_focus']) {
+    for (const k of ['label', 'owner', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y', 'is_focus']) {
       if (k in body) updates[k] = body[k];
     }
 
@@ -405,6 +416,17 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       .eq('user_id', userId);
     if (actErr) throw actErr;
 
+    // Also load the set of focused nodes (is_focus = TRUE). The view doesn't
+    // expose is_focus yet; fetching separately is cheap and lets the owner
+    // filters surface "where I am in the flow" regardless of state/leaf-ness.
+    const { data: focusRows, error: focusErr } = await supabaseAdmin
+      .from('flow_nodes')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('is_focus', true);
+    if (focusErr) throw focusErr;
+    const focusedIds = new Set((focusRows ?? []).map((r: { id: string }) => r.id));
+
     const now = Date.now();
     const stalledThresholdMs = days * 24 * 60 * 60 * 1000;
     const dueSoonWindowMs = 48 * 60 * 60 * 1000;
@@ -413,6 +435,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       id: string;
       user_id: string;
       tile_id: string;
+      owner: FlowNodeOwner;
       state: FlowNodeState;
       contact_id: string | null;
       occurred_at: string | null;
@@ -426,9 +449,14 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
     const filtered = (activityRows as ActivityRow[] | null ?? []).filter((row) => {
       switch (filter) {
         case 'mine':
-          return row.is_open && row.is_leaf && row.state === 'mine';
+          // Strict semantic: the owner hubs are driven exclusively by the
+          // per-tile FOCUS marker. A flow shows up under "Palla mia" only
+          // when its focused node is owned by me — removing focus removes
+          // the card. (Auto-focus on modal-open guarantees every visited
+          // flow has a focus to start with.)
+          return focusedIds.has(row.id) && row.owner === 'mine';
         case 'theirs':
-          return row.is_open && row.is_leaf && row.state === 'theirs';
+          return focusedIds.has(row.id) && row.owner === 'theirs';
         case 'due_soon': {
           if (!row.scheduled_at) return false;
           const t = new Date(row.scheduled_at).getTime();
@@ -441,7 +469,8 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
             now - new Date(row.last_activity_at).getTime() > stalledThresholdMs
           );
         case 'blocked':
-          return row.state === 'blocked';
+          // Old vocabulary: state='blocked'. New vocabulary: state='stop'.
+          return row.state === 'stop';
         default:
           return false;
       }

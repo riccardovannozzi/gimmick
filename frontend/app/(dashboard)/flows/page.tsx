@@ -2,11 +2,11 @@
  * /flows — FlowHub: cross-tile inbox of pending Flow nodes.
  *
  * Five tab-filters mirror the backend (`GET /api/flows/hub?filter=…`):
- *   mine      Palla mia (open leaves in state='mine')
- *   theirs    In attesa di loro (open leaves in state='theirs')
+ *   mine      Palla mia (open leaves with owner='mine')
+ *   theirs    In attesa di loro (open leaves with owner='theirs')
  *   due_soon  Scheduled within next 48h
  *   stalled   Open leaves untouched > N days
- *   blocked   state='blocked'
+ *   blocked   state='stop'
  *
  * Each card is a deep-link into /canvas — `?tile=<id>&flow=<node_id>` — which
  * canvas/page.tsx resolves by picking a tag the tile belongs to, then opens
@@ -15,11 +15,12 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { IconRoute, IconClock, IconUserCheck, IconUserOff, IconHourglassHigh, IconLock, IconRefresh } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { useFlowHub, type FlowHubFilter } from '@/lib/hooks/useFlowHub';
-import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { FLOW_OWNER_LABELS, FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { StatusIcon } from '@/components/flow/FlowNodeView';
+import { useFlowModalStore } from '@/store/flow-modal-store';
 import { cn } from '@/lib/utils';
 import type { FlowHubItem } from '@/types/flow';
 
@@ -46,8 +47,12 @@ function formatScheduled(iso: string | null): string | null {
 }
 
 function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void }) {
-  const stateColor = FLOW_STATE_COLORS[item.state];
+  const ownerLabel = FLOW_OWNER_LABELS[item.owner];
   const stateLabel = FLOW_STATE_LABELS[item.state];
+  // Tooltip text on the badge surfaces the most informative single label:
+  //   - if a status decorator is set (done/wait/undo/stop), the status wins
+  //   - otherwise show the owner ("Palla mia" / "Palla loro")
+  const pillLabel = item.state !== 'active' ? stateLabel : ownerLabel;
   const isDue = item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
 
   return (
@@ -56,79 +61,125 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
       onClick={onOpen}
       className="w-full text-left bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-3 transition-colors group"
     >
-      <div className="flex items-start gap-3">
-        {/* State dot */}
-        <div
-          className="mt-1 w-2.5 h-2.5 rounded-full shrink-0"
-          style={{ backgroundColor: stateColor }}
-          title={stateLabel}
-        />
-
-        {/* Main column */}
-        <div className="flex-1 min-w-0">
-          {/* Tile title (top, small, muted) */}
+      {/* 3-column grid: title+label | contact | mini badge */}
+      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-4 items-center">
+        {/* Column 1 — tile title (top) + node label (bottom) */}
+        <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wider text-zinc-500 truncate">
             {item.tile.title || '(senza titolo)'}
           </div>
-          {/* Node label */}
           <div className="text-sm text-zinc-100 group-hover:text-white truncate mt-0.5">
             {item.label || <span className="italic text-zinc-500">(senza etichetta)</span>}
           </div>
-          {/* Footer row */}
-          <div className="flex items-center gap-3 mt-2 text-[11px] text-zinc-500">
-            <span
-              className="px-1.5 py-0.5 rounded font-medium leading-none"
-              style={{
-                backgroundColor: `${stateColor}26`,
-                color: stateColor,
-                border: `1px solid ${stateColor}55`,
-              }}
-            >
-              {stateLabel}
-            </span>
-            {item.contact && (
-              <span
-                className="px-1.5 py-0.5 rounded leading-none border"
-                style={{
-                  color: item.contact.color || '#A1A1AA',
-                  borderColor: item.contact.color ? `${item.contact.color}55` : '#3F3F46',
-                }}
-              >
-                {item.contact.name}
-              </span>
-            )}
-            {item.scheduled_at && (
-              <span className={cn('flex items-center gap-1', isDue && 'text-red-400')}>
-                <IconClock size={11} />
-                {formatScheduled(item.scheduled_at)}
-              </span>
-            )}
-            {!item.scheduled_at && item.days_since_activity > 0 && (
-              <span>{item.days_since_activity}g fa</span>
-            )}
-          </div>
-          {item.notes && (
-            <div className="mt-2 text-xs text-zinc-400 line-clamp-2 whitespace-pre-wrap">
-              {item.notes}
-            </div>
-          )}
         </div>
 
-        {/* Right: occurred_at */}
-        {item.occurred_at && (
-          <div className="text-[10px] text-zinc-500 shrink-0">
-            {formatDate(item.occurred_at)}
-          </div>
-        )}
+        {/* Column 2 — contact (or placeholder for grid stability) */}
+        <span
+          className={cn(
+            'px-2 py-1 rounded leading-none text-[11px] shrink-0 border max-w-[180px] truncate',
+            !item.contact && 'opacity-0 pointer-events-none',
+          )}
+          style={
+            item.contact
+              ? {
+                  color: item.contact.color || '#A1A1AA',
+                  borderColor: item.contact.color ? `${item.contact.color}55` : '#3F3F46',
+                }
+              : { color: 'transparent', borderColor: 'transparent' }
+          }
+        >
+          {item.contact?.name || '—'}
+        </span>
+
+        {/* Column 3 — flow-node-style mini badge ONLY. Black bg + white
+            border, square for 'mine' / circle for 'theirs', status glyph
+            inside when state ≠ 'active'. Matches the rendering scale used
+            inside the Flow modal (radius 16) so the Hub is visually
+            identical. Tooltip surfaces the full label. */}
+        <span className="shrink-0 flex items-center justify-center" title={pillLabel}>
+          <FlowMiniBadge owner={item.owner} state={item.state} />
+        </span>
       </div>
+
+      {/* Secondary metadata — schedule date / age / notes — only when present */}
+      {(item.scheduled_at || (!item.scheduled_at && item.days_since_activity > 0) || item.notes) && (
+        <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
+          {item.scheduled_at && (
+            <span className={cn('flex items-center gap-1', isDue && 'text-red-400')}>
+              <IconClock size={11} />
+              {formatScheduled(item.scheduled_at)}
+            </span>
+          )}
+          {!item.scheduled_at && item.days_since_activity > 0 && (
+            <span>{item.days_since_activity}g fa</span>
+          )}
+          {item.occurred_at && (
+            <span className="ml-auto">{formatDate(item.occurred_at)}</span>
+          )}
+        </div>
+      )}
+      {item.notes && (
+        <div className="mt-2 text-xs text-zinc-400 line-clamp-2 whitespace-pre-wrap">
+          {item.notes}
+        </div>
+      )}
     </button>
   );
 }
 
+/** Reproduction of a FlowNodeView body at the same scale used in the modal
+ *  (radius 16 → 32×32 body), so the Hub reads visually identical: black
+ *  background + white border, square for owner='mine' / circle for
+ *  owner='theirs', with the inline status glyph (check/hourglass/slash/X)
+ *  drawn inside when state is a decorator. */
+function FlowMiniBadge({
+  owner,
+  state,
+}: {
+  owner: 'mine' | 'theirs';
+  state: 'active' | 'done' | 'wait' | 'undo' | 'stop';
+}) {
+  // Match FlowTrack.NODE_RADIUS so the Hub badge has the exact same diameter
+  // as a node body inside the Flow modal.
+  const r = 16;
+  const SIZE = r * 2 + 4; // +4 leaves 2px of pad around the stroke
+  const half = SIZE / 2;
+  const bodyFill = '#000000';
+  const bodyStroke = '#FFFFFF';
+  const bodyStrokeWidth = 1.5;
+  const statusColor = FLOW_STATE_COLORS[state];
+  const useSquare = owner === 'mine';
+
+  return (
+    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0 block">
+      <g transform={`translate(${half},${half})`}>
+        {useSquare ? (
+          <rect
+            x={-r}
+            y={-r}
+            width={r * 2}
+            height={r * 2}
+            rx={4}
+            fill={bodyFill}
+            stroke={bodyStroke}
+            strokeWidth={bodyStrokeWidth}
+          />
+        ) : (
+          <circle r={r} fill={bodyFill} stroke={bodyStroke} strokeWidth={bodyStrokeWidth} />
+        )}
+        {/* Reuse the exact same status glyph component as the modal so the
+            decorator renders pixel-identical (same proportions, same stroke
+            widths). The size formula matches FlowNodeView (radius * 1.2). */}
+        {state !== 'active' && <StatusIcon state={state} color={statusColor} size={r * 1.2} />}
+      </g>
+    </svg>
+  );
+}
+
 export default function FlowsPage() {
-  const router = useRouter();
   const [filter, setFilter] = useState<FlowHubFilter>('mine');
   const [stalledDays, setStalledDays] = useState(7);
+  const openFlowModal = useFlowModalStore((s) => s.open);
 
   const { items, isLoading, isError, refetch } = useFlowHub(
     filter,
@@ -136,8 +187,9 @@ export default function FlowsPage() {
   );
 
   const handleOpen = (item: FlowHubItem) => {
-    // Canvas resolves missing ?tag= by picking the tile's first non-root tag.
-    router.push(`/canvas?tile=${item.tile_id}&flow=${item.id}`);
+    // Open the Flow modal in-place so closing it leaves the user on the
+    // Flow Hub (avoids a context switch to /canvas).
+    openFlowModal(item.tile_id, item.tile.title);
   };
 
   return (

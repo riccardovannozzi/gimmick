@@ -23,11 +23,13 @@ export function FlowEdgeView({ parent, child, points, now }: Props) {
   if (!points || points.length < 2) return null;
 
   const strokeWidth = computeEdgeWidth(parent, child, now);
-  // Edge color: dim grey for closed flows, faint white for open ones (so the
-  // stroke-width carries the visual weight, not hue).
-  const isOpen = child.state === 'mine' || child.state === 'theirs';
-  const color = child.state === 'cancelled' ? '#444' : isOpen ? FLOW_STATE_COLORS[child.state] : '#5A5A60';
-  const opacity = child.state === 'cancelled' ? 0.4 : isOpen ? 0.55 : 0.6;
+  // Edge color: dim grey for cancelled flows, owner-tinted for open (active/wait),
+  // dim grey for done/stop. The stroke-width carries the visual weight; hue
+  // is just a subtle signal of state.
+  const isOpen = child.state === 'active' || child.state === 'wait';
+  const ownerHue = child.owner === 'mine' ? '#378ADD' : '#EF9F27';
+  const color = child.state === 'undo' ? '#444' : isOpen ? ownerHue : '#5A5A60';
+  const opacity = child.state === 'undo' ? 0.4 : isOpen ? 0.55 : 0.6;
 
   return (
     <path

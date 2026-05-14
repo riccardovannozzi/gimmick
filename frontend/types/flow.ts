@@ -6,7 +6,12 @@
  * TS package, so duplication is the pragmatic choice.
  */
 
-export type FlowNodeState = 'mine' | 'theirs' | 'done' | 'blocked' | 'cancelled';
+/** Who owns the action right now ("la palla"). Orthogonal to status. */
+export type FlowNodeOwner = 'mine' | 'theirs';
+
+/** Lifecycle of the node. 'active' means no decorator — the default state
+ *  saying "this node is in play". */
+export type FlowNodeState = 'active' | 'done' | 'wait' | 'undo' | 'stop';
 
 export type ContactKind = 'person' | 'company' | 'professional' | 'institution' | 'other';
 
@@ -30,6 +35,10 @@ export interface FlowNode {
   user_id: string;
   tile_id: string;
   label: string;
+  /** Who currently has "the ball" — drives the node shape (square=mine,
+   *  circle=theirs) and the FlowHub Mine/Other filters. */
+  owner: FlowNodeOwner;
+  /** Lifecycle decorator. 'active' = no decorator drawn on the node body. */
   state: FlowNodeState;
   contact_id: string | null;
   occurred_at: string | null;

@@ -61,6 +61,29 @@ canvasRouter.put('/layout/:tagId', async (req: AuthenticatedRequest, res: Respon
 });
 
 /**
+ * DELETE /api/canvas/layout/:tagId/:tileId
+ * Removes a single tile's position entry, sending it back to the canvas-page
+ * staging panel. PUT /layout/:tagId is upsert-only and never deletes missing
+ * rows, so we need an explicit endpoint for the inverse drag (canvas →
+ * staging) and for the "Rimuovi dal canvas" context-menu action.
+ */
+canvasRouter.delete('/layout/:tagId/:tileId', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { tagId, tileId } = req.params;
+    const { error } = await supabaseAdmin
+      .from('canvas_layouts')
+      .delete()
+      .eq('user_id', req.user!.id)
+      .eq('tag_id', tagId)
+      .eq('tile_id', tileId);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * GET /api/canvas/edges/:tagId
  * Get saved edges for a tag's canvas
  */

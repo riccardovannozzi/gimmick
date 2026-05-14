@@ -9,7 +9,7 @@ import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid, IconRoute } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useFlowModalStore } from '@/store/flow-modal-store';
 import { readableOn } from '@/lib/palette';
 import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 
@@ -217,6 +218,7 @@ export default function CalendarPage() {
   }, [typeIcons, typeTileIcons]);
   const { doneShape, getActionTypeShape, statuses: allStatuses } = useStatuses();
   const tilesWithFlows = useTilesWithFlows();
+  const openFlowModal = useFlowModalStore((s) => s.open);
 
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
@@ -975,10 +977,13 @@ export default function CalendarPage() {
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {tilesWithFlows.has(t.id) && (
-                                <span
-                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
-                                  title="Questo tile ha un Flow"
-                                >FLOW</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
+                                  title="Apri Flow"
+                                >FLOW</button>
                               )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
@@ -1032,10 +1037,13 @@ export default function CalendarPage() {
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {tilesWithFlows.has(t.id) && (
-                            <span
-                              className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
-                              title="Questo tile ha un Flow"
-                            >FLOW</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
+                              title="Apri Flow"
+                            >FLOW</button>
                           )}
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
@@ -1163,10 +1171,13 @@ export default function CalendarPage() {
                             <div className="flex items-end justify-between">
                               <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                               {tilesWithFlows.has(t.id) && (
-                                <span
-                                  className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
-                                  title="Questo tile ha un Flow"
-                                >FLOW</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                                  onMouseDown={(e) => e.stopPropagation()}
+                                  className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
+                                  title="Apri Flow"
+                                >FLOW</button>
                               )}
                               {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                             </div>
@@ -1220,10 +1231,13 @@ export default function CalendarPage() {
                         <div className="flex items-end justify-between">
                           <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
                           {tilesWithFlows.has(t.id) && (
-                            <span
-                              className="px-1 py-px rounded text-[8px] font-semibold tracking-wider text-blue-300 bg-blue-500/[0.18] border border-blue-500/[0.45] leading-none shrink-0 mx-1"
-                              title="Questo tile ha un Flow"
-                            >FLOW</span>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
+                              title="Apri Flow"
+                            >FLOW</button>
                           )}
                           {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
                         </div>
@@ -1528,13 +1542,28 @@ export default function CalendarPage() {
                   }
                 }
               }
-              // FLOW badge — small chip when this tile owns a Flow.
+              // FLOW badge — clickable chip pinned to the top-right of the
+              // event, sticking out past the event boundary (overflow:visible
+              // on the event element is needed). Click opens the Flow modal.
               if (tile && tilesWithFlows.has(tile.id)) {
+                // Allow the badge to overflow the event box.
+                info.el.style.overflow = 'visible';
                 const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
                 if (main) {
-                  const chip = document.createElement('div');
-                  chip.style.cssText = 'position:absolute;bottom:2px;left:50%;transform:translateX(-50%);padding:1px 4px;border-radius:3px;background:rgba(59,130,246,0.18);border:1px solid rgba(59,130,246,0.45);color:#93C5FD;font-size:8px;font-weight:600;letter-spacing:0.5px;line-height:1;pointer-events:none;z-index:2;';
+                  main.style.overflow = 'visible';
+                  const tileId = tile.id;
+                  const tileTitle = tile.title ?? undefined;
+                  const chip = document.createElement('button');
+                  chip.type = 'button';
+                  chip.style.cssText = 'position:absolute;top:-6px;right:8px;padding:1px 5px;border-radius:4px;background:#1E40AF;border:1px solid #3B82F6;color:#DBEAFE;font-size:9px;font-weight:700;letter-spacing:0.6px;line-height:14px;height:16px;cursor:pointer;z-index:3;box-shadow:0 1px 3px rgba(0,0,0,0.4);';
                   chip.textContent = 'FLOW';
+                  chip.title = 'Apri Flow';
+                  chip.addEventListener('mousedown', (e) => e.stopPropagation());
+                  chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    useFlowModalStore.getState().open(tileId, tileTitle);
+                  });
                   if (getComputedStyle(main).position === 'static') main.style.position = 'relative';
                   main.appendChild(chip);
                 }
@@ -1590,6 +1619,18 @@ export default function CalendarPage() {
             Incolla
           </button>
           <div className="border-t border-zinc-700 my-1" />
+          <button
+            onClick={() => {
+              if (!ctxMenu) return;
+              const { tile } = ctxMenu;
+              setCtxMenu(null);
+              openFlowModal(tile.id, tile.title ?? undefined);
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconRoute className="h-3.5 w-3.5" />
+            Apri Flow
+          </button>
           <button
             onClick={handleDeleteTile}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"

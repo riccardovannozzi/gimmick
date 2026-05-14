@@ -6,8 +6,9 @@
  *
  * stroke_width = clamp(1 + log10(max(Δt / 1h, 1)) * 2.5, min=1, max=12)
  *
- * Edge into a `done` node → snapshot at the time of closure.
- * Edge into a `mine`/`theirs` node → grows over time because `now` keeps moving.
+ * Edge into a `done`/`undo`/`stop` node → snapshot at the time of closure.
+ * Edge into an open node (`active`/`wait`) → grows over time because `now`
+ * keeps moving.
  */
 import type { FlowNode } from '@/types/flow';
 
@@ -20,8 +21,9 @@ export function computeEdgeWidth(parent: FlowNode, child: FlowNode, now: number 
   const parentTs = parent.occurred_at ?? parent.scheduled_at ?? parent.created_at;
   if (!parentTs) return MIN_WIDTH;
 
-  // For closed children, the snapshot is fixed at occurred_at. For open ones
-  // (mine/theirs), measure against NOW so the line keeps growing.
+  // For closed children (done/undo/stop), the snapshot is fixed at
+  // occurred_at. For open ones (active/wait), measure against NOW so the line
+  // keeps growing.
   const childTs = child.occurred_at ?? (isOpen(child) ? new Date(now).toISOString() : child.updated_at);
 
   const deltaMs = new Date(childTs).getTime() - new Date(parentTs).getTime();
@@ -33,5 +35,5 @@ export function computeEdgeWidth(parent: FlowNode, child: FlowNode, now: number 
 }
 
 function isOpen(node: FlowNode): boolean {
-  return node.state === 'mine' || node.state === 'theirs';
+  return node.state === 'active' || node.state === 'wait';
 }
