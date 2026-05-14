@@ -1,16 +1,22 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, FlashMode } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconRefresh, IconBolt, IconBoltOff, IconCircle } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
+import { createSparkForTile } from '@/lib/api';
 
 export default function PhotoCaptureScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  // When reached from a tile detail (`/capture/photo?tile=<id>`), the spark
+  // is created directly against that tile; otherwise the legacy buffer flow.
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
@@ -62,9 +68,19 @@ export default function PhotoCaptureScreen() {
     setCapturedUri(null);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!capturedUri) return;
-
+    if (tileId) {
+      const res = await createSparkForTile({ type: 'photo', tileId, uri: capturedUri });
+      if (!res.success) {
+        toast.error(res.error || 'Errore nel salvataggio');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+      toast.success('Foto salvata');
+      router.back();
+      return;
+    }
     addItem({
       type: 'photo',
       uri: capturedUri,

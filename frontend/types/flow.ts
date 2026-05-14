@@ -69,7 +69,8 @@ export interface FlowGraph {
 }
 
 export interface FlowHubItem extends FlowNode {
-  tile: { id: string; title: string };
+  /** The tile the node belongs to, plus its primary (first non-root) tag. */
+  tile: { id: string; title: string; tag: { name: string } | null };
   contact: { id: string; name: string; color: string | null } | null;
   last_activity_at: string;
   is_leaf: boolean;

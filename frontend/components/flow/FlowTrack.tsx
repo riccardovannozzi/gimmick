@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import dagre from 'dagre';
-import { IconPlus, IconX } from '@tabler/icons-react';
+import { IconPlus, IconX, IconExternalLink } from '@tabler/icons-react';
 import { useFlow } from '@/lib/hooks/useFlow';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { FlowNodeView } from './FlowNodeView';
@@ -22,6 +22,11 @@ interface Props {
   /** Multi-selection state from the parent. */
   selectedNodeIds?: string[];
   focusNodeId?: string | null;
+  /** Optional "open the referenced tile" handler. When provided, FlowTrack
+   *  renders a small external-link button next to the tile title in its
+   *  header — the parent (FlowModal) closes itself and navigates to the
+   *  canvas for that tile. */
+  onOpenTile?: () => void;
 }
 
 const NODE_RADIUS = 16;
@@ -77,6 +82,7 @@ export function FlowTrack({
   onSelectNode,
   selectedNodeIds,
   focusNodeId,
+  onOpenTile,
 }: Props) {
   const { graph, isLoading, addNode, updateNode, addEdge, deleteNode, setFocus } = useFlow(tileId);
 
@@ -489,7 +495,18 @@ export function FlowTrack({
       <div className="h-12 flex items-center gap-2 px-4 border-b border-zinc-800 shrink-0">
         <span className="text-xs font-bold uppercase tracking-wider text-zinc-400">Flow</span>
         {tileTitle && (
-          <span className="text-xs text-zinc-200 truncate max-w-md">· {tileTitle}</span>
+          onOpenTile ? (
+            <button
+              onClick={onOpenTile}
+              className="flex items-center gap-1 text-xs text-zinc-200 truncate max-w-md hover:text-blue-400 transition-colors group/openlink"
+              title="Apri il tile nel canvas"
+            >
+              <span className="truncate">· {tileTitle}</span>
+              <IconExternalLink size={12} className="shrink-0 opacity-50 group-hover/openlink:opacity-100 transition-opacity" />
+            </button>
+          ) : (
+            <span className="text-xs text-zinc-200 truncate max-w-md">· {tileTitle}</span>
+          )
         )}
         <span className="text-[10px] text-zinc-600 ml-2">
           {graph.nodes.length} nodi · {graph.edges.length} edge

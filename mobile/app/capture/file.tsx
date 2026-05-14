@@ -1,16 +1,20 @@
 import React, { useEffect } from 'react';
 import { View, Text } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBufferStore, toast } from '@/store';
-import { formatFileSize } from '@/utils/formatters';
+import { createSparkForTile } from '@/lib/api';
 
 export default function FileCaptureScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const addItem = useBufferStore((state) => state.addItem);
 
   useEffect(() => {
     pickDocument();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pickDocument = async () => {
@@ -28,6 +32,25 @@ export default function FileCaptureScreen() {
       const asset = result.assets[0];
 
       if (asset) {
+        if (tileId) {
+          const res = await createSparkForTile({
+            type: 'file',
+            tileId,
+            uri: asset.uri,
+            fileName: asset.name,
+            mimeType: asset.mimeType ?? 'application/octet-stream',
+            size: asset.size,
+          });
+          if (!res.success) {
+            toast.error(res.error || 'Errore nel salvataggio');
+            router.back();
+            return;
+          }
+          queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+          toast.success(`File "${asset.name}" salvato`);
+          router.back();
+          return;
+        }
         addItem({
           type: 'file',
           uri: asset.uri,

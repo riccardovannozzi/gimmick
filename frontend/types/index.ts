@@ -32,7 +32,7 @@ export interface Tile {
   updated_at: string;
   spark_count?: number;
   sparks?: Spark[];
-  tags?: { id: string; name: string; tag_type?: string }[];
+  tags?: { id: string; name: string; tag_type?: string; is_root?: boolean }[];
   // Compact checklist payload (sorted by sort_order) for rendering the checklist bar.
   subtasks?: { is_done: boolean }[];
 }

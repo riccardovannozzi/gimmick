@@ -1,16 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconRefresh, IconCircle, IconSquare } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { File } from 'expo-file-system/next';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
+import { createSparkForTile } from '@/lib/api';
 const MAX_DURATION = 30; // 30 seconds
 
 export default function VideoCaptureScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const cameraRef = useRef<CameraView>(null);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
@@ -122,6 +126,25 @@ export default function VideoCaptureScreen() {
       const file = new File(capturedUri);
       fileSize = file.size ?? undefined;
     } catch {};
+
+    if (tileId) {
+      const res = await createSparkForTile({
+        type: 'video',
+        tileId,
+        uri: capturedUri,
+        size: fileSize,
+        duration: recordingTime * 1000,
+        mimeType: 'video/mp4',
+      });
+      if (!res.success) {
+        toast.error(res.error || 'Errore nel salvataggio');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+      toast.success('Video salvato');
+      router.back();
+      return;
+    }
 
     addItem({
       type: 'video',

@@ -49,6 +49,7 @@ export interface Tile {
   action_type_ai?: ActionType;
   action_type_confidence?: number;
   action_type_reviewed?: boolean;
+  status_id?: string | null;
   is_completed?: boolean;
   is_cta?: boolean;
   color?: string;
@@ -56,6 +57,7 @@ export interface Tile {
   updated_at: string;
   spark_count?: number;
   sparks?: Spark[];
+  tags?: { id: string; name: string; tag_type?: string; is_root?: boolean }[];
 }
 
 /**

@@ -1,17 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Audio } from 'expo-av';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconMicrophone, IconSquare, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
 import { formatDuration } from '@/utils/formatters';
+import { createSparkForTile } from '@/lib/api';
 
 export default function VoiceCaptureScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -151,8 +155,24 @@ export default function VoiceCaptureScreen() {
     setRecordingDuration(0);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!recordedUri) return;
+    if (tileId) {
+      const res = await createSparkForTile({
+        type: 'audio_recording',
+        tileId,
+        uri: recordedUri,
+        duration: recordingDuration,
+      });
+      if (!res.success) {
+        toast.error(res.error || 'Errore nel salvataggio');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+      toast.success('Audio salvato');
+      router.back();
+      return;
+    }
 
     addItem({
       type: 'audio_recording',

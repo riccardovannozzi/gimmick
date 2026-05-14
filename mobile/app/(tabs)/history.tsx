@@ -1,44 +1,17 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
-import { IconClock, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconTrash, IconCircle, IconBolt, IconCalendar } from '@tabler/icons-react-native';
+import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
+import { IconClock, IconTrash, IconBolt, IconCalendar, IconArrowUp, IconTag } from '@tabler/icons-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { sparksApi, tilesApi } from '@/lib/api';
+import { tilesApi } from '@/lib/api';
 import { captureColors } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
-import { formatDate, formatFileSize } from '@/utils/formatters';
-import { ActionTypeDropdown } from '@/components/ActionTypeDropdown';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
-import type { Spark, Tile, ActionType } from '@/types';
+import { TagFilterModal } from '@/components/TagFilterModal';
+import type { Tile, ActionType } from '@/types';
 
-// ============ Spark helpers ============
-
-const typeIcons: Record<string, typeof IconFileText> = {
-  photo: IconPhoto,
-  image: IconPhoto,
-  video: IconMovie,
-  audio_recording: IconMicrophone,
-  text: IconFileText,
-  file: IconFile,
-};
-
-const typeColors: Record<string, string> = {
-  photo: captureColors.photo,
-  image: captureColors.gallery,
-  video: captureColors.video,
-  audio_recording: captureColors.voice,
-  text: captureColors.text,
-  file: captureColors.file,
-};
-
-const sparkFilterOptions = [
-  { id: 'all', label: 'Tutti' },
-  { id: 'photo', label: 'Foto' },
-  { id: 'video', label: 'Video' },
-  { id: 'audio_recording', label: 'Audio' },
-  { id: 'text', label: 'Testo' },
-  { id: 'file', label: 'File' },
-];
+// Spark management is desktop-only — this screen lists Tiles exclusively.
 
 const tileFilterOptions: { id: ActionType | 'all'; label: string }[] = [
   { id: 'all', label: 'Tutti' },
@@ -100,137 +73,212 @@ function groupByDate<T extends { created_at: string }>(items: T[]): { title: str
   return Object.entries(groups).map(([title, data]) => ({ title, data }));
 }
 
-// ============ SparkItem ============
-
-function SparkItem({ spark, onDelete, colors }: { spark: Spark; onDelete: (id: string) => void; colors: any }) {
-  const Icon = typeIcons[spark.type] || IconFileText;
-  const iconColor = typeColors[spark.type] || colors.secondary;
-
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 }}>
-      <View
-        style={{
-          width: 44, height: 44, borderRadius: 22,
-          backgroundColor: colors.surfaceVariant,
-          alignItems: 'center', justifyContent: 'center', marginRight: 14,
-        }}
-      >
-        <Icon size={22} color={iconColor} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: '500', color: colors.primary }} numberOfLines={1}>
-          {spark.file_name || spark.content?.substring(0, 40) || spark.type}
-        </Text>
-        <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
-          {formatDate(spark.created_at)}
-          {spark.file_size ? ` · ${formatFileSize(spark.file_size)}` : ''}
-        </Text>
-      </View>
-      <View
-        style={{
-          width: 10, height: 10, borderRadius: 5, marginRight: 12,
-          borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
-          backgroundColor:
-            spark.ai_status === 'completed' ? '#22C55E' :
-            spark.ai_status === 'processing' ? '#F59E0B' :
-            spark.ai_status === 'failed' ? '#EF4444' : '#6B7280',
-        }}
-      />
-      <TouchableOpacity
-        onPress={() => onDelete(spark.id)}
-        style={{ width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' }}
-      >
-        <IconTrash size={18} color={colors.tertiary} />
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 // ============ TileItem ============
+//
+// Card-style rendering that mirrors the web Kanban/Canvas tile look:
+//   - Background tinted from the tile's action_type color
+//   - Dashed red border for deadlines
+//   - Title (2-line clamp) + scheduled-date subtitle
+//   - Bottom row: action badge (tap → action picker) + spark count + delete
+
+const ACTION_BADGE_ICON: Record<string, typeof IconBolt | null> = {
+  none: null,
+  anytime: IconArrowUp,
+  deadline: IconBolt,
+  event: IconClock,
+  allday: IconCalendar,
+};
+
+const ACTION_BADGE_COLOR: Record<string, string> = {
+  none: '#71717A',
+  anytime: captureColors.text,        // green
+  deadline: '#EF4444',                // red
+  event: captureColors.photo,         // blue
+  allday: captureColors.gallery,      // purple
+};
 
 function TileItem({
   tile,
   colors,
+  onOpen,
   onActionTypeChange,
+  onDelete,
 }: {
   tile: Tile;
   colors: any;
+  /** Body tap → opens the full-page tile detail. */
+  onOpen: (tileId: string) => void;
+  /** Action badge tap → opens the action-type picker. */
   onActionTypeChange: (tileId: string, actionType: ActionType) => void;
+  onDelete: (id: string) => void;
 }) {
   const sparkCount = tile.spark_count ?? tile.sparks?.length ?? 0;
+  const actionKey: string = tile.all_day && tile.action_type === 'event'
+    ? 'allday'
+    : (tile.action_type || 'none');
+  const actionColor = ACTION_BADGE_COLOR[actionKey] || colors.secondary;
+  const ActionIcon = ACTION_BADGE_ICON[actionKey];
+  // bg ≈ 15% alpha tint of the action color (≈ "26" in hex). For 'none'
+  // (notes) fall back to the neutral surface so it doesn't bleed grey.
+  const tileBg = actionKey === 'none'
+    ? colors.background2
+    : `${actionColor}26`;
+  const subtitle = formatActionSubtitle(tile);
+  const isDeadline = actionKey === 'deadline';
 
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, height: 72 }}>
-      {/* Action type dropdown */}
-      <View style={{ width: 90, marginRight: 10 }}>
-        <ActionTypeDropdown
-          value={tile.action_type || 'none'}
-          onSelect={(type) => onActionTypeChange(tile.id, type)}
-          subtitle={formatActionSubtitle(tile)}
-        />
-      </View>
-
-      {/* Title */}
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 15, fontWeight: '500', color: colors.primary }} numberOfLines={1}>
-          {tile.title || 'Senza titolo'}
-        </Text>
-      </View>
-
-      {/* Spark count */}
-      <View
+    <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
+      <TouchableOpacity
+        activeOpacity={0.85}
+        onPress={() => onOpen(tile.id)}
+        // Tap the body opens the full-page tile detail. Action picker lives
+        // on the action badge below (tap target ≈ 32×32) — see web Kanban tile.
         style={{
-          minWidth: 24, height: 24, borderRadius: 12,
-          backgroundColor: colors.surfaceVariant,
-          alignItems: 'center', justifyContent: 'center',
-          paddingHorizontal: 6, marginLeft: 8,
+          backgroundColor: tileBg,
+          borderRadius: 8,
+          borderWidth: 1,
+          borderColor: isDeadline ? '#EF4444' : 'rgba(255,255,255,0.08)',
+          borderStyle: isDeadline ? 'dashed' : 'solid',
+          padding: 10,
+          minHeight: 84,
         }}
       >
-        <Text style={{ fontSize: 12, fontWeight: '600', color: colors.secondary }}>
-          {sparkCount}
-        </Text>
-      </View>
+        {/* Top row: title + delete */}
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={{ fontSize: 14, fontWeight: '600', color: colors.primary, lineHeight: 18 }}
+              numberOfLines={2}
+            >
+              {tile.title || 'Senza titolo'}
+            </Text>
+            {subtitle && (
+              <Text style={{ fontSize: 12, color: colors.tertiary, marginTop: 2 }}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
+          <TouchableOpacity
+            onPress={(e) => { e.stopPropagation?.(); onDelete(tile.id); }}
+            hitSlop={10}
+            style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4 }}
+          >
+            <IconTrash size={16} color={colors.tertiary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Bottom row: action badge (tap → picker) + spark count chip. */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginTop: 8,
+          }}
+        >
+          <TouchableOpacity
+            onPress={(e) => {
+              e.stopPropagation?.();
+              onActionTypeChange(tile.id, tile.action_type || 'none');
+            }}
+            hitSlop={8}
+            // Slightly larger touch area than the visual to keep tap-success
+            // high on small badges.
+            style={{
+              width: 32,
+              height: 32,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginLeft: -5,
+            }}
+          >
+            {ActionIcon ? (
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 11,
+                  backgroundColor: actionColor,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <ActionIcon size={12} color="#FFFFFF" />
+              </View>
+            ) : (
+              <View
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 11,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                }}
+              />
+            )}
+          </TouchableOpacity>
+          {sparkCount > 0 && (
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 2,
+                backgroundColor: colors.surfaceVariant,
+                borderRadius: 10,
+              }}
+            >
+              <Text style={{ fontSize: 11, color: colors.secondary, fontWeight: '600' }}>
+                {sparkCount} spark
+              </Text>
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     </View>
   );
 }
 
 // ============ Main screen ============
 
-type ViewMode = 'sparks' | 'tiles';
-
 export default function HistoryScreen() {
   const colors = useThemeColors();
+  const router = useRouter();
   const queryClient = useQueryClient();
-  const [viewMode, setViewMode] = useState<ViewMode>('tiles');
-  const [activeFilter, setActiveFilter] = useState('all');
+  const [activeFilter, setActiveFilter] = useState<ActionType | 'all'>('all');
+  // Multi-select tag filter (empty = no tag constraint).
+  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
 
   // Picker state
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'deadline' | 'event'>('deadline');
   const [pendingTileId, setPendingTileId] = useState<string | null>(null);
 
-  // ---- Sparks data ----
-  const { data: sparksData, isLoading: sparksLoading, refetch: refetchSparks } = useQuery({
-    queryKey: ['sparks', { page: 1, limit: 50 }],
-    queryFn: () => sparksApi.list({ page: 1, limit: 50 }),
-    enabled: viewMode === 'sparks',
-  });
-
   // ---- Tiles data ----
+  // Background polling every 30s while the tab is active — pairs with the
+  // focus-refetch below to keep the list fresh without manual reload.
   const { data: tilesData, isLoading: tilesLoading, refetch: refetchTiles } = useQuery({
     queryKey: ['tiles', { page: 1, limit: 50 }],
     queryFn: () => tilesApi.list({ page: 1, limit: 50 }),
-    enabled: viewMode === 'tiles',
+    refetchInterval: 30_000,
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: sparksApi.delete,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['sparks'] }),
-  });
+  // Refetch every time this tab gains focus so newly-created tiles appear
+  // immediately. The shared QueryClient has a 5-min staleTime, which would
+  // otherwise serve stale data when re-entering the tab.
+  useFocusEffect(
+    useCallback(() => {
+      refetchTiles();
+    }, [refetchTiles]),
+  );
 
   const updateTileMutation = useMutation({
     mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof tilesApi.update>[1] }) =>
       tilesApi.update(id, updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
+  });
+
+  const deleteTileMutation = useMutation({
+    mutationFn: tilesApi.delete,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
   });
 
@@ -279,32 +327,26 @@ export default function HistoryScreen() {
   );
 
   // ---- Filter logic ----
-  const filterOptions = viewMode === 'sparks' ? sparkFilterOptions : tileFilterOptions;
-
-  const allSparks = sparksData?.data || [];
-  const filteredSparks =
-    activeFilter === 'all'
-      ? allSparks
-      : allSparks.filter((m: Spark) => m.type === activeFilter || (activeFilter === 'photo' && m.type === 'image'));
-
   const allTiles: Tile[] = tilesData?.data || [];
-  const filteredTiles =
-    activeFilter === 'all'
-      ? allTiles
-      : allTiles.filter((t: Tile) => (t.action_type || 'none') === activeFilter);
+  const filteredTiles = useMemo(() => {
+    return allTiles.filter((t: Tile) => {
+      // action_type filter
+      if (activeFilter !== 'all' && (t.action_type || 'none') !== activeFilter) {
+        return false;
+      }
+      // tag filter (OR across selected tags — a tile passes if it carries at
+      // least one of the picked tags; empty selection = no constraint).
+      if (selectedTagIds.size > 0) {
+        const tileTagIds = (t.tags ?? []).map((tg) => tg.id);
+        const matched = tileTagIds.some((id) => selectedTagIds.has(id));
+        if (!matched) return false;
+      }
+      return true;
+    });
+  }, [allTiles, activeFilter, selectedTagIds]);
 
   // ---- Grouped data ----
-  const groupedSparks = useMemo(() => groupByDate(filteredSparks), [filteredSparks]);
   const groupedTiles = useMemo(() => groupByDate(filteredTiles), [filteredTiles]);
-
-  const flatSparks = useMemo(() => {
-    const result: ({ type: 'header'; title: string } | { type: 'spark'; spark: Spark })[] = [];
-    for (const group of groupedSparks) {
-      result.push({ type: 'header', title: group.title });
-      for (const spark of group.data) result.push({ type: 'spark', spark });
-    }
-    return result;
-  }, [groupedSparks]);
 
   const flatTiles = useMemo(() => {
     const result: ({ type: 'header'; title: string } | { type: 'tile'; tile: Tile })[] = [];
@@ -315,80 +357,85 @@ export default function HistoryScreen() {
     return result;
   }, [groupedTiles]);
 
-  const isLoading = viewMode === 'sparks' ? sparksLoading : tilesLoading;
-  const isEmpty = viewMode === 'sparks' ? filteredSparks.length === 0 : filteredTiles.length === 0;
-  const onRefresh = viewMode === 'sparks' ? refetchSparks : refetchTiles;
+  const isLoading = tilesLoading;
+  const isEmpty = filteredTiles.length === 0;
+  const onRefresh = refetchTiles;
 
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
       <View className="flex-1">
-        {/* View mode toggle */}
-        <View style={{ flexDirection: 'row', paddingHorizontal: 16, paddingTop: 4, paddingBottom: 8, gap: 0 }}>
-          {(['tiles', 'sparks'] as ViewMode[]).map((m) => {
-            const isActive = viewMode === m;
-            return (
-              <TouchableOpacity
-                key={m}
-                onPress={() => {
-                  setViewMode(m);
-                  setActiveFilter('all');
-                }}
-                style={{
-                  flex: 1,
-                  paddingVertical: 8,
-                  borderBottomWidth: 2,
-                  borderBottomColor: isActive ? colors.accent : 'transparent',
-                  alignItems: 'center',
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 14,
-                    fontWeight: '600',
-                    color: isActive ? colors.accent : colors.tertiary,
-                  }}
-                >
-                  {m === 'tiles' ? 'Tiles' : 'Sparks'}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Filter chips */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-          <FlatList
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            data={filterOptions}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => {
-              const isActive = activeFilter === item.id;
-              return (
-                <TouchableOpacity
-                  onPress={() => setActiveFilter(item.id)}
-                  activeOpacity={0.7}
-                  style={{
-                    paddingHorizontal: 16,
-                    paddingVertical: 8,
-                    borderRadius: 20,
-                    backgroundColor: isActive ? colors.accentContainer : colors.surfaceVariant,
-                    marginRight: 8,
-                  }}
-                >
-                  <Text
+        {/* Filter row — action-type chips + tag filter pill (opens modal) */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            marginTop: 8,
+            marginBottom: 8,
+            gap: 8,
+          }}
+        >
+          <View style={{ flex: 1 }}>
+            <FlatList
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              data={tileFilterOptions}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => {
+                const isActive = activeFilter === item.id;
+                return (
+                  <TouchableOpacity
+                    onPress={() => setActiveFilter(item.id)}
+                    activeOpacity={0.7}
                     style={{
-                      fontSize: 13,
-                      fontWeight: '600',
-                      color: isActive ? colors.accent : colors.secondary,
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      backgroundColor: isActive ? colors.accentContainer : colors.surfaceVariant,
+                      marginRight: 8,
                     }}
                   >
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              );
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: '600',
+                        color: isActive ? colors.accent : colors.secondary,
+                      }}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }}
+            />
+          </View>
+          {/* Tag filter pill — count badge shown when tags are selected. */}
+          <TouchableOpacity
+            onPress={() => setTagFilterOpen(true)}
+            activeOpacity={0.7}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+              borderRadius: 20,
+              backgroundColor: selectedTagIds.size > 0 ? `${colors.accent}26` : colors.surfaceVariant,
+              borderWidth: 1,
+              borderColor: selectedTagIds.size > 0 ? colors.accent : 'transparent',
             }}
-          />
+          >
+            <IconTag size={14} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
+            <Text
+              style={{
+                fontSize: 13,
+                fontWeight: '600',
+                color: selectedTagIds.size > 0 ? colors.accent : colors.secondary,
+              }}
+            >
+              Tag{selectedTagIds.size > 0 ? ` (${selectedTagIds.size})` : ''}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Content */}
@@ -408,39 +455,12 @@ export default function HistoryScreen() {
               <IconClock size={36} color={colors.tertiary} />
             </View>
             <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, textAlign: 'center', marginBottom: 8 }}>
-              {viewMode === 'sparks' ? 'Nessuno spark' : 'Nessun tile'}
+              Nessun tile
             </Text>
             <Text style={{ fontSize: 14, color: colors.tertiary, textAlign: 'center' }}>
-              {viewMode === 'sparks'
-                ? 'I tuoi contenuti catturati appariranno qui'
-                : 'I tuoi tile appariranno qui'}
+              I tuoi tile appariranno qui
             </Text>
           </View>
-        ) : viewMode === 'sparks' ? (
-          <FlatList
-            data={flatSparks}
-            keyExtractor={(item, index) => (item.type === 'header' ? `h-${item.title}` : `s-${item.spark.id}`)}
-            renderItem={({ item }) => {
-              if (item.type === 'header') {
-                return (
-                  <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.tertiary, letterSpacing: 0.5 }}>
-                      {item.title}
-                    </Text>
-                  </View>
-                );
-              }
-              return (
-                <SparkItem
-                  spark={item.spark}
-                  onDelete={(id) => deleteMutation.mutate(id)}
-                  colors={colors}
-                />
-              );
-            }}
-            onRefresh={() => onRefresh()}
-            refreshing={isLoading}
-          />
         ) : (
           <FlatList
             data={flatTiles}
@@ -459,7 +479,9 @@ export default function HistoryScreen() {
                 <TileItem
                   tile={item.tile}
                   colors={colors}
+                  onOpen={(tileId) => router.push(`/tile/${tileId}` as any)}
                   onActionTypeChange={handleActionTypeChange}
+                  onDelete={(id) => deleteTileMutation.mutate(id)}
                 />
               );
             }}
@@ -478,6 +500,14 @@ export default function HistoryScreen() {
           setPickerVisible(false);
           setPendingTileId(null);
         }}
+      />
+
+      {/* Tag filter — full-screen modal grouped by tag_type */}
+      <TagFilterModal
+        visible={tagFilterOpen}
+        selectedTagIds={selectedTagIds}
+        onChange={setSelectedTagIds}
+        onClose={() => setTagFilterOpen(false)}
       />
     </View>
   );

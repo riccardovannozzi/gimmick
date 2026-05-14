@@ -61,41 +61,45 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
       onClick={onOpen}
       className="w-full text-left bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-3 transition-colors group"
     >
-      {/* 3-column grid: title+label | contact | mini badge */}
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] gap-4 items-center">
-        {/* Column 1 — tile title (top) + node label (bottom) */}
+      {/* 3-column grid, each col split in 2 stacked rows:
+          col 1: TAG (top, grey caps)         | TILE TITLE (bottom, light)
+          col 2: CONTACT pill (top, bordered) | NODE LABEL (bottom, grey)
+          col 3: mini badge (spans both rows) */}
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-4 items-center">
+        {/* Column 1 — tag (top) + tile title (bottom) */}
         <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-wider text-zinc-500 truncate">
-            {item.tile.title || '(senza titolo)'}
+          <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 truncate">
+            {item.tile.tag?.name || ' '}
           </div>
-          <div className="text-sm text-zinc-100 group-hover:text-white truncate mt-0.5">
-            {item.label || <span className="italic text-zinc-500">(senza etichetta)</span>}
+          <div className="text-[12px] font-semibold text-zinc-100 group-hover:text-white truncate mt-0.5">
+            {item.tile.title || '(senza titolo)'}
           </div>
         </div>
 
-        {/* Column 2 — contact (or placeholder for grid stability) */}
-        <span
-          className={cn(
-            'px-2 py-1 rounded leading-none text-[11px] shrink-0 border max-w-[180px] truncate',
-            !item.contact && 'opacity-0 pointer-events-none',
-          )}
-          style={
-            item.contact
-              ? {
-                  color: item.contact.color || '#A1A1AA',
-                  borderColor: item.contact.color ? `${item.contact.color}55` : '#3F3F46',
-                }
-              : { color: 'transparent', borderColor: 'transparent' }
-          }
-        >
-          {item.contact?.name || '—'}
-        </span>
+        {/* Column 2 — node label (top) + contact pill (bottom) */}
+        <div className="min-w-0 flex flex-col items-start gap-1 pl-8">
+          <span className="text-[12px] text-zinc-400 truncate max-w-full">
+            {item.label || <span className="italic text-zinc-600">(senza etichetta)</span>}
+          </span>
+          <span
+            className={cn(
+              'px-2 py-1 rounded leading-none text-[11px] border max-w-full truncate',
+              !item.contact && 'opacity-0',
+            )}
+            style={
+              item.contact
+                ? {
+                    color: item.contact.color || '#D4D4D8',
+                    borderColor: '#52525B',
+                  }
+                : { color: 'transparent', borderColor: 'transparent' }
+            }
+          >
+            {item.contact?.name || '—'}
+          </span>
+        </div>
 
-        {/* Column 3 — flow-node-style mini badge ONLY. Black bg + white
-            border, square for 'mine' / circle for 'theirs', status glyph
-            inside when state ≠ 'active'. Matches the rendering scale used
-            inside the Flow modal (radius 16) so the Hub is visually
-            identical. Tooltip surfaces the full label. */}
+        {/* Column 3 — mini badge, same scale as the modal nodes. */}
         <span className="shrink-0 flex items-center justify-center" title={pillLabel}>
           <FlowMiniBadge owner={item.owner} state={item.state} />
         </span>

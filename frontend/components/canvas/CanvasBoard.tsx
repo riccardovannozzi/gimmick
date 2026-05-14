@@ -94,6 +94,13 @@ interface CanvasBoardProps {
    *  returned true). Receives the dragged tile id(s) so the parent can drop
    *  their canvas_layout entries. */
   onTilesRemovedFromCanvas?: (ids: string[]) => void;
+  /** Continuous drag callback — fires on every pointer move while a tile
+   *  is being dragged. Used by the parent to highlight the staging panel
+   *  when the cursor is over it. */
+  onTileDragMove?: (clientX: number, clientY: number) => void;
+  /** Drag ended — always fires (regardless of drop target). Used to reset
+   *  any drag-state UI the parent maintains (e.g. staging highlight). */
+  onTileDragEnd?: () => void;
 }
 
 export const CanvasBoard = React.memo(function CanvasBoard({
@@ -107,6 +114,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   tilesWithFlows, onFlowBadgeClick,
   screenToLocalRef,
   isOverStaging, onTilesRemovedFromCanvas,
+  onTileDragMove, onTileDragEnd,
 }: CanvasBoardProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
@@ -145,6 +153,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onFlowBadgeClickRef = useRef(onFlowBadgeClick); onFlowBadgeClickRef.current = onFlowBadgeClick;
   const isOverStagingRef = useRef(isOverStaging); isOverStagingRef.current = isOverStaging;
   const onTilesRemovedFromCanvasRef = useRef(onTilesRemovedFromCanvas); onTilesRemovedFromCanvasRef.current = onTilesRemovedFromCanvas;
+  const onTileDragMoveRef = useRef(onTileDragMove); onTileDragMoveRef.current = onTileDragMove;
+  const onTileDragEndRef = useRef(onTileDragEnd); onTileDragEndRef.current = onTileDragEnd;
   const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
 
   // Publish a viewport→canvas-local coordinate converter to the parent (used
@@ -906,6 +916,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
         }
         drawEdges(); drawGroups();
+        // Publish the live pointer position so the parent can highlight the
+        // staging panel when the cursor enters it during the drag.
+        const srcEv = ev?.sourceEvent as MouseEvent | PointerEvent | undefined;
+        if (srcEv) onTileDragMoveRef.current?.(srcEv.clientX, srcEv.clientY);
       })
       .on('end', (ev, d) => {
         // Determine the drop zone. If the gesture ended over the staging
@@ -943,6 +957,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (dragSuppressedBbox) {
           onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
         }
+        // Drag ended — notify the parent so it can clear any drag-state UI
+        // (e.g. the staging panel highlight). Fires regardless of drop zone.
+        onTileDragEndRef.current?.();
         const wasMulti = !!dragMultiNodes;
         dragMultiNodes = null;
         dragMultiSelection = null;

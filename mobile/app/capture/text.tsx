@@ -1,27 +1,59 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconCheck } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
+import { sparksApi } from '@/lib/api';
 
 export default function TextCaptureScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  // When reached from the tile detail (Sparks → text), `?tile=<id>` is set and
+  // the spark is created directly against that tile (skipping the buffer).
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const [text, setText] = useState('');
+  const [saving, setSaving] = useState(false);
   const addItem = useBufferStore((state) => state.addItem);
 
   const handleClose = () => {
     router.back();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!text.trim()) {
       toast.warning('Please enter some text');
       return;
     }
-
+    if (tileId) {
+      // Direct save → spark linked to the originating tile, no buffer detour.
+      try {
+        setSaving(true);
+        const res = await sparksApi.create({
+          type: 'text',
+          tile_id: tileId,
+          content: text,
+        });
+        if (!res.success) {
+          toast.error(res.error || 'Errore nel salvataggio');
+          setSaving(false);
+          return;
+        }
+        // Invalidate the tile cache so the detail picks up the new spark.
+        queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+        toast.success('Spark salvato');
+        router.back();
+      } catch {
+        toast.error('Errore nel salvataggio');
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    // No tile context → legacy buffer flow.
     addItem({
       type: 'text',
       uri: '', // Text doesn't have a URI

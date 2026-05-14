@@ -196,10 +196,11 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
   try {
     const { id } = req.params;
 
-    // Get tile with tags
+    // Get tile with tags — expose is_root so callers can reliably skip the
+    // GIMMICK root without relying on the literal name match.
     const { data: tile, error: tileError } = await supabaseAdmin
       .from('tiles')
-      .select('*, tile_tags(tag_id, tags(id, name, tag_type))')
+      .select('*, tile_tags(tag_id, tags(id, name, tag_type, is_root))')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();

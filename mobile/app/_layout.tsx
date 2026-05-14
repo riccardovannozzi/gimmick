@@ -84,6 +84,13 @@ function AppContent() {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen
+          name="tile/[id]"
+          options={{
+            presentation: 'fullScreenModal',
+            animation: 'slide_from_right',
+          }}
+        />
       </Stack>
       <ToastContainer />
     </View>

@@ -495,7 +495,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
         .in('id', nodeIds),
       supabaseAdmin
         .from('tiles')
-        .select('id, title')
+        .select('id, title, tile_tags(tags(id, name, is_root))')
         .in('id', tileIds),
       contactIds.length
         ? supabaseAdmin
@@ -509,7 +509,25 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
     if (tilesRes.error) throw tilesRes.error;
     if (contactsRes.error) throw contactsRes.error;
 
-    const tileMap = new Map((tilesRes.data ?? []).map((t) => [t.id, t]));
+    // For each tile, pick the first non-root tag (so the FlowHub card can
+    // show "TAG / TILE TITLE" without exposing the implicit GIMMICK root).
+    // Supabase types the nested join as `tags: TagRow[]` even when it's a
+    // many-to-one relation — flatten with a flatMap and ignore root tags.
+    type TileWithTags = {
+      id: string;
+      title: string;
+      tile_tags?: { tags: { id: string; name: string; is_root: boolean }[] | { id: string; name: string; is_root: boolean } | null }[];
+    };
+    const tileMap = new Map<string, { id: string; title: string; tag: { name: string } | null }>(
+      (tilesRes.data as unknown as TileWithTags[] | null ?? []).map((t) => {
+        const allTags = (t.tile_tags ?? []).flatMap((tt) => {
+          if (!tt.tags) return [];
+          return Array.isArray(tt.tags) ? tt.tags : [tt.tags];
+        });
+        const tag = allTags.find((x) => !x.is_root) ?? null;
+        return [t.id, { id: t.id, title: t.title, tag: tag ? { name: tag.name } : null }];
+      }),
+    );
     const contactMap = new Map((contactsRes.data ?? []).map((c) => [c.id, c]));
     const activityMap = new Map(filtered.map((r) => [r.id, r]));
 
@@ -519,7 +537,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       const contact = n.contact_id ? contactMap.get(n.contact_id) : null;
       return {
         ...n,
-        tile: tile ? { id: tile.id, title: tile.title } : { id: n.tile_id, title: '' },
+        tile: tile ?? { id: n.tile_id, title: '', tag: null },
         contact: contact
           ? { id: contact.id, name: contact.name, color: contact.color }
           : null,

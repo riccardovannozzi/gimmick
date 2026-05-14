@@ -1,4 +1,4 @@
-import type { Spark, BufferItem, Tile, Tag } from '@/types';
+import type { Spark, SparkType, BufferItem, Tile, Tag } from '@/types';
 import Constants from 'expo-constants';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
@@ -357,7 +357,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; action_type?: string; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null }) {
+  async update(id: string, updates: { title?: string; action_type?: string; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; status_id?: string | null }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -366,6 +366,49 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Statuses API ============
+
+export interface StatusEntity {
+  id: string;
+  name: string;
+  shape: string;
+  action_type?: string | null;
+  category?: string;
+}
+
+export const statusesApi = {
+  async list() {
+    return apiRequest<StatusEntity[]>('/api/statuses');
+  },
+};
+
+// ============ Type icons API ============
+
+export interface TypeIconEntity {
+  id: string;
+  name: string;
+  icon: string;
+  color?: string;
+  sort_order: number;
+}
+
+export const typeIconsApi = {
+  async list() {
+    return apiRequest<TypeIconEntity[]>('/api/type-icons');
+  },
+
+  async getAssignments() {
+    return apiRequest<{ tile_id: string; type_icon_id: string }[]>('/api/type-icons/assignments');
+  },
+
+  async assign(tile_id: string, type_icon_id: string | null) {
+    return apiRequest('/api/type-icons/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ tile_id, type_icon_id }),
+    });
   },
 };
 
@@ -533,6 +576,52 @@ function getFileType(fileName: string): string {
  * Upload buffer items to backend
  * When multiple items are uploaded together, they are grouped into a Tile
  */
+/**
+ * Create a spark directly against a specific tile, handling the storage
+ * upload for non-text types. Used by the capture screens when they receive a
+ * `?tile=<id>` query param: instead of dropping the item in the buffer (which
+ * later spawns a NEW tile on upload), the spark is attached to the originating
+ * tile immediately.
+ *
+ * Returns the same ApiResponse shape as sparksApi.create.
+ */
+export async function createSparkForTile(args: {
+  type: SparkType;
+  tileId: string;
+  uri?: string;
+  content?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  duration?: number;
+}): Promise<ApiResponse<Spark>> {
+  let storagePath: string | undefined;
+  if (args.type !== 'text' && args.uri) {
+    const folder = args.type === 'photo' || args.type === 'image'
+      ? 'images'
+      : args.type === 'video'
+      ? 'videos'
+      : args.type.includes('audio')
+      ? 'audio'
+      : 'files';
+    const upload = await uploadApi.uploadFile(args.uri, folder);
+    if (!upload.success) {
+      return { success: false, error: upload.error || 'Upload failed' };
+    }
+    storagePath = upload.data?.path;
+  }
+  return sparksApi.create({
+    type: args.type,
+    tile_id: args.tileId,
+    content: args.content,
+    storage_path: storagePath,
+    file_name: args.fileName,
+    mime_type: args.mimeType,
+    file_size: args.size,
+    duration: args.duration,
+  });
+}
+
 export async function uploadBufferItems(
   items: BufferItem[],
   tagIds?: string[]

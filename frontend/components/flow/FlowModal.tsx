@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useRouter } from 'next/navigation';
 import { IconX } from '@tabler/icons-react';
 import { FlowTrack } from './FlowTrack';
 import { FlowInspector } from './FlowInspector';
@@ -19,6 +20,7 @@ import { useFlowModalStore } from '@/store/flow-modal-store';
  * local-only — closing the modal clears it, no parent-page sync.
  */
 export function FlowModal() {
+  const router = useRouter();
   const { tileId, tileTitle, close } = useFlowModalStore();
   const [mounted, setMounted] = useState(false);
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
@@ -132,6 +134,13 @@ export function FlowModal() {
               onClose={close}
               onSelectNode={handleSelectNode}
               selectedNodeIds={selectedNodeIds}
+              onOpenTile={() => {
+                // Close the modal and jump to the canvas with this tile
+                // selected. Canvas resolves the tag from the tile's first
+                // non-root tag (same path as the Hub deep-link).
+                close();
+                router.push(`/canvas?tile=${tileId}`);
+              }}
             />
           </div>
           <div className="w-80 shrink-0 border-l border-zinc-800 flex flex-col overflow-hidden bg-zinc-950">

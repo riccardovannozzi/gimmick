@@ -354,6 +354,13 @@ async function analyzeFile(spark: Spark): Promise<string> {
 
   // --- PDF ---
   if (mimeType === 'application/pdf' || spark.file_name?.endsWith('.pdf')) {
+    // Fire-and-forget: generate a first-page thumbnail in parallel with text
+    // extraction. Mobile shows this as the inline PDF preview.
+    if (!spark.thumbnail_path) {
+      generatePdfThumbnail(buffer, spark).catch((err) =>
+        console.warn('[Indexing] PDF thumbnail generation failed:', err),
+      );
+    }
     try {
       // @ts-expect-error pdf-parse v1 has no type declarations
       const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
@@ -790,4 +797,73 @@ Regole:
   } catch (err) {
     console.error('[Indexing] Date extraction parse failed:', err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// PDF thumbnail generation
+// ---------------------------------------------------------------------------
+//
+// Renders the first page of a PDF as a PNG via pdfjs-dist + @napi-rs/canvas,
+// uploads it to the `sparks` storage bucket next to the original file, and
+// stores the resulting path on `spark.thumbnail_path` so the mobile client
+// can render it inline. Runs asynchronously (fire-and-forget); failures are
+// logged but never block the indexing pipeline.
+
+async function generatePdfThumbnail(pdfBuffer: Buffer, spark: Spark): Promise<void> {
+  if (!spark.storage_path) return;
+
+  // Dynamic imports — pdfjs-dist is large; only loaded when we actually have
+  // a PDF to render. The 'legacy' build runs in plain Node without DOM polyfills.
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+  const { createCanvas } = await import('@napi-rs/canvas');
+
+  // pdfjs expects a Uint8Array, not a Node Buffer.
+  const data = new Uint8Array(pdfBuffer);
+  const loadingTask = pdfjs.getDocument({
+    data,
+    // Disable font/cmap loading — we render once, the visual fidelity of
+    // exotic fonts isn't critical for a thumbnail.
+    disableFontFace: true,
+    useSystemFonts: true,
+  });
+  const pdfDoc = await loadingTask.promise;
+  const page = await pdfDoc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  const ctx = canvas.getContext('2d');
+
+  // @napi-rs/canvas's context shape isn't 100% identical to pdfjs's
+  // expected CanvasRenderingContext2D type, but the runtime API matches.
+  await page.render({
+    canvasContext: ctx as unknown as object,
+    viewport,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any).promise;
+
+  const pngBuffer = canvas.toBuffer('image/png');
+
+  // Mirror the original storage path with a `.thumb.png` suffix so the
+  // thumbnail lives alongside the source in the same folder.
+  const thumbnailPath = `${spark.storage_path}.thumb.png`;
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from('sparks')
+    .upload(thumbnailPath, pngBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+  if (uploadError) {
+    console.warn('[Indexing] PDF thumbnail upload failed:', uploadError);
+    return;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from('sparks')
+    .update({ thumbnail_path: thumbnailPath })
+    .eq('id', spark.id);
+  if (updateError) {
+    console.warn('[Indexing] PDF thumbnail thumbnail_path update failed:', updateError);
+    return;
+  }
+
+  console.log(`[Indexing] PDF thumbnail saved: ${thumbnailPath}`);
 }

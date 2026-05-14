@@ -2,7 +2,24 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { IconX, IconDeviceFloppy, IconSend, IconMicrophone, IconCamera, IconVideo, IconPhoto, IconEdit, IconPaperclip, IconSparkles, IconCheck, IconTag } from '@tabler/icons-react-native';
+import {
+  IconX,
+  IconDeviceFloppy,
+  IconSend,
+  IconMicrophone,
+  IconCamera,
+  IconVideo,
+  IconPhoto,
+  IconEdit,
+  IconPaperclip,
+  IconSparkles,
+  IconCheck,
+  IconTag,
+  IconFolder,
+  IconUser,
+  IconMapPin,
+  IconBookmark,
+} from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
@@ -18,6 +35,24 @@ const TAG_TYPE_EMOJI: Record<string, string> = {
   context: '\u{1F30D}',
   place: '\u{1F4CD}',
   topic: '\u{1F3F7}\uFE0F',
+};
+
+// Tag-type metadata \u2014 mirrors the web sidebar (frontend/components/layout/sidebar.tsx).
+// Order matches the canonical layout the user is familiar with on the web.
+const TAG_TYPE_ORDER = ['project', 'person', 'context', 'place', 'topic'] as const;
+const TAG_TYPE_LABELS: Record<string, string> = {
+  project: 'PROGETTO',
+  person: 'PERSONA',
+  context: 'CONTESTO',
+  place: 'LUOGO',
+  topic: 'TOPIC',
+};
+const TAG_TYPE_ICONS: Record<string, typeof IconFolder> = {
+  project: IconFolder,
+  person: IconUser,
+  context: IconTag,
+  place: IconMapPin,
+  topic: IconBookmark,
 };
 
 type ChatMessage = {
@@ -787,108 +822,168 @@ export default function HomeScreen() {
           </SafeAreaWrapper>
         </Modal>
 
-        {/* Tag Selection Modal */}
+        {/* Tag Selection Modal — full-screen, grouped by tag_type, with the
+            same iconography used in the web sidebar. */}
         <Modal
           visible={tagModalOpen}
           animationType="slide"
-          transparent
+          presentationStyle="fullScreen"
           onRequestClose={() => setTagModalOpen(false)}
         >
-          <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ flex: 1, backgroundColor: colors.background1, paddingTop: insets.top }}>
+            {/* Header */}
             <View
               style={{
-                backgroundColor: colors.background2,
-                borderTopLeftRadius: 20,
-                borderTopRightRadius: 20,
-                maxHeight: '60%',
-                paddingBottom: insets.bottom + 16,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                paddingHorizontal: 20,
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: colors.border,
               }}
             >
-              {/* Header */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingHorizontal: 20,
-                  paddingVertical: 16,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
-                }}
-              >
-                <Text style={{ fontSize: 17, fontWeight: '600', color: colors.primary }}>
-                  Seleziona Tag
-                </Text>
-                <TouchableOpacity onPress={() => setTagModalOpen(false)}>
-                  <IconX size={22} color={colors.secondary} />
-                </TouchableOpacity>
-              </View>
-
-              <Text style={{ color: colors.tertiary, fontSize: 13, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-                Opzionale — senza selezione verrà usato il tag Gimmick
+              <Text style={{ fontSize: 19, fontWeight: '700', color: colors.primary }}>
+                Seleziona Tag
               </Text>
+              <TouchableOpacity onPress={() => setTagModalOpen(false)} hitSlop={10}>
+                <IconX size={24} color={colors.secondary} />
+              </TouchableOpacity>
+            </View>
 
-              {/* Tag list */}
-              <ScrollView style={{ paddingHorizontal: 20 }}>
-                {availableTags.filter((t) => !t.is_root).length === 0 && (
-                  <Text style={{ color: colors.tertiary, fontSize: 14, textAlign: 'center', paddingVertical: 20 }}>
-                    {availableTags.length === 0 ? 'Caricamento tag...' : 'Nessun tag personalizzato'}
-                  </Text>
-                )}
-                {availableTags.filter((t) => !t.is_root).map((tag) => {
-                  const isSelected = selectedTagIds.has(tag.id);
+            <Text style={{ color: colors.tertiary, fontSize: 13, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
+              Opzionale — senza selezione verrà usato il tag Gimmick
+            </Text>
+
+            {/* Grouped tag list */}
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
+              keyboardShouldPersistTaps="handled"
+            >
+              {(() => {
+                const nonRoot = availableTags.filter((t) => !t.is_root);
+                if (nonRoot.length === 0) {
                   return (
-                    <TouchableOpacity
-                      key={tag.id}
-                      onPress={() => toggleTag(tag.id)}
-                      activeOpacity={0.7}
-                      style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingVertical: 12,
-                        paddingHorizontal: 12,
-                        borderRadius: 10,
-                        marginBottom: 4,
-                        backgroundColor: isSelected ? `${colors.accent}15` : 'transparent',
-                      }}
-                    >
+                    <Text style={{ color: colors.tertiary, fontSize: 14, textAlign: 'center', paddingVertical: 40 }}>
+                      {availableTags.length === 0 ? 'Caricamento tag...' : 'Nessun tag personalizzato'}
+                    </Text>
+                  );
+                }
+                // Build the type order: canonical first, then any extra types
+                // present in the user's tags (sorted alphabetically), and a
+                // catch-all 'altro' bucket for tags without a tag_type.
+                const presentTypes = new Set(nonRoot.map((t) => t.tag_type).filter(Boolean));
+                const extraTypes = [...presentTypes]
+                  .filter((tp) => !(TAG_TYPE_ORDER as readonly string[]).includes(tp))
+                  .sort();
+                const orderedTypes = [...TAG_TYPE_ORDER, ...extraTypes];
+                const hasUntyped = nonRoot.some((t) => !t.tag_type);
+                if (hasUntyped) orderedTypes.push('__untyped__');
+
+                return orderedTypes.map((tp) => {
+                  const groupTags =
+                    tp === '__untyped__'
+                      ? nonRoot.filter((t) => !t.tag_type)
+                      : nonRoot.filter((t) => t.tag_type === tp);
+                  if (groupTags.length === 0) return null;
+                  const Icon = TAG_TYPE_ICONS[tp] ?? IconTag;
+                  const label = tp === '__untyped__'
+                    ? 'ALTRO'
+                    : (TAG_TYPE_LABELS[tp] ?? tp.toUpperCase());
+                  return (
+                    <View key={tp} style={{ marginBottom: 16 }}>
+                      {/* Section header */}
                       <View
                         style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 6,
-                          backgroundColor: colors.accent,
-                          marginRight: 12,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 8,
+                          paddingHorizontal: 4,
+                          paddingVertical: 8,
                         }}
-                      />
-                      <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
-                        {TAG_TYPE_EMOJI[tag.tag_type || 'topic']} {tag.name}
-                      </Text>
-                      {isSelected && (
-                        <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
-                      )}
-                    </TouchableOpacity>
+                      >
+                        <Icon size={14} color={colors.tertiary} />
+                        <Text
+                          style={{
+                            fontSize: 11,
+                            fontWeight: '600',
+                            letterSpacing: 0.5,
+                            color: colors.tertiary,
+                          }}
+                        >
+                          {label}
+                        </Text>
+                      </View>
+                      {/* Tags in this section */}
+                      {groupTags.map((tag) => {
+                        const isSelected = selectedTagIds.has(tag.id);
+                        return (
+                          <TouchableOpacity
+                            key={tag.id}
+                            onPress={() => toggleTag(tag.id)}
+                            activeOpacity={0.7}
+                            style={{
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              paddingVertical: 12,
+                              paddingHorizontal: 12,
+                              borderRadius: 10,
+                              marginBottom: 4,
+                              backgroundColor: isSelected ? `${colors.accent}1F` : colors.background2,
+                              borderWidth: 1,
+                              borderColor: isSelected ? colors.accent : 'transparent',
+                            }}
+                          >
+                            <View
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: 5,
+                                backgroundColor: colors.accent,
+                                marginRight: 12,
+                              }}
+                            />
+                            <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
+                              {tag.name}
+                            </Text>
+                            {isSelected && (
+                              <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
                   );
-                })}
-              </ScrollView>
+                });
+              })()}
+            </ScrollView>
 
-              {/* Done button */}
-              <View style={{ paddingHorizontal: 20, paddingTop: 12 }}>
-                <TouchableOpacity
-                  onPress={() => setTagModalOpen(false)}
-                  activeOpacity={0.7}
-                  style={{
-                    backgroundColor: colors.accent,
-                    borderRadius: 12,
-                    paddingVertical: 14,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-                    {selectedTagIds.size > 0 ? `Conferma (${selectedTagIds.size})` : 'Chiudi'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            {/* Done button */}
+            <View
+              style={{
+                paddingHorizontal: 20,
+                paddingTop: 12,
+                paddingBottom: insets.bottom + 16,
+                borderTopWidth: 1,
+                borderTopColor: colors.border,
+                backgroundColor: colors.background1,
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setTagModalOpen(false)}
+                activeOpacity={0.7}
+                style={{
+                  backgroundColor: colors.accent,
+                  borderRadius: 12,
+                  paddingVertical: 14,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
+                  {selectedTagIds.size > 0 ? `Conferma (${selectedTagIds.size})` : 'Chiudi'}
+                </Text>
+              </TouchableOpacity>
             </View>
           </View>
         </Modal>

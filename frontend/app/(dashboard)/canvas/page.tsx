@@ -68,6 +68,11 @@ export default function CanvasPage() {
   // Deep-link resolver — if we arrived with ?tile= but no ?tag=, fetch the
   // tile to discover a tag to open the canvas under, then redirect preserving
   // ?tile= and ?flow= so the secondary effect below picks them up.
+  //
+  // Tag choice priority:
+  //   1) the LAST visited canvas tag (localStorage) — keeps context when the
+  //      user clicks "Apri tile" from the Flow modal on the current canvas
+  //   2) the first non-root tag returned by the API
   useEffect(() => {
     if (!tileParam) return;
     if (tagId) return;
@@ -76,8 +81,12 @@ export default function CanvasPage() {
       try {
         const res = await tilesApi.get(tileParam);
         if (cancelled) return;
-        const candidate =
-          res.data?.tags?.find((t) => t.name !== 'GIMMICK') ?? res.data?.tags?.[0];
+        const tileTags = res.data?.tags ?? [];
+        const nonRoot = tileTags.filter((t) => !t.is_root && t.name !== 'GIMMICK');
+        let lastTag: string | null = null;
+        try { lastTag = localStorage.getItem('canvas_last_tag'); } catch { /* */ }
+        const preferred = lastTag ? nonRoot.find((t) => t.id === lastTag) : undefined;
+        const candidate = preferred ?? nonRoot[0] ?? tileTags[0];
         if (candidate) {
           const flowQs = flowParam ? `&flow=${flowParam}` : '';
           router.replace(`/canvas?tag=${candidate.id}&tile=${tileParam}${flowQs}`);
@@ -103,8 +112,9 @@ export default function CanvasPage() {
   const tilesWithFlows = useTilesWithFlows();
 
   // Deep-link applier — once tag is resolved AND the tile exists in the loaded
-  // set, select it and open the Flow modal. Looks at the full tag tile set
-  // (positioned + staging) so deep-linking works even for unpositioned tiles.
+  // set, select it. The Flow modal is opened only when ?flow= is also present
+  // (i.e. arriving from the Hub); a plain ?tile= just selects the tile without
+  // reopening the modal — that's what the in-modal "Apri il tile" link uses.
   useEffect(() => {
     if (!tileParam) return;
     if (!tagId) return;
@@ -112,7 +122,10 @@ export default function CanvasPage() {
     const t = allTagTiles.find((tile) => tile.id === tileParam);
     if (!t) return;
     setSelectedTileId(tileParam);
-    openFlowModal(tileParam, t.title ?? undefined);
+    setSidebarOpen(true);
+    if (flowParam) {
+      openFlowModal(tileParam, t.title ?? undefined);
+    }
     router.replace(`/canvas?tag=${tagId}`);
   }, [tileParam, flowParam, tagId, allTagTiles, router, openFlowModal]);
 
@@ -148,6 +161,9 @@ export default function CanvasPage() {
   // (clientX/Y) coords to canvas-local coords accounting for current pan/zoom.
   // Used when dropping a staged tile so it lands under the cursor.
   const canvasScreenToLocalRef = useRef<((clientX: number, clientY: number) => { x: number; y: number }) | null>(null);
+  // Drag-back highlight: true while a canvas tile is being dragged AND the
+  // cursor is currently over the staging panel.
+  const [stagingDropHover, setStagingDropHover] = useState(false);
 
   // Fetch edges
   const { data: edgesData } = useQuery({
@@ -585,6 +601,8 @@ export default function CanvasPage() {
         <StagingPanel
           tiles={stagingTiles}
           panelRef={stagingPanelRef}
+          selectedTileId={selectedTileId}
+          isDropTargetHover={stagingDropHover}
           onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
         />
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -711,6 +729,19 @@ export default function CanvasPage() {
                   queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
                 });
               }}
+              onTileDragMove={(clientX, clientY) => {
+                const el = stagingPanelRef.current;
+                if (!el) {
+                  if (stagingDropHover) setStagingDropHover(false);
+                  return;
+                }
+                const r = el.getBoundingClientRect();
+                const inside =
+                  clientX >= r.left && clientX <= r.right &&
+                  clientY >= r.top && clientY <= r.bottom;
+                if (inside !== stagingDropHover) setStagingDropHover(inside);
+              }}
+              onTileDragEnd={() => setStagingDropHover(false)}
             />
           </div>
         </div>
