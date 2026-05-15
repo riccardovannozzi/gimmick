@@ -27,6 +27,11 @@ import {
   IconHome,
   IconChevronDown,
   IconX,
+  IconFolder,
+  IconUser,
+  IconMapPin,
+  IconBookmark,
+  IconTag,
   IconCamera,
   IconVideo,
   IconPhoto,
@@ -40,9 +45,33 @@ import {
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
 import { useThemeColors } from '@/lib/theme';
-import { tilesApi, sparksApi, statusesApi, typeIconsApi, uploadApi, type StatusEntity, type TypeIconEntity } from '@/lib/api';
+import { tilesApi, sparksApi, statusesApi, typeIconsApi, uploadApi, tagsApi, tagTypesApi, type StatusEntity, type TypeIconEntity, type TagTypeEntity } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import type { ActionType, Spark } from '@/types';
+
+// Tag-type metadata — mirrors web sidebar grouping (PROGETTO/PERSONA/CONTESTO/LUOGO/TOPIC).
+const TAG_TYPE_ORDER = ['project', 'person', 'context', 'place', 'topic'] as const;
+const TAG_TYPE_LABELS: Record<string, string> = {
+  project: 'PROGETTO',
+  person: 'PERSONA',
+  context: 'CONTESTO',
+  place: 'LUOGO',
+  topic: 'TOPIC',
+};
+const TAG_TYPE_ICONS: Record<string, typeof IconFolder> = {
+  project: IconFolder,
+  person: IconUser,
+  context: IconTag,
+  place: IconMapPin,
+  topic: IconBookmark,
+};
+const TAG_TYPE_COLORS: Record<string, string> = {
+  project: '#5B8DEF',  // blue (capture photo)
+  person: '#6FCF97',   // green (capture text)
+  context: '#F2C94C',  // yellow (capture file)
+  place: '#EF4444',    // red (capture voice)
+  topic: '#AB9FF2',    // purple (capture gallery)
+};
 
 // Quick-capture row — creation only. Spark management (list/delete/ai-status)
 // lives on the desktop client, but capture flows belong here.
@@ -214,6 +243,52 @@ export default function TileDetailScreen() {
 
   const [typePickerOpen, setTypePickerOpen] = useState(false);
   const [statusPickerOpen, setStatusPickerOpen] = useState(false);
+  const [tagPickerOpen, setTagPickerOpen] = useState(false);
+
+  // ─── Tag picker — list of user's non-root tags, single selection ───
+  const tagsListQuery = useQuery({
+    queryKey: ['tags'],
+    queryFn: () => tagsApi.list(),
+    staleTime: 5 * 60 * 1000,
+    enabled: tagPickerOpen,
+  });
+  const availableTags = (tagsListQuery.data?.data ?? []).filter((t) => !t.is_root);
+
+  // User's custom tag-types (HOME, LAVORO, custom names, etc. — each with
+  // its own emoji/color). Fetched once and cached; falls back to the
+  // canonical 5 if the user hasn't created any.
+  const tagTypesQuery = useQuery({
+    queryKey: ['tag-types'],
+    queryFn: () => tagTypesApi.list(),
+    staleTime: 5 * 60 * 1000,
+    enabled: tagPickerOpen,
+  });
+  const tagTypes: TagTypeEntity[] = tagTypesQuery.data?.data ?? [];
+  const tagTypeBySlug = useMemo(() => {
+    const map = new Map<string, TagTypeEntity>();
+    for (const tt of tagTypes) map.set(tt.slug, tt);
+    return map;
+  }, [tagTypes]);
+
+  // Replaces the current non-root tag association of this tile.
+  // Per project convention (single-tag-per-tile): untag current, then tag new.
+  const setTagMutation = useMutation({
+    mutationFn: async (newTagId: string | null) => {
+      if (!id || !tile) return;
+      const oldId =
+        (tile.tags ?? []).find((t) => !t.is_root && t.name !== 'GIMMICK')?.id ?? null;
+      if (oldId && oldId !== newTagId) {
+        await tagsApi.untagTile(oldId, id).catch(() => {});
+      }
+      if (newTagId && newTagId !== oldId) {
+        await tagsApi.tagTiles(newTagId, [id]);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tile', id] });
+      queryClient.invalidateQueries({ queryKey: ['tiles'] });
+    },
+  });
 
   // ─── Action change handlers ───
   const applyAction = useCallback(
@@ -516,9 +591,11 @@ export default function TileDetailScreen() {
             </View>
           )}
 
-          {/* Tag */}
+          {/* Tag — tappable field that opens the tag picker (single-select). */}
           <SectionLabel text="Tag" colors={colors} top={20} />
-          <View
+          <TouchableOpacity
+            onPress={() => setTagPickerOpen(true)}
+            activeOpacity={0.7}
             style={{
               flexDirection: 'row',
               alignItems: 'center',
@@ -531,15 +608,22 @@ export default function TileDetailScreen() {
               paddingVertical: 12,
             }}
           >
-            {primaryTag ? (
-              <>
-                <IconHome size={16} color={captureColors.file} />
-                <Text style={{ fontSize: 14, color: colors.primary }}>{primaryTag.name}</Text>
-              </>
-            ) : (
-              <Text style={{ fontSize: 14, color: colors.tertiary, fontStyle: 'italic' }}>Nessun tag</Text>
+            {primaryTag ? (() => {
+              const customType = tagTypeBySlug.get(primaryTag.tag_type ?? '');
+              const tagColor = customType?.color ?? TAG_TYPE_COLORS[primaryTag.tag_type ?? ''] ?? captureColors.file;
+              return (
+                <>
+                  <TagTypeIcon emoji={customType?.emoji} fallbackSlug={primaryTag.tag_type} color={tagColor} size={16} />
+                  <Text style={{ flex: 1, fontSize: 14, color: colors.primary }}>{primaryTag.name}</Text>
+                </>
+              );
+            })() : (
+              <Text style={{ flex: 1, fontSize: 14, color: colors.tertiary, fontStyle: 'italic' }}>
+                Seleziona tag…
+              </Text>
             )}
-          </View>
+            <IconChevronDown size={14} color={colors.tertiary} />
+          </TouchableOpacity>
 
           {/* Type — tappable field that opens the type-icon picker */}
           <SectionLabel text="Type" colors={colors} top={20} />
@@ -740,6 +824,92 @@ export default function TileDetailScreen() {
           ))}
         </PickerModal>
 
+        {/* Tag picker modal — single-select replace, grouped by tag_type */}
+        <PickerModal
+          visible={tagPickerOpen}
+          title="Tag"
+          onClose={() => setTagPickerOpen(false)}
+          colors={colors}
+        >
+          <PickerRow
+            label="(Nessuno)"
+            isActive={!primaryTag}
+            onPress={() => {
+              setTagMutation.mutate(null);
+              setTagPickerOpen(false);
+            }}
+            colors={colors}
+          />
+          {(() => {
+            // Build the type order: canonical first, then any extra types
+            // present in the user's tags (alphabetical), then untyped bucket.
+            const presentTypes = new Set(availableTags.map((t) => t.tag_type).filter(Boolean));
+            const extraTypes = [...presentTypes]
+              .filter((tp) => !(TAG_TYPE_ORDER as readonly string[]).includes(tp))
+              .sort();
+            const orderedTypes = [...TAG_TYPE_ORDER, ...extraTypes];
+            const hasUntyped = availableTags.some((t) => !t.tag_type);
+            if (hasUntyped) orderedTypes.push('__untyped__');
+
+            return orderedTypes.map((tp) => {
+              const groupTags =
+                tp === '__untyped__'
+                  ? availableTags.filter((t) => !t.tag_type)
+                  : availableTags.filter((t) => t.tag_type === tp);
+              if (groupTags.length === 0) return null;
+              // Prefer the user's custom tag-type metadata (emoji/color/name)
+              // and fall back to the canonical mapping when unavailable.
+              const customType = tagTypeBySlug.get(tp);
+              const label = tp === '__untyped__'
+                ? 'ALTRO'
+                : (customType?.name?.toUpperCase() ?? TAG_TYPE_LABELS[tp] ?? tp.toUpperCase());
+              const iconColor = customType?.color ?? TAG_TYPE_COLORS[tp] ?? captureColors.file;
+              return (
+                <View key={tp} style={{ marginTop: 12 }}>
+                  {/* Section header — type-specific icon + colored accent.
+                      Custom emoji wins over the canonical Tabler fallback. */}
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                    }}
+                  >
+                    <TagTypeIcon emoji={customType?.emoji} fallbackSlug={tp} color={iconColor} size={14} />
+                    <Text
+                      style={{
+                        fontSize: 11,
+                        fontWeight: '700',
+                        letterSpacing: 0.5,
+                        color: iconColor,
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </View>
+                  {/* Tags in this section — no leading icon (the type icon
+                      is on the section header). Keeps rows clean and avoids
+                      visual repetition. */}
+                  {groupTags.map((t) => (
+                    <PickerRow
+                      key={t.id}
+                      label={t.name}
+                      isActive={primaryTag?.id === t.id}
+                      onPress={() => {
+                        setTagMutation.mutate(t.id);
+                        setTagPickerOpen(false);
+                      }}
+                      colors={colors}
+                    />
+                  ))}
+                </View>
+              );
+            });
+          })()}
+        </PickerModal>
+
         {/* Text spark editor — saves the new content + invalidates the
             tile cache so the SparkPreview updates immediately. */}
         <Modal
@@ -839,6 +1009,34 @@ function TypeIconBadge({ icon, color }: { icon: string; color?: string }) {
       <Comp size={11} color={readableOn(bg)} />
     </View>
   );
+}
+
+/**
+ * Renders a tag-type icon. `emoji` can be either a Tabler icon name
+ * ("IconFolder", "IconHome", …) or a unicode emoji string. Matches the web
+ * sidebar's resolveIcon() logic. When no emoji is given, falls back to the
+ * canonical Tabler component bound to the slug.
+ */
+function TagTypeIcon({
+  emoji,
+  fallbackSlug,
+  color,
+  size = 14,
+}: {
+  emoji?: string;
+  fallbackSlug?: string;
+  color: string;
+  size?: number;
+}) {
+  if (emoji) {
+    if (emoji.startsWith('Icon')) {
+      const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[emoji];
+      if (Comp) return <Comp size={size} color={color} />;
+    }
+    return <Text style={{ fontSize: size, color }}>{emoji}</Text>;
+  }
+  const Fallback = TAG_TYPE_ICONS[fallbackSlug ?? ''] ?? IconTag;
+  return <Fallback size={size} color={color} />;
 }
 
 /** Generic picker modal with header + scrollable rows. */

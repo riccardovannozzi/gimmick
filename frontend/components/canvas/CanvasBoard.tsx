@@ -127,7 +127,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
-  const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
+  const { statuses: allStatuses, getActionTypeShape } = useStatuses();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
@@ -201,13 +201,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // If DB has a position, use it. In-memory is only a fallback (e.g. for freshly created tiles not yet persisted).
       const x = s?.x ?? cur?.x ?? OFFSET_X;
       const y = s?.y ?? cur?.y ?? (OFFSET_Y + i * (TILE_H + TILE_GAP));
-      // Resolve status shape (lookup against all statuses — system + custom)
+      // Resolve status shape (lookup against all statuses — system + custom).
+      // status_id is now the single source of truth for "done"; the visual
+      // treatment for completed tiles comes from the system 'done' row.
       let shape = 'solid';
       if (t.status_id) {
         const st = allStatuses.find((s) => s.id === t.status_id);
         if (st) shape = st.shape;
-      } else if (t.is_completed) {
-        shape = doneShape;
       } else {
         shape = getActionTypeShape(t.action_type || 'none');
       }
@@ -219,7 +219,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
       return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
-  }, [tiles, layout, allStatuses, doneShape, getActionTypeShape, typeIcons, typeTileIcons]);
+  }, [tiles, layout, allStatuses, getActionTypeShape, typeIcons, typeTileIcons]);
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
@@ -879,6 +879,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     let dragSuppressedBbox = false;
     nodeGrps.call(d3.drag<SVGGElement, CanvasNode>()
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
+      // Allow tiny mouse jitter between mousedown/mouseup to still fire the
+      // subsequent click handler (sidebar open). Without this, any sub-pixel
+      // movement is interpreted as a drag and the click is suppressed.
+      .clickDistance(5)
       .on('start', function (_, d) {
         const sel = selectedIdsRef.current;
         if (sel.length > 1 && sel.includes(d.id)) {

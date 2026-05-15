@@ -425,6 +425,28 @@ export const tagsApi = {
       body: JSON.stringify({ tile_ids: tileIds }),
     });
   },
+
+  async untagTile(tagId: string, tileId: string) {
+    return apiRequest(`/api/tags/${tagId}/tiles/${tileId}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Tag Types API ============
+
+export interface TagTypeEntity {
+  id: string;
+  slug: string;
+  name: string;
+  emoji: string;
+  color?: string | null;
+  sort_order: number;
+  is_default: boolean;
+}
+
+export const tagTypesApi = {
+  async list() {
+    return apiRequest<TagTypeEntity[]>('/api/tag-types');
+  },
 };
 
 // ============ Chat API ============
@@ -622,9 +644,20 @@ export async function createSparkForTile(args: {
   });
 }
 
+export interface TileUploadOptions {
+  action_type?: string;
+  all_day?: boolean;
+  start_at?: string | null;
+  end_at?: string | null;
+  tag_id?: string | null;
+  type_icon_id?: string | null;
+  status_id?: string | null;
+}
+
 export async function uploadBufferItems(
   items: BufferItem[],
-  tagIds?: string[]
+  tagIds?: string[],
+  tileOptions?: TileUploadOptions,
 ): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile }> {
   const results: Spark[] = [];
   const errors: string[] = [];
@@ -703,6 +736,37 @@ export async function uploadBufferItems(
   if (!tile && tagIds && tagIds.length > 0 && results.length > 0 && results[0].tile_id) {
     for (const tagId of tagIds) {
       await tagsApi.tagTiles(tagId, [results[0].tile_id]).catch(() => {});
+    }
+  }
+
+  // Apply tile-level metadata set via the "Set options" accordion. Works for
+  // both branches (explicit tile created for multi-item uploads, and the
+  // auto-created tile attached to a single spark).
+  const targetTileId = tile?.id ?? (results.length > 0 ? results[0].tile_id : undefined);
+  if (targetTileId && tileOptions) {
+    const updates: Parameters<typeof tilesApi.update>[1] = {};
+    if (tileOptions.action_type) updates.action_type = tileOptions.action_type;
+    if (tileOptions.action_type === 'event' || tileOptions.action_type === 'deadline') {
+      updates.is_event = tileOptions.action_type === 'event';
+      updates.all_day = !!tileOptions.all_day;
+      updates.start_at = tileOptions.start_at ?? null;
+      updates.end_at = tileOptions.end_at ?? null;
+    } else if (tileOptions.action_type === 'none' || tileOptions.action_type === 'anytime') {
+      updates.is_event = false;
+      updates.all_day = false;
+      updates.start_at = null;
+      updates.end_at = null;
+    }
+    if (tileOptions.status_id !== undefined) updates.status_id = tileOptions.status_id;
+    if (Object.keys(updates).length > 0) {
+      await tilesApi.update(targetTileId, updates).catch((err) => {
+        console.warn('Failed to apply tile options:', err);
+      });
+    }
+    if (tileOptions.type_icon_id !== undefined) {
+      await typeIconsApi.assign(targetTileId, tileOptions.type_icon_id).catch((err) => {
+        console.warn('Failed to assign type icon:', err);
+      });
     }
   }
 

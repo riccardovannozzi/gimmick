@@ -3,7 +3,7 @@
 import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconCircleCheck, IconCircle, IconFilter, IconSearch, IconFocus, IconTarget, IconPlus } from '@tabler/icons-react';
+import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconFilter, IconSearch, IconFocus, IconTarget, IconPlus } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
@@ -31,6 +31,9 @@ import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
+// helper inline: a tile is "done" when status_id points to the system 'done' row
+const isTileDone = (tile: Tile, doneStatusId: string | undefined) =>
+  !!doneStatusId && tile.status_id === doneStatusId;
 import { TimePicker } from '@/components/ui/time-picker';
 
 // Helper: render emoji string or Tabler icon component
@@ -924,11 +927,11 @@ function TileRow({
   selectedIds,
   allTags,
   colWidths,
+  isDone,
   onSelect,
   onSparkClick,
   onTileClick,
   onActionTypeChange,
-  onToggleCompleted,
   getEmoji,
   getColor,
 }: {
@@ -937,11 +940,11 @@ function TileRow({
   selectedIds: Set<string>;
   allTags: Tag[];
   colWidths: { title: number; actionType: number; sparks: number; tags: number; dataScad: number; type: number; status: number };
+  isDone: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onSparkClick: (spark: Spark) => void;
   onTileClick: (tile: Tile) => void;
   onActionTypeChange: (tileId: string, data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
-  onToggleCompleted: (tileId: string, completed: boolean) => void;
   getEmoji: (slug: string) => string;
   getColor: (slug: string) => string | undefined;
 }) {
@@ -965,7 +968,7 @@ function TileRow({
   return (
     <Fragment>
       <TableRow
-        className={cn("border-zinc-800 cursor-pointer h-12 group/row", tile.is_completed && "[&>td:not(:nth-child(2))]:opacity-40")}
+        className={cn("border-zinc-800 cursor-pointer h-12 group/row", isDone && "[&>td]:opacity-40")}
         style={{ height: 48, maxHeight: 48 }}
         onClick={() => {
           if (selectedIds.size > 0) {
@@ -989,23 +992,7 @@ function TileRow({
             {selected && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
           </button>
         </TableCell>
-        <TableCell
-          className="border-r border-zinc-800 cursor-pointer"
-          style={{ width: 60, minWidth: 60, maxWidth: 60 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCompleted(tile.id, !tile.is_completed);
-          }}
-        >
-          <div className="flex items-center justify-center">
-            {tile.is_completed ? (
-              <IconCircleCheck className="h-4 w-4 text-green-500" />
-            ) : (
-              <IconCircle className="h-4 w-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
-            )}
-          </div>
-        </TableCell>
-        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', tile.is_completed ? 'text-zinc-500' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
+        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', isDone ? 'text-zinc-500' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
           {tile.title || `Tile ${tile.id.slice(0, 8)}`}
         </TableCell>
         <TableCell className="border-r border-zinc-800 overflow-visible" style={{ width: colWidths.actionType, minWidth: colWidths.actionType, maxWidth: colWidths.actionType }}>
@@ -1152,7 +1139,9 @@ export default function TilesPage() {
   const [tagFilter, setTagFilter] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [completedFilter, setCompletedFilter] = useState<'all' | 'done' | 'todo'>('all');
+
+  // Single source of truth for "done": status_id pointing to the system 'done' row.
+  const { doneStatusId } = useStatuses();
 
   // Filter popup open state
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -1161,7 +1150,6 @@ export default function TilesPage() {
   const sparksHeadRef = useRef<HTMLTableCellElement>(null);
   const tagsHeadRef = useRef<HTMLTableCellElement>(null);
   const dateHeadRef = useRef<HTMLTableCellElement>(null);
-  const completedHeadRef = useRef<HTMLTableCellElement>(null);
 
   // Column widths (resizable)
   const [colWidths, setColWidths] = useState({
@@ -1234,41 +1222,6 @@ export default function TilesPage() {
     actionTypeMutation.mutate({ tileId, updates: data });
   }, [actionTypeMutation]);
 
-  const completedMutation = useMutation({
-    mutationFn: async ({ tileId, completed }: { tileId: string; completed: boolean }) => {
-      const result = await tilesApi.update(tileId, { is_completed: completed });
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onMutate: async ({ tileId, completed }) => {
-      await queryClient.cancelQueries({ queryKey: ['tiles'] });
-      const prev = queryClient.getQueryData(['tiles']);
-      queryClient.setQueryData(['tiles'], (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((p: any) => ({
-            ...p,
-            data: p.data.map((t: Tile) => t.id === tileId ? { ...t, is_completed: completed } : t),
-          })),
-        };
-      });
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['tiles'], ctx.prev);
-      toast.error('Errore aggiornamento');
-    },
-    onSettled: () => {
-      queryClient.invalidateQueries({ queryKey: ['tiles'] });
-      queryClient.invalidateQueries({ queryKey: ['tile-detail'] });
-    },
-  });
-
-  const handleToggleCompleted = useCallback((tileId: string, completed: boolean) => {
-    completedMutation.mutate({ tileId, completed });
-  }, [completedMutation]);
-
   const handleAddTile = useCallback(async () => {
     try {
       const res = await tilesApi.create({ title: 'New tile' });
@@ -1322,13 +1275,8 @@ export default function TilesPage() {
       const to = new Date(dateTo + 'T23:59:59');
       result = result.filter((t) => new Date(t.created_at) <= to);
     }
-    if (completedFilter === 'done') {
-      result = result.filter((t) => t.is_completed);
-    } else if (completedFilter === 'todo') {
-      result = result.filter((t) => !t.is_completed);
-    }
     return result;
-  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo, completedFilter]);
+  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo]);
 
   const allSelected = tiles.length > 0 && tiles.every((t) => selectedIds.has(t.id));
   const someSelected = tiles.some((t) => selectedIds.has(t.id));
@@ -1441,7 +1389,7 @@ export default function TilesPage() {
             <IconPlus className="h-3.5 w-3.5 mr-1.5" />
             Add Tile
           </Button>
-          {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo || completedFilter !== 'all') && (
+          {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo) && (
             <button
               onClick={() => {
                 setTitleFilter('');
@@ -1450,7 +1398,6 @@ export default function TilesPage() {
                 setTagFilter(new Set());
                 setDateFrom('');
                 setDateTo('');
-                setCompletedFilter('all');
               }}
               className="text-xs text-blue-400 hover:text-blue-300 ml-2"
             >
@@ -1473,7 +1420,7 @@ export default function TilesPage() {
         ) : (
           <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex-1 overflow-auto">
-              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 60 + 80 + 56 }}>
+              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56 }}>
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900">
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
@@ -1488,19 +1435,6 @@ export default function TilesPage() {
                         }`}
                       >
                         {(allSelected || someSelected) && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
-                      </button>
-                    </TableHead>
-                    <TableHead
-                      ref={completedHeadRef}
-                      className="border-r border-zinc-800 text-zinc-400 text-xs"
-                      style={{ width: 60, minWidth: 60, maxWidth: 60 }}
-                    >
-                      <button
-                        onClick={() => setOpenFilter(openFilter === 'completed' ? null : 'completed')}
-                        className="flex items-center gap-1 w-full text-left"
-                      >
-                        <span className="text-xs truncate">Done</span>
-                        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', completedFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
                     <FilterableHead
@@ -1584,7 +1518,7 @@ export default function TilesPage() {
                         setSidebarOpen(true);
                       }}
                       onActionTypeChange={handleActionTypeChange}
-                      onToggleCompleted={handleToggleCompleted}
+                      isDone={isTileDone(tile, doneStatusId)}
                       getEmoji={getEmoji}
                       getColor={getColor}
                     />
@@ -1606,25 +1540,6 @@ export default function TilesPage() {
       </div>
 
       {/* Column filter popups */}
-      <FilterPopup anchorRef={completedHeadRef} open={openFilter === 'completed'} onClose={() => setOpenFilter(null)}>
-        <div className="w-36 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Stato</label>
-          {([['all', 'Tutti'], ['done', 'Completati'], ['todo', 'Da completare']] as const).map(([val, label]) => (
-            <button
-              key={val}
-              className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', completedFilter === val ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
-              onClick={() => setCompletedFilter(val)}
-            >
-              {val === 'done' && <IconCircleCheck className="h-3.5 w-3.5 text-green-500" />}
-              {val === 'todo' && <IconCircle className="h-3.5 w-3.5 text-zinc-500" />}
-              {val === 'all' && <IconCircle className="h-3.5 w-3.5 text-zinc-600" />}
-              <span className="text-zinc-300 flex-1">{label}</span>
-              {completedFilter === val && <IconCheck className="h-3 w-3 text-blue-400" />}
-            </button>
-          ))}
-        </div>
-      </FilterPopup>
-
       <FilterPopup anchorRef={titleHeadRef} open={openFilter === 'title'} onClose={() => setOpenFilter(null)}>
         <div className="w-48 flex flex-col gap-2">
           <label className="text-[11px] text-zinc-500">Cerca nel titolo</label>

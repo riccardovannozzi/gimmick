@@ -155,7 +155,6 @@ interface EventModalState {
   actionType: string;
   typeIconId: string | null;
   statusId: string | null;
-  isCompleted: boolean;
 }
 
 const emptyModal: EventModalState = {
@@ -170,7 +169,6 @@ const emptyModal: EventModalState = {
   actionType: 'none',
   typeIconId: null,
   statusId: null,
-  isCompleted: false,
 };
 
 const ACTION_OPTIONS = [
@@ -216,7 +214,8 @@ export default function CalendarPage() {
     if (!iconId) return null;
     return typeIcons.find((i) => i.id === iconId) || null;
   }, [typeIcons, typeTileIcons]);
-  const { doneShape, getActionTypeShape, statuses: allStatuses } = useStatuses();
+  const { doneShape, doneStatusId, getActionTypeShape, statuses: allStatuses } = useStatuses();
+  const isDone = useCallback((tile: Tile) => !!doneStatusId && tile.status_id === doneStatusId, [doneStatusId]);
   const tilesWithFlows = useTilesWithFlows();
   const openFlowModal = useFlowModalStore((s) => s.open);
 
@@ -225,9 +224,8 @@ export default function CalendarPage() {
       const st = allStatuses.find((s) => s.id === tile.status_id);
       if (st) return st.shape as StatusShape;
     }
-    if (tile.is_completed) return doneShape;
     return getActionTypeShape(tile.action_type || 'none');
-  }, [doneShape, allStatuses, getActionTypeShape]);
+  }, [allStatuses, getActionTypeShape]);
 
   const getTagColor = (tile: Tile): string => {
     const tagType = tile.tags?.[0]?.tag_type || '';
@@ -338,7 +336,7 @@ export default function CalendarPage() {
     // Hide tiles excluded by sidebar tag filter
     if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
     // Filter
-    if (notesFilter === 'completion') list = list.filter((t) => t.is_completed);
+    if (notesFilter === 'completion') list = list.filter((t) => isDone(t));
     if (notesFilter === 'status') list = list.filter((t) => !!t.status_id);
     // Sort
     switch (notesSort) {
@@ -356,15 +354,17 @@ export default function CalendarPage() {
     // Hide tiles excluded by sidebar tag filter
     if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
     // Filter
-    if (todoFilter === 'active') list = list.filter((t) => !t.is_completed);
-    if (todoFilter === 'completed') list = list.filter((t) => t.is_completed);
+    if (todoFilter === 'active') list = list.filter((t) => !isDone(t));
+    if (todoFilter === 'completed') list = list.filter((t) => isDone(t));
     if (todoFilter === 'status') list = list.filter((t) => !!t.status_id);
     // Sort
     switch (todoSort) {
       case 'order':
         list.sort((a, b) => {
-          if (a.is_completed && !b.is_completed) return 1;
-          if (!a.is_completed && b.is_completed) return -1;
+          const aDone = isDone(a);
+          const bDone = isDone(b);
+          if (aDone && !bDone) return 1;
+          if (!aDone && bDone) return -1;
           return (a.sort_order ?? 0) - (b.sort_order ?? 0);
         });
         break;
@@ -648,7 +648,7 @@ export default function CalendarPage() {
         borderColor: `${color}60`,
         textColor: '#A1A1AA',
         classNames: [
-          t.is_completed ? 'fc-event-completed' : '',
+          isDone(t) ? 'fc-event-completed' : '',
           t.action_type === 'deadline' ? 'fc-event-deadline' : '',
         ].filter(Boolean),
       };
@@ -688,7 +688,6 @@ export default function CalendarPage() {
           all_day: clipboardTile.all_day,
           start_at: clipboardTile.start_at,
           end_at: clipboardTile.end_at,
-          is_completed: clipboardTile.is_completed,
           status_id: clipboardTile.status_id,
         });
         const tagId = clipboardTile.tags?.[0]?.id;
@@ -737,7 +736,6 @@ export default function CalendarPage() {
           all_day: false,
           start_at: null,
           end_at: null,
-          is_completed: clipboardTile.is_completed,
           status_id: clipboardTile.status_id,
         });
         const tagId = clipboardTile.tags?.[0]?.id;
@@ -802,12 +800,11 @@ export default function CalendarPage() {
         });
         const newId = result?.data?.id;
         if (newId) {
-          // Apply action_type, status, done
+          // Apply action_type and status
           await tilesApi.update(newId, {
             action_type: modal.actionType as any,
             all_day: modal.allDay,
             is_event: modal.actionType === 'event',
-            is_completed: modal.isCompleted,
             status_id: modal.statusId,
           });
           if (modal.tagIds.length > 0) await syncTags(newId, modal.tagIds);
@@ -1152,7 +1149,7 @@ export default function CalendarPage() {
                           'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border',
                           t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                           selectedTileId === t.id && 'ring-2 ring-blue-500',
-                          t.is_completed && 'opacity-50',
+                          isDone(t) && 'opacity-50',
                         )}
                         style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                         onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
@@ -1212,7 +1209,7 @@ export default function CalendarPage() {
                       'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
                       t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
                       selectedTileId === t.id && 'ring-2 ring-blue-500',
-                      t.is_completed && 'opacity-50',
+                      isDone(t) && 'opacity-50',
                     )}
                     style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
                     onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
@@ -1922,16 +1919,6 @@ export default function CalendarPage() {
                     />
                   </div>
                 )}
-
-                {/* Done */}
-                <div className="flex gap-3">
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" checked={modal.isCompleted}
-                      onChange={(e) => setModal({ ...modal, isCompleted: e.target.checked })}
-                      className="accent-green-500 w-3.5 h-3.5" />
-                    <span className="text-[11px] text-zinc-400">Done</span>
-                  </label>
-                </div>
 
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">

@@ -9,7 +9,7 @@
  * owns the set and passes it back in via `selectedTagIds`.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, Modal, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   IconX,
@@ -90,14 +90,19 @@ export function TagFilterModal({
     const next = new Set(selectedTagIds);
     if (next.has(tagId)) next.delete(tagId);
     else next.add(tagId);
+    console.log('[TagFilterModal] toggle', tagId, 'now has', next.size, 'selected');
     onChange(next);
   };
 
+  // Native <Modal> without `presentationStyle="fullScreen"` — that prop is
+  // iOS-only and on Android is silently ignored, but the combination of it
+  // with animationType="slide" inside an Expo Router Stack sometimes blocks
+  // rendering. The plain Modal here renders full-screen on Android by
+  // default and slides in on iOS via animationType.
   return (
     <Modal
       visible={visible}
       animationType="slide"
-      presentationStyle="fullScreen"
       onRequestClose={onClose}
     >
       <View style={{ flex: 1, backgroundColor: colors.background1, paddingTop: insets.top }}>

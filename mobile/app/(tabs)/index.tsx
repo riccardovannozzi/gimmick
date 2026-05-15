@@ -1,10 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import {
   IconX,
-  IconDeviceFloppy,
   IconSend,
   IconMicrophone,
   IconCamera,
@@ -14,46 +12,16 @@ import {
   IconPaperclip,
   IconSparkles,
   IconCheck,
-  IconTag,
-  IconFolder,
-  IconUser,
-  IconMapPin,
-  IconBookmark,
 } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
+import { SetOptionsAccordion, EMPTY_OPTIONS, type TileOptions } from '@/components/SetOptionsAccordion';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
-import { uploadBufferItems, chatApi, tagsApi } from '@/lib/api';
+import { uploadBufferItems, chatApi } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { BufferItem, SparkType, Tag as TagInterface } from '@/types';
-
-const TAG_TYPE_EMOJI: Record<string, string> = {
-  project: '\u{1F3D7}\uFE0F',
-  person: '\u{1F464}',
-  context: '\u{1F30D}',
-  place: '\u{1F4CD}',
-  topic: '\u{1F3F7}\uFE0F',
-};
-
-// Tag-type metadata \u2014 mirrors the web sidebar (frontend/components/layout/sidebar.tsx).
-// Order matches the canonical layout the user is familiar with on the web.
-const TAG_TYPE_ORDER = ['project', 'person', 'context', 'place', 'topic'] as const;
-const TAG_TYPE_LABELS: Record<string, string> = {
-  project: 'PROGETTO',
-  person: 'PERSONA',
-  context: 'CONTESTO',
-  place: 'LUOGO',
-  topic: 'TOPIC',
-};
-const TAG_TYPE_ICONS: Record<string, typeof IconFolder> = {
-  project: IconFolder,
-  person: IconUser,
-  context: IconTag,
-  place: IconMapPin,
-  topic: IconBookmark,
-};
+import type { BufferItem, SparkType } from '@/types';
 
 type ChatMessage = {
   id: string;
@@ -235,7 +203,6 @@ function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferIte
 export default function HomeScreen() {
   const colors = useThemeColors();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const items = useBufferStore((state) => state.items);
   const clearBuffer = useBufferStore((state) => state.clearBuffer);
   const removeItem = useBufferStore((state) => state.removeItem);
@@ -249,37 +216,8 @@ export default function HomeScreen() {
   const [editText, setEditText] = useState('');
   const [chatMode, setChatMode] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [tagModalOpen, setTagModalOpen] = useState(false);
-  const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [availableTags, setAvailableTags] = useState<TagInterface[]>([]);
-
-  useEffect(() => {
-    if (tagModalOpen) {
-      // Ensure tokens are synced before fetching
-      const state = useAuthStore.getState();
-      if (state.accessToken && state.refreshToken) {
-        const { setTokens } = require('@/lib/api');
-        setTokens({
-          access_token: state.accessToken,
-          refresh_token: state.refreshToken,
-          expires_at: 0,
-        });
-      }
-      tagsApi.list().then((res) => {
-        console.log('[Tags] result:', JSON.stringify(res).slice(0, 300));
-        if (res.success && res.data) setAvailableTags(res.data);
-      }).catch((err) => console.log('[Tags] error:', err));
-    }
-  }, [tagModalOpen]);
-
-  const toggleTag = (tagId: string) => {
-    setSelectedTagIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(tagId)) next.delete(tagId);
-      else next.add(tagId);
-      return next;
-    });
-  };
+  const [setOptionsOpen, setSetOptionsOpen] = useState(false);
+  const [tileOptions, setTileOptions] = useState<TileOptions>(EMPTY_OPTIONS);
 
   const handleCapture = (route: string) => {
     router.push(route as any);
@@ -379,11 +317,13 @@ export default function HomeScreen() {
     }
     setUploading(true);
     try {
-      const result = await uploadBufferItems(items, selectedTagIds.size > 0 ? Array.from(selectedTagIds) : undefined);
+      const tagIds = tileOptions.tag_id ? [tileOptions.tag_id] : undefined;
+      const result = await uploadBufferItems(items, tagIds, tileOptions);
       if (result.success) {
         toast.success(`${result.results.length} items uploaded!`);
         clearBuffer();
-        setSelectedTagIds(new Set());
+        setTileOptions(EMPTY_OPTIONS);
+        setSetOptionsOpen(false);
       } else {
         const successCount = result.results.length;
         const errorCount = result.errors.length;
@@ -488,6 +428,35 @@ export default function HomeScreen() {
                 gap: 10,
               }}
             >
+              {/* ASK / SEND GIMMICK — top action button. When the buffer is
+                  empty the button opens the chat (ASK GIMMICK); as soon as
+                  the user captures something, the same button switches to
+                  SEND to GIMMICK and triggers the buffer upload. */}
+              <TouchableOpacity
+                onPress={bufferCount > 0 ? handleSend : toggleChatMode}
+                disabled={bufferCount > 0 && isUploading}
+                activeOpacity={0.7}
+                style={{
+                  borderRadius: 16,
+                  backgroundColor: colors.background3,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  paddingVertical: 18,
+                  opacity: bufferCount > 0 && isUploading ? 0.6 : 1,
+                }}
+              >
+                {bufferCount > 0 ? (
+                  <IconSend size={20} color="#FFFFFF" strokeWidth={1.8} />
+                ) : (
+                  <IconSparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
+                )}
+                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
+                  {bufferCount > 0 ? 'SEND to GIMMICK' : 'ASK GIMMICK'}
+                </Text>
+              </TouchableOpacity>
+
               {/* Row 1 */}
               <View style={{ flexDirection: 'row', gap: 10 }}>
                 {captureOptions.slice(0, 3).map((option) => {
@@ -598,84 +567,44 @@ export default function HomeScreen() {
                   );
                 })}
               </View>
-              {/* Ask AI button — same width as Voice, half height */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
+
+              {/* "Set options" — toggles an accordion below where the user can
+                  pre-set tile metadata (Action / Date / Tag / Type / Status)
+                  before the buffer is uploaded. Visible only when the buffer
+                  has content. */}
+              {bufferCount > 0 && (
                 <TouchableOpacity
-                  onPress={toggleChatMode}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setSetOptionsOpen((v) => !v);
+                  }}
                   activeOpacity={0.7}
                   style={{
-                    flex: 1,
                     borderRadius: 16,
-                    backgroundColor: colors.background3,
+                    backgroundColor: colors.surfaceVariant,
+                    paddingVertical: 18,
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: 8,
-                    paddingVertical: 18,
                   }}
                 >
-                  <IconSparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
-                    ASK GIMMICK
+                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary, letterSpacing: 0.3 }}>
+                    Set options
+                  </Text>
+                  <Text style={{ fontSize: 12, color: colors.tertiary }}>
+                    {setOptionsOpen ? '▲' : '▼'}
                   </Text>
                 </TouchableOpacity>
-                {bufferCount > 0 && (
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <TouchableOpacity
-                      onPress={() => setTagModalOpen(true)}
-                      activeOpacity={0.7}
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: 24,
-                        backgroundColor: selectedTagIds.size > 0 ? `${colors.accent}30` : colors.surfaceVariant,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderWidth: selectedTagIds.size > 0 ? 1.5 : 0,
-                        borderColor: colors.accent,
-                      }}
-                    >
-                      <IconTag size={20} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
-                      {selectedTagIds.size > 0 && (
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: -2,
-                            right: -2,
-                            minWidth: 18,
-                            height: 18,
-                            borderRadius: 9,
-                            backgroundColor: colors.accent,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            paddingHorizontal: 4,
-                          }}
-                        >
-                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
-                            {selectedTagIds.size}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={handleSend}
-                      disabled={isUploading}
-                      activeOpacity={0.7}
-                      style={{
-                        width: 56,
-                        height: 56,
-                        borderRadius: 28,
-                        backgroundColor: colors.surfaceVariant,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        opacity: isUploading ? 0.6 : 1,
-                      }}
-                    >
-                      <IconSend size={22} color={colors.onAccent} />
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </View>
+              )}
+              {bufferCount > 0 && setOptionsOpen && (
+                <SetOptionsAccordion
+                  colors={colors}
+                  options={tileOptions}
+                  onChange={setTileOptions}
+                />
+              )}
+
             </View>
 
             {/* Buffer chips */}
@@ -820,172 +749,6 @@ export default function HomeScreen() {
               )}
             </KeyboardAvoidingView>
           </SafeAreaWrapper>
-        </Modal>
-
-        {/* Tag Selection Modal — full-screen, grouped by tag_type, with the
-            same iconography used in the web sidebar. */}
-        <Modal
-          visible={tagModalOpen}
-          animationType="slide"
-          presentationStyle="fullScreen"
-          onRequestClose={() => setTagModalOpen(false)}
-        >
-          <View style={{ flex: 1, backgroundColor: colors.background1, paddingTop: insets.top }}>
-            {/* Header */}
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                paddingHorizontal: 20,
-                paddingVertical: 16,
-                borderBottomWidth: 1,
-                borderBottomColor: colors.border,
-              }}
-            >
-              <Text style={{ fontSize: 19, fontWeight: '700', color: colors.primary }}>
-                Seleziona Tag
-              </Text>
-              <TouchableOpacity onPress={() => setTagModalOpen(false)} hitSlop={10}>
-                <IconX size={24} color={colors.secondary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={{ color: colors.tertiary, fontSize: 13, paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
-              Opzionale — senza selezione verrà usato il tag Gimmick
-            </Text>
-
-            {/* Grouped tag list */}
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 20 }}
-              keyboardShouldPersistTaps="handled"
-            >
-              {(() => {
-                const nonRoot = availableTags.filter((t) => !t.is_root);
-                if (nonRoot.length === 0) {
-                  return (
-                    <Text style={{ color: colors.tertiary, fontSize: 14, textAlign: 'center', paddingVertical: 40 }}>
-                      {availableTags.length === 0 ? 'Caricamento tag...' : 'Nessun tag personalizzato'}
-                    </Text>
-                  );
-                }
-                // Build the type order: canonical first, then any extra types
-                // present in the user's tags (sorted alphabetically), and a
-                // catch-all 'altro' bucket for tags without a tag_type.
-                const presentTypes = new Set(nonRoot.map((t) => t.tag_type).filter(Boolean));
-                const extraTypes = [...presentTypes]
-                  .filter((tp) => !(TAG_TYPE_ORDER as readonly string[]).includes(tp))
-                  .sort();
-                const orderedTypes = [...TAG_TYPE_ORDER, ...extraTypes];
-                const hasUntyped = nonRoot.some((t) => !t.tag_type);
-                if (hasUntyped) orderedTypes.push('__untyped__');
-
-                return orderedTypes.map((tp) => {
-                  const groupTags =
-                    tp === '__untyped__'
-                      ? nonRoot.filter((t) => !t.tag_type)
-                      : nonRoot.filter((t) => t.tag_type === tp);
-                  if (groupTags.length === 0) return null;
-                  const Icon = TAG_TYPE_ICONS[tp] ?? IconTag;
-                  const label = tp === '__untyped__'
-                    ? 'ALTRO'
-                    : (TAG_TYPE_LABELS[tp] ?? tp.toUpperCase());
-                  return (
-                    <View key={tp} style={{ marginBottom: 16 }}>
-                      {/* Section header */}
-                      <View
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          gap: 8,
-                          paddingHorizontal: 4,
-                          paddingVertical: 8,
-                        }}
-                      >
-                        <Icon size={14} color={colors.tertiary} />
-                        <Text
-                          style={{
-                            fontSize: 11,
-                            fontWeight: '600',
-                            letterSpacing: 0.5,
-                            color: colors.tertiary,
-                          }}
-                        >
-                          {label}
-                        </Text>
-                      </View>
-                      {/* Tags in this section */}
-                      {groupTags.map((tag) => {
-                        const isSelected = selectedTagIds.has(tag.id);
-                        return (
-                          <TouchableOpacity
-                            key={tag.id}
-                            onPress={() => toggleTag(tag.id)}
-                            activeOpacity={0.7}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              paddingVertical: 12,
-                              paddingHorizontal: 12,
-                              borderRadius: 10,
-                              marginBottom: 4,
-                              backgroundColor: isSelected ? `${colors.accent}1F` : colors.background2,
-                              borderWidth: 1,
-                              borderColor: isSelected ? colors.accent : 'transparent',
-                            }}
-                          >
-                            <View
-                              style={{
-                                width: 10,
-                                height: 10,
-                                borderRadius: 5,
-                                backgroundColor: colors.accent,
-                                marginRight: 12,
-                              }}
-                            />
-                            <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
-                              {tag.name}
-                            </Text>
-                            {isSelected && (
-                              <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
-                            )}
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  );
-                });
-              })()}
-            </ScrollView>
-
-            {/* Done button */}
-            <View
-              style={{
-                paddingHorizontal: 20,
-                paddingTop: 12,
-                paddingBottom: insets.bottom + 16,
-                borderTopWidth: 1,
-                borderTopColor: colors.border,
-                backgroundColor: colors.background1,
-              }}
-            >
-              <TouchableOpacity
-                onPress={() => setTagModalOpen(false)}
-                activeOpacity={0.7}
-                style={{
-                  backgroundColor: colors.accent,
-                  borderRadius: 12,
-                  paddingVertical: 14,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-                  {selectedTagIds.size > 0 ? `Conferma (${selectedTagIds.size})` : 'Chiudi'}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
         </Modal>
       </View>
     </View>

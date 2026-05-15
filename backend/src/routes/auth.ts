@@ -51,12 +51,11 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
     // Seed the canonical set of system statuses. Users can edit the shapes
     // from Settings → Tile Statuses but the names are stable.
     await supabaseAdmin.from('statuses').insert([
-      { user_id: data.user.id, category: 'system', name: 'active',      shape: 'solid' },
-      { user_id: data.user.id, category: 'system', name: 'waiting_for', shape: 'hourglass' },
-      { user_id: data.user.id, category: 'system', name: 'paused',      shape: 'pause_bars' },
-      { user_id: data.user.id, category: 'system', name: 'blocked',     shape: 'lock' },
-      { user_id: data.user.id, category: 'system', name: 'cancelled',   shape: 'cross' },
-      { user_id: data.user.id, category: 'system', name: 'done',        shape: 'shade' },
+      { user_id: data.user.id, category: 'system', name: 'active',    shape: 'solid' },
+      { user_id: data.user.id, category: 'system', name: 'paused',    shape: 'pause_bars' },
+      { user_id: data.user.id, category: 'system', name: 'blocked',   shape: 'lock' },
+      { user_id: data.user.id, category: 'system', name: 'cancelled', shape: 'cross' },
+      { user_id: data.user.id, category: 'system', name: 'done',      shape: 'shade' },
     ]);
 
     res.status(201).json({

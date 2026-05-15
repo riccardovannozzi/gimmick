@@ -411,7 +411,10 @@ export default function HistoryScreen() {
           </View>
           {/* Tag filter pill — count badge shown when tags are selected. */}
           <TouchableOpacity
-            onPress={() => setTagFilterOpen(true)}
+            onPress={() => {
+              console.log('[Tag filter] pill tapped, opening modal');
+              setTagFilterOpen(true);
+            }}
             activeOpacity={0.7}
             style={{
               flexDirection: 'row',

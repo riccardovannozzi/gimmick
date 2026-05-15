@@ -214,6 +214,7 @@ function tileMatchesFilters(
   tile: Tile,
   filters: KanbanFilter[],
   typeTileIcons: Record<string, string>,
+  doneStatusId: string | undefined,
 ): boolean {
   if (filters.length === 0) return true;
 
@@ -235,8 +236,10 @@ function tileMatchesFilters(
           return tile.action_type === f.value;
         case 'tag':
           return tile.tags?.some((t) => t.id === f.value) ?? false;
-        case 'completion':
-          return f.value === 'completed' ? !!tile.is_completed : !tile.is_completed;
+        case 'completion': {
+          const done = !!doneStatusId && tile.status_id === doneStatusId;
+          return f.value === 'completed' ? done : !done;
+        }
         case 'status':
           return tile.status_id === f.value;
         case 'type_icon':
@@ -372,7 +375,7 @@ export default function KanbanPage() {
 
   // Statuses (for shape overlay on tiles). Resolve against the full list
   // (system + custom) because canonical system statuses drive the shape now.
-  const { statuses: allStatuses, doneShape, getActionTypeShape } = useStatuses();
+  const { statuses: allStatuses, doneStatusId, getActionTypeShape } = useStatuses();
   const tilesWithFlows = useTilesWithFlows();
   const openFlowModal = useFlowModalStore((s) => s.open);
   const resolveShape = useCallback((tile: Tile): StatusShape => {
@@ -380,9 +383,8 @@ export default function KanbanPage() {
       const st = allStatuses.find((s) => s.id === tile.status_id);
       if (st) return st.shape as StatusShape;
     }
-    if (tile.is_completed) return doneShape;
     return getActionTypeShape(tile.action_type || 'none');
-  }, [allStatuses, doneShape, getActionTypeShape]);
+  }, [allStatuses, getActionTypeShape]);
 
   // ─── Data ───
   const { data: columnsData } = useQuery({
@@ -588,7 +590,11 @@ export default function KanbanPage() {
           }
           break;
         case 'completion':
-          updates.is_completed = f.value === 'completed';
+          // Setting/clearing the canonical 'done' status. If the system status
+          // hasn't loaded yet, skip silently to avoid wiping the field.
+          if (doneStatusId) {
+            updates.status_id = f.value === 'completed' ? doneStatusId : null;
+          }
           break;
         case 'status':
           updates.status_id = f.value;
@@ -753,7 +759,7 @@ export default function KanbanPage() {
         {/* Columns */}
         <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
           {columns.map((col) => {
-            const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
+            const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons, doneStatusId));
             const colTiles = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
             const isEditing = editingTitle === col.id;
             const isFilterOpen = filterEditorCol === col.id;
