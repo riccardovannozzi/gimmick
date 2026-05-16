@@ -33,6 +33,9 @@ interface Props {
   selectedTileId?: string | null;
   /** Click handler — opens the tile in the right sidebar. */
   onTileClick?: (tileId: string) => void;
+  /** Panel width in pixels. Driven by the parent's resize handle so the
+   *  splitter between staging and canvas can be dragged. */
+  width?: number;
 }
 
 // Match CanvasBoard's TILE_W / TILE_H exactly so a tile reads at the same
@@ -71,6 +74,7 @@ export function StagingPanel({
   isDropTargetHover,
   selectedTileId,
   onTileClick,
+  width,
 }: Props) {
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
@@ -95,8 +99,10 @@ export function StagingPanel({
     <div
       ref={panelRef}
       data-staging-panel
+      style={width != null ? { width } : undefined}
       className={cn(
-        'w-44 shrink-0 border-r flex flex-col transition-colors',
+        'shrink-0 border-r flex flex-col transition-colors',
+        width == null && 'w-44',
         isDropTargetHover
           ? 'bg-blue-500/[0.18] border-blue-500'
           : isCanvasDragActive
@@ -104,7 +110,7 @@ export function StagingPanel({
           : 'bg-zinc-950/40 border-zinc-800',
       )}
     >
-      <div className="h-10 flex items-center gap-1.5 px-3 border-b border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-500">
+      <div className="h-12 flex items-center gap-1.5 px-3 border-b border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-500">
         <IconInbox size={11} />
         <span>Staging</span>
         <span className="ml-auto tabular-nums">{tiles.length}</span>

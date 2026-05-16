@@ -76,14 +76,6 @@ export function useFlow(tileId: string | null | undefined) {
     onSuccess: invalidate,
   });
 
-  const setFocus = useMutation({
-    mutationFn: async ({ id, focus }: { id: string; focus: boolean }) => {
-      const res = await flowApi.setFocus(id, focus);
-      return res.data as FlowNode;
-    },
-    onSuccess: invalidate,
-  });
-
   const addEdge = useMutation({
     mutationFn: async (body: { parent_id: string; child_id: string }) => {
       const res = await flowApi.createEdge(body);
@@ -105,7 +97,6 @@ export function useFlow(tileId: string | null | undefined) {
     addNode,
     updateNode,
     deleteNode,
-    setFocus,
     addEdge,
     deleteEdge,
   };

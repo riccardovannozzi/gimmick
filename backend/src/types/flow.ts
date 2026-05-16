@@ -47,9 +47,6 @@ export interface FlowNode {
   /** Manual position override (null = use auto-layout). */
   x: number | null;
   y: number | null;
-  /** Per-tile focus marker — at most one node per tile may have this true.
-   *  Uniqueness is enforced application-side. */
-  is_focus: boolean;
   created_at: string;
   updated_at: string;
 }

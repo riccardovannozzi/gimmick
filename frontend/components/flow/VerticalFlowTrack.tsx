@@ -5,6 +5,7 @@ import { useFlow } from '@/lib/hooks/useFlow';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { FlowNodeView } from './FlowNodeView';
 import { FlowEdgeView } from './FlowEdgeView';
+import { cn } from '@/lib/utils';
 import type { FlowNode, FlowEdge } from '@/types/flow';
 
 /**
@@ -19,41 +20,52 @@ import type { FlowNode, FlowEdge } from '@/types/flow';
  * (Figlio / Predecessore / Fratello / Elimina), not by dragging.
  */
 
-/** Total SVG width — sized to fit inside the TileSidebar (w-60 = 240px) with
- *  a small safety margin. Any wider and right-aligned labels would render
- *  past the sidebar's right edge and get clipped. */
-const SVG_WIDTH = 232;
+/** Total SVG width — fills the FlowInspector area exactly. TileSidebar is
+ *  w-[280px] with a 1px `border-l`, so the inner aside is 279px wide. The
+ *  matching SVG width lets the rightmost body's right edge line up with
+ *  the right border of the form's input boxes above. */
+const SVG_WIDTH = 279;
 const NODE_RADIUS = 10;
-const LEFT_MARGIN = 8;
-/** X coordinate of column-0 (main spine) bodies. */
-const BODY_X_LEFT = LEFT_MARGIN + NODE_RADIUS;
-const RIGHT_MARGIN = 8;
-/** Gap between the rightmost body and the start of the label area. */
+/** Matches FlowInspector's `p-3` padding (12px). Aligns the label start
+ *  with the left border of the form fields (Etichetta, Status, Contatto…)
+ *  rendered above the diagram. */
+const LEFT_MARGIN = 12;
+const RIGHT_MARGIN = 12;
+/** Gap between the right edge of the label area and the leftmost body. */
 const BODY_TO_LABEL_GAP = 10;
-/** Lane width is computed at render time from the number of active lanes —
- *  capped between these two so a single branching doesn't crowd, and many
- *  branchings still leave usable label space. */
-const MIN_LANE_WIDTH = 22;
+/** Horizontal split: 60% labels (left, right-aligned so they "point" at
+ *  the bodies), 40% lane/body area (right). Fixed ratio, doesn't shrink
+ *  with the number of lanes — the lane width itself adapts instead. */
+const LABEL_RATIO = 0.6;
+/** Lane width adapts to the number of active lanes within the right-side
+ *  body area. MIN was tuned so 5 lanes still fit inside the 40% body slice. */
+const MIN_LANE_WIDTH = 18;
 const MAX_LANE_WIDTH = 40;
-/** Hard floor for the right-aligned label area, in px. The lane width
- *  shrinks toward MIN_LANE_WIDTH before the label area drops below this. */
-const MIN_LABEL_WIDTH = 80;
-/** Hard ceiling on how many parallel sibling lanes the diagram opens. After
- *  this many, additional siblings stack on the last lane (different Y, same
- *  X) instead of pushing the lane count further. Keeps the diagram readable
- *  inside the 232px sidebar — at 5 lanes the label area is still ~80px. */
+/** Hard ceiling on parallel sibling lanes. Overflow siblings reuse the last
+ *  lane (different Y keeps them separated visually). */
 const MAX_LANES = 5;
 
-const ROW_HEIGHT = 64;
+// Derived layout — labels live on the left, bodies on the right.
+const AVAILABLE_WIDTH = SVG_WIDTH - LEFT_MARGIN - RIGHT_MARGIN;
+/** Fixed width of the label area on the left side of the SVG. */
+const LABEL_WIDTH = Math.floor(AVAILABLE_WIDTH * LABEL_RATIO);
+const LABEL_X = LEFT_MARGIN;
+/** Leftmost body center X — sits past the label area + the gap. */
+const BODY_X_LEFT = LEFT_MARGIN + LABEL_WIDTH + BODY_TO_LABEL_GAP + NODE_RADIUS;
+/** Total horizontal room available for the bodies on the right. */
+const LANE_AREA_WIDTH = SVG_WIDTH - RIGHT_MARGIN - (LEFT_MARGIN + LABEL_WIDTH + BODY_TO_LABEL_GAP);
+
+const ROW_HEIGHT = 72;
 /** Vertical gap between consecutive siblings (consecutive nodes sharing the
  *  same parent). Tighter than ROW_HEIGHT so siblings read as a pair rather
- *  than two unrelated rows on the spine. */
-const SIBLING_GAP = 36;
+ *  than two unrelated rows on the spine, but large enough to fit a label
+ *  with two main lines + one contact subline without overlap. */
+const SIBLING_GAP = 52;
 const TOP_MARGIN = 16;
 const BOTTOM_MARGIN = 12;
-/** Fixed vertical extent of the right-aligned label block, centered on the
- *  body. Kept smaller than SIBLING_GAP so two sibling labels don't overlap. */
-const LABEL_HEIGHT = 32;
+/** Fixed vertical extent of the label block, centered on the body. Sized
+ *  for 2 main-label lines (16px line-height each) + 1 contact subline. */
+const LABEL_HEIGHT = 48;
 
 interface Props {
   tileId: string;
@@ -292,24 +304,17 @@ export function VerticalFlowTrack({ tileId, selectedNodeId, onSelectNode }: Prop
     return max + 1;
   }, [columnById]);
 
-  /** Adaptive lane width: comfortable (MAX) when 1–2 lanes are used, shrinks
-   *  toward MIN as more branchings appear so label area never goes below
-   *  MIN_LABEL_WIDTH. */
+  /** Adaptive lane width: comfortable (MAX) for 1–2 lanes, shrinks toward
+   *  MIN as more branchings appear so 5 lanes still fit inside the 40%
+   *  right-side body slice. */
   const laneWidth = useMemo(() => {
     if (numLanes <= 1) return MAX_LANE_WIDTH;
-    const budget =
-      SVG_WIDTH - BODY_X_LEFT - NODE_RADIUS - BODY_TO_LABEL_GAP - MIN_LABEL_WIDTH - RIGHT_MARGIN;
+    // Body diameters take 2*NODE_RADIUS on the ends; the rest is split among
+    // the (numLanes - 1) gaps between consecutive lane centers.
+    const budget = LANE_AREA_WIDTH - 2 * NODE_RADIUS;
     const computed = budget / (numLanes - 1);
     return Math.max(MIN_LANE_WIDTH, Math.min(MAX_LANE_WIDTH, computed));
   }, [numLanes]);
-
-  /** X of the right-aligned label block — sits past the rightmost lane body
-   *  plus a small breathing gap. */
-  const labelX = useMemo(() => {
-    const rightmostBody = BODY_X_LEFT + (numLanes - 1) * laneWidth;
-    return rightmostBody + NODE_RADIUS + BODY_TO_LABEL_GAP;
-  }, [numLanes, laneWidth]);
-  const labelWidth = SVG_WIDTH - RIGHT_MARGIN - labelX;
 
   /** Per-node Y, walking ordered top-to-bottom. Consecutive siblings (same
    *  primary parent) use SIBLING_GAP; everything else uses ROW_HEIGHT. */
@@ -434,18 +439,25 @@ export function VerticalFlowTrack({ tileId, selectedNodeId, onSelectNode }: Prop
               }}
             />
             <foreignObject
-              x={labelX}
+              x={LABEL_X}
               y={cy - LABEL_HEIGHT / 2}
-              width={labelWidth}
+              width={LABEL_WIDTH}
               height={LABEL_HEIGHT}
               style={{ overflow: 'visible' }}
             >
               <div
                 onClick={() => onSelectNode(n.id)}
-                className="flex flex-col justify-center h-full cursor-pointer text-right text-zinc-200 hover:text-white"
+                className={cn(
+                  // Typography mirrors the left-sidebar tag list: text-xs base,
+                  // selected = white + medium, idle = zinc-400 with a brighter
+                  // hover. Keeps the two panels visually consistent.
+                  'flex flex-col justify-center h-full cursor-pointer text-left text-xs',
+                  selectedNodeId === n.id
+                    ? 'text-white font-medium'
+                    : 'text-zinc-300 hover:text-zinc-200',
+                )}
               >
                 <span
-                  className="text-[11px] leading-snug font-medium"
                   style={{
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
@@ -456,7 +468,7 @@ export function VerticalFlowTrack({ tileId, selectedNodeId, onSelectNode }: Prop
                   {n.label.trim() || '—'}
                 </span>
                 {cname && (
-                  <span className="text-[9px] text-zinc-500 truncate leading-tight">{cname}</span>
+                  <span className="text-xs text-zinc-500 truncate">{cname}</span>
                 )}
               </div>
             </foreignObject>

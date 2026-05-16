@@ -1356,7 +1356,7 @@ export default function KanbanPage() {
                 <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
                   {renderSectionHeader('status', 'Status')}
                   <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
-                  {statuses.filter((s) => s.category === 'custom').map((st) => {
+                  {statuses.map((st) => {
                     const active = filterCol.filters.some((f) => f.type === 'status' && f.value === st.id);
                     const stColor = st.action_type ? (actionColors[st.action_type as ActionType] || FALLBACK_COLOR) : FALLBACK_COLOR;
                     return (
@@ -1388,7 +1388,7 @@ export default function KanbanPage() {
                       </div>
                     );
                   })}
-                  {statuses.filter((s) => s.category === 'custom').length === 0 && (
+                  {statuses.length === 0 && (
                     <span className="text-[11px] text-zinc-500">Nessuno status</span>
                   )}
                   </div>

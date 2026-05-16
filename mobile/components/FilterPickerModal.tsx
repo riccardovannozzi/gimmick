@@ -109,10 +109,8 @@ export function FilterPickerModal<T>({
                     paddingVertical: 12,
                     paddingHorizontal: 12,
                     borderRadius: 10,
-                    marginBottom: 4,
-                    backgroundColor: isSelected ? `${colors.accent}1F` : colors.background2,
-                    borderWidth: 1,
-                    borderColor: isSelected ? colors.accent : 'transparent',
+                    marginBottom: 2,
+                    backgroundColor: isSelected ? `${colors.accent}1F` : colors.surfaceVariant,
                   }}
                 >
                   {leading ? (
@@ -145,14 +143,14 @@ export function FilterPickerModal<T>({
             onPress={onClose}
             activeOpacity={0.7}
             style={{
-              backgroundColor: colors.accent,
+              backgroundColor: '#2196F3',
               borderRadius: 12,
               paddingVertical: 14,
               alignItems: 'center',
             }}
           >
             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-              {selected.size > 0 ? `Applica (${selected.size})` : 'Chiudi'}
+              {selected.size > 0 ? `Applica (${selected.size})` : 'Applica'}
             </Text>
           </TouchableOpacity>
         </View>

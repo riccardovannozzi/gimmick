@@ -8,9 +8,10 @@
  * list. The component is stateless w.r.t. the active selection — the parent
  * owns the set and passes it back in via `selectedTagIds`.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as TablerIcons from '@tabler/icons-react-native';
 import {
   IconX,
   IconCheck,
@@ -19,8 +20,11 @@ import {
   IconUser,
   IconMapPin,
   IconBookmark,
+  IconChevronDown,
+  IconArrowsMaximize,
+  IconArrowsMinimize,
 } from '@tabler/icons-react-native';
-import { tagsApi } from '@/lib/api';
+import { tagsApi, tagTypesApi, type TagTypeEntity } from '@/lib/api';
 import { useAuthStore } from '@/store';
 import { useThemeColors } from '@/lib/theme';
 import type { Tag as TagInterface } from '@/types';
@@ -41,6 +45,39 @@ const TAG_TYPE_ICONS: Record<string, typeof IconFolder> = {
   place: IconMapPin,
   topic: IconBookmark,
 };
+// Fallback colors for the canonical 5 types (used when the user has no
+// custom TagType row defining a color). Mirrors captureColors palette.
+const TAG_TYPE_FALLBACK_COLORS: Record<string, string> = {
+  project: '#5B8DEF',
+  person: '#6FCF97',
+  context: '#F2C94C',
+  place: '#EF4444',
+  topic: '#AB9FF2',
+};
+
+/** Render a tag-type icon, mirroring web's resolveIcon(): supports either a
+ *  Tabler icon name ("IconHome") or a unicode emoji stored in `emoji`. */
+function TagTypeIcon({
+  emoji,
+  fallbackSlug,
+  color,
+  size = 14,
+}: {
+  emoji?: string;
+  fallbackSlug?: string;
+  color: string;
+  size?: number;
+}) {
+  if (emoji) {
+    if (emoji.startsWith('Icon')) {
+      const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[emoji];
+      if (Comp) return <Comp size={size} color={color} />;
+    }
+    return <Text style={{ fontSize: size, color }}>{emoji}</Text>;
+  }
+  const Fallback = TAG_TYPE_ICONS[fallbackSlug ?? ''] ?? IconTag;
+  return <Fallback size={size} color={color} />;
+}
 
 interface Props {
   visible: boolean;
@@ -61,6 +98,19 @@ export function TagFilterModal({
   const colors = useThemeColors();
   const insets = useSafeAreaInsets();
   const [availableTags, setAvailableTags] = useState<TagInterface[]>([]);
+  const [tagTypes, setTagTypes] = useState<TagTypeEntity[]>([]);
+  // Collapse state per tag_type slug — open by default. Closing a section
+  // hides its tag rows; chevron rotates 180° to indicate state (mirrors web).
+  const [closedTypes, setClosedTypes] = useState<Set<string>>(new Set());
+
+  const toggleType = (slug: string) => {
+    setClosedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!visible) return;
@@ -84,7 +134,44 @@ export function TagFilterModal({
       .catch(() => {
         // Silent — leaves the existing list visible if the refetch fails.
       });
+    // Tag types carry the color/emoji used to render each type's section icon.
+    tagTypesApi
+      .list()
+      .then((res) => {
+        if (res.success && res.data) setTagTypes(res.data);
+      })
+      .catch(() => {
+        // Silent — falls back to TAG_TYPE_FALLBACK_COLORS.
+      });
   }, [visible]);
+
+  const tagTypeBySlug = useMemo(() => {
+    const map = new Map<string, TagTypeEntity>();
+    for (const tt of tagTypes) map.set(tt.slug, tt);
+    return map;
+  }, [tagTypes]);
+
+  // All tag_type slugs that actually have at least one (non-root) tag — used
+  // by the Expand/Collapse-all toggle to know which sections to operate on.
+  const visibleTypeSlugs = useMemo(() => {
+    const nonRoot = availableTags.filter((t) => !t.is_root);
+    const slugs = new Set<string>();
+    for (const t of nonRoot) {
+      slugs.add(t.tag_type ? t.tag_type : '__untyped__');
+    }
+    return slugs;
+  }, [availableTags]);
+
+  // "Any section currently closed" → button reads "Expand all" and opens all.
+  // Otherwise → "Collapse all" and closes all.
+  const hasClosedSection = [...visibleTypeSlugs].some((s) => closedTypes.has(s));
+  const onToggleAll = () => {
+    if (hasClosedSection) {
+      setClosedTypes(new Set());
+    } else {
+      setClosedTypes(new Set(visibleTypeSlugs));
+    }
+  };
 
   const toggle = (tagId: string) => {
     const next = new Set(selectedTagIds);
@@ -122,6 +209,24 @@ export function TagFilterModal({
             {title}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {/* Expand/Collapse all — visible whenever there's at least one
+                section to act on. Toggles based on current state. */}
+            {visibleTypeSlugs.size > 0 && (
+              <TouchableOpacity
+                onPress={onToggleAll}
+                hitSlop={6}
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
+                {hasClosedSection ? (
+                  <IconArrowsMaximize size={14} color={colors.secondary} />
+                ) : (
+                  <IconArrowsMinimize size={14} color={colors.secondary} />
+                )}
+                <Text style={{ fontSize: 13, color: colors.secondary }}>
+                  {hasClosedSection ? 'Expand all' : 'Collapse all'}
+                </Text>
+              </TouchableOpacity>
+            )}
             {selectedTagIds.size > 0 && (
               <TouchableOpacity onPress={() => onChange(new Set())} hitSlop={6}>
                 <Text style={{ fontSize: 13, color: colors.accent }}>Pulisci</Text>
@@ -161,66 +266,86 @@ export function TagFilterModal({
                   ? nonRoot.filter((t) => !t.tag_type)
                   : nonRoot.filter((t) => t.tag_type === tp);
               if (groupTags.length === 0) return null;
-              const Icon = TAG_TYPE_ICONS[tp] ?? IconTag;
+              const customType = tagTypeBySlug.get(tp);
+              const typeColor =
+                customType?.color ?? TAG_TYPE_FALLBACK_COLORS[tp] ?? colors.tertiary;
+              // Custom-type name wins over the canonical label (so the
+              // section header reads "Ortano Mare", not "Topic"). Title-case
+              // preserved — matches the casing used in Action filter rows.
               const label = tp === '__untyped__'
-                ? 'ALTRO'
-                : (TAG_TYPE_LABELS[tp] ?? tp.toUpperCase());
+                ? 'Altro'
+                : (customType?.name
+                    ?? TAG_TYPE_LABELS[tp]
+                    ?? tp);
+              const isOpen = !closedTypes.has(tp);
               return (
-                <View key={tp} style={{ marginBottom: 16 }}>
-                  <View
+                <View key={tp} style={{ marginBottom: 6 }}>
+                  {/* Section header — collapsible button with grey bg + chevron.
+                      Mirrors the web sidebar pattern. Font/weight/height/color
+                      match the Action filter rows for visual consistency
+                      across modals. */}
+                  <TouchableOpacity
+                    onPress={() => toggleType(tp)}
+                    activeOpacity={0.7}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
-                      gap: 8,
-                      paddingHorizontal: 4,
-                      paddingVertical: 8,
+                      justifyContent: 'space-between',
+                      paddingHorizontal: 12,
+                      paddingVertical: 12,
+                      borderRadius: 10,
+                      backgroundColor: colors.surfaceVariant,
+                      marginBottom: 2,
                     }}
                   >
-                    <Icon size={14} color={colors.tertiary} />
-                    <Text
-                      style={{
-                        fontSize: 11,
-                        fontWeight: '600',
-                        letterSpacing: 0.5,
-                        color: colors.tertiary,
-                      }}
-                    >
-                      {label}
-                    </Text>
-                  </View>
-                  {groupTags.map((tag) => {
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <TagTypeIcon
+                        emoji={customType?.emoji}
+                        fallbackSlug={tp}
+                        color={typeColor}
+                        size={18}
+                      />
+                      <Text style={{ fontSize: 15, color: colors.primary }}>
+                        {label}
+                      </Text>
+                    </View>
+                    <IconChevronDown
+                      size={16}
+                      color={colors.tertiary}
+                      style={{ transform: [{ rotate: isOpen ? '180deg' : '0deg' }] }}
+                    />
+                  </TouchableOpacity>
+
+                  {/* Tag rows — no background, selected = subtle accent tint.
+                      Hidden when the section is collapsed. */}
+                  {isOpen && groupTags.map((tag) => {
                     const isSelected = selectedTagIds.has(tag.id);
                     return (
                       <TouchableOpacity
                         key={tag.id}
                         onPress={() => toggle(tag.id)}
-                        activeOpacity={0.7}
+                        activeOpacity={0.6}
                         style={{
                           flexDirection: 'row',
                           alignItems: 'center',
-                          paddingVertical: 12,
+                          paddingVertical: 10,
                           paddingHorizontal: 12,
-                          borderRadius: 10,
-                          marginBottom: 4,
-                          backgroundColor: isSelected ? `${colors.accent}1F` : colors.background2,
-                          borderWidth: 1,
-                          borderColor: isSelected ? colors.accent : 'transparent',
+                          borderRadius: 6,
+                          backgroundColor: isSelected ? `${colors.accent}1F` : 'transparent',
                         }}
                       >
-                        <View
+                        <Text
                           style={{
-                            width: 10,
-                            height: 10,
-                            borderRadius: 5,
-                            backgroundColor: colors.accent,
-                            marginRight: 12,
+                            flex: 1,
+                            fontSize: 14,
+                            color: isSelected ? colors.primary : colors.secondary,
+                            fontWeight: isSelected ? '600' : '400',
                           }}
-                        />
-                        <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
+                        >
                           {tag.name}
                         </Text>
                         {isSelected && (
-                          <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
+                          <IconCheck size={16} color={colors.accent} strokeWidth={2.5} />
                         )}
                       </TouchableOpacity>
                     );
@@ -246,14 +371,14 @@ export function TagFilterModal({
             onPress={onClose}
             activeOpacity={0.7}
             style={{
-              backgroundColor: colors.accent,
+              backgroundColor: '#2196F3',
               borderRadius: 12,
               paddingVertical: 14,
               alignItems: 'center',
             }}
           >
             <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-              {selectedTagIds.size > 0 ? `Applica (${selectedTagIds.size})` : 'Chiudi'}
+              {selectedTagIds.size > 0 ? `Applica (${selectedTagIds.size})` : 'Applica'}
             </Text>
           </TouchableOpacity>
         </View>

@@ -52,32 +52,6 @@ export function FlowNodeView({ node, x, y, radius = 16, selected = false, contac
       onContextMenu={(e) => onContextMenuBody?.(e, node.id)}
       style={{ cursor: 'grab', touchAction: 'none' }}
     >
-      {/* Focus halo — red soft "corona" rendered as a slightly larger shape
-          behind the body with a CSS blur filter. Reads as a glowing aura
-          rather than the previous hard dashed ring, much softer in dense
-          clusters but still visually unmistakable. */}
-      {node.is_focus && (
-        useSquare ? (
-          <rect
-            x={-radius - 12}
-            y={-radius - 12}
-            width={side + 24}
-            height={side + 24}
-            rx={8}
-            fill="#EF4444"
-            opacity={0.55}
-            style={{ filter: 'blur(6px)', pointerEvents: 'none' }}
-          />
-        ) : (
-          <circle
-            r={radius + 12}
-            fill="#EF4444"
-            opacity={0.55}
-            style={{ filter: 'blur(6px)', pointerEvents: 'none' }}
-          />
-        )
-      )}
-
       {/* Selection is conveyed via bodyFill (grey) rather than a ring — see
           the body element below. */}
 

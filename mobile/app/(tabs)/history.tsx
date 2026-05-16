@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
-import { useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import * as TablerIcons from '@tabler/icons-react-native';
 import {
   IconClock,
@@ -442,16 +441,17 @@ export default function HistoryScreen() {
     <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
       <View className="flex-1">
         {/* Filter row — 4 pills (Action / Tag / Type / Status). Each opens a
-            multi-select bottom-sheet picker. Horizontal scroll keeps the row
-            usable when counts widen the labels (e.g. "Action (3)"). */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
+            multi-select bottom-sheet picker. Fixed-row layout (NOT a flex
+            ScrollView) — a horizontal ScrollView inside a flex column would
+            stretch vertically and balloon the pills. */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
             paddingHorizontal: 16,
             paddingTop: 8,
             paddingBottom: 8,
-            gap: 8,
+            gap: 6,
           }}
         >
           <FilterPill
@@ -482,7 +482,7 @@ export default function HistoryScreen() {
             onPress={() => setStatusFilterOpen(true)}
             colors={colors}
           />
-        </ScrollView>
+        </View>
 
         {/* Content */}
         {isLoading ? (
@@ -654,10 +654,12 @@ function FilterPill({
       onPress={onPress}
       activeOpacity={0.7}
       style={{
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
-        paddingHorizontal: 12,
+        justifyContent: 'center',
+        gap: 4,
+        paddingHorizontal: 8,
         paddingVertical: 8,
         borderRadius: 20,
         backgroundColor: active ? `${colors.accent}26` : colors.surfaceVariant,
@@ -667,8 +669,9 @@ function FilterPill({
     >
       <Icon size={14} color={active ? colors.accent : colors.secondary} />
       <Text
+        numberOfLines={1}
         style={{
-          fontSize: 13,
+          fontSize: 12,
           fontWeight: '600',
           color: active ? colors.accent : colors.secondary,
         }}

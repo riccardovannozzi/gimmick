@@ -192,12 +192,8 @@ function FlowMiniBadge({
 export default function FlowsPage() {
   const router = useRouter();
   const [filter, setFilter] = useState<FlowHubFilter>('mine');
-  const [stalledDays, setStalledDays] = useState(7);
 
-  const { items, isLoading, isError, refetch } = useFlowHub(
-    filter,
-    filter === 'stalled' ? stalledDays : undefined,
-  );
+  const { items, isLoading, isError, refetch } = useFlowHub(filter);
 
   const handleOpen = (item: FlowHubItem) => {
     // Navigate to the canvas with this tile + flow node pre-selected. The
@@ -257,27 +253,6 @@ export default function FlowsPage() {
             })}
           </div>
 
-          {/* Stalled days control */}
-          {filter === 'stalled' && (
-            <div className="mb-4 flex items-center gap-2 text-xs text-zinc-400">
-              <span>Soglia:</span>
-              {[3, 7, 14, 30].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setStalledDays(d)}
-                  className={cn(
-                    'h-6 px-2 rounded text-[11px] font-medium transition-colors',
-                    stalledDays === d
-                      ? 'bg-zinc-700 text-white'
-                      : 'bg-zinc-900 text-zinc-500 hover:text-zinc-300',
-                  )}
-                >
-                  {d}g
-                </button>
-              ))}
-            </div>
-          )}
-
           {/* List */}
           {isLoading ? (
             <div className="text-center py-12 text-zinc-500 text-sm">Caricamento…</div>
@@ -291,7 +266,7 @@ export default function FlowsPage() {
                 {filter === 'mine' && 'Quando avrai dei task aperti tocca a te qui appariranno'}
                 {filter === 'theirs' && 'Le palle in mano agli altri compariranno qui'}
                 {filter === 'due_soon' && 'I task pianificati nelle prossime 48h compariranno qui'}
-                {filter === 'stalled' && `I flussi fermi da più di ${stalledDays} giorni compariranno qui`}
+                {filter === 'stalled' && 'I nodi marcati come "In attesa" compariranno qui'}
                 {filter === 'blocked' && 'I nodi marcati come "Bloccato" compariranno qui'}
               </p>
             </div>

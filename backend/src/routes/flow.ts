@@ -187,7 +187,7 @@ flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, 
     }
 
     const updates: Record<string, unknown> = {};
-    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y', 'is_focus']) {
+    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y']) {
       if (k in body) updates[k] = body[k];
     }
 
@@ -221,60 +221,6 @@ flowRouter.delete('/nodes/:id', async (req: AuthenticatedRequest, res: Response,
       .eq('user_id', userId);
     if (error) throw error;
     res.json({ success: true });
-  } catch (error) {
-    next(error);
-  }
-});
-
-/**
- * POST /api/flow/nodes/:id/focus
- * Body: { focus: boolean }
- *
- * If `focus=true`, atomically clears `is_focus` on every other node of the
- * same tile, then sets it on the target. If `false`, just clears the target.
- * The uniqueness invariant "at most one focused node per tile" is enforced
- * here instead of with a partial unique index — saves a migration step.
- */
-flowRouter.post('/nodes/:id/focus', async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const focus = (req.body as { focus?: boolean })?.focus !== false; // default true
-
-    // Look up the tile of the target node so we can scope the clear.
-    const { data: node, error: nodeErr } = await supabaseAdmin
-      .from('flow_nodes')
-      .select('id, tile_id, user_id')
-      .eq('id', id)
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (nodeErr) throw nodeErr;
-    if (!node) {
-      res.status(404).json({ success: false, error: 'Node not found' });
-      return;
-    }
-
-    if (focus) {
-      // Clear focus on every other node in this tile, then set it on the target.
-      await supabaseAdmin
-        .from('flow_nodes')
-        .update({ is_focus: false })
-        .eq('user_id', userId)
-        .eq('tile_id', node.tile_id)
-        .neq('id', id);
-    }
-    const { data, error } = await supabaseAdmin
-      .from('flow_nodes')
-      .update({ is_focus: focus })
-      .eq('id', id)
-      .eq('user_id', userId)
-      .select()
-      .single();
-    if (error || !data) {
-      res.status(404).json({ success: false, error: 'Node not found' });
-      return;
-    }
-    res.json({ success: true, data });
   } catch (error) {
     next(error);
   }
@@ -366,7 +312,7 @@ export const flowsHubRouter = Router();
 flowsHubRouter.use(authenticate);
 
 /**
- * GET /api/flows/hub?filter=mine|theirs|due_soon|stalled|blocked&days=7
+ * GET /api/flows/hub?filter=mine|theirs|due_soon|stalled|blocked
  *
  * Uses the `flow_node_activity` view for last_activity / is_open / is_leaf,
  * joins tiles and contacts, returns FlowHubItem[].
@@ -395,7 +341,6 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
   try {
     const userId = req.user!.id;
     const filter = (req.query.filter as string) || 'mine';
-    const days = Math.max(1, Math.min(60, Number(req.query.days) || 7));
 
     // Load the activity view rows for this user — small enough to filter in
     // memory and avoids three nearly-identical SQL queries.
@@ -405,19 +350,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       .eq('user_id', userId);
     if (actErr) throw actErr;
 
-    // Also load the set of focused nodes (is_focus = TRUE). The view doesn't
-    // expose is_focus yet; fetching separately is cheap and lets the owner
-    // filters surface "where I am in the flow" regardless of state/leaf-ness.
-    const { data: focusRows, error: focusErr } = await supabaseAdmin
-      .from('flow_nodes')
-      .select('id')
-      .eq('user_id', userId)
-      .eq('is_focus', true);
-    if (focusErr) throw focusErr;
-    const focusedIds = new Set((focusRows ?? []).map((r: { id: string }) => r.id));
-
     const now = Date.now();
-    const stalledThresholdMs = days * 24 * 60 * 60 * 1000;
     const dueSoonWindowMs = 48 * 60 * 60 * 1000;
 
     type ActivityRow = {
@@ -439,28 +372,27 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
     const filtered = (activityRows as ActivityRow[] | null ?? []).filter((row) => {
       switch (filter) {
         case 'mine':
-          // Strict semantic: the owner hubs are driven exclusively by the
-          // per-tile FOCUS marker. A flow shows up under "Palla mia" only
-          // when its focused node points to the self contact — removing
-          // focus or reassigning the contact removes the card. (Auto-focus
-          // on modal-open guarantees every visited flow has a focus.)
-          // Null contact also counts as "mine" (the default-self semantics).
-          return focusedIds.has(row.id) && (row.is_self_contact || row.contact_id === null);
+          // Every OPEN node (active/wait) whose contact is the user's self
+          // row, or has no contact (null = default-self semantics). One row
+          // per matching node — a flow with two open self-contact nodes
+          // produces two cards.
+          return row.is_open && (row.is_self_contact || row.contact_id === null);
         case 'theirs':
-          return focusedIds.has(row.id) && row.contact_id !== null && !row.is_self_contact;
+          // Every open node owned by a non-self contact. Same one-card-per-
+          // node semantic as `mine`.
+          return row.is_open && row.contact_id !== null && !row.is_self_contact;
         case 'due_soon': {
           if (!row.scheduled_at) return false;
           const t = new Date(row.scheduled_at).getTime();
           return t >= now && t <= now + dueSoonWindowMs;
         }
         case 'stalled':
-          return (
-            row.is_open &&
-            row.is_leaf &&
-            now - new Date(row.last_activity_at).getTime() > stalledThresholdMs
-          );
+          // "Fermi" — every node currently in the WAIT state. Renamed from
+          // the old time-based stalled detection: the user marks a node as
+          // wait explicitly, so we just surface them.
+          return row.state === 'wait';
         case 'blocked':
-          // Old vocabulary: state='blocked'. New vocabulary: state='stop'.
+          // "Bloccati" — every node in the STOP state.
           return row.state === 'stop';
         default:
           return false;

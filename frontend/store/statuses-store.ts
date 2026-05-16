@@ -21,16 +21,12 @@ export function useStatuses() {
     enabled: !!user,
   });
 
-  // Sort system statuses by the canonical order, then custom (in arrival order).
+  // Sort the seeded system statuses by the canonical display order. Custom
+  // statuses were removed in migration 029, so every row should be system.
   const statuses: Status[] = useMemo(() => {
     const raw = (data?.data || []) as Status[];
-    const systemIdx = (s: Status) => SYSTEM_INDEX[s.name] ?? Number.MAX_SAFE_INTEGER;
-    return [...raw].sort((a, b) => {
-      if (a.category === 'system' && b.category === 'system') return systemIdx(a) - systemIdx(b);
-      if (a.category === 'system') return -1;
-      if (b.category === 'system') return 1;
-      return 0;
-    });
+    const idx = (s: Status) => SYSTEM_INDEX[s.name] ?? Number.MAX_SAFE_INTEGER;
+    return [...raw].sort((a, b) => idx(a) - idx(b));
   }, [data]);
 
   // Lookup a system status shape by name (canonical set: active, paused,
@@ -55,15 +51,12 @@ export function useStatuses() {
     return linked?.shape || 'solid';
   };
 
-  const customStatuses = statuses.filter((s) => s.category === 'custom');
-
   return {
     statuses,
     doneShape,
     doneStatusId,
     getActionTypeShape,
     getSystemShape,
-    customStatuses,
     isLoading,
   };
 }

@@ -13,8 +13,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TextInput, ScrollView, TouchableOpacity, ActivityIndicator, Modal, Image, Linking } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useFocusEffect } from '@react-navigation/native';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as TablerIcons from '@tabler/icons-react-native';
 import {
@@ -703,7 +702,10 @@ export default function TileDetailScreen() {
             colors={colors}
             top={20}
           />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          {/* Six compact pills — height matches the other Tag/Type/Status
+              fields so the row sits flush in the narrow sidebar instead of
+              ballooning to six big squares. */}
+          <View style={{ flexDirection: 'row', gap: 6 }}>
             {QUICK_CAPTURE.map((qc) => {
               const Icon = qc.icon;
               return (
@@ -713,14 +715,14 @@ export default function TileDetailScreen() {
                   activeOpacity={0.7}
                   style={{
                     flex: 1,
-                    aspectRatio: 1,
+                    height: 40,
                     alignItems: 'center',
                     justifyContent: 'center',
                     backgroundColor: qc.bg,
-                    borderRadius: 10,
+                    borderRadius: 8,
                   }}
                 >
-                  <Icon size={22} color={qc.color} />
+                  <Icon size={18} color={qc.color} />
                 </TouchableOpacity>
               );
             })}

@@ -640,12 +640,10 @@ function SparkEditor({
  * Body of the "Flow" tab. Renders FlowInspector for a node belonging to the
  * tile, choosing it in priority order:
  *   1. external `externalFlowNodeId` (e.g. canvas click) — when it still exists
- *   2. the tile's focus node (is_focus = true)
- *   3. the first node in the graph
+ *   2. the first node in the graph (topological order)
  *
  * If the tile has no flow yet, shows a CTA that creates the first node and
- * selects it. The Notes field is hidden in this context (modal still shows
- * it via the default `hideNote = false`).
+ * selects it. The Notes field is hidden in this context.
  */
 function FlowTab({
   tileId,
@@ -677,8 +675,6 @@ function FlowTab({
     if (externalFlowNodeId && graph.nodes.some((n) => n.id === externalFlowNodeId)) {
       return externalFlowNodeId;
     }
-    const focus = graph.nodes.find((n) => n.is_focus);
-    if (focus) return focus.id;
     return graph.nodes[0]?.id ?? null;
   })();
 
@@ -911,7 +907,7 @@ export function TileSidebar({
   return (
     <div className={cn(
       'border-l border-zinc-800 bg-zinc-900/50 transition-all duration-200 flex flex-col shrink-0',
-      open ? 'w-60' : 'w-8'
+      open ? 'w-[280px]' : 'w-8'
     )}>
       {/* Header: collapse button — alone if no tile, inlined with tabs if tile selected */}
       {(!open || !tileId) && (
@@ -1164,7 +1160,7 @@ export function TileSidebar({
 
               <div>
                 <div className="text-[11px] text-zinc-500 mb-2">Sparks ({sparks.length})</div>
-                <div className="flex gap-1 justify-center mb-3">
+                <div className="flex justify-between mb-3">
                   {[
                     { id: 'photo', icon: IconCamera, color: '#5B8DEF', bg: '#1A2540', accept: 'image/*' },
                     { id: 'video', icon: IconVideo, color: '#E87DA0', bg: '#2D1A22', accept: 'video/*' },

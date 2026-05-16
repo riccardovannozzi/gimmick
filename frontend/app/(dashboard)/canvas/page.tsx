@@ -165,6 +165,46 @@ export default function CanvasPage() {
   // Refs + state for drag-and-drop between staging and canvas.
   const stagingPanelRef = useRef<HTMLDivElement | null>(null);
   const canvasWrapperRef = useRef<HTMLDivElement | null>(null);
+
+  // Resizable splitter between StagingPanel and the canvas column. The width
+  // is persisted to localStorage so it survives reloads; default mirrors the
+  // previous `w-44` (176px) value.
+  const STAGING_MIN_W = 176;
+  const STAGING_MAX_W = 700;
+  const [stagingWidth, setStagingWidth] = useState<number>(176);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('canvas_staging_width');
+      if (raw) {
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n)) {
+          setStagingWidth(Math.min(STAGING_MAX_W, Math.max(STAGING_MIN_W, n)));
+        }
+      }
+    } catch { /* */ }
+  }, []);
+  const handleStagingResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = stagingWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(STAGING_MAX_W, Math.max(STAGING_MIN_W, startW + (ev.clientX - startX)));
+      lastW = w;
+      setStagingWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('canvas_staging_width', String(Math.round(lastW))); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [stagingWidth]);
   // Populated by CanvasBoard once its zoom system is ready. Converts viewport
   // (clientX/Y) coords to canvas-local coords accounting for current pan/zoom.
   // Used when dropping a staged tile so it lands under the cursor.
@@ -611,7 +651,18 @@ export default function CanvasPage() {
           panelRef={stagingPanelRef}
           selectedTileId={selectedTileId}
           isDropTargetHover={stagingDropHover}
+          width={stagingWidth}
           onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
+        />
+        {/* Resizable splitter between Staging and Canvas. The handle is 4px
+            wide with a transparent hit area that widens via padding so the
+            grab zone is comfortable. */}
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          onMouseDown={handleStagingResizeStart}
+          className="w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10"
+          title="Trascina per ridimensionare"
         />
         <div className="flex-1 flex flex-col overflow-hidden">
           <CanvasTopbar

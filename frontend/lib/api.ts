@@ -510,27 +510,18 @@ export const tagTypesApi = {
 };
 
 // ============ Statuses API ============
+// Custom statuses were removed in migration 029. Only the seeded system rows
+// exist; the API surface is reduced to listing and updating the visual shape.
 export const statusesApi = {
   async list() {
     return apiRequest<Status[]>('/api/statuses');
   },
 
-  async create(data: { name: string; shape: string; action_type?: string | null }) {
-    return apiRequest<Status>('/api/statuses', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    });
-  },
-
-  async update(id: string, updates: { name?: string; shape?: string; action_type?: string | null }) {
+  async update(id: string, updates: { shape: string }) {
     return apiRequest<Status>(`/api/statuses/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
     });
-  },
-
-  async delete(id: string) {
-    return apiRequest(`/api/statuses/${id}`, { method: 'DELETE' });
   },
 };
 
@@ -741,12 +732,6 @@ export const flowApi = {
   async deleteNode(id: string) {
     return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
   },
-  async setFocus(id: string, focus: boolean) {
-    return apiRequest<FlowNode>(`/api/flow/nodes/${id}/focus`, {
-      method: 'POST',
-      body: JSON.stringify({ focus }),
-    });
-  },
   async createEdge(body: { parent_id: string; child_id: string }) {
     return apiRequest<FlowEdge>('/api/flow/edges', {
       method: 'POST',
@@ -759,9 +744,7 @@ export const flowApi = {
   async tilesWithFlows() {
     return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');
   },
-  async hub(filter: 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked', days?: number) {
-    const params = new URLSearchParams({ filter });
-    if (days) params.set('days', String(days));
-    return apiRequest<FlowHubItem[]>(`/api/flows/hub?${params.toString()}`);
+  async hub(filter: 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked') {
+    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
   },
 };
