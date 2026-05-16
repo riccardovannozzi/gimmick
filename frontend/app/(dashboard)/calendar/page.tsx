@@ -23,7 +23,8 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { TimePicker } from '@/components/ui/time-picker';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowModalStore } from '@/store/flow-modal-store';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
+import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import { readableOn } from '@/lib/palette';
 import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 
@@ -217,7 +218,7 @@ export default function CalendarPage() {
   const { doneShape, doneStatusId, getActionTypeShape, statuses: allStatuses } = useStatuses();
   const isDone = useCallback((tile: Tile) => !!doneStatusId && tile.status_id === doneStatusId, [doneStatusId]);
   const tilesWithFlows = useTilesWithFlows();
-  const openFlowModal = useFlowModalStore((s) => s.open);
+  const openFlow = useFlowOpenStore((s) => s.open);
 
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
@@ -257,6 +258,10 @@ export default function CalendarPage() {
 
   // Sidebar
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  // Subscribes to the global FLOW-badge signal. The setter pair points at
+  // the existing sidebar state; the returned counter is fed into TileSidebar
+  // so its active tab switches to Flow on every badge click.
+  const forceFlowTab = useFlowOpenRequest(setSelectedTileId, (open) => setSidebarOpen(open));
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Reactively toggle the blue selection ring on FullCalendar events when
@@ -976,7 +981,7 @@ export default function CalendarPage() {
                               {tilesWithFlows.has(t.id) && (
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                                  onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                                   onMouseDown={(e) => e.stopPropagation()}
                                   className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
                                   title="Apri Flow"
@@ -1036,7 +1041,7 @@ export default function CalendarPage() {
                           {tilesWithFlows.has(t.id) && (
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                              onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                               onMouseDown={(e) => e.stopPropagation()}
                               className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
                               title="Apri Flow"
@@ -1170,7 +1175,7 @@ export default function CalendarPage() {
                               {tilesWithFlows.has(t.id) && (
                                 <button
                                   type="button"
-                                  onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                                  onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                                   onMouseDown={(e) => e.stopPropagation()}
                                   className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
                                   title="Apri Flow"
@@ -1230,7 +1235,7 @@ export default function CalendarPage() {
                           {tilesWithFlows.has(t.id) && (
                             <button
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                              onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                               onMouseDown={(e) => e.stopPropagation()}
                               className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
                               title="Apri Flow"
@@ -1559,7 +1564,7 @@ export default function CalendarPage() {
                   chip.addEventListener('click', (e) => {
                     e.stopPropagation();
                     e.preventDefault();
-                    useFlowModalStore.getState().open(tileId, tileTitle);
+                    useFlowOpenStore.getState().open(tileId);
                   });
                   if (getComputedStyle(main).position === 'static') main.style.position = 'relative';
                   main.appendChild(chip);
@@ -1621,7 +1626,7 @@ export default function CalendarPage() {
               if (!ctxMenu) return;
               const { tile } = ctxMenu;
               setCtxMenu(null);
-              openFlowModal(tile.id, tile.title ?? undefined);
+              openFlow(tile.id);
             }}
             className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
           >
@@ -1958,6 +1963,7 @@ export default function CalendarPage() {
         open={sidebarOpen}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         invalidateKeys={['calendar-events', 'tiles-calendar']}
+        forceFlowTab={forceFlowTab}
       />
       </div>{/* end flex row */}
     </div>

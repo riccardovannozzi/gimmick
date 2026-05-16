@@ -1,22 +1,27 @@
 import { create } from 'zustand';
 
-interface FlowModalState {
-  /** Tile whose Flow is currently shown in the modal. `null` = modal closed. */
+interface FlowOpenRequestState {
+  /** Last tile requested for opening in the right sidebar's Flow tab.
+   *  Consumer pages subscribe and forward this into their own sidebar state,
+   *  then call `close()` to consume the request. `null` = no pending request. */
   tileId: string | null;
-  /** Optional tile title to display in the modal header. */
-  tileTitle: string | null;
-  open: (tileId: string, tileTitle?: string) => void;
+  /** Monotonically incrementing generation. Bumped on every `open()` even when
+   *  the same tile is requested again — lets effects re-fire so the user can
+   *  re-trigger the same tile (e.g. clicking its FLOW badge twice). */
+  gen: number;
+  open: (tileId: string) => void;
   close: () => void;
 }
 
 /**
- * Global Flow modal state. The FLOW badge on any tile (Canvas/Kanban/Calendar)
- * calls `open(tileId)` and the FlowModal component (mounted once at the
- * dashboard layout level) reads `tileId` to know which Flow to render.
+ * Global "open Flow for this tile in the right sidebar" signal. Any FLOW
+ * badge (canvas, calendar, kanban, staging, hub) calls `open(tileId)`, and
+ * the current page's `useFlowOpenRequest` effect forwards the request into
+ * the right sidebar (sets tile + opens panel + switches active tab to Flow).
  */
-export const useFlowModalStore = create<FlowModalState>((set) => ({
+export const useFlowOpenStore = create<FlowOpenRequestState>((set) => ({
   tileId: null,
-  tileTitle: null,
-  open: (tileId, tileTitle) => set({ tileId, tileTitle: tileTitle ?? null }),
-  close: () => set({ tileId: null, tileTitle: null }),
+  gen: 0,
+  open: (tileId) => set((s) => ({ tileId, gen: s.gen + 1 })),
+  close: () => set({ tileId: null }),
 }));

@@ -14,7 +14,8 @@ import { StagingPanel } from '@/components/canvas/StagingPanel';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowModalStore } from '@/store/flow-modal-store';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
+import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
@@ -33,7 +34,13 @@ export default function CanvasPage() {
   const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const openFlowModal = useFlowModalStore((s) => s.open);
+  const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
+  const openFlow = useFlowOpenStore((s) => s.open);
+  // Subscribes to the global FLOW-badge signal: when any badge anywhere
+  // (canvas, calendar, kanban, hub) calls `openFlow(tileId)`, this hook
+  // selects the tile, opens the sidebar, and bumps `forceFlowTab` so the
+  // sidebar's active tab jumps to Flow.
+  const forceFlowTab = useFlowOpenRequest(setSelectedTileId, setSidebarOpen);
   const [fitTrigger, setFitTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -112,9 +119,10 @@ export default function CanvasPage() {
   const tilesWithFlows = useTilesWithFlows();
 
   // Deep-link applier — once tag is resolved AND the tile exists in the loaded
-  // set, select it. The Flow modal is opened only when ?flow= is also present
-  // (i.e. arriving from the Hub); a plain ?tile= just selects the tile without
-  // reopening the modal — that's what the in-modal "Apri il tile" link uses.
+  // set, select it. When ?flow= is also present (arriving from the FlowHub),
+  // pre-select that flow node in the sidebar; `TileSidebar.flowNodeId`'s
+  // existing auto-switch effect then jumps to the Flow tab. A plain ?tile=
+  // just selects the tile and leaves the sidebar on its default tab.
   useEffect(() => {
     if (!tileParam) return;
     if (!tagId) return;
@@ -124,10 +132,10 @@ export default function CanvasPage() {
     setSelectedTileId(tileParam);
     setSidebarOpen(true);
     if (flowParam) {
-      openFlowModal(tileParam, t.title ?? undefined);
+      setSelectedFlowNodeId(flowParam);
     }
     router.replace(`/canvas?tag=${tagId}`);
-  }, [tileParam, flowParam, tagId, allTagTiles, router, openFlowModal]);
+  }, [tileParam, flowParam, tagId, allTagTiles, router]);
 
   // Fetch layout
   const { data: layoutData } = useQuery({
@@ -701,8 +709,7 @@ export default function CanvasPage() {
               zoom100Trigger={zoom100Trigger}
               tilesWithFlows={tilesWithFlows}
               onFlowBadgeClick={(id) => {
-                const t = tiles.find((tile) => tile.id === id);
-                openFlowModal(id, t?.title ?? undefined);
+                openFlow(id);
               }}
               screenToLocalRef={canvasScreenToLocalRef}
               isOverStaging={(clientX, clientY) => {
@@ -762,6 +769,9 @@ export default function CanvasPage() {
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
+              flowNodeId={selectedFlowNodeId}
+              onSelectFlowNode={setSelectedFlowNodeId}
+              forceFlowTab={forceFlowTab}
             />
           )}
 
@@ -870,9 +880,9 @@ export default function CanvasPage() {
                     <button
                       onClick={() => {
                         if (!tileCtx) return;
-                        const t = tiles.find((x) => x.id === tileCtx.tileId);
+                        const id = tileCtx.tileId;
                         setTileCtx(null);
-                        openFlowModal(tileCtx.tileId, t?.title ?? undefined);
+                        openFlow(id);
                       }}
                       className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
                     >

@@ -21,9 +21,8 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { assertEdgeAcyclic, EdgeCycleError } from '../services/flow-validation.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-import type { FlowNodeOwner, FlowNodeState } from '../types/flow.js';
+import type { FlowNodeState } from '../types/flow.js';
 
-const VALID_OWNERS: FlowNodeOwner[] = ['mine', 'theirs'];
 const VALID_STATES: FlowNodeState[] = ['active', 'done', 'wait', 'undo', 'stop'];
 
 // ─── tileFlowRouter ────────────────────────────────────────────────────────
@@ -78,7 +77,6 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
     const userId = req.user!.id;
     const body = req.body as {
       label?: string;
-      owner?: string;
       state?: string;
       contact_id?: string | null;
       occurred_at?: string | null;
@@ -89,10 +87,6 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
       y?: number | null;
     };
 
-    if (body.owner && !VALID_OWNERS.includes(body.owner as FlowNodeOwner)) {
-      res.status(400).json({ success: false, error: `owner must be one of ${VALID_OWNERS.join(', ')}` });
-      return;
-    }
     if (body.state && !VALID_STATES.includes(body.state as FlowNodeState)) {
       res.status(400).json({ success: false, error: `state must be one of ${VALID_STATES.join(', ')}` });
       return;
@@ -134,7 +128,6 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
         user_id: userId,
         tile_id: tileId,
         label: body.label ?? '',
-        owner: body.owner ?? 'mine',
         state: body.state ?? 'active',
         contact_id: body.contact_id ?? null,
         occurred_at: body.occurred_at ?? null,
@@ -188,17 +181,13 @@ flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, 
     const userId = req.user!.id;
     const body = req.body as Record<string, unknown>;
 
-    if (body.owner !== undefined && !VALID_OWNERS.includes(body.owner as FlowNodeOwner)) {
-      res.status(400).json({ success: false, error: `owner must be one of ${VALID_OWNERS.join(', ')}` });
-      return;
-    }
     if (body.state !== undefined && !VALID_STATES.includes(body.state as FlowNodeState)) {
       res.status(400).json({ success: false, error: `state must be one of ${VALID_STATES.join(', ')}` });
       return;
     }
 
     const updates: Record<string, unknown> = {};
-    for (const k of ['label', 'owner', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y', 'is_focus']) {
+    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y', 'is_focus']) {
       if (k in body) updates[k] = body[k];
     }
 
@@ -435,9 +424,10 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       id: string;
       user_id: string;
       tile_id: string;
-      owner: FlowNodeOwner;
       state: FlowNodeState;
       contact_id: string | null;
+      /** Joined from contacts.is_self via the flow_node_activity view. */
+      is_self_contact: boolean;
       occurred_at: string | null;
       scheduled_at: string | null;
       updated_at: string;
@@ -451,12 +441,13 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
         case 'mine':
           // Strict semantic: the owner hubs are driven exclusively by the
           // per-tile FOCUS marker. A flow shows up under "Palla mia" only
-          // when its focused node is owned by me — removing focus removes
-          // the card. (Auto-focus on modal-open guarantees every visited
-          // flow has a focus to start with.)
-          return focusedIds.has(row.id) && row.owner === 'mine';
+          // when its focused node points to the self contact — removing
+          // focus or reassigning the contact removes the card. (Auto-focus
+          // on modal-open guarantees every visited flow has a focus.)
+          // Null contact also counts as "mine" (the default-self semantics).
+          return focusedIds.has(row.id) && (row.is_self_contact || row.contact_id === null);
         case 'theirs':
-          return focusedIds.has(row.id) && row.owner === 'theirs';
+          return focusedIds.has(row.id) && row.contact_id !== null && !row.is_self_contact;
         case 'due_soon': {
           if (!row.scheduled_at) return false;
           const t = new Date(row.scheduled_at).getTime();
@@ -500,7 +491,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       contactIds.length
         ? supabaseAdmin
             .from('contacts')
-            .select('id, name, color')
+            .select('id, name, color, is_self')
             .in('id', contactIds)
         : Promise.resolve({ data: [], error: null }),
     ]);
@@ -539,7 +530,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
         ...n,
         tile: tile ?? { id: n.tile_id, title: '', tag: null },
         contact: contact
-          ? { id: contact.id, name: contact.name, color: contact.color }
+          ? { id: contact.id, name: contact.name, color: contact.color, is_self: contact.is_self }
           : null,
         last_activity_at: activity.last_activity_at,
         is_leaf: activity.is_leaf,

@@ -6,9 +6,6 @@
  * package, so duplication is the pragmatic choice.
  */
 
-/** Who owns the action right now ("la palla"). Orthogonal to status. */
-export type FlowNodeOwner = 'mine' | 'theirs';
-
 /** Lifecycle of the node. 'active' means no decorator — it's the default
  *  state that simply says "this node is in play". */
 export type FlowNodeState = 'active' | 'done' | 'wait' | 'undo' | 'stop';
@@ -26,6 +23,10 @@ export interface Contact {
   color: string | null;
   avatar_url: string | null;
   archived_at: string | null;
+  /** True for the per-user "self" contact, seeded at signup. UI treats it as
+   *  the default node assignment ("ball is on me") and pins it at the top of
+   *  contact pickers. Exactly one per user (partial unique index). */
+  is_self: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -35,11 +36,10 @@ export interface FlowNode {
   user_id: string;
   tile_id: string;
   label: string;
-  /** Who currently has "the ball" — drives the node shape (square=mine,
-   *  circle=theirs) and the FlowHub Mine/Other filters. */
-  owner: FlowNodeOwner;
   /** Lifecycle decorator. 'active' = no decorator drawn on the node body. */
   state: FlowNodeState;
+  /** Drives node shape: square when null OR points to the user's self contact
+   *  ("ball is on me"), circle otherwise ("ball is on someone else"). */
   contact_id: string | null;
   occurred_at: string | null;
   scheduled_at: string | null;
@@ -71,7 +71,9 @@ export interface FlowGraph {
 export interface FlowHubItem extends FlowNode {
   /** The tile the node belongs to, plus its primary (first non-root) tag. */
   tile: { id: string; title: string; tag: { name: string } | null };
-  contact: { id: string; name: string; color: string | null } | null;
+  /** Includes `is_self` so the UI can derive ownership/shape without a second
+   *  lookup against the contacts list. */
+  contact: { id: string; name: string; color: string | null; is_self: boolean } | null;
   last_activity_at: string;
   is_leaf: boolean;
   is_open: boolean;

@@ -37,7 +37,8 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowModalStore } from '@/store/flow-modal-store';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
+import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import { cn } from '@/lib/utils';
 import { formatDay, getDayKey } from '@/lib/tile-helpers';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
@@ -377,7 +378,7 @@ export default function KanbanPage() {
   // (system + custom) because canonical system statuses drive the shape now.
   const { statuses: allStatuses, doneStatusId, getActionTypeShape } = useStatuses();
   const tilesWithFlows = useTilesWithFlows();
-  const openFlowModal = useFlowModalStore((s) => s.open);
+  const openFlow = useFlowOpenStore((s) => s.open);
   const resolveShape = useCallback((tile: Tile): StatusShape => {
     if (tile.status_id) {
       const st = allStatuses.find((s) => s.id === tile.status_id);
@@ -414,6 +415,8 @@ export default function KanbanPage() {
   // ─── Sidebar ───
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Subscribes to the global FLOW-badge signal — see useFlowOpenRequest.
+  const forceFlowTab = useFlowOpenRequest(setSelectedTileId, (open) => setSidebarOpen(open));
 
   // ─── Tile helpers ───
   const getTagColor = useCallback((tile: Tile): string => {
@@ -1098,7 +1101,7 @@ export default function KanbanPage() {
                       {tilesWithFlows.has(t.id) && (
                         <button
                           type="button"
-                          onClick={(e) => { e.stopPropagation(); openFlowModal(t.id, t.title ?? undefined); }}
+                          onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                           onContextMenu={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
                           className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
@@ -1135,6 +1138,7 @@ export default function KanbanPage() {
           open={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           invalidateKeys={['tiles-kanban', 'kanban-columns', 'tags']}
+          forceFlowTab={forceFlowTab}
         />
       </div>
 
@@ -1628,10 +1632,9 @@ export default function KanbanPage() {
           >
             <button
               onClick={() => {
-                const t = tiles.find((x) => x.id === tileCtxMenu.tileId);
                 const id = tileCtxMenu.tileId;
                 setTileCtxMenu(null);
-                openFlowModal(id, t?.title ?? undefined);
+                openFlow(id);
               }}
               className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
             >

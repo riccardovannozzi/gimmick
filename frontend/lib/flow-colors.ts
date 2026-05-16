@@ -1,22 +1,10 @@
 /**
  * Flow node visual vocabulary — single source of truth shared by FlowTrack,
- * FlowInspector and FlowHub. Split into two orthogonal axes since the data
- * model now separates "owner" (la palla) and "state" (lifecycle decorator).
+ * FlowInspector and FlowHub. Node ownership is derived from `contact_id`
+ * (self contact = square, other = circle), so there's no owner palette here:
+ * only the `state` axis needs colors/labels.
  */
-import type { FlowNodeOwner, FlowNodeState } from '@/types/flow';
-
-/** Owner palette — only used for the segmented control swatches. Node bodies
- *  themselves are now styled identically (black bg + white border) regardless
- *  of owner; the SHAPE encodes ownership. */
-export const FLOW_OWNER_COLORS: Record<FlowNodeOwner, string> = {
-  mine: '#378ADD',   // blueBright
-  theirs: '#EF9F27', // orangeBright
-};
-
-export const FLOW_OWNER_LABELS: Record<FlowNodeOwner, string> = {
-  mine: 'Palla mia',
-  theirs: 'Palla loro',
-};
+import type { FlowNodeState } from '@/types/flow';
 
 /** State (status) palette — drives the decorator color inside the node body
  *  for done/wait/undo/stop. 'active' has no decorator. */

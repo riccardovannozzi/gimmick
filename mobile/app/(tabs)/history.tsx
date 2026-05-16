@@ -1,25 +1,61 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, TouchableOpacity, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
-import { IconClock, IconTrash, IconBolt, IconCalendar, IconArrowUp, IconTag } from '@tabler/icons-react-native';
+import * as TablerIcons from '@tabler/icons-react-native';
+import {
+  IconClock,
+  IconTrash,
+  IconBolt,
+  IconCalendar,
+  IconArrowUp,
+  IconTag,
+  IconBoxMultiple,
+  IconCircleDot,
+} from '@tabler/icons-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tilesApi } from '@/lib/api';
+import { tilesApi, typeIconsApi, statusesApi, type TypeIconEntity, type StatusEntity } from '@/lib/api';
 import { captureColors } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
 import { TagFilterModal } from '@/components/TagFilterModal';
+import { FilterPickerModal } from '@/components/FilterPickerModal';
 import type { Tile, ActionType } from '@/types';
 
 // Spark management is desktop-only — this screen lists Tiles exclusively.
 
-const tileFilterOptions: { id: ActionType | 'all'; label: string }[] = [
-  { id: 'all', label: 'Tutti' },
-  { id: 'none', label: 'Appunti' },
-  { id: 'anytime', label: 'Da fare' },
-  { id: 'deadline', label: 'Scadenze' },
-  { id: 'event', label: 'Eventi' },
+// ============ Action filter vocabulary ============
+//
+// Same 5-key vocabulary used in the SetOptionsAccordion. Each tile resolves
+// to exactly one key via `resolveActionKey()`. Multi-select.
+type ActionKey = 'none' | 'anytime' | 'deadline' | 'allday' | 'timed';
+
+const ACTION_FILTER_OPTIONS: { id: ActionKey; label: string; color: string; icon?: typeof IconBolt }[] = [
+  { id: 'none', label: 'Notes', color: '#71717A' },
+  { id: 'anytime', label: 'ToDo', color: captureColors.text, icon: IconArrowUp },
+  { id: 'deadline', label: 'Due', color: '#EF4444', icon: IconBolt },
+  { id: 'allday', label: 'All Day', color: captureColors.gallery, icon: IconCalendar },
+  { id: 'timed', label: 'Timed', color: captureColors.photo, icon: IconClock },
 ];
+
+function resolveActionKey(tile: Tile): ActionKey {
+  const at = tile.action_type ?? 'none';
+  if (at === 'event') return tile.all_day ? 'allday' : 'timed';
+  if (at === 'deadline') return 'deadline';
+  if (at === 'anytime') return 'anytime';
+  return 'none';
+}
+
+/** Pick a readable foreground (white/black) for a given background hex. */
+function readableOn(bg: string): string {
+  const hex = bg.replace('#', '').slice(0, 6);
+  if (hex.length < 6) return '#FFFFFF';
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.55 ? '#000000' : '#FFFFFF';
+}
 
 // ============ Date formatting for action subtitles ============
 
@@ -243,12 +279,19 @@ export default function HistoryScreen() {
   const colors = useThemeColors();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [activeFilter, setActiveFilter] = useState<ActionType | 'all'>('all');
-  // Multi-select tag filter (empty = no tag constraint).
+  // Multi-select filters (empty = no constraint for that axis).
+  const [selectedActionKeys, setSelectedActionKeys] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
-  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [selectedTypeIconIds, setSelectedTypeIconIds] = useState<Set<string>>(new Set());
+  const [selectedStatusIds, setSelectedStatusIds] = useState<Set<string>>(new Set());
 
-  // Picker state
+  // Filter modal visibility.
+  const [actionFilterOpen, setActionFilterOpen] = useState(false);
+  const [tagFilterOpen, setTagFilterOpen] = useState(false);
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const [statusFilterOpen, setStatusFilterOpen] = useState(false);
+
+  // Picker state (used by the per-tile action-badge tap, not the filter row)
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'deadline' | 'event'>('deadline');
   const [pendingTileId, setPendingTileId] = useState<string | null>(null);
@@ -261,6 +304,35 @@ export default function HistoryScreen() {
     queryFn: () => tilesApi.list({ page: 1, limit: 50 }),
     refetchInterval: 30_000,
   });
+
+  // Type icons + assignments — needed for the Type filter and labels.
+  const typeIconsQuery = useQuery({
+    queryKey: ['type-icons'],
+    queryFn: () => typeIconsApi.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const typeIcons: TypeIconEntity[] = typeIconsQuery.data?.data ?? [];
+
+  const typeAssignmentsQuery = useQuery({
+    queryKey: ['type-icons', 'assignments'],
+    queryFn: () => typeIconsApi.getAssignments(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const typeAssignments = typeAssignmentsQuery.data?.data ?? [];
+  // Build tile_id → type_icon_id index once per assignments change.
+  const typeIconByTile = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const row of typeAssignments) map.set(row.tile_id, row.type_icon_id);
+    return map;
+  }, [typeAssignments]);
+
+  // Statuses — needed for the Status filter labels.
+  const statusesQuery = useQuery({
+    queryKey: ['statuses'],
+    queryFn: () => statusesApi.list(),
+    staleTime: 5 * 60 * 1000,
+  });
+  const statuses: StatusEntity[] = statusesQuery.data?.data ?? [];
 
   // Refetch every time this tab gains focus so newly-created tiles appear
   // immediately. The shared QueryClient has a 5-min staleTime, which would
@@ -327,23 +399,28 @@ export default function HistoryScreen() {
   );
 
   // ---- Filter logic ----
+  // OR within each axis (any-of), AND across axes (each axis must match).
   const allTiles: Tile[] = tilesData?.data || [];
   const filteredTiles = useMemo(() => {
     return allTiles.filter((t: Tile) => {
-      // action_type filter
-      if (activeFilter !== 'all' && (t.action_type || 'none') !== activeFilter) {
-        return false;
+      if (selectedActionKeys.size > 0) {
+        const key = resolveActionKey(t);
+        if (!selectedActionKeys.has(key)) return false;
       }
-      // tag filter (OR across selected tags — a tile passes if it carries at
-      // least one of the picked tags; empty selection = no constraint).
       if (selectedTagIds.size > 0) {
         const tileTagIds = (t.tags ?? []).map((tg) => tg.id);
-        const matched = tileTagIds.some((id) => selectedTagIds.has(id));
-        if (!matched) return false;
+        if (!tileTagIds.some((id) => selectedTagIds.has(id))) return false;
+      }
+      if (selectedTypeIconIds.size > 0) {
+        const assigned = typeIconByTile.get(t.id);
+        if (!assigned || !selectedTypeIconIds.has(assigned)) return false;
+      }
+      if (selectedStatusIds.size > 0) {
+        if (!t.status_id || !selectedStatusIds.has(t.status_id)) return false;
       }
       return true;
     });
-  }, [allTiles, activeFilter, selectedTagIds]);
+  }, [allTiles, selectedActionKeys, selectedTagIds, selectedTypeIconIds, selectedStatusIds, typeIconByTile]);
 
   // ---- Grouped data ----
   const groupedTiles = useMemo(() => groupByDate(filteredTiles), [filteredTiles]);
@@ -364,82 +441,48 @@ export default function HistoryScreen() {
   return (
     <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
       <View className="flex-1">
-        {/* Filter row — action-type chips + tag filter pill (opens modal) */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
+        {/* Filter row — 4 pills (Action / Tag / Type / Status). Each opens a
+            multi-select bottom-sheet picker. Horizontal scroll keeps the row
+            usable when counts widen the labels (e.g. "Action (3)"). */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
             paddingHorizontal: 16,
-            marginTop: 8,
-            marginBottom: 8,
+            paddingTop: 8,
+            paddingBottom: 8,
             gap: 8,
           }}
         >
-          <View style={{ flex: 1 }}>
-            <FlatList
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              data={tileFilterOptions}
-              keyExtractor={(item) => item.id}
-              renderItem={({ item }) => {
-                const isActive = activeFilter === item.id;
-                return (
-                  <TouchableOpacity
-                    onPress={() => setActiveFilter(item.id)}
-                    activeOpacity={0.7}
-                    style={{
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 20,
-                      backgroundColor: isActive ? colors.accentContainer : colors.surfaceVariant,
-                      marginRight: 8,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontSize: 13,
-                        fontWeight: '600',
-                        color: isActive ? colors.accent : colors.secondary,
-                      }}
-                    >
-                      {item.label}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }}
-            />
-          </View>
-          {/* Tag filter pill — count badge shown when tags are selected. */}
-          <TouchableOpacity
-            onPress={() => {
-              console.log('[Tag filter] pill tapped, opening modal');
-              setTagFilterOpen(true);
-            }}
-            activeOpacity={0.7}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              paddingHorizontal: 12,
-              paddingVertical: 8,
-              borderRadius: 20,
-              backgroundColor: selectedTagIds.size > 0 ? `${colors.accent}26` : colors.surfaceVariant,
-              borderWidth: 1,
-              borderColor: selectedTagIds.size > 0 ? colors.accent : 'transparent',
-            }}
-          >
-            <IconTag size={14} color={selectedTagIds.size > 0 ? colors.accent : colors.secondary} />
-            <Text
-              style={{
-                fontSize: 13,
-                fontWeight: '600',
-                color: selectedTagIds.size > 0 ? colors.accent : colors.secondary,
-              }}
-            >
-              Tag{selectedTagIds.size > 0 ? ` (${selectedTagIds.size})` : ''}
-            </Text>
-          </TouchableOpacity>
-        </View>
+          <FilterPill
+            icon={IconBolt}
+            label="Action"
+            count={selectedActionKeys.size}
+            onPress={() => setActionFilterOpen(true)}
+            colors={colors}
+          />
+          <FilterPill
+            icon={IconTag}
+            label="Tag"
+            count={selectedTagIds.size}
+            onPress={() => setTagFilterOpen(true)}
+            colors={colors}
+          />
+          <FilterPill
+            icon={IconBoxMultiple}
+            label="Type"
+            count={selectedTypeIconIds.size}
+            onPress={() => setTypeFilterOpen(true)}
+            colors={colors}
+          />
+          <FilterPill
+            icon={IconCircleDot}
+            label="Status"
+            count={selectedStatusIds.size}
+            onPress={() => setStatusFilterOpen(true)}
+            colors={colors}
+          />
+        </ScrollView>
 
         {/* Content */}
         {isLoading ? (
@@ -512,6 +555,148 @@ export default function HistoryScreen() {
         onChange={setSelectedTagIds}
         onClose={() => setTagFilterOpen(false)}
       />
+
+      {/* Action filter — multi-select over the 5 action keys. */}
+      <FilterPickerModal
+        visible={actionFilterOpen}
+        title="Filtra per Action"
+        items={ACTION_FILTER_OPTIONS}
+        selected={selectedActionKeys}
+        getId={(o) => o.id}
+        getLabel={(o) => o.label}
+        leading={(o) => {
+          const Icon = o.icon;
+          return Icon ? (
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                backgroundColor: o.color,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Icon size={12} color="#FFFFFF" />
+            </View>
+          ) : (
+            <View
+              style={{
+                width: 22,
+                height: 22,
+                borderRadius: 11,
+                borderWidth: 1.5,
+                borderColor: o.color,
+              }}
+            />
+          );
+        }}
+        onChange={setSelectedActionKeys}
+        onClose={() => setActionFilterOpen(false)}
+      />
+
+      {/* Type filter — multi-select over the user's type icons. */}
+      <FilterPickerModal
+        visible={typeFilterOpen}
+        title="Filtra per Type"
+        items={typeIcons}
+        selected={selectedTypeIconIds}
+        getId={(t) => t.id}
+        getLabel={(t) => t.name}
+        leading={(t) => <TypeIconBadge icon={t.icon} color={t.color} />}
+        onChange={setSelectedTypeIconIds}
+        onClose={() => setTypeFilterOpen(false)}
+      />
+
+      {/* Status filter — multi-select over the user's statuses. */}
+      <FilterPickerModal
+        visible={statusFilterOpen}
+        title="Filtra per Status"
+        items={statuses}
+        selected={selectedStatusIds}
+        getId={(s) => s.id}
+        getLabel={(s) => s.name}
+        leading={() => (
+          <View
+            style={{
+              width: 14,
+              height: 14,
+              borderRadius: 3,
+              backgroundColor: '#A1A1AA',
+            }}
+          />
+        )}
+        onChange={setSelectedStatusIds}
+        onClose={() => setStatusFilterOpen(false)}
+      />
+    </View>
+  );
+}
+
+// ============ Filter pill (header row) ============
+
+function FilterPill({
+  icon: Icon,
+  label,
+  count,
+  onPress,
+  colors,
+}: {
+  icon: typeof IconTag;
+  label: string;
+  count: number;
+  onPress: () => void;
+  colors: any;
+}) {
+  const active = count > 0;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.7}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        backgroundColor: active ? `${colors.accent}26` : colors.surfaceVariant,
+        borderWidth: 1,
+        borderColor: active ? colors.accent : 'transparent',
+      }}
+    >
+      <Icon size={14} color={active ? colors.accent : colors.secondary} />
+      <Text
+        style={{
+          fontSize: 13,
+          fontWeight: '600',
+          color: active ? colors.accent : colors.secondary,
+        }}
+      >
+        {label}{active ? ` (${count})` : ''}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+// ============ Type icon badge (used in the Type filter rows) ============
+
+function TypeIconBadge({ icon, color }: { icon: string; color?: string }) {
+  const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[icon];
+  if (!Comp) return null;
+  const bg = color || '#27272A';
+  return (
+    <View
+      style={{
+        width: 22,
+        height: 22,
+        borderRadius: 4,
+        backgroundColor: bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Comp size={12} color={readableOn(bg)} />
     </View>
   );
 }

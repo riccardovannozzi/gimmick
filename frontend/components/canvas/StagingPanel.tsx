@@ -14,7 +14,7 @@ import { readableOn } from '@/lib/palette';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowModalStore } from '@/store/flow-modal-store';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
 import type { Tile } from '@/types';
 
 interface Props {
@@ -76,7 +76,7 @@ export function StagingPanel({
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const tilesWithFlows = useTilesWithFlows();
-  const openFlowModal = useFlowModalStore((s) => s.open);
+  const openFlow = useFlowOpenStore((s) => s.open);
   const getIconForTile = useCallback(
     (tileId: string) => {
       const iconId = typeTileIcons[tileId];
@@ -180,7 +180,7 @@ export function StagingPanel({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      openFlowModal(t.id, t.title ?? undefined);
+                      openFlow(t.id);
                     }}
                     onContextMenu={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}

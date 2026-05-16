@@ -12,9 +12,10 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import { useFlow } from '@/lib/hooks/useFlow';
-import { FLOW_OWNER_LABELS, FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { ContactCombobox } from './ContactCombobox';
-import type { FlowNode, FlowNodeOwner, FlowNodeState } from '@/types/flow';
+import { VerticalFlowTrack } from './VerticalFlowTrack';
+import type { FlowNode, FlowNodeState } from '@/types/flow';
 
 interface Props {
   /** Id of the selected flow node — must belong to `tileId`. */
@@ -22,13 +23,17 @@ interface Props {
   tileId: string;
   onClose: () => void;
   onSelectNode: (id: string | null) => void;
+  /** Hide the Notes textarea + skip its autosave. The notes column stays in
+   *  the DB; callers like the sidebar tab simply don't expose it. */
+  hideNote?: boolean;
+  /** Hide the "NODO / Deseleziona" header row. Useful when the inspector is
+   *  embedded in a context (e.g. sidebar tab) that has its own header and a
+   *  guaranteed-non-empty node selection, so "Deseleziona" has no purpose. */
+  hideHeader?: boolean;
+  /** Render the vertical flow diagram below the Date input. Off by default so
+   *  the modal (which has its own FlowTrack on the left) doesn't double up. */
+  showVerticalFlow?: boolean;
 }
-
-const OWNERS: FlowNodeOwner[] = ['mine', 'theirs'];
-const OWNER_SHORT_LABELS: Record<FlowNodeOwner, string> = {
-  mine: 'MY',
-  theirs: 'OTHER',
-};
 
 // Four status decorators. 'active' is the implicit "no decorator" state —
 // clicking an already-active status button toggles back to 'active'.
@@ -59,7 +64,7 @@ const AUTOSAVE_MS = 500;
  *   - Fratello                 → new node that shares the same parents as this one
  *   - Elimina                 → confirm + deleteNode (cascade removes edges)
  */
-export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) {
+export function FlowInspector({ nodeId, tileId, onClose, onSelectNode, hideNote = false, hideHeader = false, showVerticalFlow = false }: Props) {
   const { graph, updateNode, deleteNode, addNode, addEdge } = useFlow(tileId);
   const node: FlowNode | null = graph.nodes.find((n) => n.id === nodeId) ?? null;
 
@@ -67,7 +72,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
   // while the autosave debounce is pending. Hooks must run unconditionally,
   // so we use safe defaults when the node hasn't loaded yet.
   const [label, setLabel] = useState(node?.label ?? '');
-  const [owner, setOwner] = useState<FlowNodeOwner>(node?.owner ?? 'mine');
   const [state, setState] = useState<FlowNodeState>(node?.state ?? 'active');
   const [contactId, setContactId] = useState<string | null>(node?.contact_id ?? null);
   const [occurredAt, setOccurredAt] = useState<string>(toLocalInput(node?.occurred_at ?? null));
@@ -82,7 +86,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (lastNodeIdRef.current !== node.id) {
       lastNodeIdRef.current = node.id;
       setLabel(node.label);
-      setOwner(node.owner);
       setState(node.state);
       setContactId(node.contact_id);
       setOccurredAt(toLocalInput(node.occurred_at));
@@ -111,6 +114,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
 
   const notesSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
+    if (hideNote) return;
     if (!node) return;
     if ((notes || '') === (node.notes || '')) return;
     if (notesSaveRef.current) clearTimeout(notesSaveRef.current);
@@ -121,7 +125,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
       if (notesSaveRef.current) clearTimeout(notesSaveRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notes]);
+  }, [notes, hideNote]);
 
   // ─── Actions ───────────────────────────────────────────────────────────
   // Grid constants — kept in sync with FlowTrack (no shared module yet).
@@ -137,7 +141,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
   const handleAddChild = async () => {
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      owner: 'mine',
       state: 'active',
       parent_node_id: nodeId,
       x: refPos.x + GRID_X,
@@ -150,7 +153,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     // 1) Create orphan node, then 2) edge new → this
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      owner: 'mine',
       state: 'active',
       x: refPos.x - GRID_X,
       y: refPos.y,
@@ -182,7 +184,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (parentIds.length === 0) {
       const res = await addNode.mutateAsync({
         label: 'Nuovo nodo',
-        owner: 'mine', state: 'active',
+        state: 'active',
         x: siblingPos.x,
         y: siblingPos.y,
       });
@@ -193,7 +195,7 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
     if (parentIds.length === 1) {
       const res = await addNode.mutateAsync({
         label: 'Nuovo nodo',
-        owner: 'mine', state: 'active',
+        state: 'active',
         parent_node_id: parentIds[0],
         x: siblingPos.x,
         y: siblingPos.y,
@@ -204,7 +206,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
 
     const res = await addNode.mutateAsync({
       label: 'Nuovo nodo',
-      owner: 'mine',
       state: 'active',
       x: siblingPos.x,
       y: siblingPos.y,
@@ -239,15 +240,17 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
 
   return (
     <aside className="w-full shrink-0 bg-zinc-950 flex flex-col h-full">
-      <div className="h-10 flex items-center justify-between px-3 border-b border-zinc-800 shrink-0">
-        <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-400">Nodo</span>
-        <button
-          onClick={onClose}
-          className="text-[10px] text-zinc-500 hover:text-zinc-200 transition-colors"
-        >
-          Deseleziona
-        </button>
-      </div>
+      {!hideHeader && (
+        <div className="h-10 flex items-center justify-between px-3 border-b border-zinc-800 shrink-0">
+          <span className="text-[10px] uppercase tracking-widest font-bold text-zinc-400">Nodo</span>
+          <button
+            onClick={onClose}
+            className="text-[10px] text-zinc-500 hover:text-zinc-200 transition-colors"
+          >
+            Deseleziona
+          </button>
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-3 space-y-3 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
         {/* Label */}
@@ -260,43 +263,6 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
             rows={2}
             className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 resize-none"
           />
-        </div>
-
-        {/* Owner — chi ha la palla. Shape encodes ownership: square=mine,
-            circle=theirs. Always exactly one selected. */}
-        <div>
-          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Palla a</label>
-          <div className="grid grid-cols-2 gap-1">
-            {OWNERS.map((o) => {
-              const isActive = owner === o;
-              return (
-                <button
-                  key={o}
-                  onClick={() => {
-                    setOwner(o);
-                    updateNode.mutate({ id: nodeId, updates: { owner: o } });
-                  }}
-                  className="h-9 rounded text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center justify-center gap-2"
-                  style={{
-                    backgroundColor: isActive ? '#000' : '#27272A',
-                    color: isActive ? '#fff' : '#A1A1AA',
-                    border: isActive ? '1.5px solid #fff' : '1px solid rgba(255,255,255,0.08)',
-                  }}
-                  title={FLOW_OWNER_LABELS[o]}
-                >
-                  {/* Shape preview: filled square for MY, circle for OTHER */}
-                  <span
-                    className="inline-block w-2.5 h-2.5"
-                    style={{
-                      backgroundColor: isActive ? '#fff' : '#A1A1AA',
-                      borderRadius: o === 'theirs' ? '50%' : '2px',
-                    }}
-                  />
-                  {OWNER_SHORT_LABELS[o]}
-                </button>
-              );
-            })}
-          </div>
         </div>
 
         {/* Status — lifecycle decorator. Mutually exclusive; clicking the
@@ -375,17 +341,30 @@ export function FlowInspector({ nodeId, tileId, onClose, onSelectNode }: Props) 
           </div>
         </div>
 
-        {/* Notes */}
-        <div>
-          <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Note</label>
-          <textarea
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={4}
-            placeholder="Dettagli, contesto, link…"
-            className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 resize-y"
-          />
-        </div>
+        {/* Vertical flow diagram — only when the caller opts in (sidebar tab). */}
+        {showVerticalFlow && (
+          <div className="-mx-3">
+            <VerticalFlowTrack
+              tileId={tileId}
+              selectedNodeId={nodeId}
+              onSelectNode={(id) => onSelectNode(id)}
+            />
+          </div>
+        )}
+
+        {/* Notes — hidden when caller passes hideNote (e.g. the sidebar tab). */}
+        {!hideNote && (
+          <div>
+            <label className="block text-[10px] uppercase tracking-wider text-zinc-500 mb-1">Note</label>
+            <textarea
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+              placeholder="Dettagli, contesto, link…"
+              className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 resize-y"
+            />
+          </div>
+        )}
       </div>
 
       {/* Actions */}

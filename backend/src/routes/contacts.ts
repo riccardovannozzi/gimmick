@@ -62,6 +62,8 @@ contactsRouter.post('/', async (req: AuthenticatedRequest, res: Response, next) 
       return;
     }
 
+    // is_self is never accepted from the request — it's a server-managed flag
+    // seeded at signup. Always create regular contacts here.
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .insert({
@@ -73,6 +75,7 @@ contactsRouter.post('/', async (req: AuthenticatedRequest, res: Response, next) 
         notes: notes ?? null,
         color: color ?? null,
         avatar_url: avatar_url ?? null,
+        is_self: false,
       })
       .select()
       .single();
@@ -130,6 +133,21 @@ contactsRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, ne
 contactsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+
+    // The self contact is the canonical "ball on me" anchor — deleting it
+    // would orphan every flow node currently assigned to it.
+    const { data: existing, error: lookupErr } = await supabaseAdmin
+      .from('contacts')
+      .select('id, is_self')
+      .eq('id', id)
+      .eq('user_id', req.user!.id)
+      .maybeSingle();
+    if (lookupErr) throw lookupErr;
+    if (existing?.is_self) {
+      res.status(400).json({ success: false, error: 'The self contact cannot be deleted' });
+      return;
+    }
+
     const { error } = await supabaseAdmin
       .from('contacts')
       .delete()
@@ -146,6 +164,21 @@ contactsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, n
 contactsRouter.post('/:id/archive', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+
+    // Same rule as DELETE: the self contact stays visible. Archiving it would
+    // hide it from the picker and break the "ball on me" default.
+    const { data: existing, error: lookupErr } = await supabaseAdmin
+      .from('contacts')
+      .select('id, is_self')
+      .eq('id', id)
+      .eq('user_id', req.user!.id)
+      .maybeSingle();
+    if (lookupErr) throw lookupErr;
+    if (existing?.is_self) {
+      res.status(400).json({ success: false, error: 'The self contact cannot be archived' });
+      return;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .update({ archived_at: new Date().toISOString() })

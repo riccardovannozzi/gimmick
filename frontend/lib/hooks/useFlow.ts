@@ -11,7 +11,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { flowApi } from '@/lib/api';
 import type {
-  FlowNodeOwner,
   FlowNodeState,
   FlowGraph,
   FlowNode,
@@ -20,7 +19,6 @@ import type {
 
 type CreateNodeBody = {
   label?: string;
-  owner?: FlowNodeOwner;
   state?: FlowNodeState;
   contact_id?: string | null;
   occurred_at?: string | null;
@@ -32,7 +30,7 @@ type CreateNodeBody = {
 };
 
 type UpdateNodeBody = Partial<
-  Pick<FlowNode, 'label' | 'owner' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>
+  Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>
 >;
 
 export function useFlow(tileId: string | null | undefined) {

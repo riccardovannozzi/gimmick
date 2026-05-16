@@ -29,12 +29,23 @@ export function ContactCombobox({ value, onChange }: Props) {
   }, [contacts, value]);
 
   const normalizedQuery = query.trim().toLowerCase();
+
+  // Pin the self contact to the top of every list so "ball on me" is always a
+  // one-click pick. Falls back gracefully if the seed row is missing.
+  const sortedContacts = useMemo(() => {
+    return [...contacts].sort((a, b) => {
+      if (a.is_self && !b.is_self) return -1;
+      if (!a.is_self && b.is_self) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }, [contacts]);
+
   const matches = useMemo(() => {
-    if (!normalizedQuery) return contacts.slice(0, 10);
-    return contacts
+    if (!normalizedQuery) return sortedContacts.slice(0, 10);
+    return sortedContacts
       .filter((c) => c.name.toLowerCase().includes(normalizedQuery))
       .slice(0, 10);
-  }, [contacts, normalizedQuery]);
+  }, [sortedContacts, normalizedQuery]);
 
   const exactMatch = useMemo(
     () => contacts.find((c) => c.name.toLowerCase() === normalizedQuery),
@@ -86,7 +97,7 @@ export function ContactCombobox({ value, onChange }: Props) {
                 style={{ backgroundColor: selected.color }}
               />
             )}
-            {selected.name}
+            {selected.is_self ? `[ ${selected.name} ]` : selected.name}
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onChange(null); }}
@@ -128,7 +139,7 @@ export function ContactCombobox({ value, onChange }: Props) {
                     style={{ backgroundColor: c.color }}
                   />
                 )}
-                <span className="truncate">{c.name}</span>
+                <span className="truncate">{c.is_self ? `[ ${c.name} ]` : c.name}</span>
                 {c.kind !== 'person' && (
                   <span className="ml-auto text-[9px] text-zinc-500 uppercase tracking-wider">{c.kind}</span>
                 )}

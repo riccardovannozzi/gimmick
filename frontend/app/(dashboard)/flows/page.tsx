@@ -2,8 +2,8 @@
  * /flows — FlowHub: cross-tile inbox of pending Flow nodes.
  *
  * Five tab-filters mirror the backend (`GET /api/flows/hub?filter=…`):
- *   mine      Palla mia (open leaves with owner='mine')
- *   theirs    In attesa di loro (open leaves with owner='theirs')
+ *   mine      Palla mia (focused node points to self contact or null)
+ *   theirs    In attesa di loro (focused node points to a non-self contact)
  *   due_soon  Scheduled within next 48h
  *   stalled   Open leaves untouched > N days
  *   blocked   state='stop'
@@ -15,14 +15,20 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { IconRoute, IconClock, IconUserCheck, IconUserOff, IconHourglassHigh, IconLock, IconRefresh } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { useFlowHub, type FlowHubFilter } from '@/lib/hooks/useFlowHub';
-import { FLOW_OWNER_LABELS, FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { StatusIcon } from '@/components/flow/FlowNodeView';
-import { useFlowModalStore } from '@/store/flow-modal-store';
 import { cn } from '@/lib/utils';
 import type { FlowHubItem } from '@/types/flow';
+
+/** True when the node's "ball" is on the current user — contact is the seeded
+ *  self row, or no contact has been assigned (default-self semantics). */
+function isItemSelf(item: FlowHubItem): boolean {
+  return !item.contact || item.contact.is_self;
+}
 
 const TABS: Array<{ key: FlowHubFilter; label: string; icon: typeof IconClock; tint: string }> = [
   { key: 'mine',     label: 'Palla mia',        icon: IconUserCheck,   tint: '#378ADD' },
@@ -47,11 +53,12 @@ function formatScheduled(iso: string | null): string | null {
 }
 
 function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void }) {
-  const ownerLabel = FLOW_OWNER_LABELS[item.owner];
+  const isSelf = isItemSelf(item);
+  const ownerLabel = isSelf ? 'Palla mia' : item.contact?.name ?? 'Palla loro';
   const stateLabel = FLOW_STATE_LABELS[item.state];
   // Tooltip text on the badge surfaces the most informative single label:
   //   - if a status decorator is set (done/wait/undo/stop), the status wins
-  //   - otherwise show the owner ("Palla mia" / "Palla loro")
+  //   - otherwise show the ownership ("Palla mia" / contact name)
   const pillLabel = item.state !== 'active' ? stateLabel : ownerLabel;
   const isDue = item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
 
@@ -95,13 +102,15 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
                 : { color: 'transparent', borderColor: 'transparent' }
             }
           >
-            {item.contact?.name || '—'}
+            {item.contact
+              ? (item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name)
+              : '—'}
           </span>
         </div>
 
         {/* Column 3 — mini badge, same scale as the modal nodes. */}
         <span className="shrink-0 flex items-center justify-center" title={pillLabel}>
-          <FlowMiniBadge owner={item.owner} state={item.state} />
+          <FlowMiniBadge isSelf={isSelf} state={item.state} />
         </span>
       </div>
 
@@ -133,14 +142,14 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
 
 /** Reproduction of a FlowNodeView body at the same scale used in the modal
  *  (radius 16 → 32×32 body), so the Hub reads visually identical: black
- *  background + white border, square for owner='mine' / circle for
- *  owner='theirs', with the inline status glyph (check/hourglass/slash/X)
- *  drawn inside when state is a decorator. */
+ *  background + white border, square when the ball is on me (self contact
+ *  or null) / circle when it's on someone else, with the inline status glyph
+ *  (check/hourglass/slash/X) drawn inside when state is a decorator. */
 function FlowMiniBadge({
-  owner,
+  isSelf,
   state,
 }: {
-  owner: 'mine' | 'theirs';
+  isSelf: boolean;
   state: 'active' | 'done' | 'wait' | 'undo' | 'stop';
 }) {
   // Match FlowTrack.NODE_RADIUS so the Hub badge has the exact same diameter
@@ -150,9 +159,9 @@ function FlowMiniBadge({
   const half = SIZE / 2;
   const bodyFill = '#000000';
   const bodyStroke = '#FFFFFF';
-  const bodyStrokeWidth = 1.5;
+  const bodyStrokeWidth = 1;
   const statusColor = FLOW_STATE_COLORS[state];
-  const useSquare = owner === 'mine';
+  const useSquare = isSelf;
 
   return (
     <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="shrink-0 block">
@@ -181,9 +190,9 @@ function FlowMiniBadge({
 }
 
 export default function FlowsPage() {
+  const router = useRouter();
   const [filter, setFilter] = useState<FlowHubFilter>('mine');
   const [stalledDays, setStalledDays] = useState(7);
-  const openFlowModal = useFlowModalStore((s) => s.open);
 
   const { items, isLoading, isError, refetch } = useFlowHub(
     filter,
@@ -191,9 +200,10 @@ export default function FlowsPage() {
   );
 
   const handleOpen = (item: FlowHubItem) => {
-    // Open the Flow modal in-place so closing it leaves the user on the
-    // Flow Hub (avoids a context switch to /canvas).
-    openFlowModal(item.tile_id, item.tile.title);
+    // Navigate to the canvas with this tile + flow node pre-selected. The
+    // canvas page's deep-link effect sets selectedFlowNodeId so TileSidebar
+    // jumps to the Flow tab focused on the right node.
+    router.push(`/canvas?tile=${item.tile_id}&flow=${item.id}`);
   };
 
   return (

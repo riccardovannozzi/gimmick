@@ -10,8 +10,13 @@ interface Props {
   radius?: number;
   selected?: boolean;
   contactName?: string | null;
-  /** 'square' for owner==='mine' (the user's ball), 'circle' for 'theirs'. */
-  shape?: 'square' | 'circle';
+  /** 'square' when the node's contact is the user's self contact (or null);
+   *  'circle' when the contact is someone else. Derived once by FlowTrack. */
+  shape: 'square' | 'circle';
+  /** Skip the label and contact-subline text rendering. Callers that lay out
+   *  the label themselves (e.g. fishbone column with label-to-the-right) use
+   *  this to keep only the body + decorations from FlowNodeView. */
+  hideLabel?: boolean;
   /** Pointer-down on the node body — used by FlowTrack to start a drag
    *  (re-position). The parent decides whether the gesture ends in a
    *  selection (no move) or a position update (move > threshold). */
@@ -26,12 +31,12 @@ interface Props {
  *   - Label sotto: `[label or fallback] · [contact?] · [time?]`
  *   - 2px white-tinted ring when selected
  */
-export function FlowNodeView({ node, x, y, radius = 16, selected = false, contactName, shape, onPointerDownBody, onContextMenuBody }: Props) {
+export function FlowNodeView({ node, x, y, radius = 16, selected = false, contactName, shape, hideLabel = false, onPointerDownBody, onContextMenuBody }: Props) {
   const tsLabel = formatTs(node.occurred_at ?? node.scheduled_at);
   const subParts = [contactName, tsLabel].filter(Boolean) as string[];
   const labelMain = node.label.trim() || '—';
-  // Shape encodes ownership: 'mine' → square, 'theirs' → circle.
-  const useSquare = shape ? shape === 'square' : node.owner === 'mine';
+  // Shape encodes ownership: square = self/null contact, circle = other.
+  const useSquare = shape === 'square';
   const side = radius * 2;
   // Body is normally black; when the node is selected the fill switches to a
   // mid-grey instead of drawing a white ring around the node (cleaner read in
@@ -85,10 +90,10 @@ export function FlowNodeView({ node, x, y, radius = 16, selected = false, contac
           rx={4}
           fill={bodyFill}
           stroke={bodyStroke}
-          strokeWidth={1.5}
+          strokeWidth={1}
         />
       ) : (
-        <circle r={radius} fill={bodyFill} stroke={bodyStroke} strokeWidth={1.5} />
+        <circle r={radius} fill={bodyFill} stroke={bodyStroke} strokeWidth={1} />
       )}
 
       {/* Status decorator inside the body. 'active' draws nothing.
@@ -121,8 +126,9 @@ export function FlowNodeView({ node, x, y, radius = 16, selected = false, contac
         )
       )}
       {/* Label below — wrapped over up to 2 lines (16 chars each); 3rd+
-          lines are truncated with an ellipsis. */}
-      {(() => {
+          lines are truncated with an ellipsis. Skipped when the caller renders
+          its own label (e.g. fishbone column with label-to-the-right). */}
+      {!hideLabel && (() => {
         const lines = wrapText(labelMain, 16, 2);
         return lines.map((line, i) => (
           <text
@@ -138,7 +144,7 @@ export function FlowNodeView({ node, x, y, radius = 16, selected = false, contac
           </text>
         ));
       })()}
-      {subParts.length > 0 && (() => {
+      {!hideLabel && subParts.length > 0 && (() => {
         const labelLines = wrapText(labelMain, 16, 2).length;
         const subY = radius + 20 + labelLines * 13 + 1;
         return (

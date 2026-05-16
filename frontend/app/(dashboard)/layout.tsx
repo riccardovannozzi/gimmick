@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
-import { FlowModal } from '@/components/flow/FlowModal';
 import { useAuthStore } from '@/store/auth-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useChatStore } from '@/store/chat-store';
@@ -51,7 +50,6 @@ export default function DashboardLayout({
       <Sidebar />
       <main className="flex-1 overflow-hidden">{children}</main>
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-      <FlowModal />
     </div>
   );
 }

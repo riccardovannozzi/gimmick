@@ -18,6 +18,7 @@ import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import { FlowInspector } from '@/components/flow/FlowInspector';
+import { useFlow } from '@/lib/hooks/useFlow';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -635,6 +636,102 @@ function SparkEditor({
   );
 }
 
+/**
+ * Body of the "Flow" tab. Renders FlowInspector for a node belonging to the
+ * tile, choosing it in priority order:
+ *   1. external `externalFlowNodeId` (e.g. canvas click) — when it still exists
+ *   2. the tile's focus node (is_focus = true)
+ *   3. the first node in the graph
+ *
+ * If the tile has no flow yet, shows a CTA that creates the first node and
+ * selects it. The Notes field is hidden in this context (modal still shows
+ * it via the default `hideNote = false`).
+ */
+function FlowTab({
+  tileId,
+  externalFlowNodeId,
+  onSelectFlowNode,
+}: {
+  tileId: string;
+  externalFlowNodeId: string | null;
+  onSelectFlowNode: (id: string | null) => void;
+}) {
+  const { graph, isLoading, addNode } = useFlow(tileId);
+
+  // Internal selection: clicks inside the embedded VerticalFlowTrack update
+  // this directly, so navigation works even when the parent doesn't track
+  // `flowNodeId` in state. The external prop only seeds the initial pick.
+  const [internalNodeId, setInternalNodeId] = useState<string | null>(null);
+
+  // Adopt a new external selection (e.g. canvas click) by clearing the
+  // internal override — the next render will derive `targetNodeId` from
+  // `externalFlowNodeId`.
+  useEffect(() => {
+    if (externalFlowNodeId) setInternalNodeId(null);
+  }, [externalFlowNodeId]);
+
+  const targetNodeId: string | null = (() => {
+    if (internalNodeId && graph.nodes.some((n) => n.id === internalNodeId)) {
+      return internalNodeId;
+    }
+    if (externalFlowNodeId && graph.nodes.some((n) => n.id === externalFlowNodeId)) {
+      return externalFlowNodeId;
+    }
+    const focus = graph.nodes.find((n) => n.is_focus);
+    if (focus) return focus.id;
+    return graph.nodes[0]?.id ?? null;
+  })();
+
+  const handleSelect = (id: string | null) => {
+    setInternalNodeId(id);
+    onSelectFlowNode(id);
+  };
+
+  if (isLoading) {
+    return <p className="text-xs text-zinc-500 p-3">Caricamento flow...</p>;
+  }
+
+  if (graph.nodes.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-3 text-center">
+        <p className="text-xs text-zinc-500 leading-relaxed">
+          Nessun nodo nel flow di questo tile.
+        </p>
+        <button
+          type="button"
+          onClick={async () => {
+            const res = await addNode.mutateAsync({
+              label: 'Nuovo nodo',
+              state: 'active',
+            });
+            if (res?.node) handleSelect(res.node.id);
+          }}
+          disabled={addNode.isPending}
+          className="px-3 h-8 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-50"
+        >
+          Crea primo nodo
+        </button>
+      </div>
+    );
+  }
+
+  if (!targetNodeId) {
+    return <p className="text-xs text-zinc-500 p-3">Nessun nodo selezionabile.</p>;
+  }
+
+  return (
+    <FlowInspector
+      nodeId={targetNodeId}
+      tileId={tileId}
+      onClose={() => handleSelect(null)}
+      onSelectNode={(id) => handleSelect(id)}
+      hideNote
+      hideHeader
+      showVerticalFlow
+    />
+  );
+}
+
 export function TileSidebar({
   tileId,
   open,
@@ -642,15 +739,23 @@ export function TileSidebar({
   invalidateKeys = ['tiles-calendar'],
   flowNodeId,
   onSelectFlowNode,
+  forceFlowTab,
 }: {
   tileId: string | null;
   open: boolean;
   onToggle: () => void;
   invalidateKeys?: string[];
-  /** When set, a 3rd "Flow" tab appears and shows the FlowInspector for this node. */
+  /** Optional external selection (e.g. from canvas) that overrides the tab's
+   *  default node pick (focus node → first node). The Flow tab itself is now
+   *  always visible — this prop only steers WHICH node is loaded inside it. */
   flowNodeId?: string | null;
   /** Called when the inspector wants to deselect or jump to another node. */
   onSelectFlowNode?: (id: string | null) => void;
+  /** Counter incremented whenever an outside trigger (e.g. a FLOW badge in
+   *  canvas/calendar/kanban) wants the sidebar to switch to the Flow tab
+   *  without specifying a particular node. Any change > 0 jumps the active
+   *  tab — useful because clicking the same badge twice still has to react. */
+  forceFlowTab?: number;
 }) {
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
@@ -667,16 +772,19 @@ export function TileSidebar({
 
   const [activeTab, setActiveTab] = useState<'edit' | 'list' | 'flow'>('edit');
 
-  // Auto-switch to the Flow tab when a flow node gets selected, and back to
-  // 'edit' when the selection is cleared while sitting on the flow tab.
+  // Auto-jump to the Flow tab when an external caller (canvas, etc.) selects
+  // a flow node. We deliberately do NOT switch away when flowNodeId clears —
+  // the Flow tab is permanent now and falls back to the tile's focus node.
   useEffect(() => {
-    if (flowNodeId) {
-      setActiveTab('flow');
-    } else if (activeTab === 'flow') {
-      setActiveTab('edit');
-    }
+    if (flowNodeId) setActiveTab('flow');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flowNodeId]);
+
+  // External `forceFlowTab` pulse — bumped by `useFlowOpenRequest` whenever a
+  // FLOW badge anywhere in the app wants the sidebar to open at the Flow tab.
+  useEffect(() => {
+    if (forceFlowTab && forceFlowTab > 0) setActiveTab('flow');
+  }, [forceFlowTab]);
   const [editTitle, setEditTitle] = useState('');
   const titleDirty = useRef(false);
 
@@ -851,19 +959,17 @@ export function TileSidebar({
             >
               List
             </button>
-            {flowNodeId && (
-              <button
-                onClick={() => setActiveTab('flow')}
-                className={cn(
-                  'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
-                  activeTab === 'flow'
-                    ? 'bg-blue-600/20 text-blue-400'
-                    : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-                )}
-              >
-                Flow
-              </button>
-            )}
+            <button
+              onClick={() => setActiveTab('flow')}
+              className={cn(
+                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
+                activeTab === 'flow'
+                  ? 'bg-blue-600/20 text-blue-400'
+                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+              )}
+            >
+              Flow
+            </button>
           </div>
         )}
         <div className={cn('flex-1 overflow-hidden flex flex-col', activeTab !== 'flow' && 'overflow-y-auto px-3 pb-4 pt-3')}>
@@ -873,12 +979,11 @@ export function TileSidebar({
             <p className="text-xs text-zinc-500 mt-4">Caricamento...</p>
           ) : !tile ? (
             <p className="text-xs text-zinc-500 mt-4">Tile non trovato</p>
-          ) : activeTab === 'flow' && flowNodeId ? (
-            <FlowInspector
-              nodeId={flowNodeId}
+          ) : activeTab === 'flow' ? (
+            <FlowTab
               tileId={tileId}
-              onClose={() => onSelectFlowNode?.(null)}
-              onSelectNode={(id) => onSelectFlowNode?.(id)}
+              externalFlowNodeId={flowNodeId ?? null}
+              onSelectFlowNode={(id) => onSelectFlowNode?.(id)}
             />
           ) : activeTab === 'list' ? (
             <SubtaskList tileId={tileId} />
