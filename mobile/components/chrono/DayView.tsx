@@ -11,7 +11,7 @@
  *   - long-pressed and dragged → snap to a new 15-minute slot via
  *     `onReschedule(id, start_at, end_at)`.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { isSameDay, isToday, minutesFromMidnight } from '@/lib/chrono-utils';
 import { useThemeColors } from '@/lib/theme';
@@ -65,6 +65,35 @@ export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Pr
   const nowOffset =
     (minutesFromMidnight(now) - SLOT_MIN_HOUR * 60) * PX_PER_MINUTE;
 
+  // Auto-scroll: when the displayed day is today (and when the day changes
+  // to a different "today"), centre the scroll on the now indicator so the
+  // current time sits in the middle of the viewport.
+  const scrollRef = useRef<ScrollView>(null);
+  const viewportHeightRef = useRef<number>(0);
+  const didCentreRef = useRef<boolean>(false);
+  useEffect(() => {
+    // Only auto-centre once per `day` change — subsequent re-renders (e.g.
+    // event refetches) must NOT yank the user back to the current time.
+    didCentreRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day.toDateString()]);
+
+  const tryCenter = () => {
+    if (didCentreRef.current) return;
+    if (!isToday(day)) return;
+    const vh = viewportHeightRef.current;
+    if (!vh) return; // wait for onLayout
+    const target = Math.max(0, nowOffset - vh / 2);
+    scrollRef.current?.scrollTo({ y: target, animated: false });
+    didCentreRef.current = true;
+  };
+  // Try after every render — once both nowOffset and viewport are known the
+  // first call wins (didCentreRef gates the rest).
+  useEffect(() => {
+    tryCenter();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  });
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
@@ -75,8 +104,15 @@ export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Pr
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={{ flex: 1 }}
       contentContainerStyle={{ minHeight: bodyHeight + 24 }}
+      onLayout={(e) => {
+        // viewport height of the ScrollView itself — used to centre the
+        // now indicator on first paint.
+        viewportHeightRef.current = e.nativeEvent.layout.height;
+        tryCenter();
+      }}
     >
       {/* All-day row — only rendered when there's at least one all-day event,
           so timed days don't get a wasted band of empty space. */}

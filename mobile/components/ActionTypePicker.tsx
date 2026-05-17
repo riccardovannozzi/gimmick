@@ -19,11 +19,7 @@ import {
   TouchableOpacity,
   type GestureResponderEvent,
 } from 'react-native';
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetView,
-} from '@gorhom/bottom-sheet';
+import { BottomSheetBackdrop, BottomSheetModal } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line, G, Text as SvgText } from 'react-native-svg';
 import {
@@ -252,16 +248,23 @@ export function ActionTypePicker({
       backgroundStyle={{ backgroundColor: colors.background2 }}
       handleIndicatorStyle={{ backgroundColor: colors.tertiary }}
     >
-      <BottomSheetView
+      {/* Plain RN View instead of BottomSheetView — the v5 BottomSheetView
+          fights flex:1 due to its internal layout reporting. flex:1 + column
+          + space-between distributes the three children (top group, dial
+          area, Conferma) along the sheet's full height. */}
+      <View
         style={{
           flex: 1,
           paddingHorizontal: 20,
-          // topInset already pushes the sheet below status bar + TopNav, so
-          // no extra top padding is needed.
           paddingTop: 8,
-          paddingBottom: 16,
+          paddingBottom: Math.max(insets.bottom, 8),
+          justifyContent: 'space-between',
         }}
       >
+        {/* TOP GROUP — Oggi/X row + Tabs. Wrapped so the outer space-between
+            sees a single "top" child, leaving the in-between gap between
+            this group and the tab body. */}
+        <View>
         {/* Top row: "Oggi" shortcut on the left, close X on the right. */}
         <View
           style={{
@@ -298,7 +301,6 @@ export function ActionTypePicker({
             backgroundColor: colors.background1,
             padding: 4,
             borderRadius: 10,
-            marginBottom: 12,
           }}
         >
           <TabButton
@@ -327,9 +329,13 @@ export function ActionTypePicker({
             </>
           )}
         </View>
+        </View>
+        {/* /TOP GROUP */}
 
-        {/* Tab body */}
-        <View style={{ flex: 1 }}>
+        {/* Tab body — content-sized. The outer absolute container uses
+            space-between so this middle child floats midway between the
+            top group and the Conferma button. */}
+        <View>
           {tab === 'date' && (
             <MiniCalendar selected={startDate} onSelect={onSelectDay} colors={colors} />
           )}
@@ -356,7 +362,9 @@ export function ActionTypePicker({
           )}
         </View>
 
-        {/* Confirm — pinned at the bottom regardless of tab. */}
+        {/* Confirm — natural last child of the flex column. The tab body's
+            flex:1 above takes all remaining vertical space, so Conferma
+            ends up flush against the bottom paddingBottom (= insets.bottom). */}
         <TouchableOpacity
           onPress={handleConfirm}
           style={{
@@ -364,12 +372,11 @@ export function ActionTypePicker({
             borderRadius: 12,
             paddingVertical: 14,
             alignItems: 'center',
-            marginTop: 12,
           }}
         >
           <Text style={{ fontSize: 15, fontWeight: '600', color: '#000' }}>Conferma</Text>
         </TouchableOpacity>
-      </BottomSheetView>
+      </View>
     </BottomSheetModal>
   );
 }
@@ -552,8 +559,8 @@ function MiniCalendar({
  *   - Minute mode: single ring of 12 marks, each = 5 minutes (00, 05, … 55).
  *
  * The big HH:MM header above the dial is the mode toggle — tap HH to edit
- * hour, tap MM to edit minute. After picking an hour the dial auto-advances
- * to minute mode (Material UX).
+ * hour, tap MM to edit minute. (No auto-advance from hour to minute: it
+ * confused the drag gesture by flipping mode mid-drag.)
  *
  * `showDuration` appends the duration chips below the dial — used only on
  * the INIZIO tab; FINE picks an independent end time.
@@ -581,6 +588,9 @@ function TimePane({
   const [clockMode, setClockMode] = useState<'hour' | 'minute'>('hour');
 
   return (
+    // Content-sized container — the outer picker uses justifyContent:
+    // space-between on its 3 children, so TimePane itself floats midway
+    // between the tab buttons and the Conferma button.
     <View>
       {/* Big HH:MM — tap each part to switch the dial mode. */}
       <View
@@ -589,7 +599,7 @@ function TimePane({
           alignItems: 'center',
           justifyContent: 'center',
           gap: 4,
-          marginBottom: 8,
+          marginBottom: 16,
         }}
       >
         <TouchableOpacity onPress={() => setClockMode('hour')} hitSlop={8}>
@@ -625,18 +635,17 @@ function TimePane({
         mode={clockMode}
         hour={hour}
         minute={minute}
-        onPickHour={(h) => {
-          onPickHour(h);
-          // Auto-advance to minute mode after the first hour pick — matches
-          // Material's two-step flow. The user can still tap HH to go back.
-          setClockMode('minute');
-        }}
+        // No auto-advance: during a drag, switching modes mid-gesture would
+        // make subsequent onResponderMove events update the wrong value
+        // (e.g. dragging on the hour ring starts editing minutes). User
+        // toggles HH/MM by tapping the header above.
+        onPickHour={onPickHour}
         onPickMinute={onPickMinute}
         colors={colors}
       />
 
       {showDuration && onSelectDuration && (
-        <View style={{ marginTop: 12 }}>
+        <View style={{ marginTop: 16 }}>
           <Text style={{ fontSize: 11, color: colors.tertiary, marginBottom: 4 }}>
             DURATA
           </Text>
@@ -677,13 +686,13 @@ function TimePane({
 
 // ─── Analog clock dial ─────────────────────────────────────────────────────
 
-const DIAL_SIZE = 280;
-const DIAL_OUTER_R = 124;
-const DIAL_INNER_R = 86;
-const DIAL_LABEL_R_OUTER = 124;
-const DIAL_LABEL_R_INNER = 86;
-const DIAL_MINUTE_R = 124;
-const DIAL_TICK_R = 6;
+// All radii scale together — bumped from 280 → 340 to fill more of the
+// (post-padding) sheet width on a typical phone.
+const DIAL_SIZE = 340;
+// Hours sit on a single outer ring of 24 ticks. Minutes use the inner ring
+// (12 ticks, 5-minute step) so the two modes look visually distinct.
+const DIAL_LABEL_R_OUTER = 150;
+const DIAL_MINUTE_R = 104;
 
 /**
  * SVG clock face wrapped in a Pan gesture. Computes the touch angle relative
@@ -725,20 +734,18 @@ function ClockDial({
       const { mode: curMode, onPickHour: pickH, onPickMinute: pickM } = stateRef.current;
       const dx = tx - cx;
       const dy = ty - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy);
       // Angle: atan2 returns -π..π with 0 at the 3-o'clock side. Shift so 0
       // is at the top (12 o'clock) and clockwise increases the angle.
       let theta = Math.atan2(dy, dx) + Math.PI / 2;
       if (theta < 0) theta += 2 * Math.PI;
 
       if (curMode === 'hour') {
-        const slot = Math.round((theta / (2 * Math.PI)) * 12) % 12; // 0..11
-        const mid = (DIAL_OUTER_R + DIAL_INNER_R) / 2;
-        const isOuter = dist > mid;
-        const newHour = isOuter ? slot : slot === 0 ? 12 : slot + 12;
-        pickH(newHour);
+        // Single 24-slot ring — angle maps directly to hour 0-23.
+        const slot = Math.round((theta / (2 * Math.PI)) * 24) % 24;
+        pickH(slot);
       } else {
-        const slot = Math.round((theta / (2 * Math.PI)) * 12) % 12; // 0..11
+        // 12 slots × 5 min each.
+        const slot = Math.round((theta / (2 * Math.PI)) * 12) % 12;
         pickM(slot * 5);
       }
     },
@@ -752,25 +759,22 @@ function ClockDial({
     [handleTouch],
   );
 
-  // Slot index (0-11) of the current selection on its ring.
-  const slotIndex = mode === 'hour' ? hour % 12 : Math.round(minute / 5) % 12;
-  const isInnerRing = mode === 'hour' && hour >= 12;
-  const handR = mode === 'minute'
-    ? DIAL_MINUTE_R
-    : isInnerRing
-    ? DIAL_LABEL_R_INNER
-    : DIAL_LABEL_R_OUTER;
+  // Slot index of the current selection on its ring.
+  //   hour mode   → 24 slots, slot == hour
+  //   minute mode → 12 slots, slot == minute/5
+  const totalSlots = mode === 'hour' ? 24 : 12;
+  const slotIndex = mode === 'hour' ? hour : Math.round(minute / 5) % 12;
+  const handR = mode === 'minute' ? DIAL_MINUTE_R : DIAL_LABEL_R_OUTER;
 
   // Cartesian coord for the tick of the given slot (0=top, clockwise).
-  const slotCoord = (slot: number, r: number) => {
-    const angle = slot * (Math.PI / 6) - Math.PI / 2;
+  const slotCoord = (slot: number, total: number, r: number) => {
+    const angle = (slot / total) * 2 * Math.PI - Math.PI / 2;
     return { x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
   };
-  const handEnd = slotCoord(slotIndex, handR);
+  const handEnd = slotCoord(slotIndex, totalSlots, handR);
 
-  // Labels around the rings.
-  const outerLabels = ['00', '01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11'];
-  const innerLabels = ['12', '13', '14', '15', '16', '17', '18', '19', '20', '21', '22', '23'];
+  // 24 hour labels on a single ring; 12 minute labels at 5-min steps.
+  const hourLabels = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
   const minuteLabels = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
 
   return (
@@ -808,44 +812,27 @@ function ClockDial({
             <Circle cx={cx} cy={cy} r={4} fill="#60A5FA" />
             <Circle cx={handEnd.x} cy={handEnd.y} r={20} fill="#60A5FA" />
 
-            {/* Labels */}
+            {/* Labels — a single ring of either 24 hours or 12 five-minute
+                marks (no more concentric inner ring). */}
             <G>
-              {(mode === 'hour' ? outerLabels : minuteLabels).map((label, i) => {
-                const { x, y } = slotCoord(
-                  i,
-                  mode === 'hour' ? DIAL_LABEL_R_OUTER : DIAL_MINUTE_R,
-                );
-                const selected =
-                  mode === 'hour'
-                    ? !isInnerRing && i === slotIndex
-                    : i === slotIndex;
+              {(mode === 'hour' ? hourLabels : minuteLabels).map((label, i) => {
+                const r = mode === 'hour' ? DIAL_LABEL_R_OUTER : DIAL_MINUTE_R;
+                const { x, y } = slotCoord(i, totalSlots, r);
+                const selected = i === slotIndex;
                 return (
                   <DialLabel
-                    key={`outer-${i}`}
+                    key={`hour-${i}`}
                     x={x}
                     y={y}
                     label={label}
                     selected={selected}
                     color={colors.primary}
+                    // 24 hour labels packed tighter than 12 minutes — shrink
+                    // the type in hour mode so they don't overlap.
+                    small={mode === 'hour'}
                   />
                 );
               })}
-              {mode === 'hour' &&
-                innerLabels.map((label, i) => {
-                  const { x, y } = slotCoord(i, DIAL_LABEL_R_INNER);
-                  const selected = isInnerRing && i === slotIndex;
-                  return (
-                    <DialLabel
-                      key={`inner-${i}`}
-                      x={x}
-                      y={y}
-                      label={label}
-                      selected={selected}
-                      color={colors.secondary}
-                      small
-                    />
-                  );
-                })}
             </G>
 
             {/* Centre dot on top to keep the hand origin tidy. */}
