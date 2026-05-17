@@ -17,7 +17,6 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as TablerIcons from '@tabler/icons-react-native';
 import {
-  IconArrowLeft,
   IconTrash,
   IconBolt,
   IconClock,
@@ -41,8 +40,12 @@ import {
   IconMovie,
   IconFile,
 } from '@tabler/icons-react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
+import { TopNav } from '@/components/layout/TopNav';
+import { TileHeaderNav } from '@/components/layout/TileHeaderNav';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
+import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
 import { useThemeColors } from '@/lib/theme';
 import { tilesApi, sparksApi, statusesApi, typeIconsApi, uploadApi, tagsApi, tagTypesApi, type StatusEntity, type TypeIconEntity, type TagTypeEntity } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
@@ -176,14 +179,6 @@ export default function TileDetailScreen() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [title]);
-
-  const deleteMutation = useMutation({
-    mutationFn: () => tilesApi.delete(id!),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tiles'] });
-      router.back();
-    },
-  });
 
   // ─── Type icons (per-user list + current tile assignment) ───
   const typeIconsQuery = useQuery({
@@ -398,9 +393,17 @@ export default function TileDetailScreen() {
   const showTimeRow = actionKey === 'timed';
   const primaryTag = (tile?.tags ?? []).find((t) => !t.is_root && t.name !== 'GIMMICK') ?? null;
 
+  // Swipe-left → LIST, swipe-right → back to the previous screen (tile list).
+  // Mirrors the arrow buttons in the header.
+  const swipe = useHorizontalSwipe({
+    onSwipeLeft: () => router.push(`/tile/${id}/list` as any),
+    onSwipeRight: () => router.back(),
+  });
+
   if (tileQuery.isLoading || !tile) {
     return (
-      <SafeAreaWrapper>
+      <SafeAreaWrapper edges={['bottom']}>
+        <TopNav activePath="/history" />
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator size="large" color={colors.accent} />
         </View>
@@ -409,34 +412,19 @@ export default function TileDetailScreen() {
   }
 
   return (
-    <SafeAreaWrapper>
+    <SafeAreaWrapper edges={['bottom']}>
+      <TopNav activePath="/history" />
+      <GestureDetector gesture={swipe}>
       <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            paddingHorizontal: 12,
-            paddingVertical: 12,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
-          }}
-        >
-          <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={{ padding: 6 }}>
-            <IconArrowLeft size={22} color={colors.primary} />
-          </TouchableOpacity>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: colors.tertiary, letterSpacing: 0.5 }}>
-            TILE
-          </Text>
-          <TouchableOpacity
-            onPress={() => deleteMutation.mutate()}
-            hitSlop={10}
-            style={{ padding: 6 }}
-          >
-            <IconTrash size={20} color="#EF4444" />
-          </TouchableOpacity>
-        </View>
+        {/* Header — TILES (square) | EDIT (active) | LIST | FLOW */}
+        <TileHeaderNav
+          colors={colors}
+          active="edit"
+          onTiles={() => router.replace('/history' as any)}
+          onEdit={() => { /* already here */ }}
+          onList={() => router.push(`/tile/${id}/list` as any)}
+          onFlow={() => router.push(`/tile/${id}/flow` as any)}
+        />
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
           {/* Title */}
@@ -988,6 +976,7 @@ export default function TileDetailScreen() {
           </View>
         </Modal>
       </View>
+      </GestureDetector>
     </SafeAreaWrapper>
   );
 }

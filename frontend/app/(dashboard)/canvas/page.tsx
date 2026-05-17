@@ -169,9 +169,10 @@ export default function CanvasPage() {
   // Resizable splitter between StagingPanel and the canvas column. The width
   // is persisted to localStorage so it survives reloads; default mirrors the
   // previous `w-44` (176px) value.
-  const STAGING_MIN_W = 176;
+  const STAGING_MIN_W = 146;
   const STAGING_MAX_W = 700;
   const [stagingWidth, setStagingWidth] = useState<number>(176);
+  const [stagingOpen, setStagingOpen] = useState<boolean>(true);
   useEffect(() => {
     try {
       const raw = localStorage.getItem('canvas_staging_width');
@@ -181,7 +182,16 @@ export default function CanvasPage() {
           setStagingWidth(Math.min(STAGING_MAX_W, Math.max(STAGING_MIN_W, n)));
         }
       }
+      const openRaw = localStorage.getItem('canvas_staging_open');
+      if (openRaw === '0') setStagingOpen(false);
     } catch { /* */ }
+  }, []);
+  const toggleStagingOpen = useCallback(() => {
+    setStagingOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem('canvas_staging_open', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
   }, []);
   const handleStagingResizeStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -652,18 +662,30 @@ export default function CanvasPage() {
           selectedTileId={selectedTileId}
           isDropTargetHover={stagingDropHover}
           width={stagingWidth}
+          open={stagingOpen}
+          onToggle={toggleStagingOpen}
           onTileClick={(id) => { setSelectedTileId(id); setSidebarOpen(true); }}
         />
         {/* Resizable splitter between Staging and Canvas. The handle is 4px
             wide with a transparent hit area that widens via padding so the
-            grab zone is comfortable. */}
-        <div
-          role="separator"
-          aria-orientation="vertical"
-          onMouseDown={handleStagingResizeStart}
-          className="w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10"
-          title="Trascina per ridimensionare"
-        />
+            grab zone is comfortable. Hidden when staging is collapsed — the
+            thin strip has a fixed width and there's nothing to resize. */}
+        {stagingOpen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={handleStagingResizeStart}
+            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            title="Trascina per ridimensionare"
+          >
+            {/* Maniglietta visibile a metà altezza — segnala la possibilità
+                di trascinare il bordo per allargare/restringere lo staging. */}
+            <div
+              aria-hidden
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+            />
+          </div>
+        )}
         <div className="flex-1 flex flex-col overflow-hidden">
           <CanvasTopbar
             tag={tag}

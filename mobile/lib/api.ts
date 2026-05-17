@@ -1,4 +1,19 @@
-import type { Spark, SparkType, BufferItem, Tile, Tag } from '@/types';
+import type {
+  Spark,
+  SparkType,
+  BufferItem,
+  Tile,
+  Tag,
+  Subtask,
+  Contact,
+  ContactKind,
+  FlowGraph,
+  FlowNode,
+  FlowNodeState,
+  FlowEdge,
+  FlowHubItem,
+  FlowHubFilter,
+} from '@/types';
 import Constants from 'expo-constants';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
@@ -446,6 +461,122 @@ export interface TagTypeEntity {
 export const tagTypesApi = {
   async list() {
     return apiRequest<TagTypeEntity[]>('/api/tag-types');
+  },
+};
+
+// ============ Contacts API ============
+
+export const contactsApi = {
+  async list(opts?: { archived?: boolean }) {
+    const q = opts?.archived ? '?archived=true' : '';
+    return apiRequest<Contact[]>(`/api/contacts${q}`);
+  },
+  async create(body: {
+    name: string;
+    kind?: ContactKind;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    color?: string;
+    avatar_url?: string;
+  }) {
+    return apiRequest<Contact>('/api/contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async update(id: string, updates: Partial<Pick<Contact, 'name' | 'kind' | 'phone' | 'email' | 'notes' | 'color' | 'avatar_url'>>) {
+    return apiRequest<Contact>(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async remove(id: string) {
+    return apiRequest(`/api/contacts/${id}`, { method: 'DELETE' });
+  },
+  async archive(id: string) {
+    return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
+  },
+};
+
+// ============ Flow API ============
+
+export const flowApi = {
+  async getByTile(tileId: string) {
+    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
+  },
+  async createNode(
+    tileId: string,
+    body: {
+      label?: string;
+      state?: FlowNodeState;
+      contact_id?: string | null;
+      occurred_at?: string | null;
+      scheduled_at?: string | null;
+      notes?: string | null;
+      parent_node_id?: string;
+      x?: number | null;
+      y?: number | null;
+    },
+  ) {
+    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+      `/api/tiles/${tileId}/flow/nodes`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  },
+  async updateNode(
+    id: string,
+    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>,
+  ) {
+    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async deleteNode(id: string) {
+    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
+  },
+  async createEdge(body: { parent_id: string; child_id: string }) {
+    return apiRequest<FlowEdge>('/api/flow/edges', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
+  },
+  /** Cross-tile inbox of pending flow nodes. Mounted at /api/flows. */
+  async hub(filter: FlowHubFilter) {
+    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
+  },
+};
+
+// ============ Subtasks API ============
+
+export const subtasksApi = {
+  async list(tileId: string) {
+    return apiRequest<Subtask[]>(`/api/subtasks?tile_id=${encodeURIComponent(tileId)}`);
+  },
+  async create(data: { tile_id: string; content?: string; is_done?: boolean }) {
+    return apiRequest<Subtask>('/api/subtasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+    return apiRequest<Subtask>(`/api/subtasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async delete(id: string) {
+    return apiRequest(`/api/subtasks/${id}`, { method: 'DELETE' });
+  },
+  async reorder(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/subtasks/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    });
   },
 };
 

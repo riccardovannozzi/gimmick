@@ -9,7 +9,7 @@ import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid, IconRoute } from '@tabler/icons-react';
+import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid, IconRoute, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -293,6 +293,98 @@ export default function CalendarPage() {
   const [todoFilter, setTodoFilter] = useState<TodoFilter>('all');
   const [todoGroup, setTodoGroup] = useState<TodoGroup>('none');
   const [todoMenuOpen, setTodoMenuOpen] = useState<'sort' | 'filter' | 'group' | null>(null);
+
+  // Collapse/expand for NOTES and TODO columns — mirrors the Canvas
+  // StagingPanel pattern: narrow w-8 strip when collapsed, full column when
+  // expanded. Preferences persisted to localStorage.
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [todoOpen, setTodoOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('chrono_notes_open') === '0') setNotesOpen(false);
+      if (localStorage.getItem('chrono_todo_open') === '0') setTodoOpen(false);
+    } catch { /* */ }
+  }, []);
+  const toggleNotesOpen = useCallback(() => {
+    setNotesOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem('chrono_notes_open', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+  const toggleTodoOpen = useCallback(() => {
+    setTodoOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem('chrono_todo_open', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+
+  // Resizable widths for NOTES and TODO columns. Same bounds + defaults as
+  // the Canvas StagingPanel (min 146, max 700, default 176), with persisted
+  // localStorage. CALENDAR column has flex-1 so it absorbs the leftover.
+  const COL_MIN_W = 146;
+  const COL_MAX_W = 700;
+  const [notesWidth, setNotesWidth] = useState<number>(176);
+  const [todoWidth, setTodoWidth] = useState<number>(176);
+  useEffect(() => {
+    try {
+      const n = localStorage.getItem('chrono_notes_width');
+      if (n) {
+        const v = parseInt(n, 10);
+        if (Number.isFinite(v)) setNotesWidth(Math.min(COL_MAX_W, Math.max(COL_MIN_W, v)));
+      }
+      const t = localStorage.getItem('chrono_todo_width');
+      if (t) {
+        const v = parseInt(t, 10);
+        if (Number.isFinite(v)) setTodoWidth(Math.min(COL_MAX_W, Math.max(COL_MIN_W, v)));
+      }
+    } catch { /* */ }
+  }, []);
+  const handleNotesResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = notesWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(COL_MAX_W, Math.max(COL_MIN_W, startW + (ev.clientX - startX)));
+      lastW = w;
+      setNotesWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('chrono_notes_width', String(Math.round(lastW))); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [notesWidth]);
+  const handleTodoResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = todoWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(COL_MAX_W, Math.max(COL_MIN_W, startW + (ev.clientX - startX)));
+      lastW = w;
+      setTodoWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('chrono_todo_width', String(Math.round(lastW))); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [todoWidth]);
 
   // Fetch events
   const { data: eventsData, isLoading } = useQuery({
@@ -844,6 +936,93 @@ export default function CalendarPage() {
     }
   }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient, assignIcon]);
 
+  // Render a tile card for the NOTES / TO DO columns. Mirrors the Canvas
+  // StagingPanel tile look (type-icon-tinted bg, 2-line clamp, FLOW badge
+  // as an overlay outside the rounded body) so the two pages stay visually
+  // in sync. `dimmedClass` is column-specific: NOTES dims tiles outside the
+  // active tag filter, TODO dims completed ones — the caller computes it.
+  const renderColumnTile = (t: Tile, dimmedClass?: string | false) => {
+    const color = getTagColor(t);
+    const shape = resolveShape(t);
+    const si = getIconForTile(t.id);
+    const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
+    const hasFlow = tilesWithFlows.has(t.id);
+    const actionKey = t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
+    const actionColor = actionKey === 'none'
+      ? '#e4e4e7'
+      : (actionColors[actionKey as keyof typeof actionColors] || '#888780');
+    return (
+      <div
+        key={t.id}
+        className="relative shrink-0"
+        style={{ width: 130, breakInside: 'avoid', marginBottom: 6 }}
+      >
+        <div
+          draggable
+          data-tile-id={t.id}
+          onDragStart={(e) => onDragStart(e, t)}
+          onDragEnd={onDragEnd}
+          className={cn(
+            'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+            t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
+            selectedTileId === t.id && 'ring-2 ring-blue-500',
+            dimmedClass,
+          )}
+          style={{ backgroundColor: tileBg, width: 130, height: 90 }}
+          onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+          onContextMenu={(e) => onTileContextMenu(e, t)}
+        >
+          <div className="relative h-full flex flex-col p-1.5">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <p
+                className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]"
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {t.title || 'Senza titolo'}
+              </p>
+            </div>
+            <div className="mt-auto relative z-10">
+              {t.subtasks && t.subtasks.length > 0 && (
+                <div className="mb-2">
+                  <ChecklistBar items={t.subtasks} availableWidth={118} />
+                </div>
+              )}
+              <div className="flex items-end justify-between gap-1">
+                <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+              </div>
+            </div>
+            {shape !== 'solid' && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
+                <svg className="w-full h-full">
+                  <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
+                </svg>
+              </div>
+            )}
+          </div>
+        </div>
+        {hasFlow && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDragStart={(e) => e.stopPropagation()}
+            className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+            title="Apri Flow"
+          >
+            FLOW
+          </button>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
       <Header title="Chrono" />
@@ -869,23 +1048,59 @@ export default function CalendarPage() {
               Tile
             </button>
           </div>
-          {/* Columns container */}
-          <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
+          {/* Columns container — NOTES, TODO and CALENDAR sit flush against
+              each other separated by draggable splitters (same layout as the
+              Canvas page). No padding or gap so the splitters drive the
+              visual seam. */}
+          <div className="flex-1 flex overflow-hidden bg-zinc-950">
 
         {/* 2 — COLONNA NOTES */}
         <div
           data-kanban-column="notes"
-          className={cn('shrink-0 w-[162px] flex flex-col rounded bg-[#1f1f22] overflow-hidden', dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50')}
+          style={notesOpen ? { width: notesWidth } : undefined}
+          className={cn(
+            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
+            !notesOpen && 'w-8',
+            dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50'
+          )}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
           onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
           onContextMenu={(e) => {
+            if (!notesOpen) return;
             if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
             e.preventDefault();
             setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'notes' });
           }}
         >
-          <div className="h-8 flex items-center gap-1.5 px-2 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+          {!notesOpen ? (
+            // Collapsed: thin strip with expand button + count. Outer div keeps
+            // the drop handlers so dropping an event here still unschedules it.
+            <>
+              <button
+                onClick={toggleNotesOpen}
+                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
+                style={{ backgroundColor: `${actionColors.none}15` }}
+                title="Espandi NOTES"
+              >
+                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+              {processedNotes.length > 0 && (
+                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
+                  <span className="text-[10px] tabular-nums">{processedNotes.length}</span>
+                </div>
+              )}
+            </>
+          ) : (
+          <>
+          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+            <button
+              onClick={toggleNotesOpen}
+              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              title="Collassa NOTES"
+            >
+              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+            </button>
             <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
             <div className="flex items-center gap-0.5 ml-auto">
@@ -939,147 +1154,93 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-1.5 flex flex-col items-center gap-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {groupedNotes ? (
-              Object.entries(groupedNotes).map(([group, tiles]) => (
+              <div className="space-y-3">
+              {Object.entries(groupedNotes).map(([group, tiles]) => (
                 <div key={group}>
                   <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
-                  {tiles.map((t) => {
-                    const color = getTagColor(t);
-                    const info = getTagInfo(t);
-                    const shape = resolveShape(t);
-                    const si = getIconForTile(t.id);
-                    return (
-                      <div
-                        key={t.id}
-                        draggable
-                        data-tile-id={t.id}
-                    onDragStart={(e) => onDragStart(e, t)}
-                        onDragEnd={onDragEnd}
-                        className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border',
-                          t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-                          selectedTileId === t.id && 'ring-2 ring-blue-500',
-                          isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
-                        )}
-                        style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
-                        onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                        onContextMenu={(e) => onTileContextMenu(e, t)}
-                      >
-                        <div className="relative h-full flex flex-col p-1.5">
-                          <div className="flex-1 min-h-0 overflow-hidden">
-                            <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
-                          </div>
-                          <div className="mt-auto relative z-10">
-                            {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mb-2">
-                                <ChecklistBar items={t.subtasks} availableWidth={118} />
-                              </div>
-                            )}
-                            <div className="flex items-end justify-between">
-                              <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                              {tilesWithFlows.has(t.id) && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
-                                  title="Apri Flow"
-                                >FLOW</button>
-                              )}
-                              {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
-                            </div>
-                          </div>
-                          {shape !== 'solid' && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                              <svg className="w-full h-full">
-                                <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
-            ) : (
-              processedNotes.map((t) => {
-                const color = getTagColor(t);
-                const info = getTagInfo(t);
-                const shape = resolveShape(t);
-                const si = getIconForTile(t.id);
-                return (
-                  <div
-                    key={t.id}
-                    draggable
-                    data-tile-id={t.id}
-                    onDragStart={(e) => onDragStart(e, t)}
-                    onDragEnd={onDragEnd}
-                    className={cn(
-                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-                      t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-                      selectedTileId === t.id && 'ring-2 ring-blue-500',
-                      isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'
-                    )}
-                    style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
-                    onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                    onContextMenu={(e) => onTileContextMenu(e, t)}
-                  >
-                    <div className="relative h-full flex flex-col p-1.5">
-                      <div className="flex-1 min-h-0 overflow-hidden">
-                        <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
-                      </div>
-                      <div className="mt-auto relative z-10">
-                        {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mb-2">
-                            <ChecklistBar items={t.subtasks} availableWidth={118} />
-                          </div>
-                        )}
-                        <div className="flex items-end justify-between">
-                          <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                          {tilesWithFlows.has(t.id) && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
-                              title="Apri Flow"
-                            >FLOW</button>
-                          )}
-                          {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
-                        </div>
-                      </div>
-                      {shape !== 'solid' && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                          <svg className="w-full h-full">
-                            <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                  <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+                  {tiles.map((t) => renderColumnTile(t, isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'))}
                   </div>
-                );
-              })
+                </div>
+              ))}
+              </div>
+            ) : (
+              <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+              {processedNotes.map((t) => renderColumnTile(t, isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'))}
+              </div>
             )}
             {processedNotes.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun appunto</span>}
           </div>
+          </>
+          )}
         </div>
+
+        {/* Splitter NOTES → TODO. Hidden when NOTES is collapsed (the strip
+            has a fixed w-8 so there's nothing to resize). */}
+        {notesOpen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={handleNotesResizeStart}
+            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            title="Trascina per ridimensionare"
+          >
+            <div
+              aria-hidden
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+            />
+          </div>
+        )}
 
         {/* 3 — COLONNA TODO */}
         <div
           data-kanban-column="todo"
-          className={cn('shrink-0 w-[162px] flex flex-col rounded bg-[#1f1f22] overflow-hidden', dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50')}
+          style={todoOpen ? { width: todoWidth } : undefined}
+          className={cn(
+            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
+            !todoOpen && 'w-8',
+            dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50'
+          )}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
           onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
           onContextMenu={(e) => {
+            if (!todoOpen) return;
             if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
             e.preventDefault();
             setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'todo' });
           }}
         >
-          <div className="h-8 flex items-center gap-1.5 px-2 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+          {!todoOpen ? (
+            // Collapsed: thin strip with expand button + count. Outer div keeps
+            // the drop handlers so dropping an event here still unschedules it.
+            <>
+              <button
+                onClick={toggleTodoOpen}
+                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
+                style={{ backgroundColor: `${actionColors.anytime}15` }}
+                title="Espandi TO DO"
+              >
+                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+              {processedTodos.length > 0 && (
+                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
+                  <span className="text-[10px] tabular-nums">{processedTodos.length}</span>
+                </div>
+              )}
+            </>
+          ) : (
+          <>
+          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+            <button
+              onClick={toggleTodoOpen}
+              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              title="Collassa TO DO"
+            >
+              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+            </button>
             <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
             <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
             <div className="flex items-center gap-0.5 ml-auto">
@@ -1133,132 +1294,44 @@ export default function CalendarPage() {
               </div>
             </div>
           </div>
-          <div className="flex-1 overflow-y-auto p-1.5 flex flex-col items-center gap-1 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {groupedTodos ? (
-              Object.entries(groupedTodos).map(([group, tiles]) => (
+              <div className="space-y-3">
+              {Object.entries(groupedTodos).map(([group, tiles]) => (
                 <div key={group}>
                   <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
-                  {tiles.map((t) => {
-                    const color = getTagColor(t);
-                    const info = getTagInfo(t);
-                    const shape = resolveShape(t);
-                    const si = getIconForTile(t.id);
-                    return (
-                      <div
-                        key={t.id}
-                        draggable
-                        data-tile-id={t.id}
-                    onDragStart={(e) => onDragStart(e, t)}
-                        onDragEnd={onDragEnd}
-                        className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all mb-1 border',
-                          t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-                          selectedTileId === t.id && 'ring-2 ring-blue-500',
-                          isDone(t) && 'opacity-50',
-                        )}
-                        style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
-                        onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                        onContextMenu={(e) => onTileContextMenu(e, t)}
-                      >
-                        <div className="relative h-full flex flex-col p-1.5">
-                          <div className="flex-1 min-h-0 overflow-hidden">
-                            <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
-                          </div>
-                          <div className="mt-auto relative z-10">
-                            {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mb-2">
-                                <ChecklistBar items={t.subtasks} availableWidth={118} />
-                              </div>
-                            )}
-                            <div className="flex items-end justify-between">
-                              <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                              {tilesWithFlows.has(t.id) && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
-                                  onMouseDown={(e) => e.stopPropagation()}
-                                  className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
-                                  title="Apri Flow"
-                                >FLOW</button>
-                              )}
-                              {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
-                            </div>
-                          </div>
-                          {shape !== 'solid' && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                              <svg className="w-full h-full">
-                                <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
-            ) : (
-              processedTodos.map((t) => {
-                const color = getTagColor(t);
-                const info = getTagInfo(t);
-                const shape = resolveShape(t);
-                const si = getIconForTile(t.id);
-                return (
-                  <div
-                    key={t.id}
-                    draggable
-                    data-tile-id={t.id}
-                    onDragStart={(e) => onDragStart(e, t)}
-                    onDragEnd={onDragEnd}
-                    className={cn(
-                      'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-                      t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-                      selectedTileId === t.id && 'ring-2 ring-blue-500',
-                      isDone(t) && 'opacity-50',
-                    )}
-                    style={{ backgroundColor: '#1C1C1E', width: 130, height: 90 }}
-                    onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
-                    onContextMenu={(e) => onTileContextMenu(e, t)}
-                  >
-                    <div className="relative h-full flex flex-col p-1.5">
-                      <div className="flex-1 min-h-0 overflow-hidden">
-                        <p className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]" style={{ display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}>{t.title || 'Senza titolo'}</p>
-                      </div>
-                      <div className="mt-auto relative z-10">
-                        {t.subtasks && t.subtasks.length > 0 && (
-                          <div className="mb-2">
-                            <ChecklistBar items={t.subtasks} availableWidth={118} />
-                          </div>
-                        )}
-                        <div className="flex items-end justify-between">
-                          <ActionIconBadge actionKey={t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')} color={(t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none')) === 'none' ? '#e4e4e7' : (actionColors[t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none') as keyof typeof actionColors] || '#888780')} />
-                          {tilesWithFlows.has(t.id) && (
-                            <button
-                              type="button"
-                              onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
-                              onMouseDown={(e) => e.stopPropagation()}
-                              className="px-1 py-px rounded text-[8px] font-bold tracking-wider text-blue-100 bg-blue-700 hover:bg-blue-600 border border-blue-400 leading-none shrink-0 mx-1 cursor-pointer transition-colors"
-                              title="Apri Flow"
-                            >FLOW</button>
-                          )}
-                          {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
-                        </div>
-                      </div>
-                      {shape !== 'solid' && (
-                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                          <svg className="w-full h-full">
-                            <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
-                          </svg>
-                        </div>
-                      )}
-                    </div>
+                  <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+                  {tiles.map((t) => renderColumnTile(t, isDone(t) && 'opacity-50'))}
                   </div>
-                );
-              })
+                </div>
+              ))}
+              </div>
+            ) : (
+              <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+              {processedTodos.map((t) => renderColumnTile(t, isDone(t) && 'opacity-50'))}
+              </div>
             )}
             {processedTodos.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun task</span>}
           </div>
+          </>
+          )}
         </div>
+
+        {/* Splitter TODO → CALENDAR. Hidden when TODO is collapsed. */}
+        {todoOpen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={handleTodoResizeStart}
+            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            title="Trascina per ridimensionare"
+          >
+            <div
+              aria-hidden
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+            />
+          </div>
+        )}
 
         {/* 4 — COLONNA CALENDAR (kanban-style, flex-1) */}
         <div className="flex-1 min-w-0 flex flex-col rounded bg-[#1f1f22] overflow-hidden">
