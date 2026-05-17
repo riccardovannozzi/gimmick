@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Circle, Zap, Clock, Calendar, Sparkles, Save } from 'lucide-react';
+import { IconCircle, IconBolt, IconClock, IconCalendar, IconSparkles, IconDeviceFloppy } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
+
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -23,15 +23,15 @@ import type { Tile, ActionType, Tag } from '@/types';
 const ACTION_TYPE_CONFIG: {
   value: ActionType;
   label: string;
-  icon: typeof Circle;
+  icon: typeof IconCircle;
   color: string;
   bgColor: string;
   borderColor: string;
 }[] = [
-  { value: 'none', label: 'Appunto', icon: Circle, color: 'text-zinc-400', bgColor: 'bg-zinc-800', borderColor: 'border-zinc-600' },
-  { value: 'anytime', label: 'Da fare', icon: Zap, color: 'text-green-400', bgColor: 'bg-green-500/15', borderColor: 'border-green-500/40' },
-  { value: 'deadline', label: 'Scadenza', icon: Clock, color: 'text-amber-400', bgColor: 'bg-amber-500/15', borderColor: 'border-amber-500/40' },
-  { value: 'event', label: 'Evento', icon: Calendar, color: 'text-blue-400', bgColor: 'bg-blue-500/15', borderColor: 'border-blue-500/40' },
+  { value: 'none', label: 'Appunto', icon: IconCircle, color: 'text-zinc-400', bgColor: 'bg-zinc-800', borderColor: 'border-zinc-600' },
+  { value: 'anytime', label: 'Da fare', icon: IconBolt, color: 'text-green-400', bgColor: 'bg-green-500/15', borderColor: 'border-green-500/40' },
+  { value: 'deadline', label: 'Scadenza', icon: IconClock, color: 'text-amber-400', bgColor: 'bg-amber-500/15', borderColor: 'border-amber-500/40' },
+  { value: 'event', label: 'Evento', icon: IconCalendar, color: 'text-blue-400', bgColor: 'bg-blue-500/15', borderColor: 'border-blue-500/40' },
 ];
 
 interface TileDetailModalProps {
@@ -44,7 +44,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
   const [actionType, setActionType] = useState<ActionType>('none');
   const [startAt, setStartAt] = useState('');
   const [endAt, setEndAt] = useState('');
@@ -60,7 +59,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   useEffect(() => {
     if (tile) {
       setTitle(tile.title || '');
-      setDescription(tile.description || '');
       setActionType(tile.action_type || 'none');
       setStartAt(tile.start_at ? toLocalDatetime(tile.start_at) : '');
       setEndAt(tile.end_at ? toLocalDatetime(tile.end_at) : '');
@@ -73,7 +71,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
       if (!tile) return;
       const updates: Record<string, unknown> = {
         title: title || undefined,
-        description: description || undefined,
         action_type: actionType,
       };
       if (actionType === 'event' || actionType === 'deadline') {
@@ -142,7 +139,7 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                 onClick={() => setActionType(tile.action_type_ai!)}
                 className="mt-2 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
               >
-                <Sparkles className="h-3 w-3" />
+                <IconSparkles className="h-3 w-3" />
                 AI suggerisce: {ACTION_TYPE_CONFIG.find((c) => c.value === tile.action_type_ai)?.label} ({aiConfidencePercent}%)
               </button>
             )}
@@ -157,19 +154,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titolo tile..."
               className="mt-1 bg-zinc-800 border-zinc-700 text-white"
-            />
-          </div>
-
-          {/* Description */}
-          <div>
-            <Label htmlFor="tile-desc" className="text-xs text-zinc-400">Descrizione</Label>
-            <Textarea
-              id="tile-desc"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descrizione..."
-              rows={2}
-              className="mt-1 bg-zinc-800 border-zinc-700 text-white resize-none"
             />
           </div>
 
@@ -211,12 +195,11 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                   <button
                     key={tag.id}
                     onClick={() => {
-                      setSelectedTagIds((prev) => {
-                        const next = new Set(prev);
-                        if (isSelected) next.delete(tag.id);
-                        else next.add(tag.id);
-                        return next;
-                      });
+                      if (isSelected) {
+                        setSelectedTagIds(new Set());
+                      } else {
+                        setSelectedTagIds(new Set([tag.id]));
+                      }
                     }}
                     className={cn(
                       'px-2 py-0.5 rounded-full text-xs border transition-all',
@@ -227,9 +210,9 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                     style={
                       isSelected
                         ? {
-                            backgroundColor: tag.color ? `${tag.color}20` : '#3B82F620',
-                            color: tag.color || '#3B82F6',
-                            borderColor: tag.color ? `${tag.color}60` : '#3B82F660',
+                            backgroundColor: '#94A3B820',
+                            color: '#94A3B8',
+                            borderColor: '#94A3B860',
                           }
                         : undefined
                     }
@@ -275,7 +258,7 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
             disabled={updateMutation.isPending}
             className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            <Save className="h-4 w-4 mr-1.5" />
+            <IconDeviceFloppy className="h-4 w-4 mr-1.5" />
             {updateMutation.isPending ? 'Salvataggio...' : 'Salva'}
           </Button>
         </DialogFooter>

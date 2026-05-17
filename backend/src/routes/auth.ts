@@ -45,8 +45,28 @@ authRouter.post('/signup', validate(signUpSchema), async (req, res, next) => {
       user_id: data.user.id,
       name: 'GIMMICK',
       is_root: true,
-      color: '#528BFF',
       slug: 'gimmick',
+    });
+
+    // Seed the canonical set of system statuses. Users can edit the shapes
+    // from Settings → Tile Statuses but the names are stable.
+    await supabaseAdmin.from('statuses').insert([
+      { user_id: data.user.id, category: 'system', name: 'active',    shape: 'solid' },
+      { user_id: data.user.id, category: 'system', name: 'paused',    shape: 'pause_bars' },
+      { user_id: data.user.id, category: 'system', name: 'blocked',   shape: 'lock' },
+      { user_id: data.user.id, category: 'system', name: 'cancelled', shape: 'cross' },
+      { user_id: data.user.id, category: 'system', name: 'done',      shape: 'shade' },
+    ]);
+
+    // Seed the per-user "self" contact. Flow nodes whose contact_id points to
+    // this row render as the "ball is on me" shape; the contact picker pins
+    // it at the top. The partial unique index `contacts_one_self_per_user`
+    // enforces "exactly one self per user".
+    await supabaseAdmin.from('contacts').insert({
+      user_id: data.user.id,
+      name: 'Io',
+      kind: 'person',
+      is_self: true,
     });
 
     res.status(201).json({

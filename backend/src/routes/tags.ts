@@ -13,14 +13,21 @@ tagsRouter.use(authenticate);
 
 const createTagSchema = z.object({
   name: z.string().min(1).max(50),
-  color: z.string().max(7).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
+  tag_type: z.string().max(30).default('topic'),
 });
 
 const updateTagSchema = z.object({
   name: z.string().min(1).max(50).optional(),
-  color: z.string().max(7).optional(),
   aliases: z.array(z.string().max(50)).max(20).optional(),
+  tag_type: z.string().max(30).optional(),
+  is_pinned: z.boolean().optional(),
+  is_archived: z.boolean().optional(),
+  pin_order: z.number().int().optional(),
+});
+
+const reorderPinnedSchema = z.object({
+  ids: z.array(z.string().uuid()).min(1).max(200),
 });
 
 // ─── Static routes (before :id params) ───────────────────────
@@ -54,13 +61,13 @@ tagsRouter.post(
   validate(createTagSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { name, color, aliases } = req.body;
+      const { name, aliases, tag_type } = req.body;
 
       const slug = name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
 
       const { data, error } = await supabaseAdmin
         .from('tags')
-        .insert({ name, color, slug, aliases: aliases || [], user_id: req.user!.id })
+        .insert({ name, slug, aliases: aliases || [], tag_type: tag_type || 'topic', user_id: req.user!.id })
         .select()
         .single();
 
@@ -182,6 +189,34 @@ tagsRouter.delete('/relations', async (req: AuthenticatedRequest, res: Response,
   }
 });
 
+/**
+ * PUT /api/tags/reorder-pinned
+ * Bulk-update pin_order for the user's pinned tags. Body: { ids: [string] }
+ * The position in the array becomes the pin_order (0-based).
+ */
+tagsRouter.put(
+  '/reorder-pinned',
+  validate(reorderPinnedSchema),
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    try {
+      const { ids } = req.body as { ids: string[] };
+      // One UPDATE per id is fine for typical pin counts (<20).
+      await Promise.all(
+        ids.map((id, index) =>
+          supabaseAdmin
+            .from('tags')
+            .update({ pin_order: index })
+            .eq('id', id)
+            .eq('user_id', req.user!.id)
+        )
+      );
+      res.json({ success: true, message: 'Pinned tags reordered' });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
 // ─── Parameterized routes (:id) ──────────────────────────────
 
 /**
@@ -195,10 +230,37 @@ tagsRouter.patch(
     try {
       const { id } = req.params;
 
+      // Block tag_type change on root GIMMICK tag
+      if (req.body.tag_type) {
+        const { data: existing } = await supabaseAdmin
+          .from('tags')
+          .select('is_root')
+          .eq('id', id)
+          .eq('user_id', req.user!.id)
+          .single();
+        if (existing?.is_root) {
+          return res.status(403).json({ success: false, error: 'Cannot change tag_type on root tag' });
+        }
+      }
+
       // If name is being updated, also update slug
       const updates = { ...req.body };
       if (updates.name) {
         updates.slug = updates.name.toLowerCase().trim().replace(/\s+/g, '-').replace(/[^a-z0-9\u00C0-\u024F-]/g, '').replace(/-+/g, '-');
+      }
+
+      // Pinning a tag (is_pinned: true) without an explicit pin_order: append to
+      // the end of the pinned list — pin_order = current max + 1.
+      if (updates.is_pinned === true && updates.pin_order === undefined) {
+        const { data: maxRow } = await supabaseAdmin
+          .from('tags')
+          .select('pin_order')
+          .eq('user_id', req.user!.id)
+          .eq('is_pinned', true)
+          .order('pin_order', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        updates.pin_order = ((maxRow?.pin_order ?? -1) as number) + 1;
       }
 
       const { data, error } = await supabaseAdmin
@@ -385,12 +447,19 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
 
     const { data, error } = await supabaseAdmin
       .from('tile_tags')
-      .select('tile_id, tiles(*)')
+      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order))')
       .eq('tag_id', tagId);
 
     if (error) throw error;
 
-    const tiles = data?.map((row: any) => row.tiles).filter(Boolean) || [];
+    const tiles = (data?.map((row: any) => row.tiles).filter(Boolean) || []).map((tile: any) => {
+      const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+      const subtasks = subtasksRaw
+        .slice()
+        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+        .map((s: any) => ({ is_done: !!s.is_done }));
+      return { ...tile, subtasks, tile_subtasks: undefined };
+    });
     res.json({ success: true, data: tiles });
   } catch (error) {
     next(error);

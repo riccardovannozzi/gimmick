@@ -1,4 +1,5 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
+import type { Contact, ContactKind, FlowGraph, FlowNode, FlowEdge, FlowNodeState, FlowHubItem } from '@/types/flow';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -202,20 +203,20 @@ export const tilesApi = {
 
   async graph() {
     return apiRequest<{
-      tiles: { id: string; title?: string; description?: string; created_at: string; action_type?: ActionType }[];
+      tiles: { id: string; title?: string; created_at: string; action_type?: ActionType }[];
       sparks: { id: string; tile_id?: string; type: string; label: string; tags: string[]; summary?: string; created_at: string }[];
-      tags: { id: string; name: string; color?: string; created_at: string; tile_ids: string[] }[];
+      tags: { id: string; name: string; created_at: string; tile_ids: string[] }[];
     }>('/api/tiles/graph');
   },
 
-  async create(tile?: { title?: string; description?: string }) {
+  async create(tile?: { title?: string }) {
     return apiRequest<Tile>('/api/tiles', {
       method: 'POST',
       body: JSON.stringify(tile || {}),
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean }) {
+  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; status_id?: string | null; sort_order?: number }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -224,6 +225,34 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Subtasks API ============
+export const subtasksApi = {
+  async list(tileId: string) {
+    return apiRequest<Subtask[]>(`/api/subtasks?tile_id=${encodeURIComponent(tileId)}`);
+  },
+  async create(data: { tile_id: string; content?: string; is_done?: boolean }) {
+    return apiRequest<Subtask>('/api/subtasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+    return apiRequest<Subtask>(`/api/subtasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async delete(id: string) {
+    return apiRequest(`/api/subtasks/${id}`, { method: 'DELETE' });
+  },
+  async reorder(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/subtasks/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    });
   },
 };
 
@@ -282,10 +311,11 @@ export const chatApi = {
 
 // ============ Upload API ============
 export const uploadApi = {
-  async uploadFile(file: File, folder: string = 'files') {
+  async uploadFile(file: File, folder: string = 'files', bucket: 'sparks' | 'canvas-assets' = 'sparks') {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', folder);
+    formData.append('bucket', bucket);
 
     const response = await fetch(`${API_URL}/api/upload/file`, {
       method: 'POST',
@@ -296,6 +326,7 @@ export const uploadApi = {
     });
 
     return response.json() as Promise<ApiResponse<{
+      bucket: string;
       path: string;
       url: string;
       file_name: string;
@@ -324,14 +355,14 @@ export const tagsApi = {
     return apiRequest<Tag[]>('/api/tags');
   },
 
-  async create(tag: { name: string; color?: string; aliases?: string[] }) {
+  async create(tag: { name: string; aliases?: string[]; tag_type?: string }) {
     return apiRequest<Tag>('/api/tags', {
       method: 'POST',
       body: JSON.stringify(tag),
     });
   },
 
-  async update(id: string, updates: { name?: string; color?: string; aliases?: string[] }) {
+  async update(id: string, updates: { name?: string; aliases?: string[]; tag_type?: string; is_pinned?: boolean; is_archived?: boolean }) {
     return apiRequest<Tag>(`/api/tags/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -340,6 +371,13 @@ export const tagsApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tags/${id}`, { method: 'DELETE' });
+  },
+
+  async reorderPinned(ids: string[]) {
+    return apiRequest('/api/tags/reorder-pinned', {
+      method: 'PUT',
+      body: JSON.stringify({ ids }),
+    });
   },
 
   async tagTiles(tagId: string, tileIds: string[]) {
@@ -390,7 +428,6 @@ export const calendarApi = {
 
   async createEvent(data: {
     title?: string;
-    description?: string;
     start_at?: string;
     end_at?: string;
   }) {
@@ -405,7 +442,6 @@ export const calendarApi = {
     start_at?: string;
     end_at?: string;
     title?: string;
-    description?: string;
     auto_detect?: boolean;
   }) {
     return apiRequest<Tile>('/api/calendar/schedule', {
@@ -423,9 +459,10 @@ export const calendarApi = {
 
   async updateEvent(id: string, updates: {
     title?: string;
-    description?: string;
     start_at?: string;
     end_at?: string;
+    action_type?: string;
+    all_day?: boolean;
   }) {
     return apiRequest<Tile>(`/api/calendar/events/${id}`, {
       method: 'PATCH',
@@ -444,5 +481,270 @@ export const calendarApi = {
       method: 'POST',
       body: JSON.stringify({ query, start, end }),
     });
+  },
+};
+
+// ============ Tag Types API ============
+export const tagTypesApi = {
+  async list() {
+    return apiRequest<TagTypeEntity[]>('/api/tag-types');
+  },
+
+  async create(data: { name: string; emoji?: string; color?: string }) {
+    return apiRequest<TagTypeEntity>('/api/tag-types', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; emoji?: string; color?: string | null; sort_order?: number }) {
+    return apiRequest<TagTypeEntity>(`/api/tag-types/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/tag-types/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Statuses API ============
+// Custom statuses were removed in migration 029. Only the seeded system rows
+// exist; the API surface is reduced to listing and updating the visual shape.
+export const statusesApi = {
+  async list() {
+    return apiRequest<Status[]>('/api/statuses');
+  },
+
+  async update(id: string, updates: { shape: string }) {
+    return apiRequest<Status>(`/api/statuses/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+};
+
+// ============ Settings API ============
+export const settingsApi = {
+  async get<T = unknown>(key: string) {
+    return apiRequest<T>(`/api/settings/${key}`);
+  },
+
+  async set(key: string, value: unknown) {
+    return apiRequest(`/api/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    });
+  },
+};
+
+// ============ Canvas API ============
+export const canvasApi = {
+  async getLayout(tagId: string) {
+    return apiRequest<{ tile_id: string; x: number; y: number }[]>(`/api/canvas/layout/${tagId}`);
+  },
+
+  async saveLayout(tagId: string, positions: { tile_id: string; x: number; y: number }[]) {
+    return apiRequest(`/api/canvas/layout/${tagId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ positions }),
+    });
+  },
+
+  /** Remove a single tile's position entry — the tile goes back to the
+   *  canvas-page staging panel. Used by drag canvas→staging and the
+   *  "Rimuovi dal canvas" context-menu action. */
+  async removeFromLayout(tagId: string, tileId: string) {
+    return apiRequest(`/api/canvas/layout/${tagId}/${tileId}`, { method: 'DELETE' });
+  },
+
+  async getEdges(tagId: string) {
+    return apiRequest<{ id: string; source_id: string; target_id: string; source_port?: string; target_port?: string }[]>(`/api/canvas/edges/${tagId}`);
+  },
+
+  async addEdge(tagId: string, source_id: string, target_id: string, source_port?: string, target_port?: string) {
+    return apiRequest(`/api/canvas/edges/${tagId}`, {
+      method: 'POST',
+      body: JSON.stringify({ source_id, target_id, source_port, target_port }),
+    });
+  },
+
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/canvas/edges/${id}`, { method: 'DELETE' });
+  },
+
+  async getGroups(tagId: string) {
+    return apiRequest<{ id: string; label: string; node_ids: string[] }[]>(`/api/canvas/groups/${tagId}`);
+  },
+
+  async saveGroups(tagId: string, groups: { id: string; label: string; node_ids: string[] }[]) {
+    return apiRequest(`/api/canvas/groups/${tagId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ groups }),
+    });
+  },
+
+  // ─── Polymorphic boxes (text, image, ...) ───
+  // Content shape per type:
+  //   text  → { html: string }
+  //   image → { src: string, alt?: string }
+  async getBoxes(tagId: string) {
+    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }[]>(`/api/canvas/boxes/${tagId}`);
+  },
+
+  async addBox(tagId: string, data: { type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
+    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateBox(id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
+    return apiRequest(`/api/canvas/boxes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteBox(id: string) {
+    return apiRequest(`/api/canvas/boxes/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Type Icons API ============
+export const typeIconsApi = {
+  async list() {
+    return apiRequest<{ id: string; name: string; icon: string; color?: string; sort_order: number }[]>('/api/type-icons');
+  },
+
+  async create(data: { name: string; icon: string; color?: string }) {
+    return apiRequest<{ id: string; name: string; icon: string; color?: string }>('/api/type-icons', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async update(id: string, updates: { name?: string; icon?: string; color?: string }) {
+    return apiRequest(`/api/type-icons/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async delete(id: string) {
+    return apiRequest(`/api/type-icons/${id}`, { method: 'DELETE' });
+  },
+
+  async getAssignments() {
+    return apiRequest<{ tile_id: string; type_icon_id: string }[]>('/api/type-icons/assignments');
+  },
+
+  async assign(tile_id: string, type_icon_id: string | null) {
+    return apiRequest('/api/type-icons/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ tile_id, type_icon_id }),
+    });
+  },
+};
+
+// ============ Kanban API ============
+export const kanbanApi = {
+  async listColumns() {
+    return apiRequest<KanbanColumn[]>('/api/kanban/columns');
+  },
+
+  async createColumn(data: { title: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir; width?: number; bg_color?: string | null }) {
+    return apiRequest<KanbanColumn>('/api/kanban/columns', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  async updateColumn(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number; sort_by?: KanbanSortBy; sort_dir?: KanbanSortDir; width?: number; bg_color?: string | null }) {
+    return apiRequest<KanbanColumn>(`/api/kanban/columns/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+
+  async deleteColumn(id: string) {
+    return apiRequest(`/api/kanban/columns/${id}`, { method: 'DELETE' });
+  },
+
+  async reorderColumns(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/kanban/columns/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    });
+  },
+};
+
+// ============ Contacts API ============
+
+export const contactsApi = {
+  async list(opts?: { archived?: boolean }) {
+    const q = opts?.archived ? '?archived=true' : '';
+    return apiRequest<Contact[]>(`/api/contacts${q}`);
+  },
+  async create(body: { name: string; kind?: ContactKind; phone?: string; email?: string; notes?: string; color?: string; avatar_url?: string }) {
+    return apiRequest<Contact>('/api/contacts', { method: 'POST', body: JSON.stringify(body) });
+  },
+  async update(id: string, updates: Partial<Pick<Contact, 'name' | 'kind' | 'phone' | 'email' | 'notes' | 'color' | 'avatar_url'>>) {
+    return apiRequest<Contact>(`/api/contacts/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  },
+  async remove(id: string) {
+    return apiRequest(`/api/contacts/${id}`, { method: 'DELETE' });
+  },
+  async archive(id: string) {
+    return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
+  },
+};
+
+// ============ Flow API ============
+
+export const flowApi = {
+  async getByTile(tileId: string) {
+    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
+  },
+  async createNode(tileId: string, body: {
+    label?: string;
+    state?: FlowNodeState;
+    contact_id?: string | null;
+    occurred_at?: string | null;
+    scheduled_at?: string | null;
+    notes?: string | null;
+    parent_node_id?: string;
+    x?: number | null;
+    y?: number | null;
+  }) {
+    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+      `/api/tiles/${tileId}/flow/nodes`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  },
+  async updateNode(id: string, updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>) {
+    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async deleteNode(id: string) {
+    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
+  },
+  async createEdge(body: { parent_id: string; child_id: string }) {
+    return apiRequest<FlowEdge>('/api/flow/edges', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
+  },
+  async tilesWithFlows() {
+    return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');
+  },
+  async hub(filter: 'done' | 'wait' | 'undo' | 'stop') {
+    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
   },
 };

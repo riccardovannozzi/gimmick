@@ -67,8 +67,8 @@ async function main() {
         messages: [
           {
             role: 'user',
-            content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) e una descrizione (1 frase) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
-{"title": "...", "description": "..."}
+            content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
+{"title": "..."}
 
 Riassunti degli spark:
 ${summaries.slice(0, 2000)}`,
@@ -92,7 +92,6 @@ ${summaries.slice(0, 2000)}`,
           .from('tiles')
           .update({
             title: parsed.title,
-            description: parsed.description || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', tile.id);

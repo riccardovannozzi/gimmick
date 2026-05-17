@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Eye, EyeOff } from 'lucide-react-native';
+import { IconEye, IconEyeOff } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useAuthStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
@@ -147,9 +147,9 @@ export default function LoginScreen() {
                 style={{ paddingRight: 20 }}
               >
                 {showPassword ? (
-                  <EyeOff size={20} color={colors.secondary} />
+                  <IconEyeOff size={20} color={colors.secondary} />
                 ) : (
-                  <Eye size={20} color={colors.secondary} />
+                  <IconEye size={20} color={colors.secondary} />
                 )}
               </TouchableOpacity>
             </View>

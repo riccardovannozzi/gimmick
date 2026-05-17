@@ -4,6 +4,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
+import { upsertTileEmbedding } from '../services/indexing.js';
 import type { AuthenticatedRequest, Tile, ActionType } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
@@ -16,18 +17,19 @@ tilesRouter.use(authenticate);
 // Validation schemas
 const createTileSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
 });
 
 const updateTileSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
   action_type: z.enum(ACTION_TYPES).optional(),
   is_event: z.boolean().optional(),
   all_day: z.boolean().optional(),
   start_at: z.string().nullable().optional(),
   end_at: z.string().nullable().optional(),
   is_completed: z.boolean().optional(),
+  is_cta: z.boolean().optional(),
+  status_id: z.string().uuid().nullable().optional(),
+  sort_order: z.number().int().optional(),
 });
 
 const querySchema = z.object({
@@ -50,10 +52,10 @@ tilesRouter.get(
       };
       const offset = (page - 1) * limit;
 
-      // Get tiles with sparks and tags
+      // Get tiles with sparks, tags, and subtasks (for checklist bar)
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, color))', { count: 'exact' })
+        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(is_done, sort_order)', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -65,7 +67,7 @@ tilesRouter.get(
       // Get user's root tag (GIMMICK)
       const { data: rootTag } = await supabaseAdmin
         .from('tags')
-        .select('id, name, color')
+        .select('id, name')
         .eq('user_id', req.user!.id)
         .eq('is_root', true)
         .single();
@@ -87,20 +89,28 @@ tilesRouter.get(
         }
       }
 
-      // Transform data to include spark_count, sparks preview, and tags
+      // Transform data to include spark_count, sparks preview, tags, and subtasks
       const tilesWithCount = data?.map((tile: any) => {
         const sparks = Array.isArray(tile.sparks) ? tile.sparks : [];
         const tags = (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
         // If no tags, inject root tag
         if (tags.length === 0 && rootTag) {
-          tags.push({ id: rootTag.id, name: rootTag.name, color: rootTag.color });
+          tags.push({ id: rootTag.id, name: rootTag.name });
         }
+        // Compact subtasks payload: sorted by sort_order, only is_done kept
+        const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+        const subtasks = subtasksRaw
+          .slice()
+          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((s: any) => ({ is_done: !!s.is_done }));
         return {
           ...tile,
           spark_count: sparks.length,
           sparks,
           tags,
+          subtasks,
           tile_tags: undefined,
+          tile_subtasks: undefined,
         };
       });
 
@@ -129,7 +139,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all tiles
     const { data: tiles, error: tilesError } = await supabaseAdmin
       .from('tiles')
-      .select('id, title, description, created_at, action_type')
+      .select('id, title, created_at, action_type')
       .eq('user_id', req.user!.id)
       .order('created_at', { ascending: false });
 
@@ -147,7 +157,7 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
     // Get all tags with their tile associations
     const { data: tags, error: tagsError } = await supabaseAdmin
       .from('tags')
-      .select('id, name, color, created_at, tile_tags(tile_id)')
+      .select('id, name, tag_type, created_at, tile_tags(tile_id)')
       .eq('user_id', req.user!.id)
       .order('name');
 
@@ -186,10 +196,11 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
   try {
     const { id } = req.params;
 
-    // Get tile
+    // Get tile with tags — expose is_root so callers can reliably skip the
+    // GIMMICK root without relying on the literal name match.
     const { data: tile, error: tileError } = await supabaseAdmin
       .from('tiles')
-      .select('*')
+      .select('*, tile_tags(tag_id, tags(id, name, tag_type, is_root))')
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .single();
@@ -209,11 +220,15 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
       throw sparksError;
     }
 
+    const tags = ((tile as any).tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
+
     res.json({
       success: true,
       data: {
         ...tile,
         sparks: sparks || [],
+        tags,
+        tile_tags: undefined,
       },
     });
   } catch (error) {
@@ -230,10 +245,23 @@ tilesRouter.post(
   validate(createTileSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const tileData = {
+      const tileData: Record<string, unknown> = {
         ...req.body,
         user_id: req.user!.id,
       };
+
+      // Default new tiles to the system 'active' status (unless the caller
+      // already provided a status_id).
+      if (!tileData.status_id) {
+        const { data: activeStatus } = await supabaseAdmin
+          .from('statuses')
+          .select('id')
+          .eq('user_id', req.user!.id)
+          .eq('category', 'system')
+          .eq('name', 'active')
+          .maybeSingle();
+        if (activeStatus?.id) tileData.status_id = activeStatus.id;
+      }
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
@@ -258,6 +286,10 @@ tilesRouter.post(
           .from('tile_tags')
           .insert({ tile_id: data.id, tag_id: rootTag.id });
       }
+
+      // Fire-and-forget: generate semantic embedding for the new tile so the
+      // unified `find` tool can match it. Errors are swallowed inside.
+      void upsertTileEmbedding(data.id);
 
       res.status(201).json({
         success: true,
@@ -302,6 +334,23 @@ tilesRouter.patch(
         updates.action_type_reviewed = true;
       }
 
+      // Sync is_completed with the 'done' system status whenever status_id changes.
+      // The status is now the single source of truth for completion; is_completed
+      // is kept around only so existing filters/sorts/doneShape keep working.
+      if ('status_id' in updates) {
+        if (updates.status_id === null || updates.status_id === undefined) {
+          updates.is_completed = false;
+        } else {
+          const { data: st } = await supabaseAdmin
+            .from('statuses')
+            .select('name, category')
+            .eq('id', updates.status_id)
+            .eq('user_id', req.user!.id)
+            .maybeSingle();
+          updates.is_completed = !!(st && st.category === 'system' && st.name === 'done');
+        }
+      }
+
       updates.updated_at = new Date().toISOString();
 
       const { data, error } = await supabaseAdmin
@@ -314,6 +363,13 @@ tilesRouter.patch(
 
       if (error || !data) {
         throw new NotFoundError('Tile not found');
+      }
+
+      // Refresh the embedding only when the searchable fields actually
+      // changed — avoids a wasted OpenAI call on every status / date / tag
+      // tweak.
+      if ('title' in req.body || 'description' in req.body) {
+        void upsertTileEmbedding(data.id as string);
       }
 
       res.json({

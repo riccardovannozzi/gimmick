@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal as RNModal, TouchableWithoutFeedback } from 'react-native';
-import { Circle, Zap, Clock, Calendar, Check } from 'lucide-react-native';
+import { IconCircle, IconBolt, IconClock, IconCalendar, IconCheck } from '@tabler/icons-react-native';
 import { useThemeColors } from '@/lib/theme';
 import type { ActionType } from '@/types';
 
-const OPTIONS: { value: ActionType; label: string; icon: typeof Circle; color: string }[] = [
-  { value: 'none', label: 'Appunto', icon: Circle, color: '#9CA3AF' },
-  { value: 'anytime', label: 'Da fare', icon: Zap, color: '#4ADE80' },
-  { value: 'deadline', label: 'Scadenza', icon: Clock, color: '#FBBF24' },
-  { value: 'event', label: 'Evento', icon: Calendar, color: '#60A5FA' },
+const OPTIONS: { value: ActionType; label: string; icon: typeof IconCircle; color: string }[] = [
+  { value: 'none', label: 'Appunto', icon: IconCircle, color: '#9CA3AF' },
+  { value: 'anytime', label: 'Da fare', icon: IconBolt, color: '#4ADE80' },
+  { value: 'deadline', label: 'Scadenza', icon: IconClock, color: '#FBBF24' },
+  { value: 'event', label: 'Evento', icon: IconCalendar, color: '#60A5FA' },
 ];
 
 interface ActionTypeDropdownProps {
@@ -71,7 +71,7 @@ export function ActionTypeDropdown({ value, onSelect, subtitle }: ActionTypeDrop
                     >
                       <OptIcon size={18} color={opt.color} />
                       <Text style={{ flex: 1, fontSize: 14, color: colors.primary }}>{opt.label}</Text>
-                      {isActive && <Check size={16} color="#60A5FA" />}
+                      {isActive && <IconCheck size={16} color="#60A5FA" />}
                     </TouchableOpacity>
                   );
                 })}

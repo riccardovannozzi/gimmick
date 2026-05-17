@@ -1,4 +1,19 @@
-import type { Spark, BufferItem, Tile, Tag } from '@/types';
+import type {
+  Spark,
+  SparkType,
+  BufferItem,
+  Tile,
+  Tag,
+  Subtask,
+  Contact,
+  ContactKind,
+  FlowGraph,
+  FlowNode,
+  FlowNodeState,
+  FlowEdge,
+  FlowHubItem,
+  FlowHubFilter,
+} from '@/types';
 import Constants from 'expo-constants';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
@@ -350,14 +365,14 @@ export const tilesApi = {
     return apiRequest<Tile & { sparks: Spark[] }>(`/api/tiles/${id}`);
   },
 
-  async create(tile?: { title?: string; description?: string }) {
+  async create(tile?: { title?: string }) {
     return apiRequest<Tile>('/api/tiles', {
       method: 'POST',
       body: JSON.stringify(tile || {}),
     });
   },
 
-  async update(id: string, updates: { title?: string; description?: string; action_type?: string; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null }) {
+  async update(id: string, updates: { title?: string; action_type?: string; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; status_id?: string | null }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -366,6 +381,49 @@ export const tilesApi = {
 
   async delete(id: string) {
     return apiRequest(`/api/tiles/${id}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Statuses API ============
+
+export interface StatusEntity {
+  id: string;
+  name: string;
+  shape: string;
+  action_type?: string | null;
+  category?: string;
+}
+
+export const statusesApi = {
+  async list() {
+    return apiRequest<StatusEntity[]>('/api/statuses');
+  },
+};
+
+// ============ Type icons API ============
+
+export interface TypeIconEntity {
+  id: string;
+  name: string;
+  icon: string;
+  color?: string;
+  sort_order: number;
+}
+
+export const typeIconsApi = {
+  async list() {
+    return apiRequest<TypeIconEntity[]>('/api/type-icons');
+  },
+
+  async getAssignments() {
+    return apiRequest<{ tile_id: string; type_icon_id: string }[]>('/api/type-icons/assignments');
+  },
+
+  async assign(tile_id: string, type_icon_id: string | null) {
+    return apiRequest('/api/type-icons/assign', {
+      method: 'PUT',
+      body: JSON.stringify({ tile_id, type_icon_id }),
+    });
   },
 };
 
@@ -380,6 +438,199 @@ export const tagsApi = {
     return apiRequest(`/api/tags/${tagId}/tiles`, {
       method: 'POST',
       body: JSON.stringify({ tile_ids: tileIds }),
+    });
+  },
+
+  async untagTile(tagId: string, tileId: string) {
+    return apiRequest(`/api/tags/${tagId}/tiles/${tileId}`, { method: 'DELETE' });
+  },
+};
+
+// ============ Tag Types API ============
+
+export interface TagTypeEntity {
+  id: string;
+  slug: string;
+  name: string;
+  emoji: string;
+  color?: string | null;
+  sort_order: number;
+  is_default: boolean;
+}
+
+export const tagTypesApi = {
+  async list() {
+    return apiRequest<TagTypeEntity[]>('/api/tag-types');
+  },
+};
+
+// ============ Calendar API ============
+
+export const calendarApi = {
+  /** Tiles with start_at falling inside [start, end). Optional tag filter. */
+  async events(start: string, end: string, tagId?: string) {
+    const params = new URLSearchParams({ start, end });
+    if (tagId) params.set('tag_id', tagId);
+    return apiRequest<Tile[]>(`/api/calendar/events?${params}`);
+  },
+  async createEvent(data: { title?: string; start_at?: string; end_at?: string }) {
+    return apiRequest<Tile>('/api/calendar/create-event', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async schedule(data: {
+    tile_id: string;
+    start_at?: string;
+    end_at?: string;
+    title?: string;
+    auto_detect?: boolean;
+  }) {
+    return apiRequest<Tile>('/api/calendar/schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async reschedule(id: string, start_at: string, end_at?: string) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ start_at, end_at }),
+    });
+  },
+  async updateEvent(
+    id: string,
+    updates: {
+      title?: string;
+      start_at?: string;
+      end_at?: string;
+      action_type?: string;
+      all_day?: boolean;
+    },
+  ) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async unschedule(id: string) {
+    return apiRequest(`/api/calendar/events/${id}/unschedule`, {
+      method: 'DELETE',
+    });
+  },
+};
+
+// ============ Contacts API ============
+
+export const contactsApi = {
+  async list(opts?: { archived?: boolean }) {
+    const q = opts?.archived ? '?archived=true' : '';
+    return apiRequest<Contact[]>(`/api/contacts${q}`);
+  },
+  async create(body: {
+    name: string;
+    kind?: ContactKind;
+    phone?: string;
+    email?: string;
+    notes?: string;
+    color?: string;
+    avatar_url?: string;
+  }) {
+    return apiRequest<Contact>('/api/contacts', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async update(id: string, updates: Partial<Pick<Contact, 'name' | 'kind' | 'phone' | 'email' | 'notes' | 'color' | 'avatar_url'>>) {
+    return apiRequest<Contact>(`/api/contacts/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async remove(id: string) {
+    return apiRequest(`/api/contacts/${id}`, { method: 'DELETE' });
+  },
+  async archive(id: string) {
+    return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
+  },
+};
+
+// ============ Flow API ============
+
+export const flowApi = {
+  async getByTile(tileId: string) {
+    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
+  },
+  async createNode(
+    tileId: string,
+    body: {
+      label?: string;
+      state?: FlowNodeState;
+      contact_id?: string | null;
+      occurred_at?: string | null;
+      scheduled_at?: string | null;
+      notes?: string | null;
+      parent_node_id?: string;
+      x?: number | null;
+      y?: number | null;
+    },
+  ) {
+    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+      `/api/tiles/${tileId}/flow/nodes`,
+      { method: 'POST', body: JSON.stringify(body) },
+    );
+  },
+  async updateNode(
+    id: string,
+    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>,
+  ) {
+    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async deleteNode(id: string) {
+    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
+  },
+  async createEdge(body: { parent_id: string; child_id: string }) {
+    return apiRequest<FlowEdge>('/api/flow/edges', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  },
+  async deleteEdge(id: string) {
+    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
+  },
+  /** Cross-tile inbox of pending flow nodes. Mounted at /api/flows. */
+  async hub(filter: FlowHubFilter) {
+    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
+  },
+};
+
+// ============ Subtasks API ============
+
+export const subtasksApi = {
+  async list(tileId: string) {
+    return apiRequest<Subtask[]>(`/api/subtasks?tile_id=${encodeURIComponent(tileId)}`);
+  },
+  async create(data: { tile_id: string; content?: string; is_done?: boolean }) {
+    return apiRequest<Subtask>('/api/subtasks', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+    return apiRequest<Subtask>(`/api/subtasks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async delete(id: string) {
+    return apiRequest(`/api/subtasks/${id}`, { method: 'DELETE' });
+  },
+  async reorder(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/subtasks/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     });
   },
 };
@@ -485,6 +736,20 @@ export const uploadApi = {
   },
 };
 
+// ============ Settings API ============
+export const settingsApi = {
+  async get<T = unknown>(key: string): Promise<ApiResponse<T>> {
+    return apiRequest<T>(`/api/settings/${key}`);
+  },
+
+  async set(key: string, value: unknown): Promise<ApiResponse> {
+    return apiRequest(`/api/settings/${key}`, {
+      method: 'PUT',
+      body: JSON.stringify({ value }),
+    });
+  },
+};
+
 /**
  * Helper to get MIME type from filename
  */
@@ -519,9 +784,66 @@ function getFileType(fileName: string): string {
  * Upload buffer items to backend
  * When multiple items are uploaded together, they are grouped into a Tile
  */
+/**
+ * Create a spark directly against a specific tile, handling the storage
+ * upload for non-text types. Used by the capture screens when they receive a
+ * `?tile=<id>` query param: instead of dropping the item in the buffer (which
+ * later spawns a NEW tile on upload), the spark is attached to the originating
+ * tile immediately.
+ *
+ * Returns the same ApiResponse shape as sparksApi.create.
+ */
+export async function createSparkForTile(args: {
+  type: SparkType;
+  tileId: string;
+  uri?: string;
+  content?: string;
+  fileName?: string;
+  mimeType?: string;
+  size?: number;
+  duration?: number;
+}): Promise<ApiResponse<Spark>> {
+  let storagePath: string | undefined;
+  if (args.type !== 'text' && args.uri) {
+    const folder = args.type === 'photo' || args.type === 'image'
+      ? 'images'
+      : args.type === 'video'
+      ? 'videos'
+      : args.type.includes('audio')
+      ? 'audio'
+      : 'files';
+    const upload = await uploadApi.uploadFile(args.uri, folder);
+    if (!upload.success) {
+      return { success: false, error: upload.error || 'Upload failed' };
+    }
+    storagePath = upload.data?.path;
+  }
+  return sparksApi.create({
+    type: args.type,
+    tile_id: args.tileId,
+    content: args.content,
+    storage_path: storagePath,
+    file_name: args.fileName,
+    mime_type: args.mimeType,
+    file_size: args.size,
+    duration: args.duration,
+  });
+}
+
+export interface TileUploadOptions {
+  action_type?: string;
+  all_day?: boolean;
+  start_at?: string | null;
+  end_at?: string | null;
+  tag_id?: string | null;
+  type_icon_id?: string | null;
+  status_id?: string | null;
+}
+
 export async function uploadBufferItems(
   items: BufferItem[],
-  tagIds?: string[]
+  tagIds?: string[],
+  tileOptions?: TileUploadOptions,
 ): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile }> {
   const results: Spark[] = [];
   const errors: string[] = [];
@@ -600,6 +922,37 @@ export async function uploadBufferItems(
   if (!tile && tagIds && tagIds.length > 0 && results.length > 0 && results[0].tile_id) {
     for (const tagId of tagIds) {
       await tagsApi.tagTiles(tagId, [results[0].tile_id]).catch(() => {});
+    }
+  }
+
+  // Apply tile-level metadata set via the "Set options" accordion. Works for
+  // both branches (explicit tile created for multi-item uploads, and the
+  // auto-created tile attached to a single spark).
+  const targetTileId = tile?.id ?? (results.length > 0 ? results[0].tile_id : undefined);
+  if (targetTileId && tileOptions) {
+    const updates: Parameters<typeof tilesApi.update>[1] = {};
+    if (tileOptions.action_type) updates.action_type = tileOptions.action_type;
+    if (tileOptions.action_type === 'event' || tileOptions.action_type === 'deadline') {
+      updates.is_event = tileOptions.action_type === 'event';
+      updates.all_day = !!tileOptions.all_day;
+      updates.start_at = tileOptions.start_at ?? null;
+      updates.end_at = tileOptions.end_at ?? null;
+    } else if (tileOptions.action_type === 'none' || tileOptions.action_type === 'anytime') {
+      updates.is_event = false;
+      updates.all_day = false;
+      updates.start_at = null;
+      updates.end_at = null;
+    }
+    if (tileOptions.status_id !== undefined) updates.status_id = tileOptions.status_id;
+    if (Object.keys(updates).length > 0) {
+      await tilesApi.update(targetTileId, updates).catch((err) => {
+        console.warn('Failed to apply tile options:', err);
+      });
+    }
+    if (tileOptions.type_icon_id !== undefined) {
+      await typeIconsApi.assign(targetTileId, tileOptions.type_icon_id).catch((err) => {
+        console.warn('Failed to assign type icon:', err);
+      });
     }
   }
 

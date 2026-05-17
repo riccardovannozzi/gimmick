@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, Pressable, Text, ActivityIndicator } from 'react-native';
-import { Mic, Send, Square } from 'lucide-react-native';
+import { IconMicrophone, IconSend, IconSquare } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
@@ -111,7 +111,7 @@ export function ChatInput({
           onPress={handleStopRecording}
           style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Square size={18} color={colors.error} fill={colors.error} />
+          <IconSquare size={18} color={colors.error} fill={colors.error} />
         </Pressable>
       </View>
     );
@@ -155,14 +155,14 @@ export function ChatInput({
             justifyContent: 'center',
           }}
         >
-          <Send size={18} color={colors.onAccent} />
+          <IconSend size={18} color={colors.onAccent} />
         </Pressable>
       ) : (
         <Pressable
           onPress={handleStartRecording}
           style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
         >
-          <Mic size={22} color={colors.secondary} />
+          <IconMicrophone size={22} color={colors.secondary} />
         </Pressable>
       )}
     </View>

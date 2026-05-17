@@ -1,10 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { useAuthStore } from '@/store/auth-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useChatStore } from '@/store/chat-store';
 
 export default function DashboardLayout({
   children,
@@ -13,13 +15,23 @@ export default function DashboardLayout({
 }) {
   const router = useRouter();
   const { user, isLoading, isInitialized } = useAuthStore();
-  const [chatOpen, setChatOpen] = useState(false);
+  const chatOpen = useChatStore((s) => s.open);
+  const setChatOpen = useChatStore((s) => s.setOpen);
+  const fetchTypeIcons = useTypeIcons((s) => s.fetchAll);
+  const typeIconsLoaded = useTypeIcons((s) => s.loaded);
 
   useEffect(() => {
     if (isInitialized && !isLoading && !user) {
       router.push('/login');
     }
   }, [user, isLoading, isInitialized, router]);
+
+  // Load type icons from DB on first render
+  useEffect(() => {
+    if (user && !typeIconsLoaded) {
+      fetchTypeIcons();
+    }
+  }, [user, typeIconsLoaded, fetchTypeIcons]);
 
   if (!isInitialized || isLoading) {
     return (
@@ -35,7 +47,7 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen">
-      <Sidebar onOpenChat={() => setChatOpen(true)} />
+      <Sidebar />
       <main className="flex-1 overflow-hidden">{children}</main>
       <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>

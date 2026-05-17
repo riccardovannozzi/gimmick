@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal, LayoutAnimation } from 'react-native';
 import { useRouter } from 'expo-router';
-import { ChevronRight, LogOut, Check, Sun, Moon, Smartphone, User } from 'lucide-react-native';
+import { IconChevronRight, IconLogout, IconCheck, IconSun, IconMoon, IconDeviceMobile, IconUser, IconChevronDown, IconPin, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { useSettingsStore, useAuthStore } from '@/store';
+import { useSettingsStore, useAuthStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
+import { settingsApi } from '@/lib/api';
+import { ColorPickerGrid } from '@/components/ColorPickerGrid';
+import { DEFAULT_ACTION_COLORS, getColorName } from '@/constants/palette';
+import type { ActionType } from '@/types';
 
 interface SettingRowProps {
   label: string;
@@ -54,7 +58,7 @@ function SettingRow({
         />
       )}
 
-      {showArrow && <ChevronRight size={20} color={colors.tertiary} />}
+      {showArrow && <IconChevronRight size={20} color={colors.tertiary} />}
     </View>
   );
 
@@ -127,11 +131,36 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
+  const [actionColors, setActionColors] = useState<Record<ActionType, string>>(DEFAULT_ACTION_COLORS as Record<ActionType, string>);
+  const [expandedAction, setExpandedAction] = useState<ActionType | null>(null);
+
+  useEffect(() => {
+    settingsApi.get<Record<ActionType, string>>('action_colors').then((res) => {
+      if (res.data) setActionColors(res.data);
+    }).catch(() => {});
+  }, []);
+
+  const handleColorChange = useCallback((type: ActionType, hex: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    const next = { ...actionColors, [type]: hex };
+    setActionColors(next);
+    setExpandedAction(null);
+    settingsApi.set('action_colors', next).then(() => {
+      toast.show({ message: 'Colore aggiornato', type: 'success' });
+    }).catch(() => {});
+  }, [actionColors]);
+
+  const ACTION_ITEMS: { type: ActionType; label: string; Icon: typeof IconPin }[] = [
+    { type: 'none', label: 'Appunto', Icon: IconPin },
+    { type: 'anytime', label: 'Da fare', Icon: IconBolt },
+    { type: 'deadline', label: 'Scadenza', Icon: IconClock },
+    { type: 'event', label: 'Evento', Icon: IconCalendar },
+  ];
 
   const themeOptions = [
-    { id: 'light' as const, label: 'Light', description: 'Light theme', icon: Sun },
-    { id: 'dark' as const, label: 'Dark', description: 'Dark theme', icon: Moon },
-    { id: 'system' as const, label: 'System', description: 'Match device setting', icon: Smartphone },
+    { id: 'light' as const, label: 'Light', description: 'Light theme', icon: IconSun },
+    { id: 'dark' as const, label: 'Dark', description: 'Dark theme', icon: IconMoon },
+    { id: 'system' as const, label: 'System', description: 'Match device setting', icon: IconDeviceMobile },
   ];
 
   const currentTheme = themeOptions.find((t) => t.id === theme) || themeOptions[1];
@@ -171,7 +200,7 @@ export default function SettingsScreen() {
                     marginRight: 16,
                   }}
                 >
-                  <User size={22} color={colors.accent} />
+                  <IconUser size={22} color={colors.accent} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
@@ -187,7 +216,7 @@ export default function SettingsScreen() {
                 onPress={signOut}
                 style={{ flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 }}
               >
-                <LogOut size={20} color={colors.error} />
+                <IconLogout size={20} color={colors.error} />
                 <Text style={{ fontSize: 16, color: colors.error }}>Sign out</Text>
               </TouchableOpacity>
             </View>
@@ -207,7 +236,7 @@ export default function SettingsScreen() {
                   marginRight: 16,
                 }}
               >
-                <User size={22} color={colors.accent} />
+                <IconUser size={22} color={colors.accent} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
@@ -217,7 +246,7 @@ export default function SettingsScreen() {
                   Sign in to sync your sparks
                 </Text>
               </View>
-              <ChevronRight size={20} color={colors.tertiary} />
+              <IconChevronRight size={20} color={colors.tertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -242,6 +271,63 @@ export default function SettingsScreen() {
             value={confirmDelete}
             onValueChange={setConfirmDelete}
           />
+        </SettingSection>
+
+        {/* Action Colors section */}
+        <SettingSection title="Colori delle azioni">
+          {ACTION_ITEMS.map(({ type, label, Icon }, index) => {
+            const color = actionColors[type];
+            const isExpanded = expandedAction === type;
+            return (
+              <View key={type}>
+                {index > 0 && (
+                  <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
+                )}
+                <TouchableOpacity
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setExpandedAction(isExpanded ? null : type);
+                  }}
+                  activeOpacity={0.7}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 14,
+                    paddingHorizontal: 20,
+                    gap: 12,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 22,
+                      height: 22,
+                      borderRadius: 11,
+                      backgroundColor: color,
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,255,255,0.15)',
+                    }}
+                  />
+                  <Icon size={18} color={colors.secondary} />
+                  <Text style={{ flex: 1, fontSize: 16, color: colors.primary }}>{label}</Text>
+                  <Text style={{ fontSize: 13, color: colors.tertiary }}>{getColorName(color)}</Text>
+                  <IconChevronDown
+                    size={18}
+                    color={colors.tertiary}
+                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+                  />
+                </TouchableOpacity>
+                {isExpanded && (
+                  <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
+                    <ColorPickerGrid
+                      selectedColor={color}
+                      onSelect={(hex) => handleColorChange(type, hex)}
+                      size={34}
+                    />
+                  </View>
+                )}
+              </View>
+            );
+          })}
         </SettingSection>
 
         {/* Upload section */}
@@ -332,7 +418,7 @@ export default function SettingsScreen() {
                   <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{model.description}</Text>
                 </View>
                 {aiModel === model.id && (
-                  <Check size={22} color={colors.accent} />
+                  <IconCheck size={22} color={colors.accent} />
                 )}
               </TouchableOpacity>
             ))}
@@ -403,7 +489,7 @@ export default function SettingsScreen() {
                     <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{option.description}</Text>
                   </View>
                   {theme === option.id && (
-                    <Check size={22} color={colors.accent} />
+                    <IconCheck size={22} color={colors.accent} />
                   )}
                 </TouchableOpacity>
               );

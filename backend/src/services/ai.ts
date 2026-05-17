@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { supabaseAdmin } from '../config/supabase.js';
 import { generateEmbedding } from './indexing.js';
+import { find as findImpl, type FindParams } from './search/find.js';
 import type { SparkType } from '../types/index.js';
 
 const anthropic = new Anthropic();
@@ -18,12 +19,91 @@ Guidelines:
 - For text sparks, the content field contains the full text.
 - For media sparks (photos, images, audio, video, files), the metadata field may contain AI-generated data from indexing: ai_summary (a summary of the content), ai_tags (relevant tags), ai_description (description of images), ai_transcription (transcription of audio/video). Use get_spark to access these fields and answer questions about the content.
 - You cannot play or display media files directly, but you CAN read their AI-processed descriptions and transcriptions.
-- Use semantic_search when the user asks conceptual questions like "find my notes about cooking" or "what did I say about the project?". It searches by meaning, not just keywords.
+## Ricerca
+
+Per QUALSIASI richiesta che implichi cercare contenuti dell'utente, usa il tool \`find\`.
+
+Regole:
+
+1. \`find\` è la porta d'ingresso unica per la ricerca. Non usare get_tile, get_spark, get_tile_sparks per cercare — servono solo quando hai già l'ID. NON usare i tool deprecati search_sparks, search_tiles, semantic_search: usa SEMPRE find (fa già keyword + semantic + espansione sinonimi in parallelo, su sparks E tiles insieme).
+
+2. Passa la query in modo naturale. Non riformulare la richiesta in keyword: il tool fa già query expansion (dizionario + LLM). Se l'utente chiede "ho dei corsi di aggiornamento programmati?", passa esattamente quella stringa.
+
+3. Default scope = 'all'. Specifica 'tiles' o 'sparks' solo se l'utente ha esplicitamente distinto.
+
+4. Risultati vuoti: prova UNA volta riformulando, poi fermati.
+   - Se find torna vuoto, prova UNA seconda chiamata con riformulazione (es. da "ordine ingegneri" a "albo professionale ingegneri")
+   - Se anche la seconda è vuota, comunica all'utente che non hai trovato nulla e chiedi se vuole provare altri termini
+   - NON fare 5+ chiamate speculative in sequenza
+
+5. Interpretazione dei risultati di find:
+   - tiles: i risultati principali, ordinati per rilevanza (score)
+   - orphan_sparks: sparks rilevanti il cui tile non è nei risultati — menziona come "ho trovato anche alcuni appunti correlati"
+   - matching_sparks dentro un tile: estratti rilevanti da citare nella risposta
+   - matched_via: se è solo ["semantic"] con score basso, abbassa la confidenza
+   - expanded_queries: utile per spiegare all'utente come hai interpretato la richiesta
+
+6. CRITICAL: NEVER reply che non hai accesso a informazioni senza prima aver chiamato find. L'informazione è quasi sempre presente nei tile/sparks dell'utente.
+
 - Respond in the same language the user writes in.
 - Current date/time: {{CURRENT_DATE}}
 - When comparing dates/times, use the ISO timestamp for precise calculations. Do NOT estimate relative times (like "un'ora fa") unless you can calculate them exactly from the ISO timestamps.`;
 
 const tools: Anthropic.Tool[] = [
+  {
+    name: 'find',
+    description: `Cerca contenuti nel sistema dell'utente. È IL TOOL PRINCIPALE per qualsiasi ricerca.
+
+Esegue automaticamente in parallelo:
+- Ricerca per parole chiave (tollerante a typo, accenti, ordine parole)
+- Ricerca semantica via embedding (trova concetti correlati anche con parole diverse)
+- Espansione automatica della query con sinonimi italiani
+
+Ritorna risultati raggruppati per Tile, con sparks rilevanti annidati.
+
+USA SEMPRE QUESTO TOOL per richieste tipo:
+- "cerca il tile X" / "trova lo spark Y"
+- "ho qualcosa su X?"
+- "ho programmato Z?" / "mi ricordi cosa avevo su W?"
+- ricerche per concetto, sinonimo, parafrasi
+
+NON usare get_tile/get_spark per cercare: quelli servono SOLO quando hai già l'ID.
+NON usare i tool deprecati search_sparks/search_tiles/semantic_search: usa SEMPRE find.`,
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: "La query in linguaggio naturale italiano. Passa la richiesta dell'utente in modo naturale, non riformularla in keyword.",
+        },
+        scope: {
+          type: 'string',
+          enum: ['tiles', 'sparks', 'all'],
+          description: "Default 'all' (consigliato).",
+        },
+        filters: {
+          type: 'object',
+          properties: {
+            action_type: {
+              type: 'array',
+              items: { type: 'string', enum: ['none', 'anytime', 'deadline', 'event'] },
+            },
+            is_cta: { type: 'boolean', description: 'Filtra solo Tile call-to-action' },
+            is_completed: { type: 'boolean' },
+            tag_ids: { type: 'array', items: { type: 'string' } },
+            date_from: { type: 'string', description: 'ISO 8601' },
+            date_to: { type: 'string', description: 'ISO 8601' },
+            spark_type: {
+              type: 'array',
+              items: { type: 'string', enum: ['photo', 'image', 'video', 'audio_recording', 'text', 'file'] },
+            },
+          },
+        },
+        limit: { type: 'number', description: 'Default 20' },
+      },
+      required: ['query'],
+    },
+  },
   {
     name: 'search_sparks',
     description: 'Search sparks by type, text content, or date range. Returns matching sparks with their metadata.',
@@ -144,6 +224,88 @@ const tools: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'search_tiles',
+    description: 'Search tiles by keyword in title or description, optionally filtered by action_type or date range. Use this for any informational query — events, seminars, organizations, names, addresses, etc. Returns matching tiles with id, title, description.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: {
+          type: 'string',
+          description: 'Keyword(s) to match against title and description (case-insensitive substring match)',
+        },
+        action_type: {
+          type: 'string',
+          enum: ['none', 'anytime', 'deadline', 'event'],
+          description: 'Filter by tile action_type',
+        },
+        date_from: {
+          type: 'string',
+          description: 'ISO date — only tiles with start_at/end_at >= this',
+        },
+        date_to: {
+          type: 'string',
+          description: 'ISO date — only tiles with start_at/end_at <= this',
+        },
+        limit: {
+          type: 'number',
+          description: 'Max results (default 20, max 50)',
+        },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'count_tiles',
+    description: 'Count user tiles, optionally filtered by action_type or date range.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        action_type: {
+          type: 'string',
+          enum: ['none', 'anytime', 'deadline', 'event'],
+          description: 'Filter by action_type',
+        },
+        date_from: {
+          type: 'string',
+          description: 'ISO date — only tiles with start_at/end_at >= this',
+        },
+        date_to: {
+          type: 'string',
+          description: 'ISO date — only tiles with start_at/end_at <= this',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'list_recent_tiles',
+    description: 'List the most recent tiles ordered by updated_at desc. Default 5, max 20.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        limit: {
+          type: 'number',
+          description: 'How many recent tiles to return (default 5, max 20)',
+        },
+      },
+      required: [],
+    },
+  },
+  {
+    name: 'get_tile',
+    description: 'Get full detail of a single tile by id (title, description, action_type, dates, status, plus all sparks inside it with their AI metadata).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The tile UUID',
+        },
+      },
+      required: ['id'],
+    },
+  },
+  {
     name: 'semantic_search',
     description: 'Search sparks by meaning using AI embeddings. Use this for conceptual queries like "notes about travel", "recordings mentioning the budget", etc. Returns sparks ranked by semantic similarity.',
     input_schema: {
@@ -188,6 +350,8 @@ async function executeToolInner(
   userId: string
 ): Promise<string> {
   switch (toolName) {
+    case 'find':
+      return findTool(toolInput, userId);
     case 'search_sparks':
       return searchSparks(toolInput, userId);
     case 'count_sparks':
@@ -202,6 +366,14 @@ async function executeToolInner(
       return listTiles(userId);
     case 'get_tile_sparks':
       return getTileSparks(toolInput, userId);
+    case 'search_tiles':
+      return searchTiles(toolInput, userId);
+    case 'count_tiles':
+      return countTiles(toolInput, userId);
+    case 'list_recent_tiles':
+      return listRecentTiles(toolInput, userId);
+    case 'get_tile':
+      return getTile(toolInput, userId);
     case 'semantic_search':
       return semanticSearch(toolInput, userId);
     default:
@@ -359,6 +531,105 @@ async function expandQueryBilingual(query: string): Promise<string> {
   }
 }
 
+async function searchTiles(input: Record<string, unknown>, userId: string): Promise<string> {
+  const query = (input.query as string)?.trim();
+  if (!query) return JSON.stringify({ error: 'Query is required' });
+  const limit = Math.min(Number(input.limit) || 20, 50);
+
+  let q = supabaseAdmin
+    .from('tiles')
+    .select('id, title, description, action_type, start_at, end_at, created_at')
+    .eq('user_id', userId)
+    .or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+
+  if (input.action_type) q = q.eq('action_type', input.action_type as string);
+  if (input.date_from) {
+    const from = normalizeDateFrom(input.date_from as string);
+    q = q.or(`start_at.gte.${from},end_at.gte.${from}`);
+  }
+  if (input.date_to) {
+    const to = normalizeDateTo(input.date_to as string);
+    q = q.or(`start_at.lte.${to},end_at.lte.${to}`);
+  }
+
+  const { data, error } = await q.order('updated_at', { ascending: false }).limit(limit);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ tiles: data || [], count: data?.length ?? 0, query });
+}
+
+async function countTiles(input: Record<string, unknown>, userId: string): Promise<string> {
+  let q = supabaseAdmin.from('tiles').select('*', { count: 'exact', head: true }).eq('user_id', userId);
+  if (input.action_type) q = q.eq('action_type', input.action_type as string);
+  if (input.date_from) {
+    const from = normalizeDateFrom(input.date_from as string);
+    q = q.or(`start_at.gte.${from},end_at.gte.${from}`);
+  }
+  if (input.date_to) {
+    const to = normalizeDateTo(input.date_to as string);
+    q = q.or(`start_at.lte.${to},end_at.lte.${to}`);
+  }
+  const { count, error } = await q;
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ count: count ?? 0 });
+}
+
+async function listRecentTiles(input: Record<string, unknown>, userId: string): Promise<string> {
+  const limit = Math.min(Number(input.limit) || 5, 20);
+  const { data, error } = await supabaseAdmin
+    .from('tiles')
+    .select('id, title, description, action_type, start_at, end_at, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false })
+    .limit(limit);
+  if (error) return JSON.stringify({ error: error.message });
+  return JSON.stringify({ tiles: data || [], count: data?.length ?? 0 });
+}
+
+async function getTile(input: Record<string, unknown>, userId: string): Promise<string> {
+  const id = input.id as string;
+  if (!id) return JSON.stringify({ error: 'id is required' });
+  const { data: tile, error: tileErr } = await supabaseAdmin
+    .from('tiles')
+    .select('id, title, description, action_type, all_day, is_event, start_at, end_at, status_id, created_at, updated_at')
+    .eq('id', id)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (tileErr) return JSON.stringify({ error: tileErr.message });
+  if (!tile) return JSON.stringify({ error: 'Tile not found' });
+
+  const { data: sparks } = await supabaseAdmin
+    .from('sparks')
+    .select('id, type, content, file_name, mime_type, metadata, created_at')
+    .eq('user_id', userId)
+    .eq('tile_id', id)
+    .order('created_at', { ascending: true });
+
+  return JSON.stringify({ tile, sparks: sparks || [] });
+}
+
+async function findTool(input: Record<string, unknown>, userId: string): Promise<string> {
+  const query = (input.query as string)?.trim();
+  if (!query) return JSON.stringify({ error: 'Query is required' });
+
+  const params: FindParams = {
+    query,
+    scope: (input.scope as FindParams['scope']) ?? 'all',
+    filters: (input.filters as FindParams['filters']) ?? undefined,
+    limit: typeof input.limit === 'number' ? input.limit : undefined,
+  };
+
+  try {
+    const result = await findImpl(userId, params);
+    console.log(
+      `[find] q="${query}" expanded=${result.expanded_queries.length} tiles=${result.tiles.length} orphans=${result.orphan_sparks.length}`,
+    );
+    return JSON.stringify(result);
+  } catch (err) {
+    console.error('[findTool] failed:', err);
+    return JSON.stringify({ error: 'Find failed', tiles: [], orphan_sparks: [], total_results: 0 });
+  }
+}
+
 async function semanticSearch(input: Record<string, unknown>, userId: string): Promise<string> {
   const query = input.query as string;
   if (!query) return JSON.stringify({ error: 'Query is required' });
@@ -388,12 +659,23 @@ async function semanticSearch(input: Record<string, unknown>, userId: string): P
 function extractSparkIds(toolName: string, resultJson: string): string[] {
   try {
     const parsed = JSON.parse(resultJson);
+    const ids: string[] = [];
     if (parsed.sparks && Array.isArray(parsed.sparks)) {
-      return parsed.sparks.map((s: { id: string }) => s.id).filter(Boolean);
+      ids.push(...parsed.sparks.map((s: { id: string }) => s.id).filter(Boolean));
     }
-    if (parsed.id && (toolName === 'get_spark')) {
-      return [parsed.id];
+    if (parsed.id && (toolName === 'get_spark')) ids.push(parsed.id);
+    // find tool result: { tiles: [{ matching_sparks: [...] }], orphan_sparks: [...] }
+    if (parsed.tiles && Array.isArray(parsed.tiles)) {
+      for (const t of parsed.tiles) {
+        if (t.matching_sparks && Array.isArray(t.matching_sparks)) {
+          ids.push(...t.matching_sparks.map((s: { id: string }) => s.id).filter(Boolean));
+        }
+      }
     }
+    if (parsed.orphan_sparks && Array.isArray(parsed.orphan_sparks)) {
+      ids.push(...parsed.orphan_sparks.map((s: { id: string }) => s.id).filter(Boolean));
+    }
+    return [...new Set(ids)];
   } catch {}
   return [];
 }
@@ -410,8 +692,16 @@ function extractTileIds(toolName: string, resultJson: string): string[] {
         if (s.tile_id) ids.push(s.tile_id);
       }
     }
+    if (parsed.orphan_sparks && Array.isArray(parsed.orphan_sparks)) {
+      for (const s of parsed.orphan_sparks) {
+        if (s.tile_id) ids.push(s.tile_id);
+      }
+    }
     if (parsed.tile_id && typeof parsed.tile_id === 'string') {
       ids.push(parsed.tile_id);
+    }
+    if (toolName === 'get_tile' && parsed.tile && typeof parsed.tile.id === 'string') {
+      ids.push(parsed.tile.id);
     }
     return [...new Set(ids)];
   } catch {}

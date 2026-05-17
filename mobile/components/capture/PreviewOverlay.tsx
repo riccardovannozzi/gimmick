@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, Image, TouchableOpacity } from 'react-native';
 import { Video as ExpoVideo, ResizeMode } from 'expo-av';
-import { X, Check, Edit2, FileText, Mic, File } from 'lucide-react-native';
+import { IconX, IconCheck, IconPencil, IconFileText, IconMicrophone, IconFile } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { captureColors } from '@/constants/colors';
 import { useSettingsStore } from '@/store';
@@ -67,7 +67,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 min-h-32">
         <View className="flex-row items-center mb-3">
-          <FileText size={24} color={captureColors.text} />
+          <IconFileText size={24} color={captureColors.text} />
           <Text className="text-primary font-medium ml-2">Text note</Text>
         </View>
         <Text className="text-secondary leading-5">
@@ -81,7 +81,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 items-center">
         <View className="w-16 h-16 rounded-full bg-capture-voice/20 items-center justify-center mb-3">
-          <Mic size={32} color={captureColors.voice} />
+          <IconMicrophone size={32} color={captureColors.voice} />
         </View>
         <Text className="text-primary font-medium">
           {type === 'audio_recording' ? 'Audio recording' : 'Audio file'}
@@ -100,7 +100,7 @@ function PreviewContent({
     return (
       <View className="bg-background-1 rounded-xl p-4 items-center">
         <View className="w-16 h-16 rounded-full bg-capture-file/20 items-center justify-center mb-3">
-          <File size={32} color={captureColors.file} />
+          <IconFile size={32} color={captureColors.file} />
         </View>
         <Text className="text-primary font-medium">File</Text>
         {fileName ? (
@@ -157,7 +157,7 @@ export function PreviewOverlay({
           onPress={() => handleAction(onCancel)}
           className="w-16 h-16 rounded-full bg-error items-center justify-center"
         >
-          <X size={28} color="#fff" />
+          <IconX size={28} color="#fff" />
         </TouchableOpacity>
 
         {/* Edit (optional) */}
@@ -166,7 +166,7 @@ export function PreviewOverlay({
             onPress={() => handleAction(onEdit)}
             className="w-16 h-16 rounded-full bg-accent items-center justify-center"
           >
-            <Edit2 size={28} color="#fff" />
+            <IconPencil size={28} color="#fff" />
           </TouchableOpacity>
         )}
 
@@ -175,7 +175,7 @@ export function PreviewOverlay({
           onPress={() => handleAction(onAdd)}
           className="w-16 h-16 rounded-full bg-success items-center justify-center"
         >
-          <Check size={28} color="#fff" />
+          <IconCheck size={28} color="#fff" />
         </TouchableOpacity>
       </View>
 

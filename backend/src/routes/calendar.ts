@@ -6,7 +6,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
-import { processNewSpark } from '../services/indexing.js';
+
 
 const anthropic = new Anthropic();
 
@@ -19,13 +19,11 @@ const scheduleSchema = z.object({
   start_at: z.string().optional(),
   end_at: z.string().optional(),
   title: z.string().optional(),
-  description: z.string().optional(),
   auto_detect: z.boolean().optional(),
 });
 
 const createEventSchema = z.object({
   title: z.string().optional(),
-  description: z.string().optional(),
   start_at: z.string().optional(),
   end_at: z.string().optional(),
 });
@@ -62,27 +60,51 @@ calendarRouter.get(
         tag_id?: string;
       };
 
-      // Fetch events (is_event=true) AND deadline tiles (action_type='deadline' with start_at)
-      let query = supabaseAdmin
-        .from('tiles')
-        .select('*, sparks(count), tile_tags(tag_id, tags(id, name, color))')
-        .eq('user_id', req.user!.id)
-        .or('is_event.eq.true,action_type.eq.deadline')
-        .not('start_at', 'is', null)
-        .gte('start_at', start.toISOString())
-        .lte('start_at', end.toISOString())
-        .order('start_at', { ascending: true });
+      // Events live on start_at; deadlines live on end_at. Query both independently
+      // and merge — a single OR doesn't work because each branch needs its own date column.
+      const select = '*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type))';
+      const [eventsRes, deadlinesRes] = await Promise.all([
+        supabaseAdmin
+          .from('tiles')
+          .select(select)
+          .eq('user_id', req.user!.id)
+          .eq('is_event', true)
+          .not('start_at', 'is', null)
+          .gte('start_at', start.toISOString())
+          .lte('start_at', end.toISOString()),
+        supabaseAdmin
+          .from('tiles')
+          .select(select)
+          .eq('user_id', req.user!.id)
+          .eq('action_type', 'deadline')
+          .not('end_at', 'is', null)
+          .gte('end_at', start.toISOString())
+          .lte('end_at', end.toISOString()),
+      ]);
+      if (eventsRes.error) throw eventsRes.error;
+      if (deadlinesRes.error) throw deadlinesRes.error;
 
-      const { data, error } = await query;
-      if (error) throw error;
+      const seen = new Set<string>();
+      const merged = [...(eventsRes.data || []), ...(deadlinesRes.data || [])].filter((t: any) => {
+        if (seen.has(t.id)) return false;
+        seen.add(t.id);
+        return true;
+      });
 
-      let events = (data || []).map((tile: any) => ({
+      let events = merged.map((tile: any) => ({
         ...tile,
         spark_count: tile.sparks?.[0]?.count || 0,
         sparks: undefined,
         tags: (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean),
         tile_tags: undefined,
       }));
+
+      // Sort by effective date (deadlines by end_at, events by start_at)
+      events.sort((a: any, b: any) => {
+        const ad = a.action_type === 'deadline' ? (a.end_at || a.start_at) : (a.start_at || a.end_at);
+        const bd = b.action_type === 'deadline' ? (b.end_at || b.start_at) : (b.start_at || b.end_at);
+        return new Date(ad).getTime() - new Date(bd).getTime();
+      });
 
       if (tag_id) {
         events = events.filter((e: any) =>
@@ -106,7 +128,7 @@ calendarRouter.post(
   validate(scheduleSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { tile_id, start_at, end_at, title, description, auto_detect } = req.body;
+      const { tile_id, start_at, end_at, title, auto_detect } = req.body;
 
       // Verify tile ownership
       const { data: tile, error: fetchError } = await supabaseAdmin
@@ -149,7 +171,6 @@ calendarRouter.post(
         updated_at: new Date().toISOString(),
       };
       if (title) updateData.title = title;
-      if (description) updateData.description = description;
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
@@ -176,14 +197,13 @@ calendarRouter.post(
  * POST /api/calendar/create-event
  * Create a new tile AND schedule it as an event in one atomic operation.
  * Every calendar event corresponds to a real tile.
- * If description is provided, also creates a text Spark with that content.
  */
 calendarRouter.post(
   '/create-event',
   validate(createEventSchema),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { title, description, start_at, end_at } = req.body;
+      const { title, start_at, end_at } = req.body;
 
       // Normalize dates
       const finalStartAt = start_at ? new Date(start_at).toISOString() : new Date().toISOString();
@@ -197,7 +217,6 @@ calendarRouter.post(
         .insert({
           user_id: req.user!.id,
           title: title || 'Nuovo evento',
-          description: description || null,
           start_at: finalStartAt,
           end_at: finalEndAt,
           is_event: true,
@@ -208,27 +227,6 @@ calendarRouter.post(
         .single();
 
       if (error) throw error;
-
-      // If description is provided, create a text Spark with the description content
-      if (description && description.trim()) {
-        const { data: spark, error: sparkError } = await supabaseAdmin
-          .from('sparks')
-          .insert({
-            user_id: req.user!.id,
-            tile_id: data.id,
-            type: 'text',
-            content: description.trim(),
-          })
-          .select()
-          .single();
-
-        if (!sparkError && spark) {
-          // Fire-and-forget AI indexing for the new spark
-          processNewSpark(spark.id).catch((err) => {
-            console.error(`[Calendar] Spark indexing failed for ${spark.id}:`, err);
-          });
-        }
-      }
 
       res.status(201).json({
         success: true,
@@ -279,22 +277,27 @@ calendarRouter.patch(
 
 /**
  * PATCH /api/calendar/events/:id
- * Update event details (title, description, times)
+ * Update event details (title, times)
  */
 calendarRouter.patch(
   '/events/:id',
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const { id } = req.params;
-      const { title, description, start_at, end_at } = req.body;
+      const { title, start_at, end_at, action_type, all_day } = req.body;
 
       const updateData: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
       };
       if (title !== undefined) updateData.title = title;
-      if (description !== undefined) updateData.description = description;
       if (start_at) updateData.start_at = start_at;
       if (end_at) updateData.end_at = end_at;
+      if (action_type !== undefined) {
+        updateData.action_type = action_type;
+        updateData.action_type_reviewed = true;
+        updateData.is_event = action_type === 'event';
+      }
+      if (all_day !== undefined) updateData.all_day = all_day;
 
       const { data, error } = await supabaseAdmin
         .from('tiles')
@@ -360,7 +363,7 @@ calendarRouter.post(
 
       let dbQuery = supabaseAdmin
         .from('tiles')
-        .select('id, title, description, start_at, end_at, sparks(content, file_name, metadata)')
+        .select('id, title, start_at, end_at, sparks(content, file_name, metadata)')
         .eq('user_id', req.user!.id)
         .eq('is_event', true)
         .order('start_at', { ascending: true })
@@ -381,7 +384,7 @@ calendarRouter.post(
           .map((s: any) => s.content || s.file_name || s.metadata?.summary || '')
           .filter(Boolean)
           .join('; ');
-        return `[${i}] "${e.title || 'Senza titolo'}" (${e.start_at}) - ${e.description || ''} ${sparkTexts}`.trim();
+        return `[${i}] "${e.title || 'Senza titolo'}" (${e.start_at}) ${sparkTexts}`.trim();
       });
 
       const response = await anthropic.messages.create({
@@ -417,7 +420,6 @@ calendarRouter.post(
 async function detectDateTimeFromTile(tile: any): Promise<{ start_at: string; end_at?: string } | null> {
   const textParts: string[] = [];
   if (tile.title) textParts.push(`Titolo: ${tile.title}`);
-  if (tile.description) textParts.push(`Descrizione: ${tile.description}`);
 
   const sparks = tile.sparks || [];
   for (const spark of sparks) {

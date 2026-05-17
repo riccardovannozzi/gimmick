@@ -2,8 +2,9 @@
 
 import { useState, useMemo, Fragment, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { LayoutGrid, Trash2, FileText, Image as ImageIcon, Mic, Film, File as FileIcon, Paperclip, X, Check, CheckCheck, Pin, Zap, Clock, Calendar, Sparkles, ChevronDown, CircleCheck, Circle as CircleIcon, Filter, Search } from 'lucide-react';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { IconLayoutGrid, IconTrash, IconFileText, IconPhoto, IconMicrophone, IconMovie, IconFile, IconPaperclip, IconX, IconCheck, IconChecks, IconPin, IconBolt, IconClock, IconCalendar, IconCalendarEvent, IconSparkles, IconChevronDown, IconFilter, IconSearch, IconFocus, IconTarget, IconPlus } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -20,16 +21,36 @@ import {
 import { cn } from '@/lib/utils';
 import { tilesApi, tagsApi, uploadApi } from '@/lib/api';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
+import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
-import { SparkViewer } from '@/components/spark/spark-viewer';
+import { readableOn } from '@/lib/palette';
+
 import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
+import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { useTagTypes } from '@/store/tag-types-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useStatuses } from '@/store/statuses-store';
+// helper inline: a tile is "done" when status_id points to the system 'done' row
+const isTileDone = (tile: Tile, doneStatusId: string | undefined) =>
+  !!doneStatusId && tile.status_id === doneStatusId;
+import { TimePicker } from '@/components/ui/time-picker';
 
-const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof Pin; color: string; label: string }> = {
-  none: { icon: Pin, color: 'text-pink-400', label: 'Appunto' },
-  anytime: { icon: Zap, color: 'text-green-400', label: 'Da fare' },
-  deadline: { icon: Clock, color: 'text-amber-400', label: 'Scadenza' },
-  event: { icon: Calendar, color: 'text-blue-400', label: 'Evento' },
+// Helper: render emoji string or Tabler icon component
+function TagTypeIcon({ emoji, size = 16, color }: { emoji: string; size?: number; color?: string }) {
+  if (emoji.startsWith('Icon')) {
+    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
+    if (Comp) return <Comp size={size} style={color ? { color } : { color: '#D4D4D8' }} />;
+  }
+  return <span style={{ fontSize: size * 0.8, color: color || undefined }}>{emoji}</span>;
+}
+
+const ACTION_TYPE_BADGE: Record<ActionType, { icon: typeof IconPin; label: string }> = {
+  none: { icon: IconPin, label: 'Notes' },
+  anytime: { icon: IconBolt, label: 'To Do' },
+  deadline: { icon: IconClock, label: 'Due' },
+  event: { icon: IconCalendar, label: 'Timed' },
+  allday: { icon: IconCalendarEvent, label: 'All Day' },
 };
 
 const SPARK_TYPE_OPTIONS: { value: SparkType; label: string }[] = [
@@ -145,7 +166,7 @@ function FilterableHead({
         className="flex items-center gap-1 w-full text-left"
       >
         <span className="truncate">{label}</span>
-        <Filter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
+        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
       </button>
       <div
         onMouseDown={onMouseDown}
@@ -274,11 +295,17 @@ function InlineActionDropdown({
     setPickerMode(null);
   };
 
+  const actionColors = useActionColors();
   const at = tile.action_type || 'none';
-  const cfg = ACTION_TYPE_BADGE[at];
+  const isAllDay = at === 'event' && tile.all_day;
+  const displayAt = isAllDay ? 'allday' as ActionType : at;
+  const cfg = ACTION_TYPE_BADGE[displayAt];
   const Icon = cfg.icon;
+  const atColor = actionColors[displayAt];
   const subtitle = formatActionSubtitle(tile);
-  const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai;
+  const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
+
+  const getBorderCSS = (): React.CSSProperties => ({ border: `1.5px solid ${atColor}` });
 
   const showPortal = open || pickerMode;
 
@@ -287,19 +314,15 @@ function InlineActionDropdown({
       <button
         ref={triggerRef}
         onClick={handleToggle}
-        className="flex flex-col items-start gap-0 w-full text-left"
+        className="flex flex-col justify-center gap-0 w-full text-left rounded px-1.5"
+        style={{ ...getBorderCSS(), minHeight: 36, backgroundColor: 'rgba(31, 31, 35, 0.8)' }}
       >
-        <div className="flex items-center gap-1">
-          <Icon className={cn('h-3 w-3', cfg.color)} />
-          <span className={cn('text-xs', cfg.color)}>{cfg.label}</span>
-          <ChevronDown className="h-3 w-3 text-zinc-500" />
-          {hasAiHint && <Sparkles className="h-2.5 w-2.5 text-purple-400" />}
+        <div className="flex items-center gap-1 w-full">
+          <Icon className="h-3 w-3 text-zinc-400" />
+          <span className="text-xs flex-1 text-zinc-400">{cfg.label}</span>
+          {hasAiHint && <IconSparkles className="h-2.5 w-2.5 text-purple-400" />}
+          <IconChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
         </div>
-        {subtitle && (
-          <span className="text-[11px] text-zinc-500 leading-tight truncate max-w-full">
-            {subtitle}
-          </span>
-        )}
       </button>
       {showPortal && createPortal(
         <div
@@ -310,25 +333,52 @@ function InlineActionDropdown({
           {/* Action type options */}
           {open && (
             <div className="w-36 py-1">
-              {(['none', 'anytime', 'deadline', 'event'] as ActionType[]).map((opt) => {
-                const optCfg = ACTION_TYPE_BADGE[opt];
-                const OptIcon = optCfg.icon;
-                const isActive = at === opt;
+              {([
+                { value: 'none' as ActionType, label: 'Notes', allDay: false },
+                { value: 'anytime' as ActionType, label: 'To Do', allDay: false },
+                { value: 'deadline' as ActionType, label: 'Due', allDay: false },
+                { value: 'event' as ActionType, label: 'All Day', allDay: true },
+                { value: 'event' as ActionType, label: 'Timed', allDay: false },
+              ]).map((opt) => {
+                const optCfg = ACTION_TYPE_BADGE[opt.value];
+                const OptIcon = opt.allDay ? IconCalendarEvent : optCfg.icon;
+                const isActive = opt.value === 'event'
+                  ? at === 'event' && (opt.allDay ? !!tile.all_day : !tile.all_day)
+                  : at === opt.value;
+                const colorKey = opt.allDay ? 'allday' as ActionType : opt.value;
                 return (
                   <button
-                    key={opt}
+                    key={opt.label}
                     className={cn(
                       'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
                       isActive && 'bg-zinc-800'
                     )}
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleSelectOption(opt);
+                      if (opt.value === 'event') {
+                        // For event types, set allDay and skip date picker for All Day
+                        setOpen(false);
+                        if (opt.allDay) {
+                          const today = new Date().toISOString().slice(0, 10);
+                          onUpdate({
+                            action_type: 'event',
+                            is_event: true,
+                            all_day: true,
+                            start_at: tile.start_at || new Date(`${today}T00:00:00`).toISOString(),
+                            end_at: tile.end_at || new Date(`${today}T23:59:59`).toISOString(),
+                          });
+                        } else {
+                          setPickerAllDay(false);
+                          handleSelectOption('event');
+                        }
+                      } else {
+                        handleSelectOption(opt.value);
+                      }
                     }}
                   >
-                    <OptIcon className={cn('h-3.5 w-3.5', optCfg.color)} />
-                    <span className="text-zinc-300">{optCfg.label}</span>
-                    {isActive && <Check className="h-3 w-3 text-blue-400 ml-auto" />}
+                    <OptIcon className="h-3.5 w-3.5" style={{ color: actionColors[colorKey] }} />
+                    <span className="text-zinc-300">{opt.label}</span>
+                    {isActive && <IconCheck className="h-3 w-3 text-blue-400 ml-auto" />}
                   </button>
                 );
               })}
@@ -339,7 +389,7 @@ function InlineActionDropdown({
           {pickerMode === 'deadline' && (
             <div className="w-56 p-3 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="h-3.5 w-3.5 text-amber-400" />
+                <IconClock className="h-3.5 w-3.5 text-amber-400" />
                 <span className="text-xs font-medium text-amber-400">Scadenza</span>
               </div>
               <label className="text-[11px] text-zinc-500">Data</label>
@@ -349,6 +399,7 @@ function InlineActionDropdown({
                 onChange={(e) => setPickerDate(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
+                style={{ colorScheme: 'dark' }}
               />
               <button
                 onClick={handlePickerConfirm}
@@ -363,7 +414,7 @@ function InlineActionDropdown({
           {pickerMode === 'event' && (
             <div className="w-60 p-3 flex flex-col gap-2">
               <div className="flex items-center gap-2 mb-1">
-                <Calendar className="h-3.5 w-3.5 text-blue-400" />
+                <IconCalendar className="h-3.5 w-3.5 text-blue-400" />
                 <span className="text-xs font-medium text-blue-400">Evento</span>
               </div>
               <label className="text-[11px] text-zinc-500">Data</label>
@@ -373,6 +424,7 @@ function InlineActionDropdown({
                 onChange={(e) => setPickerDate(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                style={{ colorScheme: 'dark' }}
               />
               <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
                 <input
@@ -422,13 +474,13 @@ function InlineActionDropdown({
   );
 }
 
-const typeIcons: Record<SparkType, typeof FileText> = {
-  photo: ImageIcon,
-  image: ImageIcon,
-  video: Film,
-  audio_recording: Mic,
-  text: FileText,
-  file: FileIcon,
+const typeIcons: Record<SparkType, typeof IconFileText> = {
+  photo: IconPhoto,
+  image: IconPhoto,
+  video: IconMovie,
+  audio_recording: IconMicrophone,
+  text: IconFileText,
+  file: IconFile,
 };
 
 const typeIconColors: Record<SparkType, string> = {
@@ -453,15 +505,20 @@ function TagDropdown({
   allTags: Tag[];
   open: boolean;
   onClose: () => void;
-  anchorRef: React.RefObject<HTMLDivElement | null>;
+  anchorRef: React.RefObject<HTMLElement | null>;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
+  const { getEmoji: getTypeEmoji, getColor: getTypeColor } = useTagTypes();
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
   const tagMutation = useMutation({
     mutationFn: async ({ tagId, action }: { tagId: string; action: 'add' | 'remove' }) => {
       if (action === 'add') {
+        // Single-tag mode: remove all existing tags first, then add the new one
+        for (const existingTag of tileTags) {
+          await Promise.all(tileIds.map((id) => tagsApi.untagTile(existingTag.id, id)));
+        }
         return tagsApi.tagTiles(tagId, tileIds);
       } else {
         await Promise.all(tileIds.map((id) => tagsApi.untagTile(tagId, id)));
@@ -469,6 +526,7 @@ function TagDropdown({
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tiles'] });
+      onClose();
     },
     onError: () => toast.error('Errore aggiornamento tag'),
   });
@@ -502,8 +560,13 @@ function TagDropdown({
 
   if (!open) return null;
 
-  const tileTagIds = new Set(tileTags.map((t) => t.id));
+  // Only show the first non-root tag as assigned (single-tag mode)
+  const rootTagIds = new Set(allTags.filter((t) => t.is_root).map((t) => t.id));
+  const nonRootTileTags = tileTags.filter((t) => !rootTagIds.has(t.id));
+  const assignedTagId = nonRootTileTags.length > 0 ? nonRootTileTags[0].id : null;
   const isBulk = tileIds.length > 1;
+  // Filter out root tags from the dropdown
+  const visibleTags = allTags.filter((t) => !t.is_root);
 
   return createPortal(
     <div
@@ -516,26 +579,23 @@ function TagDropdown({
           {tileIds.length} tile selezionati
         </p>
       )}
-      {allTags.length === 0 ? (
+      {visibleTags.length === 0 ? (
         <p className="text-xs text-zinc-500 px-3 py-2">Nessun tag disponibile</p>
       ) : (
-        allTags.map((tag) => {
-          const isAssigned = tileTagIds.has(tag.id);
+        visibleTags.map((tag) => {
+          const isAssigned = tag.id === assignedTagId;
           return (
             <button
               key={tag.id}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-sm hover:bg-zinc-800 transition-colors"
+              className={cn('flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors', isAssigned && 'bg-zinc-800')}
               onClick={(e) => {
                 e.stopPropagation();
                 tagMutation.mutate({ tagId: tag.id, action: isAssigned ? 'remove' : 'add' });
               }}
             >
-              <div
-                className="w-3 h-3 rounded-full shrink-0"
-                style={{ backgroundColor: tag.color || '#3B82F6' }}
-              />
-              <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-              {isAssigned && <Check className="h-3.5 w-3.5 text-blue-400 shrink-0" />}
+              <TagTypeIcon emoji={getTypeEmoji(tag.tag_type || 'topic')} size={13} />
+              <span className={cn('flex-1 truncate', isAssigned ? 'text-white font-medium' : 'text-zinc-400')} style={{ color: isAssigned ? getTypeColor(tag.tag_type || 'topic') || '#94A3B8' : undefined }}>{tag.name}</span>
+              {isAssigned && <IconCheck className="h-3 w-3 text-blue-400 shrink-0" />}
             </button>
           );
         })
@@ -546,6 +606,118 @@ function TagDropdown({
 }
 
 // ─── Spark thumbnail (loads signed URL for images) ───
+// ─── Status shape SVG for table cells ───
+function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
+  const id = `cell-${shape}-${color.replace('#', '')}`;
+  switch (shape) {
+    case 'diagonal_ltr':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <defs><pattern id={`${id}-dltr`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
+          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-dltr)`} />
+        </svg>
+      );
+    case 'diagonal_rtl':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <defs><pattern id={`${id}-drtl`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
+          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-drtl)`} />
+        </svg>
+      );
+    case 'vertical':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <defs><pattern id={`${id}-vert`} patternUnits="userSpaceOnUse" width={12} height={12}><line x1={6} y1={0} x2={6} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
+          <rect width={80} height={32} fill={`url(#${id}-vert)`} />
+        </svg>
+      );
+    case 'square':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <rect x={4} y={3} width={72} height={26} fill="none" stroke={color} strokeWidth={3} strokeOpacity={1} rx={3} />
+        </svg>
+      );
+    case 'target':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <circle cx={40} cy={16} r={10} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={40} cy={16} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={40} cy={16} r={2} fill={color} fillOpacity={1} />
+        </svg>
+      );
+    case 'cross':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <line x1={10} y1={10} x2={70} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
+          <line x1={70} y1={10} x2={10} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
+        </svg>
+      );
+    case 'bubble':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
+          <circle cx={42} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.85} />
+          <circle cx={56} cy={14} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
+          <circle cx={70} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+          <circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
+          <circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
+        </svg>
+      );
+    case 'question':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">?</text>
+        </svg>
+      );
+    case 'exclamation':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">!</text>
+        </svg>
+      );
+    case 'arrows':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <line x1={10} y1={11} x2={55} y2={11} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
+          <polyline points="48,5 58,11 48,17" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
+          <line x1={70} y1={21} x2={25} y2={21} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
+          <polyline points="32,15 22,21 32,27" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'hourglass':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <path d="M32,7 L48,7 L40,16 L48,25 L32,25 L40,16 Z" fill="none" stroke={color} strokeWidth={3.5} strokeOpacity={1} strokeLinejoin="round" strokeLinecap="round" />
+        </svg>
+      );
+    case 'pause_bars':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <rect x={34} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
+          <rect x={42} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
+        </svg>
+      );
+    case 'lock':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
+          <path d="M34,14 V10 a6,6 0 0 1 12,0 V14" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={1} strokeLinecap="round" />
+          <rect x={30} y={14} width={20} height={14} rx={2} fill={color} fillOpacity={0.9} />
+        </svg>
+      );
+    case 'shade':
+      return (
+        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
+          <rect width={80} height={32} fill="#000000" opacity={0.5} />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 function SparkThumbnail({ path }: { path: string }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
@@ -553,12 +725,12 @@ function SparkThumbnail({ path }: { path: string }) {
       if (res.success && res.data) setUrl(res.data.url);
     }).catch(() => {});
   }, [path]);
-  if (!url) return <div className="h-8 w-8 rounded bg-zinc-700 animate-pulse shrink-0" />;
+  if (!url) return <div className="h-10 w-10 rounded bg-zinc-700 animate-pulse shrink-0" />;
   return (
     <img
       src={url}
       alt=""
-      className="h-8 w-8 rounded object-cover shrink-0"
+      className="h-10 w-10 rounded object-cover shrink-0"
     />
   );
 }
@@ -572,8 +744,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
     const thumbPath = spark.storage_path;
     if (thumbPath) return <SparkThumbnail path={thumbPath} />;
     return (
-      <div className="h-8 w-8 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
-        <ImageIcon className="h-3.5 w-3.5 text-blue-400" />
+      <div className="h-10 w-10 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
+        <IconPhoto className="h-3.5 w-3.5 text-blue-400" />
       </div>
     );
   }
@@ -581,8 +753,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Video → icon
   if (t === 'video') {
     return (
-      <div className="h-8 w-8 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
-        <Film className="h-3.5 w-3.5 text-orange-400" />
+      <div className="h-10 w-10 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
+        <IconMovie className="h-3.5 w-3.5 text-orange-400" />
       </div>
     );
   }
@@ -590,8 +762,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Audio → icon
   if (t === 'audio_recording') {
     return (
-      <div className="h-8 w-8 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-        <Mic className="h-3.5 w-3.5 text-red-400" />
+      <div className="h-10 w-10 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
+        <IconMicrophone className="h-3.5 w-3.5 text-red-400" />
       </div>
     );
   }
@@ -599,8 +771,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Text → excerpt
   if (t === 'text' && spark.content) {
     return (
-      <div className="px-2 py-1 rounded bg-zinc-500/10 border border-zinc-500/20 shrink-0 max-w-[200px]">
-        <p className="text-[11px] text-zinc-400 line-clamp-2 leading-tight">
+      <div className="px-2 py-1 rounded bg-[#1f1f23]/80 overflow-hidden text-left w-full">
+        <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2 whitespace-normal" style={{ wordBreak: 'break-word' }}>
           {spark.content}
         </p>
       </div>
@@ -610,8 +782,8 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // File → attachment icon + name
   if (t === 'file') {
     return (
-      <div className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px]">
-        <Paperclip className="h-3 w-3 text-yellow-400 shrink-0" />
+      <div className="flex items-center gap-1 px-2 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px] h-10">
+        <IconPaperclip className="h-3 w-3 text-yellow-400 shrink-0" />
         <span className="text-[11px] text-yellow-300/80 truncate">
           {spark.file_name || 'file'}
         </span>
@@ -622,7 +794,7 @@ function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: 
   // Fallback
   return (
     <div className="h-8 w-8 rounded bg-zinc-700/50 border border-zinc-600 flex items-center justify-center shrink-0">
-      <FileText className="h-3.5 w-3.5 text-zinc-400" />
+      <IconFileText className="h-3.5 w-3.5 text-zinc-400" />
     </div>
   );
 }
@@ -679,31 +851,105 @@ function ResizableHead({
   );
 }
 
+const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', deadline: 'DUE', event: 'TIMED', allday: 'ALL DAY' };
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>>;
+
+function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | undefined }) {
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const { statuses } = useStatuses();
+
+  const tiId = typeTileIcons[tile.id];
+  const ti = tiId ? typeIcons.find((i) => i.id === tiId) : null;
+  const TiComp = ti?.icon ? AllIcons[ti.icon] : null;
+
+  const status = tile.status_id ? statuses.find((s) => s.id === tile.status_id) : null;
+
+  const typeLabel = tile.all_day ? 'ALL DAY' : (TYPE_LABELS[tile.action_type || 'none'] || tile.action_type);
+
+  const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
+  const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
+  const dateVal = dateRef ? (() => { const d = new Date(dateRef); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })() : '';
+  const startH = tile.start_at ? String(new Date(tile.start_at).getHours()).padStart(2, '0') : '';
+  const startM = tile.start_at ? String(new Date(tile.start_at).getMinutes()).padStart(2, '0') : '';
+  const endH = tile.end_at ? String(new Date(tile.end_at).getHours()).padStart(2, '0') : '';
+  const endM = tile.end_at ? String(new Date(tile.end_at).getMinutes()).padStart(2, '0') : '';
+  const isTimed = tile.action_type === 'event' && !tile.all_day;
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const mins = ['00', '15', '30', '45'];
+  const selCls = "w-full bg-transparent text-[10px] text-zinc-300 focus:outline-none cursor-pointer";
+
+  const updateDate = (newDate: string) => {
+    if (!newDate || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
+    if (tile.action_type === 'deadline') {
+      onUpdate(tile.id, { end_at: new Date(`${newDate}T23:59:59`).toISOString() });
+    } else if (isTimed) {
+      onUpdate(tile.id, { start_at: new Date(`${newDate}T${startH || '09'}:${startM || '00'}`).toISOString(), end_at: tile.end_at ? new Date(`${newDate}T${endH || '10'}:${endM || '00'}`).toISOString() : undefined });
+    } else {
+      onUpdate(tile.id, { start_at: new Date(`${newDate}T00:00:00`).toISOString(), end_at: new Date(`${newDate}T23:59:59`).toISOString() });
+    }
+  };
+
+  return (
+    <>
+      {/* Type */}
+      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type }}>
+        {ti && TiComp ? (
+          <div className="flex items-center gap-2.5">
+            <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: ti.color || '#27272A' }}>
+              <TiComp size={16} color={readableOn(ti.color || '#27272A')} />
+            </div>
+            <span className="text-xs text-zinc-400 truncate">{ti.name}</span>
+          </div>
+        ) : (
+          <span className="text-zinc-600 text-xs">—</span>
+        )}
+      </TableCell>
+      <TableCell className="border-r border-zinc-800 overflow-hidden" style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
+        {status && status.shape !== 'solid' ? (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative w-6 h-6 rounded overflow-hidden shrink-0" style={{ backgroundColor: '#27272A' }}>
+              <CellStatusSvg shape={status.shape} color="#e4e4e7" />
+            </div>
+            <span className="text-xs text-zinc-400 truncate">{status.name}</span>
+          </div>
+        ) : (
+          <span className="text-zinc-600 text-xs">—</span>
+        )}
+      </TableCell>
+    </>
+  );
+}
+
 function TileRow({
   tile,
   selected,
   selectedIds,
   allTags,
   colWidths,
+  isDone,
   onSelect,
   onSparkClick,
   onTileClick,
   onActionTypeChange,
-  onToggleCompleted,
+  getEmoji,
+  getColor,
 }: {
   tile: Tile;
   selected: boolean;
   selectedIds: Set<string>;
   allTags: Tag[];
-  colWidths: { title: number; actionType: number; sparks: number; tags: number };
+  colWidths: { title: number; actionType: number; sparks: number; tags: number; dataScad: number; type: number; status: number };
+  isDone: boolean;
   onSelect: (id: string, checked: boolean) => void;
   onSparkClick: (spark: Spark) => void;
   onTileClick: (tile: Tile) => void;
   onActionTypeChange: (tileId: string, data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
-  onToggleCompleted: (tileId: string, completed: boolean) => void;
+  getEmoji: (slug: string) => string;
+  getColor: (slug: string) => string | undefined;
 }) {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
-  const tagCellRef = useRef<HTMLDivElement>(null);
+  const tagCellRef = useRef<HTMLTableCellElement>(null);
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
   const lastSeen = useTileNotificationStore((s) => s.lastSeen);
@@ -722,7 +968,7 @@ function TileRow({
   return (
     <Fragment>
       <TableRow
-        className={cn("border-zinc-800 cursor-pointer h-12 group/row", tile.is_completed && "bg-green-950/30")}
+        className={cn("border-zinc-800 cursor-pointer h-12 group/row", isDone && "[&>td]:opacity-40")}
         style={{ height: 48, maxHeight: 48 }}
         onClick={() => {
           if (selectedIds.size > 0) {
@@ -743,26 +989,10 @@ function TileRow({
                 : 'bg-transparent border-zinc-600 opacity-0 group-hover/row:opacity-100'
             )}
           >
-            {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+            {selected && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
           </button>
         </TableCell>
-        <TableCell
-          className="border-r border-zinc-800 cursor-pointer"
-          style={{ width: 40, minWidth: 40, maxWidth: 40 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleCompleted(tile.id, !tile.is_completed);
-          }}
-        >
-          <div className="flex items-center justify-center">
-            {tile.is_completed ? (
-              <CircleCheck className="h-4 w-4 text-green-500" />
-            ) : (
-              <CircleIcon className="h-4 w-4 text-zinc-600 hover:text-zinc-400 transition-colors" />
-            )}
-          </div>
-        </TableCell>
-        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', tile.is_completed ? 'text-zinc-500 line-through' : isUnread ? 'text-red-400' : 'text-zinc-300')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
+        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', isDone ? 'text-zinc-500' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
           {tile.title || `Tile ${tile.id.slice(0, 8)}`}
         </TableCell>
         <TableCell className="border-r border-zinc-800 overflow-visible" style={{ width: colWidths.actionType, minWidth: colWidths.actionType, maxWidth: colWidths.actionType }}>
@@ -771,63 +1001,104 @@ function TileRow({
             onUpdate={(data) => onActionTypeChange(tile.id, data)}
           />
         </TableCell>
-        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, minWidth: colWidths.sparks, maxWidth: colWidths.sparks }}>
-          {tile.sparks && tile.sparks.length > 0 ? (
-            <div className="flex gap-1.5 items-center overflow-hidden">
-              {tile.sparks.map((spark) => (
-                <button
-                  key={spark.id}
-                  className="hover:opacity-80 hover:scale-105 transition-all"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onSparkClick(spark as Spark);
-                  }}
-                >
-                  <SparkChip spark={spark} />
-                </button>
-              ))}
-            </div>
-          ) : (
-            <span className="text-zinc-600 text-sm">—</span>
-          )}
+        {/* Schedule (Date / Start / End) */}
+        <TableCell className="border-r border-zinc-800 p-0.5" style={{ width: colWidths.dataScad, minWidth: colWidths.dataScad, maxWidth: colWidths.dataScad }}>
+          {(() => {
+            const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
+            const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
+            const dateVal = dateRef ? (() => { const d = new Date(dateRef); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })() : '';
+            const isTimed = tile.action_type === 'event' && !tile.all_day;
+            const startH = tile.start_at ? String(new Date(tile.start_at).getHours()).padStart(2, '0') : '';
+            const startM = tile.start_at ? String(new Date(tile.start_at).getMinutes()).padStart(2, '0') : '';
+            const endH = tile.end_at ? String(new Date(tile.end_at).getHours()).padStart(2, '0') : '';
+            const endM = tile.end_at ? String(new Date(tile.end_at).getMinutes()).padStart(2, '0') : '';
+            const updateDate = (newDate: string) => {
+              if (!newDate || !/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return;
+              if (tile.action_type === 'deadline') {
+                onActionTypeChange(tile.id, { action_type: 'deadline', end_at: new Date(`${newDate}T23:59:59`).toISOString() } as any);
+              } else if (isTimed) {
+                onActionTypeChange(tile.id, { action_type: 'event', start_at: new Date(`${newDate}T${startH || '09'}:${startM || '00'}`).toISOString(), end_at: tile.end_at ? new Date(`${newDate}T${endH || '10'}:${endM || '00'}`).toISOString() : undefined } as any);
+              } else {
+                onActionTypeChange(tile.id, { action_type: 'event', start_at: new Date(`${newDate}T00:00:00`).toISOString(), end_at: new Date(`${newDate}T23:59:59`).toISOString() } as any);
+              }
+            };
+            if (!hasDate) return <span className="text-zinc-600 text-xs px-1">—</span>;
+            return (
+              <div className="flex flex-col">
+                <input type="date" value={dateVal} onChange={(e) => updateDate(e.target.value)}
+                  className="w-full bg-transparent px-1 text-xs text-zinc-400 focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60"
+                  style={{ colorScheme: 'dark' }} />
+                {isTimed && (
+                  <div className="flex items-center px-1">
+                    <TimePicker
+                      value={`${startH || '09'}:${startM || '00'}`}
+                      onChange={(t) => { if (dateVal) onActionTypeChange(tile.id, { action_type: 'event', start_at: new Date(`${dateVal}T${t}`).toISOString() } as any); }}
+                      borderless
+                    />
+                    <span className="text-zinc-500 text-[10px] mx-0.5">-</span>
+                    <TimePicker
+                      value={`${endH || '10'}:${endM || '00'}`}
+                      onChange={(t) => { if (dateVal) onActionTypeChange(tile.id, { action_type: 'event', end_at: new Date(`${dateVal}T${t}`).toISOString() } as any); }}
+                      borderless
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </TableCell>
         <TableCell
-          className="border-r border-zinc-800 overflow-hidden py-1 cursor-pointer hover:bg-zinc-800/50 transition-colors"
+          ref={tagCellRef}
+          className="border-r border-zinc-800 overflow-visible py-1 cursor-pointer hover:bg-zinc-800/50 transition-colors"
           style={{ width: colWidths.tags, minWidth: colWidths.tags, maxWidth: colWidths.tags }}
           onClick={(e) => {
             e.stopPropagation();
             setTagDropdownOpen(!tagDropdownOpen);
           }}
         >
-          <div ref={tagCellRef} className="relative">
-            {tile.tags && tile.tags.length > 0 ? (
-              <div className="flex gap-1 overflow-hidden">
-                {tile.tags.map((tag) => (
-                  <Badge
-                    key={tag.id}
-                    className="text-xs px-1.5 py-0"
-                    style={{
-                      backgroundColor: tag.color ? `${tag.color}20` : undefined,
-                      color: tag.color || undefined,
-                      borderColor: tag.color ? `${tag.color}40` : undefined,
-                    }}
-                  >
-                    {tag.name}
-                  </Badge>
-                ))}
-              </div>
-            ) : (
-              <span className="text-zinc-600 text-sm">—</span>
-            )}
-            <TagDropdown
-              tileIds={selected && selectedIds.size > 1 ? Array.from(selectedIds) : [tile.id]}
-              tileTags={tile.tags || []}
-              allTags={allTags}
-              open={tagDropdownOpen}
-              onClose={() => setTagDropdownOpen(false)}
-              anchorRef={tagCellRef}
-            />
+          <div className="flex items-center gap-1.5">
+            {(() => {
+              const rootIds = new Set(allTags.filter((t) => t.is_root).map((t) => t.id));
+              const displayTag = tile.tags?.find((t) => !rootIds.has(t.id)) || tile.tags?.[0];
+              if (displayTag) {
+                return (
+                  <div className="flex items-center gap-2.5 flex-1 min-w-0">
+                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={16} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || '#64748B'} />
+                    <span className="text-xs text-zinc-400 truncate flex-1">{displayTag.name}</span>
+                  </div>
+                );
+              }
+              return <span className="text-zinc-600 text-xs flex-1">—</span>;
+            })()}
+            <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />
           </div>
+          <TagDropdown
+            tileIds={selected && selectedIds.size > 1 ? Array.from(selectedIds) : [tile.id]}
+            tileTags={tile.tags || []}
+            allTags={allTags}
+            open={tagDropdownOpen}
+            onClose={() => setTagDropdownOpen(false)}
+            anchorRef={tagCellRef}
+          />
+        </TableCell>
+        <TipoTypeStatusCells tile={tile} colWidths={colWidths} onUpdate={(id, updates) => onActionTypeChange(id, updates as any)} getColor={getColor} />
+        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, maxWidth: colWidths.sparks }}>
+          {tile.sparks && tile.sparks.length > 0 ? (
+            <div className="flex gap-1.5 items-center min-w-0 w-full">
+              {tile.sparks.map((spark) => (
+                <div
+                  key={spark.id}
+                  className={cn(
+                    spark.type === 'text' ? 'flex-1 w-0 overflow-hidden' : 'shrink-0'
+                  )}
+                >
+                  <SparkChip spark={spark} />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <span className="text-zinc-600 text-sm">—</span>
+          )}
         </TableCell>
         <TableCell className="text-zinc-400 text-xs border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
@@ -842,7 +1113,7 @@ function TileRow({
               deleteMutation.mutate(tile.id);
             }}
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <IconTrash className="h-3.5 w-3.5" />
           </Button>
         </TableCell>
       </TableRow>
@@ -852,9 +1123,12 @@ function TileRow({
 
 export default function TilesPage() {
   const queryClient = useQueryClient();
-  const [page, setPage] = useState(1);
-  const [selectedMemo, setSelectedMemo] = useState<Spark | null>(null);
+  const actionColors = useActionColors();
+  const { getEmoji, getColor } = useTagTypes();
+  const loadMoreRef = useRef<HTMLDivElement>(null);
   const [selectedTile, setSelectedTile] = useState<Tile | null>(null);
+  const [sidebarTileId, setSidebarTileId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
 
@@ -865,7 +1139,9 @@ export default function TilesPage() {
   const [tagFilter, setTagFilter] = useState<Set<string>>(new Set());
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [completedFilter, setCompletedFilter] = useState<'all' | 'done' | 'todo'>('all');
+
+  // Single source of truth for "done": status_id pointing to the system 'done' row.
+  const { doneStatusId } = useStatuses();
 
   // Filter popup open state
   const [openFilter, setOpenFilter] = useState<string | null>(null);
@@ -874,7 +1150,6 @@ export default function TilesPage() {
   const sparksHeadRef = useRef<HTMLTableCellElement>(null);
   const tagsHeadRef = useRef<HTMLTableCellElement>(null);
   const dateHeadRef = useRef<HTMLTableCellElement>(null);
-  const completedHeadRef = useRef<HTMLTableCellElement>(null);
 
   // Column widths (resizable)
   const [colWidths, setColWidths] = useState({
@@ -882,6 +1157,9 @@ export default function TilesPage() {
     actionType: 140,
     sparks: 340,
     tags: 160,
+    dataScad: 95,
+    type: 160,
+    status: 80,
   });
   const setColWidth = useCallback(
     (col: keyof typeof colWidths, w: number) =>
@@ -889,10 +1167,38 @@ export default function TilesPage() {
     []
   );
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['tiles', { page }],
-    queryFn: () => tilesApi.list({ page, limit: 50 }),
+  const {
+    data: infiniteData,
+    isLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['tiles'],
+    queryFn: ({ pageParam = 1 }) => tilesApi.list({ page: pageParam, limit: 50 }),
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.pagination) return undefined;
+      const { page: p, totalPages } = lastPage.pagination;
+      return p < totalPages ? p + 1 : undefined;
+    },
+    initialPageParam: 1,
   });
+
+  // IntersectionObserver for infinite scroll
+  useEffect(() => {
+    const el = loadMoreRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   const { data: tagsResult } = useQuery({
     queryKey: ['tags'],
@@ -905,7 +1211,10 @@ export default function TilesPage() {
       if (!result.success) throw new Error(result.error);
       return result;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tiles'] });
+      queryClient.invalidateQueries({ queryKey: ['tile-detail'] });
+    },
     onError: () => toast.error('Errore aggiornamento azione'),
   });
 
@@ -913,35 +1222,31 @@ export default function TilesPage() {
     actionTypeMutation.mutate({ tileId, updates: data });
   }, [actionTypeMutation]);
 
-  const completedMutation = useMutation({
-    mutationFn: async ({ tileId, completed }: { tileId: string; completed: boolean }) => {
-      const result = await tilesApi.update(tileId, { is_completed: completed });
-      if (!result.success) throw new Error(result.error);
-      return result;
-    },
-    onMutate: async ({ tileId, completed }) => {
-      await queryClient.cancelQueries({ queryKey: ['tiles'] });
-      const prev = queryClient.getQueryData(['tiles', { page }]);
-      queryClient.setQueryData(['tiles', { page }], (old: any) => {
-        if (!old?.data) return old;
-        return { ...old, data: old.data.map((t: Tile) => t.id === tileId ? { ...t, is_completed: completed } : t) };
-      });
-      return { prev };
-    },
-    onError: (_err, _vars, ctx) => {
-      if (ctx?.prev) queryClient.setQueryData(['tiles', { page }], ctx.prev);
-      toast.error('Errore aggiornamento');
-    },
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
-  });
-
-  const handleToggleCompleted = useCallback((tileId: string, completed: boolean) => {
-    completedMutation.mutate({ tileId, completed });
-  }, [completedMutation]);
+  const handleAddTile = useCallback(async () => {
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      const newTile = res?.data;
+      if (newTile) {
+        // Assign GIMMICK root tag
+        const allTagsList = tagsResult?.data || [];
+        const rootTag = allTagsList.find((t) => t.is_root);
+        if (rootTag) {
+          await tagsApi.tagTiles(rootTag.id, [newTile.id]);
+        }
+        // Refresh and open sidebar
+        await queryClient.invalidateQueries({ queryKey: ['tiles'] });
+        queryClient.setQueryData(['tile-detail', newTile.id], { data: newTile });
+        setSidebarTileId(newTile.id);
+        setSidebarOpen(true);
+      }
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tagsResult, setSidebarTileId, setSidebarOpen]);
 
   const allTags = tagsResult?.data || [];
-  const allTiles = data?.data || [];
-  const pagination = data?.pagination;
+  const allTiles = useMemo(() => infiniteData?.pages.flatMap((p) => p.data) || [], [infiniteData]);
+  const totalCount = infiniteData?.pages[0]?.pagination?.total;
 
   const tiles = useMemo(() => {
     let result = allTiles;
@@ -970,13 +1275,8 @@ export default function TilesPage() {
       const to = new Date(dateTo + 'T23:59:59');
       result = result.filter((t) => new Date(t.created_at) <= to);
     }
-    if (completedFilter === 'done') {
-      result = result.filter((t) => t.is_completed);
-    } else if (completedFilter === 'todo') {
-      result = result.filter((t) => !t.is_completed);
-    }
     return result;
-  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo, completedFilter]);
+  }, [allTiles, aiFilterIds, titleFilter, actionFilter, sparkTypeFilter, tagFilter, dateFrom, dateTo]);
 
   const allSelected = tiles.length > 0 && tiles.every((t) => selectedIds.has(t.id));
   const someSelected = tiles.some((t) => selectedIds.has(t.id));
@@ -999,7 +1299,7 @@ export default function TilesPage() {
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full min-h-0">
       <Header
         title="Tiles"
         actions={selectedIds.size > 0 ? (
@@ -1026,7 +1326,7 @@ export default function TilesPage() {
               }}
               className="text-red-400 hover:text-red-300 hover:bg-red-950/50 h-8 px-3"
             >
-              <Trash2 className="h-4 w-4 mr-1.5" />
+              <IconTrash className="h-4 w-4 mr-1.5" />
               Elimina ({selectedIds.size})
             </Button>
             <Button
@@ -1040,7 +1340,7 @@ export default function TilesPage() {
               }}
               className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/50 h-8 px-3"
             >
-              <CheckCheck className="h-4 w-4 mr-1.5" />
+              <IconChecks className="h-4 w-4 mr-1.5" />
               Segna come letti
             </Button>
             <Button
@@ -1049,12 +1349,13 @@ export default function TilesPage() {
               onClick={() => setSelectedIds(new Set())}
               className="text-zinc-400 hover:text-zinc-300 h-8 px-2"
             >
-              <X className="h-4 w-4" />
+              <IconX className="h-4 w-4" />
             </Button>
           </div>
         ) : undefined}
       />
 
+      <div className="flex flex-1 overflow-hidden">
       <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
         {/* AI Filter Banner */}
         {aiFilterIds && (
@@ -1068,7 +1369,7 @@ export default function TilesPage() {
               onClick={clearFilter}
               className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 h-7 px-2"
             >
-              <X className="h-3.5 w-3.5 mr-1" />
+              <IconX className="h-3.5 w-3.5 mr-1" />
               Rimuovi filtro
             </Button>
           </div>
@@ -1076,11 +1377,19 @@ export default function TilesPage() {
 
         {/* Tile count + active filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <LayoutGrid className="h-5 w-5 text-zinc-400" />
+          <IconLayoutGrid className="h-5 w-5 text-zinc-400" />
           <span className="text-sm text-zinc-400">
-            {tiles.length}{pagination?.total ? ` / ${pagination.total}` : ''} tiles
+            {tiles.length}{totalCount ? ` / ${totalCount}` : ''} tiles
           </span>
-          {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo || completedFilter !== 'all') && (
+          <Button
+            size="sm"
+            onClick={handleAddTile}
+            className="bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 text-xs h-8"
+          >
+            <IconPlus className="h-3.5 w-3.5 mr-1.5" />
+            Add Tile
+          </Button>
+          {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo) && (
             <button
               onClick={() => {
                 setTitleFilter('');
@@ -1089,7 +1398,6 @@ export default function TilesPage() {
                 setTagFilter(new Set());
                 setDateFrom('');
                 setDateTo('');
-                setCompletedFilter('all');
               }}
               className="text-xs text-blue-400 hover:text-blue-300 ml-2"
             >
@@ -1103,16 +1411,16 @@ export default function TilesPage() {
           <p className="text-center text-zinc-400 py-8">Caricamento...</p>
         ) : tiles.length === 0 ? (
           <div className="text-center py-16">
-            <LayoutGrid className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
+            <IconLayoutGrid className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
             <p className="text-zinc-400">Nessun tile trovato</p>
             <p className="text-sm text-zinc-500 mt-1">
               I tiles vengono creati automaticamente quando invii più memo insieme
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 min-h-0 overflow-hidden">
             <div className="flex-1 overflow-auto">
-              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + 40 + 40 + 40 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + 40 + 40 + 40 + 80 + 56 }}>
+              <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56 }}>
                 <TableHeader className="sticky top-0 z-10 bg-zinc-900">
                   <TableRow className="border-zinc-800 hover:bg-transparent">
                     <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
@@ -1126,72 +1434,63 @@ export default function TilesPage() {
                               : 'bg-transparent border-zinc-300'
                         }`}
                       >
-                        {(allSelected || someSelected) && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
-                      </button>
-                    </TableHead>
-                    <TableHead
-                      ref={completedHeadRef}
-                      className="border-r border-zinc-800"
-                      style={{ width: 40, minWidth: 40, maxWidth: 40 }}
-                    >
-                      <button
-                        onClick={() => setOpenFilter(openFilter === 'completed' ? null : 'completed')}
-                        className="flex items-center justify-center w-full"
-                      >
-                        <Filter className={cn('h-3 w-3 transition-colors', completedFilter !== 'all' ? 'text-blue-400' : 'text-zinc-600')} />
+                        {(allSelected || someSelected) && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
                       </button>
                     </TableHead>
                     <FilterableHead
-                      label="Titolo"
+                      label="Title"
                       width={colWidths.title}
                       onResize={(w) => setColWidth('title', w)}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       hasActiveFilter={!!titleFilter}
                       filterOpen={openFilter === 'title'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'title' ? null : 'title')}
                       headRef={titleHeadRef}
                     />
                     <FilterableHead
-                      label="Azione"
+                      label="Action"
                       width={colWidths.actionType}
                       onResize={(w) => setColWidth('actionType', w)}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       hasActiveFilter={actionFilter.size > 0}
                       filterOpen={openFilter === 'action'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'action' ? null : 'action')}
                       headRef={actionHeadRef}
                     />
-                    <FilterableHead
-                      label="Sparks"
-                      width={colWidths.sparks}
-                      onResize={(w) => setColWidth('sparks', w)}
-                      className="text-zinc-400 text-left border-r border-zinc-800"
-                      hasActiveFilter={sparkTypeFilter.size > 0}
-                      filterOpen={openFilter === 'sparks'}
-                      onToggleFilter={() => setOpenFilter(openFilter === 'sparks' ? null : 'sparks')}
-                      headRef={sparksHeadRef}
-                    />
+                    <ResizableHead width={colWidths.dataScad} onResize={(w) => setColWidth('dataScad', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Schedule</ResizableHead>
                     <FilterableHead
                       label="Tags"
                       width={colWidths.tags}
                       onResize={(w) => setColWidth('tags', w)}
-                      className="text-zinc-400 text-left border-r border-zinc-800"
+                      className="text-zinc-400 text-left border-r border-zinc-800 text-xs"
                       hasActiveFilter={tagFilter.size > 0}
                       filterOpen={openFilter === 'tags'}
                       onToggleFilter={() => setOpenFilter(openFilter === 'tags' ? null : 'tags')}
                       headRef={tagsHeadRef}
                     />
+                    <ResizableHead width={colWidths.type} onResize={(w) => setColWidth('type', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Type</ResizableHead>
+                    <ResizableHead width={colWidths.status} onResize={(w) => setColWidth('status', w)} className="text-zinc-400 border-r border-zinc-800 text-xs">Status</ResizableHead>
+                    <FilterableHead
+                      label="Sparks"
+                      width={colWidths.sparks}
+                      onResize={(w) => setColWidth('sparks', w)}
+                      className="text-zinc-400 text-left border-r border-zinc-800 text-xs"
+                      hasActiveFilter={sparkTypeFilter.size > 0}
+                      filterOpen={openFilter === 'sparks'}
+                      onToggleFilter={() => setOpenFilter(openFilter === 'sparks' ? null : 'sparks')}
+                      headRef={sparksHeadRef}
+                    />
                     <TableHead
                       ref={dateHeadRef}
-                      className="text-zinc-400 border-r border-zinc-800"
+                      className="text-zinc-400 border-r border-zinc-800 text-xs"
                       style={{ width: 80, minWidth: 80, maxWidth: 80 }}
                     >
                       <button
                         onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
                         className="flex items-center gap-1 w-full text-left"
                       >
-                        <span className="truncate">Data</span>
-                        <Filter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
+                        <span className="text-xs truncate">Created</span>
+                        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
                       </button>
                     </TableHead>
                     <TableHead className="text-zinc-400 text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }} />
@@ -1207,10 +1506,21 @@ export default function TilesPage() {
                       allTags={allTags}
                       colWidths={colWidths}
                       onSelect={handleSelect}
-                      onSparkClick={setSelectedMemo}
-                      onTileClick={setSelectedTile}
+                      onSparkClick={() => {}}
+                      onTileClick={(tile) => {
+                        // Merge with cached data to preserve sparks already fetched
+                        queryClient.setQueryData(['tile-detail', tile.id], (old: any) => ({
+                          data: { ...tile, sparks: old?.data?.sparks }
+                        }));
+                        // Force a refresh so we get the authoritative sparks list
+                        queryClient.invalidateQueries({ queryKey: ['tile-detail', tile.id] });
+                        setSidebarTileId(tile.id);
+                        setSidebarOpen(true);
+                      }}
                       onActionTypeChange={handleActionTypeChange}
-                      onToggleCompleted={handleToggleCompleted}
+                      isDone={isTileDone(tile, doneStatusId)}
+                      getEmoji={getEmoji}
+                      getColor={getColor}
                     />
                   ))}
                 </TableBody>
@@ -1219,61 +1529,22 @@ export default function TilesPage() {
           </div>
         )}
 
-        {/* Pagination */}
-        {pagination && pagination.totalPages > 1 && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-zinc-400">
-              Pagina {pagination.page} di {pagination.totalPages}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === 1}
-                onClick={() => setPage(page - 1)}
-                className="border-zinc-800"
-              >
-                Precedente
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={page === pagination.totalPages}
-                onClick={() => setPage(page + 1)}
-                className="border-zinc-800"
-              >
-                Successiva
-              </Button>
+        {/* Infinite scroll sentinel */}
+        <div ref={loadMoreRef} className="h-4">
+          {isFetchingNextPage && (
+            <div className="flex justify-center py-2">
+              <div className="h-4 w-4 border-2 border-zinc-600 border-t-zinc-300 rounded-full animate-spin" />
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Column filter popups */}
-      <FilterPopup anchorRef={completedHeadRef} open={openFilter === 'completed'} onClose={() => setOpenFilter(null)}>
-        <div className="w-36 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Stato</label>
-          {([['all', 'Tutti'], ['done', 'Completati'], ['todo', 'Da completare']] as const).map(([val, label]) => (
-            <button
-              key={val}
-              className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', completedFilter === val ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
-              onClick={() => setCompletedFilter(val)}
-            >
-              {val === 'done' && <CircleCheck className="h-3.5 w-3.5 text-green-500" />}
-              {val === 'todo' && <CircleIcon className="h-3.5 w-3.5 text-zinc-500" />}
-              {val === 'all' && <CircleIcon className="h-3.5 w-3.5 text-zinc-600" />}
-              <span className="text-zinc-300 flex-1">{label}</span>
-              {completedFilter === val && <Check className="h-3 w-3 text-blue-400" />}
-            </button>
-          ))}
-        </div>
-      </FilterPopup>
-
       <FilterPopup anchorRef={titleHeadRef} open={openFilter === 'title'} onClose={() => setOpenFilter(null)}>
         <div className="w-48 flex flex-col gap-2">
           <label className="text-[11px] text-zinc-500">Cerca nel titolo</label>
           <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5">
-            <Search className="h-3 w-3 text-zinc-500 shrink-0" />
+            <IconSearch className="h-3 w-3 text-zinc-500 shrink-0" />
             <input
               type="text"
               value={titleFilter}
@@ -1284,7 +1555,7 @@ export default function TilesPage() {
             />
             {titleFilter && (
               <button onClick={() => setTitleFilter('')} className="text-zinc-500 hover:text-zinc-300">
-                <X className="h-3 w-3" />
+                <IconX className="h-3 w-3" />
               </button>
             )}
           </div>
@@ -1310,9 +1581,9 @@ export default function TilesPage() {
                   });
                 }}
               >
-                <Icon className={cn('h-3.5 w-3.5', cfg.color)} />
+                <Icon className="h-3.5 w-3.5" style={{ color: actionColors[at] }} />
                 <span className="text-zinc-300 flex-1">{cfg.label}</span>
-                {active && <Check className="h-3 w-3 text-blue-400" />}
+                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
               </button>
             );
           })}
@@ -1340,7 +1611,7 @@ export default function TilesPage() {
               >
                 <TypeIcon className={cn('h-3.5 w-3.5', iconColor)} />
                 <span className="text-zinc-300 flex-1">{opt.label}</span>
-                {active && <Check className="h-3 w-3 text-blue-400" />}
+                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
               </button>
             );
           })}
@@ -1367,9 +1638,9 @@ export default function TilesPage() {
                     });
                   }}
                 >
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: tag.color || '#3B82F6' }} />
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#94A3B8' }} />
                   <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-                  {active && <Check className="h-3 w-3 text-blue-400" />}
+                  {active && <IconCheck className="h-3 w-3 text-blue-400" />}
                 </button>
               );
             })
@@ -1388,6 +1659,7 @@ export default function TilesPage() {
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                style={{ colorScheme: 'dark' }}
               />
             </div>
             <div>
@@ -1397,6 +1669,7 @@ export default function TilesPage() {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                style={{ colorScheme: 'dark' }}
               />
             </div>
           </div>
@@ -1411,17 +1684,19 @@ export default function TilesPage() {
         </div>
       </FilterPopup>
 
-      <SparkViewer
-        spark={selectedMemo}
-        open={selectedMemo !== null}
-        onOpenChange={(open) => { if (!open) setSelectedMemo(null); }}
-      />
 
       <TileDetailModal
         tile={selectedTile}
         open={selectedTile !== null}
         onOpenChange={(open) => { if (!open) setSelectedTile(null); }}
       />
+      <TileSidebar
+        tileId={sidebarTileId}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        invalidateKeys={['tiles']}
+      />
+    </div>
     </div>
   );
 }

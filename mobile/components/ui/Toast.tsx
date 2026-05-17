@@ -7,7 +7,7 @@ import Animated, {
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
-import { CheckCircle, XCircle, Info, AlertTriangle, X } from 'lucide-react-native';
+import { IconCircleCheck, IconCircleX, IconInfoCircle, IconAlertTriangle, IconX } from '@tabler/icons-react-native';
 import { config } from '@/constants';
 import { useThemeColors } from '@/lib/theme';
 import type { ToastType } from '@/types';
@@ -43,19 +43,19 @@ function ToastItem({ id, type, message }: ToastItemProps) {
 
   const toastConfig: Record<ToastType, { icon: React.ReactNode; bgColor: string }> = {
     success: {
-      icon: <CheckCircle size={20} color={colors.success} />,
+      icon: <IconCircleCheck size={20} color={colors.success} />,
       bgColor: 'bg-background-2 border-l-4 border-l-success',
     },
     error: {
-      icon: <XCircle size={20} color={colors.error} />,
+      icon: <IconCircleX size={20} color={colors.error} />,
       bgColor: 'bg-background-2 border-l-4 border-l-error',
     },
     info: {
-      icon: <Info size={20} color={colors.accent} />,
+      icon: <IconInfoCircle size={20} color={colors.accent} />,
       bgColor: 'bg-background-2 border-l-4 border-l-accent',
     },
     warning: {
-      icon: <AlertTriangle size={20} color={colors.warning} />,
+      icon: <IconAlertTriangle size={20} color={colors.warning} />,
       bgColor: 'bg-background-2 border-l-4 border-l-warning',
     },
   };
@@ -74,7 +74,7 @@ function ToastItem({ id, type, message }: ToastItemProps) {
       <View className="mr-3">{icon}</View>
       <Text className="text-primary flex-1 text-sm">{message}</Text>
       <TouchableOpacity onPress={handleDismiss} className="p-1 ml-2">
-        <X size={16} color={colors.secondary} />
+        <IconX size={16} color={colors.secondary} />
       </TouchableOpacity>
     </Animated.View>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { X, Send, Loader2, Bot, User, Filter, LayoutGrid, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import { IconX, IconSend, IconLoader2, IconRobot, IconUser, IconFilter, IconLayoutGrid, IconMicrophone, IconMicrophoneOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
 
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
@@ -243,15 +243,15 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] z-50 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
+    <div className="fixed top-12 bottom-0 right-0 w-60 z-50 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
       {/* Header */}
-      <div className="flex items-center justify-between px-5 h-16 border-b border-zinc-800">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-blue-400" />
-          <span className="text-base font-semibold text-white">Ask Gimmick</span>
+      <div className="flex items-center justify-between px-3 h-10 border-b border-zinc-800 shrink-0">
+        <div className="flex items-center gap-1.5">
+          <IconRobot className="h-4 w-4 text-blue-400" />
+          <span className="text-sm font-semibold text-white">Ask Gimmick</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="text-zinc-400 hover:text-white">
-          <X className="h-5 w-5" />
+        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 text-zinc-400 hover:text-white">
+          <IconX className="h-4 w-4" />
         </Button>
       </div>
 
@@ -259,7 +259,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       <div className="flex-1 overflow-y-auto p-4" ref={scrollContainerRef}>
         {messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-center py-20">
-            <Bot className="h-12 w-12 text-zinc-600 mb-4" />
+            <IconRobot className="h-12 w-12 text-zinc-600 mb-4" />
             <p className="text-zinc-400 text-sm">
               Chiedimi qualcosa sui tuoi spark.
             </p>
@@ -276,7 +276,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                 >
                   {msg.role === 'assistant' && (
                     <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Bot className="h-4 w-4 text-blue-400" />
+                      <IconRobot className="h-4 w-4 text-blue-400" />
                     </div>
                   )}
                   <div
@@ -305,7 +305,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                   </div>
                   {msg.role === 'user' && (
                     <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <User className="h-4 w-4 text-zinc-300" />
+                      <IconUser className="h-4 w-4 text-zinc-300" />
                     </div>
                   )}
                 </div>
@@ -319,11 +319,11 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                       className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-30"
                     >
                       {speakingMsgIndex === i && loadingTts ? (
-                        <><Loader2 className="h-3 w-3 animate-spin" /> Carico...</>
+                        <><IconLoader2 className="h-3 w-3 animate-spin" /> Carico...</>
                       ) : speakingMsgIndex === i ? (
-                        <><VolumeX className="h-3 w-3" /> Stop</>
+                        <><IconVolumeOff className="h-3 w-3" /> Stop</>
                       ) : (
-                        <><Volume2 className="h-3 w-3" /> Ascolta</>
+                        <><IconVolume className="h-3 w-3" /> Ascolta</>
                       )}
                     </button>
                     {/* Filter buttons */}
@@ -334,7 +334,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                         onClick={() => handleSparkFilter(msg.foundSparkIds!)}
                         className="border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 text-xs"
                       >
-                        <Filter className="h-3 w-3 mr-1.5" />
+                        <IconFilter className="h-3 w-3 mr-1.5" />
                         Filtra spark ({msg.foundSparkIds.length})
                       </Button>
                     )}
@@ -345,7 +345,7 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                         onClick={() => handleTileFilter(msg.foundTileIds!)}
                         className="border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 text-xs"
                       >
-                        <LayoutGrid className="h-3 w-3 mr-1.5" />
+                        <IconLayoutGrid className="h-3 w-3 mr-1.5" />
                         Filtra tile ({msg.foundTileIds.length})
                       </Button>
                     )}
@@ -356,10 +356,10 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
             {isLoading && (
               <div className="flex gap-3">
                 <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <Bot className="h-4 w-4 text-blue-400" />
+                  <IconRobot className="h-4 w-4 text-blue-400" />
                 </div>
                 <div className="bg-zinc-800 rounded-xl px-4 py-2.5">
-                  <Loader2 className="h-4 w-4 text-zinc-400 animate-spin" />
+                  <IconLoader2 className="h-4 w-4 text-zinc-400 animate-spin" />
                 </div>
               </div>
             )}
@@ -369,36 +369,36 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-zinc-800">
-        <div className="flex gap-2">
-          <Textarea
-            ref={textareaRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="Scrivi un messaggio..."
-            className="min-h-[44px] max-h-[120px] resize-none bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus-visible:ring-blue-500"
-            rows={1}
-          />
+      <div className="p-3 border-t border-zinc-800 space-y-2">
+        <Textarea
+          ref={textareaRef}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Scrivi un messaggio..."
+          className="h-16 min-h-[64px] resize-none bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus-visible:ring-blue-500"
+          rows={3}
+        />
+        <div className="flex gap-2 justify-end">
           {/* Mic button */}
           <Button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isLoading}
-            className={`shrink-0 h-[44px] w-[44px] p-0 ${
+            className={`shrink-0 h-8 w-8 p-0 ${
               isRecording
                 ? 'bg-red-600 hover:bg-red-700 animate-pulse'
                 : 'bg-zinc-700 hover:bg-zinc-600'
             }`}
           >
-            {isRecording ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+            {isRecording ? <IconMicrophoneOff className="h-4 w-4" /> : <IconMicrophone className="h-4 w-4" />}
           </Button>
           {/* Send button */}
           <Button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-[44px] w-[44px] p-0"
+            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-8 w-8 p-0"
           >
-            <Send className="h-4 w-4" />
+            <IconSend className="h-4 w-4" />
           </Button>
         </div>
       </div>

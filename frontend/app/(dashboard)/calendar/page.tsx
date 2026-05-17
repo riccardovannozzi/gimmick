@@ -1,31 +1,67 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import { useCallback, useMemo, useState, useRef, useEffect, DragEvent } from 'react';
+import { createPortal } from 'react-dom';
 import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import multiMonthPlugin from '@fullcalendar/multimonth';
-import type { EventInput, EventDropArg, DateSelectArg, EventClickArg } from '@fullcalendar/core';
-import type { EventResizeDoneArg } from '@fullcalendar/interaction';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
+import type { EventInput } from '@fullcalendar/core';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import { Header } from '@/components/layout/header';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
-import {
-  Loader2,
-  Plus,
-  X,
-  Sparkles,
-  Tag as TagIcon,
-  Trash2,
-  Calendar as CalendarIcon,
-} from 'lucide-react';
+import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid, IconRoute, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
+import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import type { Tile, Tag, ApiResponse } from '@/types';
+import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
+import { useTagTypes } from '@/store/tag-types-store';
+import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange, formatMonthLabel } from '@/lib/tile-helpers';
+import { useStatuses } from '@/store/statuses-store';
+import { useTagFilterStore } from '@/store/tag-filter-store';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { TimePicker } from '@/components/ui/time-picker';
+import { useActionColors } from '@/store/action-colors-store';
+import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
+import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
+import { readableOn } from '@/lib/palette';
+import { ChecklistBar } from '@/components/tileview/ChecklistBar';
 
-// Map tag colors for events
-const defaultEventColor = '#528BFF';
+const FALLBACK_COLOR = '#888780';
+const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
+
+// Rounded-square badge with the type icon (bg = type color, white icon).
+function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }) {
+  const Comp = AllIcons[iconName];
+  if (!Comp) return null;
+  const bg = color || '#27272A';
+  return (
+    <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+      <Comp size={10} color={readableOn(bg)} />
+    </div>
+  );
+}
+
+// Round action badge (bg = action color, white icon). Notes (none) renders nothing.
+const ACTION_ICON: Record<string, typeof IconBolt | null> = {
+  none:     null,
+  anytime:  IconArrowUp,
+  deadline: null,         // DUE — bordo rosso tratteggiato sostituisce il badge
+  event:    IconClock,     // TIMED
+  allday:   IconCalendar,
+};
+
+function ActionIconBadge({ actionKey, color }: { actionKey: string; color: string }) {
+  const Icon = ACTION_ICON[actionKey];
+  if (!Icon) return null;
+  return (
+    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
+      <Icon size={10} color={readableOn(color)} />
+    </div>
+  );
+}
 
 /** Convert ISO string to datetime-local input value (local time) */
 function toLocalDatetimeValue(iso: string): string {
@@ -35,58 +71,365 @@ function toLocalDatetimeValue(iso: string): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+// ─── Reusable dropdown for modal (mirrors sidebar pickers) ───
+function ModalDropdown({ value, options, placeholder, onChange, renderOption, renderSelected }: {
+  value: string | null;
+  options: { id: string | null; label: string; icon?: string; shape?: string }[];
+  placeholder: string;
+  onChange: (id: string | null) => void;
+  renderOption?: (opt: { id: string | null; label: string; icon?: string }) => React.ReactNode;
+  renderSelected?: () => React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const selected = options.find((o) => o.id === value && o.id !== null);
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors text-left"
+      >
+        {selected && renderSelected ? renderSelected() : (
+          selected ? <span className="truncate">{selected.label}</span> : <span className="text-[11px] text-zinc-500">{placeholder}</span>
+        )}
+      </button>
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
+          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+        >
+          {options.map((opt, idx) => {
+            const isSelected = opt.id === value;
+            return (
+              <button
+                key={opt.id ?? `none-${idx}`}
+                onClick={() => { onChange(opt.id); setOpen(false); }}
+                className={cn(
+                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
+                  isSelected && 'bg-zinc-700/30'
+                )}
+              >
+                {renderOption ? renderOption(opt) : <span className={cn('truncate flex-1', isSelected ? 'text-zinc-200' : 'text-zinc-400')}>{opt.label}</span>}
+                {isSelected && (
+                  <svg className="w-3 h-3 text-blue-400 shrink-0 ml-auto" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                )}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
 interface EventModalState {
   open: boolean;
   mode: 'create' | 'edit';
   tileId?: string;
   title: string;
-  description: string;
+  allDay: boolean;
   startAt: string;
   endAt: string;
   autoDetect: boolean;
   tagIds: string[];
+  actionType: string;
+  typeIconId: string | null;
+  statusId: string | null;
 }
 
 const emptyModal: EventModalState = {
   open: false,
   mode: 'create',
   title: '',
-  description: '',
+  allDay: false,
   startAt: '',
   endAt: '',
   autoDetect: true,
   tagIds: [],
+  actionType: 'none',
+  typeIconId: null,
+  statusId: null,
 };
 
-export default function CalendarPage() {
-  const calendarRef = useRef<FullCalendar>(null);
-  const queryClient = useQueryClient();
+const ACTION_OPTIONS = [
+  { value: 'none', label: 'NOTES' },
+  { value: 'anytime', label: 'TO DO' },
+  { value: 'deadline', label: 'DUE' },
+  { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
+  { value: 'event', label: 'TIMED', extra: { all_day: false } },
+] as const;
 
-  // Current visible range
-  const [dateRange, setDateRange] = useState<{ start: string; end: string }>(() => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), 1);
-    const end = new Date(now.getFullYear(), now.getMonth() + 2, 0);
+
+let _patId = 0;
+function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
+  const o = 0.2;
+  const id = useMemo(() => `il-${++_patId}`, []);
+  switch (shape) {
+    case 'solid': return null;
+    case 'diagonal_ltr': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
+    case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
+    case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
+    case 'bubble': return <><circle cx={20} cy={20} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={44} cy={16} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={68} cy={22} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.1} /><circle cx={94} cy={18} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={114} cy={24} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.02} /><circle cx={28} cy={45} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={54} cy={47} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={80} cy={43} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={104} cy={47} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={22} cy={70} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={46} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={70} cy={68} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={96} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={116} cy={68} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /></>;
+    case 'cross': return <><line x1={10} y1={10} x2={120} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /><line x1={120} y1={10} x2={10} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /></>;
+    case 'hourglass': return <path d="M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z" fill="none" stroke={color} strokeWidth={4} strokeOpacity={o + 0.25} strokeLinejoin="round" strokeLinecap="round" />;
+    case 'pause_bars': return <><rect x={57} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={67} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
+    case 'lock': return <><path d="M58,41 V35 a7,7 0 0 1 14,0 V41" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={53} y={41} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={65} cy={51} r={2} fill="#1C1C1E" /></>;
+    case 'shade': return <rect width={130} height={90} fill="#000000" opacity={0.5} />;
+    default: return null;
+  }
+}
+
+const START_HOUR = 6;
+const END_HOUR = 22;
+
+export default function CalendarPage() {
+  const queryClient = useQueryClient();
+  const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+  const actionColors = useActionColors();
+  const { selectedTagIds } = useTagFilterStore();
+  const typeIcons = useTypeIcons((s) => s.icons);
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const getIconForTile = useCallback((tileId: string) => {
+    const iconId = typeTileIcons[tileId];
+    if (!iconId) return null;
+    return typeIcons.find((i) => i.id === iconId) || null;
+  }, [typeIcons, typeTileIcons]);
+  const { doneShape, doneStatusId, getActionTypeShape, statuses: allStatuses } = useStatuses();
+  const isDone = useCallback((tile: Tile) => !!doneStatusId && tile.status_id === doneStatusId, [doneStatusId]);
+  const tilesWithFlows = useTilesWithFlows();
+  const openFlow = useFlowOpenStore((s) => s.open);
+
+  const resolveShape = useCallback((tile: Tile): StatusShape => {
+    if (tile.status_id) {
+      const st = allStatuses.find((s) => s.id === tile.status_id);
+      if (st) return st.shape as StatusShape;
+    }
+    return getActionTypeShape(tile.action_type || 'none');
+  }, [allStatuses, getActionTypeShape]);
+
+  const getTagColor = (tile: Tile): string => {
+    const tagType = tile.tags?.[0]?.tag_type || '';
+    if (tagType) {
+      const c = getTypeColor(tagType);
+      if (c) return c;
+    }
+    return FALLBACK_COLOR;
+  };
+
+  // View selector: WEEK (timeGridWeek with hourly slots) vs MONTH
+  // (dayGridMonth). Persisted to localStorage so the page reopens on the
+  // user's preferred view.
+  type CalendarViewMode = 'week' | 'month';
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('calendar_view_mode');
+      if (raw === 'week' || raw === 'month') setViewMode(raw);
+    } catch { /* */ }
+  }, []);
+  const changeViewMode = useCallback((mode: CalendarViewMode) => {
+    setViewMode(mode);
+    try { localStorage.setItem('calendar_view_mode', mode); } catch { /* */ }
+  }, []);
+
+  // Week + month navigation. The two offsets are independent so that
+  // toggling views doesn't lose the user's place in the other one.
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
+  const days = useMemo(() => generateWeekDays(weekOffset), [weekOffset]);
+
+  // First day of the month currently visible in month view (relative to
+  // today + monthOffset). Used for the header label, dateRange, and to drive
+  // FullCalendar's gotoDate.
+  const currentMonth = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + monthOffset);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [monthOffset]);
+
+  // Date range for fetching — covers the visible viewport (week or month)
+  // plus a ±2-month buffer so adjacent overflow days in the month view and
+  // off-screen scheduling pop in without an extra round trip.
+  const dateRange = useMemo(() => {
+    if (viewMode === 'week') {
+      const start = new Date(days[0]);
+      start.setMonth(start.getMonth() - 2);
+      const end = new Date(days[days.length - 1]);
+      end.setMonth(end.getMonth() + 2);
+      return { start: start.toISOString(), end: end.toISOString() };
+    }
+    const start = new Date(currentMonth);
+    start.setMonth(start.getMonth() - 2);
+    const end = new Date(currentMonth);
+    end.setMonth(end.getMonth() + 3); // include next month + 2-month buffer
     return { start: start.toISOString(), end: end.toISOString() };
-  });
+  }, [viewMode, days, currentMonth]);
 
   // Filters
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
-  const [aiQuery, setAiQuery] = useState('');
-  const [aiFilterActive, setAiFilterActive] = useState(false);
-  const [aiFilterIds, setAiFilterIds] = useState<Set<string> | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
 
   // Modal
   const [modal, setModal] = useState<EventModalState>(emptyModal);
 
+  // Sidebar
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  // Subscribes to the global FLOW-badge signal. The setter pair points at
+  // the existing sidebar state; the returned counter is fed into TileSidebar
+  // so its active tab switches to Flow on every badge click.
+  const forceFlowTab = useFlowOpenRequest(setSelectedTileId, (open) => setSidebarOpen(open));
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Reactively toggle the blue selection ring on FullCalendar events when
+  // selectedTileId changes. eventDidMount sets data-tile-id on each event el.
+  useEffect(() => {
+    document.querySelectorAll<HTMLElement>('.fc-event[data-tile-id]').forEach((el) => {
+      const isSelected = el.getAttribute('data-tile-id') === selectedTileId;
+      el.style.boxShadow = isSelected ? '0 0 0 2px #3b82f6' : '';
+    });
+  }, [selectedTileId]);
+
   // Schedule from existing tile
   const [showTilePicker, setShowTilePicker] = useState(false);
+
+  // Notes column controls
+  type NotesSort = 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
+  type NotesFilter = 'all' | 'completion' | 'status';
+  type NotesGroup = 'none' | 'date' | 'tag';
+  const [notesSort, setNotesSort] = useState<NotesSort>('date_desc');
+  const [notesFilter, setNotesFilter] = useState<NotesFilter>('all');
+  const [notesGroup, setNotesGroup] = useState<NotesGroup>('none');
+  const [notesMenuOpen, setNotesMenuOpen] = useState<'sort' | 'filter' | 'group' | null>(null);
+
+  // Todo column controls
+  type TodoSort = 'order' | 'date_desc' | 'date_asc' | 'alpha_asc' | 'alpha_desc';
+  type TodoFilter = 'all' | 'active' | 'completed' | 'status';
+  type TodoGroup = 'none' | 'date' | 'tag';
+  const [todoSort, setTodoSort] = useState<TodoSort>('order');
+  const [todoFilter, setTodoFilter] = useState<TodoFilter>('all');
+  const [todoGroup, setTodoGroup] = useState<TodoGroup>('none');
+  const [todoMenuOpen, setTodoMenuOpen] = useState<'sort' | 'filter' | 'group' | null>(null);
+
+  // Collapse/expand for NOTES and TODO columns — mirrors the Canvas
+  // StagingPanel pattern: narrow w-8 strip when collapsed, full column when
+  // expanded. Preferences persisted to localStorage.
+  const [notesOpen, setNotesOpen] = useState(true);
+  const [todoOpen, setTodoOpen] = useState(true);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem('chrono_notes_open') === '0') setNotesOpen(false);
+      if (localStorage.getItem('chrono_todo_open') === '0') setTodoOpen(false);
+    } catch { /* */ }
+  }, []);
+  const toggleNotesOpen = useCallback(() => {
+    setNotesOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem('chrono_notes_open', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+  const toggleTodoOpen = useCallback(() => {
+    setTodoOpen((v) => {
+      const next = !v;
+      try { localStorage.setItem('chrono_todo_open', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+
+  // Resizable widths for NOTES and TODO columns. Same bounds + defaults as
+  // the Canvas StagingPanel (min 146, max 700, default 176), with persisted
+  // localStorage. CALENDAR column has flex-1 so it absorbs the leftover.
+  const COL_MIN_W = 146;
+  const COL_MAX_W = 700;
+  const [notesWidth, setNotesWidth] = useState<number>(176);
+  const [todoWidth, setTodoWidth] = useState<number>(176);
+  useEffect(() => {
+    try {
+      const n = localStorage.getItem('chrono_notes_width');
+      if (n) {
+        const v = parseInt(n, 10);
+        if (Number.isFinite(v)) setNotesWidth(Math.min(COL_MAX_W, Math.max(COL_MIN_W, v)));
+      }
+      const t = localStorage.getItem('chrono_todo_width');
+      if (t) {
+        const v = parseInt(t, 10);
+        if (Number.isFinite(v)) setTodoWidth(Math.min(COL_MAX_W, Math.max(COL_MIN_W, v)));
+      }
+    } catch { /* */ }
+  }, []);
+  const handleNotesResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = notesWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(COL_MAX_W, Math.max(COL_MIN_W, startW + (ev.clientX - startX)));
+      lastW = w;
+      setNotesWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('chrono_notes_width', String(Math.round(lastW))); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [notesWidth]);
+  const handleTodoResizeStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startW = todoWidth;
+    let lastW = startW;
+    const onMove = (ev: MouseEvent) => {
+      const w = Math.min(COL_MAX_W, Math.max(COL_MIN_W, startW + (ev.clientX - startX)));
+      lastW = w;
+      setTodoWidth(w);
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      try { localStorage.setItem('chrono_todo_width', String(Math.round(lastW))); } catch { /* */ }
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, [todoWidth]);
 
   // Fetch events
   const { data: eventsData, isLoading } = useQuery({
     queryKey: ['calendar-events', dateRange.start, dateRange.end, selectedTagId],
     queryFn: () => calendarApi.events(dateRange.start, dateRange.end, selectedTagId || undefined),
+    staleTime: 2 * 60 * 1000,
   });
 
   // Fetch tags for filter
@@ -104,20 +447,135 @@ export default function CalendarPage() {
 
   const events = eventsData?.data || [];
   const tags = (tagsData as ApiResponse<Tag[]>)?.data || [];
-  const unscheduledTiles = (tilesData?.data || []).filter((t: Tile) => !t.is_event);
 
-  // Reschedule mutation (drag-and-drop)
-  const rescheduleMutation = useMutation({
-    mutationFn: (params: { id: string; start_at: string; end_at?: string }) =>
-      calendarApi.reschedule(params.id, params.start_at, params.end_at),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['calendar-events'] }),
+  // Tiles for left panels
+  const { data: allTilesData } = useQuery({
+    queryKey: ['tiles-calendar'],
+    queryFn: () => tilesApi.list({ limit: 100 }),
+    staleTime: 60_000,
   });
+  const allTiles = allTilesData?.data || [];
+
+  const { todos, notes } = useMemo(() => {
+    const todos: Tile[] = [];
+    const notes: Tile[] = [];
+    allTiles.forEach((t) => {
+      if (t.action_type === 'anytime') todos.push(t);
+      else if (t.action_type === 'none') notes.push(t);
+    });
+    return { todos, notes };
+  }, [allTiles]);
+
+  // Processed notes: tag filter, sort, filter
+  const processedNotes = useMemo(() => {
+    let list = [...notes];
+    // Hide tiles excluded by sidebar tag filter
+    if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
+    // Filter
+    if (notesFilter === 'completion') list = list.filter((t) => isDone(t));
+    if (notesFilter === 'status') list = list.filter((t) => !!t.status_id);
+    // Sort
+    switch (notesSort) {
+      case 'date_desc': list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'date_asc': list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case 'alpha_asc': list.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
+      case 'alpha_desc': list.sort((a, b) => (b.title || '').localeCompare(a.title || '')); break;
+    }
+    return list;
+  }, [notes, notesSort, notesFilter, selectedTagIds]);
+
+  // Processed todos: tag filter, sort, filter
+  const processedTodos = useMemo(() => {
+    let list = [...todos];
+    // Hide tiles excluded by sidebar tag filter
+    if (selectedTagIds.size > 0) list = list.filter((t) => !isTileDimmed(t, selectedTagIds));
+    // Filter
+    if (todoFilter === 'active') list = list.filter((t) => !isDone(t));
+    if (todoFilter === 'completed') list = list.filter((t) => isDone(t));
+    if (todoFilter === 'status') list = list.filter((t) => !!t.status_id);
+    // Sort
+    switch (todoSort) {
+      case 'order':
+        list.sort((a, b) => {
+          const aDone = isDone(a);
+          const bDone = isDone(b);
+          if (aDone && !bDone) return 1;
+          if (!aDone && bDone) return -1;
+          return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+        });
+        break;
+      case 'date_desc': list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()); break;
+      case 'date_asc': list.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()); break;
+      case 'alpha_asc': list.sort((a, b) => (a.title || '').localeCompare(b.title || '')); break;
+      case 'alpha_desc': list.sort((a, b) => (b.title || '').localeCompare(a.title || '')); break;
+    }
+    return list;
+  }, [todos, selectedTagIds, todoSort, todoFilter]);
+
+  const groupedTodos = useMemo(() => {
+    if (todoGroup === 'none') return null;
+    const groups: Record<string, Tile[]> = {};
+    processedTodos.forEach((t) => {
+      let key: string;
+      if (todoGroup === 'date') {
+        key = new Date(t.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      } else {
+        key = t.tags?.[0]?.name || 'Senza tag';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [processedTodos, todoGroup]);
+
+  const groupedNotes = useMemo(() => {
+    if (notesGroup === 'none') return null;
+    const groups: Record<string, Tile[]> = {};
+    processedNotes.forEach((t) => {
+      let key: string;
+      if (notesGroup === 'date') {
+        key = new Date(t.created_at).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+      } else {
+        key = t.tags?.[0]?.name || 'Senza tag';
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  }, [processedNotes, notesGroup]);
+
+  // Register NOTES + TODO columns as FullCalendar external draggable containers,
+  // so tiles can be dropped onto the calendar grid and trigger the FC `drop` handler.
+  useEffect(() => {
+    const selectors = ['[data-kanban-column="notes"]', '[data-kanban-column="todo"]'];
+    const instances: Draggable[] = [];
+    for (const sel of selectors) {
+      const el = document.querySelector(sel) as HTMLElement | null;
+      if (!el) continue;
+      instances.push(new Draggable(el, {
+        itemSelector: '[data-tile-id]',
+        eventData: (eventEl) => ({
+          title: eventEl.getAttribute('data-tile-id') || '',
+        }),
+      }));
+    }
+    return () => {
+      instances.forEach((i) => i.destroy());
+    };
+    // Re-register when tiles list size changes so freshly rendered items are draggable
+  }, [processedNotes.length, processedTodos.length]);
+
+  const getTagInfo = (tile: Tile): { icon: string; name: string } => {
+    const tag = tile.tags?.[0];
+    if (!tag) return { icon: '', name: '' };
+    const tagType = tag.tag_type || '';
+    return { icon: tagType ? getTypeEmoji(tagType) : '', name: tag.name };
+  };
 
   // Create event mutation (creates tile + schedules atomically)
   const createEventMutation = useMutation({
     mutationFn: (params: {
       title?: string;
-      description?: string;
       start_at?: string;
       end_at?: string;
     }) => calendarApi.createEvent(params),
@@ -134,7 +592,6 @@ export default function CalendarPage() {
       start_at?: string;
       end_at?: string;
       title?: string;
-      description?: string;
       auto_detect?: boolean;
     }) => calendarApi.schedule(params),
     onSuccess: () => {
@@ -146,7 +603,7 @@ export default function CalendarPage() {
 
   // Update mutation
   const updateMutation = useMutation({
-    mutationFn: (params: { id: string; updates: { title?: string; description?: string; start_at?: string; end_at?: string } }) =>
+    mutationFn: (params: { id: string; updates: { title?: string; start_at?: string; end_at?: string; action_type?: string; all_day?: boolean } }) =>
       calendarApi.updateEvent(params.id, params.updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
@@ -164,100 +621,185 @@ export default function CalendarPage() {
     },
   });
 
-  // Convert tiles to FullCalendar events
-  const calendarEvents: EventInput[] = useMemo(() => {
-    let filtered = events;
-    if (aiFilterIds) {
-      filtered = events.filter((e: Tile) => aiFilterIds.has(e.id));
+  // ─── Drag-and-drop between sections ───
+  type DropTarget = 'notes' | 'todo' | 'deadline' | 'allday' | 'timed';
+  const dragTileRef = useRef<Tile | null>(null);
+  const [dragOver, setDragOver] = useState<string | null>(null); // "section" or "section:day" or "timed:day:minutes"
+
+  const onDragStart = useCallback((e: DragEvent, tile: Tile) => {
+    dragTileRef.current = tile;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tile.id);
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '0.4';
+    }
+  }, []);
+
+  const onDragEnd = useCallback((e: DragEvent) => {
+    if (e.currentTarget instanceof HTMLElement) {
+      e.currentTarget.style.opacity = '';
+    }
+    dragTileRef.current = null;
+    setDragOver(null);
+  }, []);
+
+  const moveTileMutation = useMutation({
+    mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
+      tilesApi.update(params.id, params.updates as Parameters<typeof tilesApi.update>[1]),
+    onMutate: ({ id, updates }) => {
+      // Optimistic update across all caches
+      const patch = (t: Tile) => (t.id === id ? { ...t, ...updates } : t);
+      queryClient.setQueriesData({ queryKey: ['calendar-events'] }, (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: old.data.map(patch) };
+      });
+      queryClient.setQueriesData({ queryKey: ['tiles-calendar'] }, (old: any) => {
+        if (!old?.data) return old;
+        return { ...old, data: old.data.map(patch) };
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+    },
+  });
+
+  const handleDrop = useCallback((target: DropTarget, day?: string, minuteOffset?: number) => {
+    const tile = dragTileRef.current;
+    if (!tile) return;
+    setDragOver(null);
+
+    const updates: Record<string, unknown> = {};
+    const dateStr = day || days[0]; // fallback to first visible day
+
+    switch (target) {
+      case 'notes':
+        updates.action_type = 'none';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.start_at = null;
+        updates.end_at = null;
+        break;
+      case 'todo':
+        updates.action_type = 'anytime';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.start_at = null;
+        updates.end_at = null;
+        break;
+      case 'deadline':
+        // Deadlines live in end_at only — clear start_at so stale times don't linger
+        updates.action_type = 'deadline';
+        updates.is_event = false;
+        updates.all_day = false;
+        updates.start_at = null;
+        updates.end_at = new Date(`${dateStr}T23:59:59`).toISOString();
+        break;
+      case 'allday':
+        updates.action_type = 'event';
+        updates.is_event = true;
+        updates.all_day = true;
+        updates.start_at = new Date(`${dateStr}T00:00:00`).toISOString();
+        updates.end_at = new Date(`${dateStr}T23:59:59`).toISOString();
+        break;
+      case 'timed': {
+        const mins = minuteOffset ?? (9 * 60); // default 09:00
+        // Snap to 15-minute grid
+        const snappedMins = Math.round(mins / 15) * 15;
+        const clampedMins = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - 15, snappedMins));
+        const h = Math.floor(clampedMins / 60);
+        const m = clampedMins % 60;
+        const startTime = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        // Always reset to 1 hour when dropping
+        const durationMins = 60;
+        const endMins = Math.min(clampedMins + durationMins, END_HOUR * 60);
+        const endH = Math.floor(endMins / 60);
+        const endM = endMins % 60;
+        const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+        updates.action_type = 'event';
+        updates.is_event = true;
+        updates.all_day = false;
+        updates.start_at = new Date(`${dateStr}T${startTime}:00`).toISOString();
+        updates.end_at = new Date(`${dateStr}T${endTime}:00`).toISOString();
+        break;
+      }
     }
 
-    return filtered.map((tile: Tile) => {
-      const isDeadline = tile.action_type === 'deadline' && !tile.is_event;
-      const tagColor = tile.tags?.[0]?.color;
+    moveTileMutation.mutate({ id: tile.id, updates });
+  }, [days, moveTileMutation, queryClient]);
+
+  // ─── Context menu state ───
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; tile: Tile } | null>(null);
+  const [slotCtxMenu, setSlotCtxMenu] = useState<{ x: number; y: number; date: Date; allDay: boolean } | null>(null);
+  const [colCtxMenu, setColCtxMenu] = useState<{ x: number; y: number; type: 'notes' | 'todo' } | null>(null);
+  const [clipboardTile, setClipboardTile] = useState<Tile | null>(null);
+  const ctxRef = useRef<HTMLDivElement>(null);
+  const slotCtxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!ctxMenu && !slotCtxMenu && !colCtxMenu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setCtxMenu(null); setSlotCtxMenu(null); setColCtxMenu(null); } };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [ctxMenu, slotCtxMenu]);
+
+  const onTileContextMenu = useCallback((e: React.MouseEvent, tile: Tile) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCtxMenu({ x: e.clientX, y: e.clientY, tile });
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    if (!ctxMenu) return;
+    setClipboardTile(ctxMenu.tile);
+    setCtxMenu(null);
+  }, [ctxMenu]);
+
+  // Categorize calendar events into lanes
+  const filteredEvents = useMemo(() => events, [events]);
+
+  // FullCalendar ref + events
+  const fcRef = useRef<FullCalendar>(null);
+  const externalDropRef = useRef<string | null>(null);
+
+  // Keep FullCalendar in sync with our view+offset state. Switching views
+  // calls `changeView`; week/month nav calls `gotoDate` with the right
+  // anchor (Mon for week, first-of-month for month).
+  useEffect(() => {
+    const api = fcRef.current?.getApi();
+    if (!api) return;
+    const targetView = viewMode === 'week' ? 'timeGridWeek' : 'dayGridMonth';
+    if (api.view.type !== targetView) api.changeView(targetView);
+    const anchor = viewMode === 'week' ? days[0] : currentMonth;
+    if (anchor) api.gotoDate(anchor);
+  }, [viewMode, days, currentMonth]);
+
+  const fcEvents: EventInput[] = useMemo(() => {
+    return filteredEvents.map((t) => {
+      const color = getTagColor(t);
+      const isAllDay = t.all_day || t.action_type === 'deadline';
       return {
-        id: tile.id,
-        title: isDeadline ? `\u23F0 ${tile.title || 'Scadenza'}` : (tile.title || 'Senza titolo'),
-        start: tile.start_at!,
-        end: isDeadline ? undefined : (tile.end_at || undefined),
-        allDay: isDeadline,
-        backgroundColor: isDeadline ? '#F59E0B' : (tagColor || defaultEventColor),
-        borderColor: isDeadline ? '#D97706' : (tagColor || defaultEventColor),
-        extendedProps: {
-          description: tile.description,
-          spark_count: tile.spark_count || 0,
-          tags: tile.tags || [],
-          isDeadline,
-        },
+        id: t.id,
+        title: t.title || 'Senza titolo',
+        start: t.action_type === 'deadline' ? (t.end_at || t.created_at) : (t.start_at || t.created_at),
+        end: t.end_at || (isAllDay ? undefined : new Date(new Date(t.start_at || t.created_at).getTime() + 3600000).toISOString()),
+        allDay: isAllDay,
+        backgroundColor: 'rgba(24, 24, 27, 0.9)',
+        borderColor: `${color}60`,
+        textColor: '#A1A1AA',
+        classNames: [
+          isDone(t) ? 'fc-event-completed' : '',
+          t.action_type === 'deadline' ? 'fc-event-deadline' : '',
+        ].filter(Boolean),
       };
     });
-  }, [events, aiFilterIds]);
+  }, [filteredEvents, getTagColor]);
 
-  // Handle date range changes
-  const handleDatesSet = useCallback((arg: { start: Date; end: Date }) => {
-    setDateRange({
-      start: arg.start.toISOString(),
-      end: arg.end.toISOString(),
-    });
-  }, []);
-
-  // Handle drag-and-drop
-  const handleEventDrop = useCallback((info: EventDropArg) => {
-    const { event } = info;
-    rescheduleMutation.mutate({
-      id: event.id,
-      start_at: event.start!.toISOString(),
-      end_at: event.end?.toISOString(),
-    });
-  }, [rescheduleMutation]);
-
-  // Handle event resize
-  const handleEventResize = useCallback((info: EventResizeDoneArg) => {
-    const { event } = info;
-    rescheduleMutation.mutate({
-      id: event.id,
-      start_at: event.start!.toISOString(),
-      end_at: event.end?.toISOString(),
-    });
-  }, [rescheduleMutation]);
-
-  // Handle click on empty slot (create new event)
-  const handleDateSelect = useCallback((info: DateSelectArg) => {
-    // Use Date objects (not strings) to ensure proper ISO format in all views
-    const start = info.start;
-    const end = info.end;
-    // If from dayGrid (all-day), default to 09:00-10:00
-    if (info.allDay) {
-      start.setHours(9, 0, 0, 0);
-      end.setTime(start.getTime() + 3600000);
-    }
-    setModal({
-      open: true,
-      mode: 'create',
-      title: '',
-      description: '',
-      startAt: start.toISOString(),
-      endAt: end.toISOString(),
-      autoDetect: false,
-      tagIds: [],
-    });
-  }, []);
-
-  // Handle click on existing event (edit)
-  const handleEventClick = useCallback((info: EventClickArg) => {
-    const tile = events.find((e: Tile) => e.id === info.event.id);
-    if (!tile) return;
-    setModal({
-      open: true,
-      mode: 'edit',
-      tileId: tile.id,
-      title: tile.title || '',
-      description: tile.description || '',
-      startAt: tile.start_at || '',
-      endAt: tile.end_at || '',
-      autoDetect: false,
-      tagIds: (tile.tags || []).map((t) => t.id),
-    });
-  }, [events]);
+  // Handle click on a calendar tile (open edit modal + sidebar)
+  const handleCalTileClick = useCallback((tile: Tile) => {
+    setSelectedTileId(tile.id);
+    if (!sidebarOpen) setSidebarOpen(true);
+  }, [sidebarOpen]);
 
   // Sync tags for a tile: add missing, remove extra
   const syncTags = useCallback(async (tileId: string, tagIds: string[]) => {
@@ -272,512 +814,1309 @@ export default function CalendarPage() {
     }
   }, []);
 
+  // ─── Context menu actions (need syncTags) ───
+  const handlePaste = useCallback(async () => {
+    if (!clipboardTile) return;
+    setCtxMenu(null);
+    try {
+      const res = await tilesApi.create({ title: clipboardTile.title });
+      const newId = res?.data?.id;
+      if (newId) {
+        await tilesApi.update(newId, {
+          action_type: clipboardTile.action_type as any,
+          is_event: clipboardTile.is_event,
+          all_day: clipboardTile.all_day,
+          start_at: clipboardTile.start_at,
+          end_at: clipboardTile.end_at,
+          status_id: clipboardTile.status_id,
+        });
+        const tagId = clipboardTile.tags?.[0]?.id;
+        if (tagId) await syncTags(newId, [tagId]);
+        queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      }
+    } catch { /* ignore */ }
+  }, [clipboardTile, syncTags, queryClient]);
+
+  const handleDeleteTile = useCallback(async () => {
+    if (!ctxMenu) return;
+    const id = ctxMenu.tile.id;
+    setCtxMenu(null);
+    try {
+      await tilesApi.delete(id);
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      if (selectedTileId === id) setSelectedTileId(null);
+    } catch { /* ignore */ }
+  }, [ctxMenu, queryClient, selectedTileId]);
+
+  const handleNewTileInColumn = useCallback(() => {
+    if (!colCtxMenu) return;
+    const actionType = colCtxMenu.type === 'notes' ? 'none' : 'anytime';
+    setColCtxMenu(null);
+    setModal({
+      ...emptyModal,
+      open: true,
+      mode: 'create',
+      actionType,
+    });
+  }, [colCtxMenu]);
+
+  const handlePasteInColumn = useCallback(async () => {
+    if (!clipboardTile || !colCtxMenu) return;
+    const actionType = colCtxMenu.type === 'notes' ? 'none' : 'anytime';
+    setColCtxMenu(null);
+    try {
+      const res = await tilesApi.create({ title: clipboardTile.title });
+      const newId = res?.data?.id;
+      if (newId) {
+        await tilesApi.update(newId, {
+          action_type: actionType as any,
+          is_event: false,
+          all_day: false,
+          start_at: null,
+          end_at: null,
+          status_id: clipboardTile.status_id,
+        });
+        const tagId = clipboardTile.tags?.[0]?.id;
+        if (tagId) await syncTags(newId, [tagId]);
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      }
+    } catch { /* ignore */ }
+  }, [clipboardTile, colCtxMenu, syncTags, queryClient]);
+
+  const handleNewTileAtSlot = useCallback(() => {
+    if (!slotCtxMenu) return;
+    const { date, allDay } = slotCtxMenu;
+    setSlotCtxMenu(null);
+    setModal({
+      ...emptyModal,
+      open: true,
+      mode: 'create',
+      actionType: allDay ? 'event' : 'event',
+      allDay,
+      startAt: date.toISOString(),
+      endAt: allDay
+        ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString()
+        : new Date(date.getTime() + 3600000).toISOString(),
+    });
+  }, [slotCtxMenu]);
+
   // Handle create/edit submit
+  const { assignIcon } = useTypeIcons();
   const handleSubmit = useCallback(async () => {
+    const computeDates = () => {
+      if (modal.allDay && modal.startAt) {
+        return {
+          start_at: new Date(new Date(modal.startAt).setHours(0, 0, 0, 0)).toISOString(),
+          end_at: new Date(new Date(modal.startAt).setHours(23, 59, 59, 0)).toISOString(),
+        };
+      }
+      if (modal.actionType === 'deadline') {
+        return { start_at: undefined, end_at: modal.endAt || undefined };
+      }
+      return { start_at: modal.startAt || undefined, end_at: modal.endAt || undefined };
+    };
+
     if (modal.mode === 'create') {
       if (modal.tileId) {
-        // Schedule existing tile
         scheduleMutation.mutate({
           tile_id: modal.tileId,
-          start_at: modal.startAt || undefined,
-          end_at: modal.endAt || undefined,
+          ...computeDates(),
           title: modal.title || undefined,
-          description: modal.description || undefined,
           auto_detect: modal.autoDetect,
         });
-        // Sync tags for existing tile
         if (modal.tagIds.length > 0) {
           await syncTags(modal.tileId, modal.tagIds);
-          queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
         }
+        if (modal.typeIconId) assignIcon(modal.tileId, modal.typeIconId);
       } else {
-        // Create new tile + schedule atomically (every event IS a tile)
-        createEventMutation.mutate({
-          title: modal.title || undefined,
-          description: modal.description || undefined,
-          start_at: modal.startAt || undefined,
-          end_at: modal.endAt || undefined,
-        }, {
-          onSuccess: async (result: ApiResponse<Tile>) => {
-            if (result?.data?.id && modal.tagIds.length > 0) {
-              await syncTags(result.data.id, modal.tagIds);
-              queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
-              queryClient.invalidateQueries({ queryKey: ['tags'] });
-            }
-          },
+        // Create tile, then apply all settings
+        const result = await new Promise<ApiResponse<Tile>>((resolve) => {
+          createEventMutation.mutate({
+            title: modal.title || undefined,
+            ...computeDates(),
+          }, { onSuccess: resolve });
         });
+        const newId = result?.data?.id;
+        if (newId) {
+          // Apply action_type and status
+          await tilesApi.update(newId, {
+            action_type: modal.actionType as any,
+            all_day: modal.allDay,
+            is_event: modal.actionType === 'event',
+            status_id: modal.statusId,
+          });
+          if (modal.tagIds.length > 0) await syncTags(newId, modal.tagIds);
+          if (modal.typeIconId) assignIcon(newId, modal.typeIconId);
+          queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+          queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+          queryClient.invalidateQueries({ queryKey: ['tags'] });
+        }
       }
     } else if (modal.mode === 'edit' && modal.tileId) {
-      // Get current tags from the event
       const currentEvent = events.find((e: Tile) => e.id === modal.tileId);
       const currentTagIds = (currentEvent?.tags || []).map((t) => t.id);
       const toAdd = modal.tagIds.filter((id: string) => !currentTagIds.includes(id));
       const toRemove = currentTagIds.filter((id: string) => !modal.tagIds.includes(id));
-
-      // Remove tags
       for (const tagId of toRemove) {
         try { await tagsApi.untagTile(tagId, modal.tileId); } catch { /* ignore */ }
       }
-      // Add tags
-      if (toAdd.length > 0) {
-        await syncTags(modal.tileId, toAdd);
-      }
+      if (toAdd.length > 0) await syncTags(modal.tileId, toAdd);
 
+      const dates = computeDates();
       updateMutation.mutate({
         id: modal.tileId,
         updates: {
           title: modal.title,
-          description: modal.description,
-          start_at: modal.startAt,
-          end_at: modal.endAt,
+          start_at: dates.start_at,
+          end_at: dates.end_at,
+          action_type: modal.actionType,
+          all_day: modal.allDay,
         },
       });
+      if (modal.typeIconId !== undefined) assignIcon(modal.tileId, modal.typeIconId);
     }
-  }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient]);
+  }, [modal, scheduleMutation, createEventMutation, updateMutation, syncTags, events, queryClient, assignIcon]);
 
-  // AI filter
-  const handleAiFilter = useCallback(async () => {
-    if (!aiQuery.trim()) {
-      setAiFilterIds(null);
-      setAiFilterActive(false);
-      return;
-    }
-    setAiLoading(true);
-    try {
-      const result = await calendarApi.aiFilter(aiQuery, dateRange.start, dateRange.end);
-      if (result.success && result.data) {
-        setAiFilterIds(new Set((result.data as Tile[]).map((t) => t.id)));
-        setAiFilterActive(true);
-      }
-    } finally {
-      setAiLoading(false);
-    }
-  }, [aiQuery, dateRange]);
-
-  const clearAiFilter = useCallback(() => {
-    setAiQuery('');
-    setAiFilterIds(null);
-    setAiFilterActive(false);
-  }, []);
-
-  // Schedule existing tile
-  const handleScheduleTile = useCallback((tile: Tile) => {
-    setShowTilePicker(false);
-    setModal({
-      open: true,
-      mode: 'create',
-      tileId: tile.id,
-      title: tile.title || '',
-      description: tile.description || '',
-      startAt: '',
-      endAt: '',
-      autoDetect: true,
-      tagIds: [],
-    });
-  }, []);
-
-  return (
-    <div className="flex flex-col h-full">
-      <Header title="Calendario" />
-
-      {/* Toolbar */}
-      <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
-        {/* Tag filters */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setSelectedTagId(null)}
-            className={cn(
-              'px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-              !selectedTagId
-                ? 'bg-zinc-800 border-zinc-600 text-white'
-                : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
-            )}
-          >
-            Tutti
-          </button>
-          {tags.map((tag: Tag) => (
-            <button
-              key={tag.id}
-              onClick={() => setSelectedTagId(selectedTagId === tag.id ? null : tag.id)}
-              className={cn(
-                'flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium border transition-all',
-                selectedTagId === tag.id
-                  ? 'text-white'
-                  : 'bg-zinc-900/60 border-zinc-800 text-zinc-500'
+  // Render a tile card for the NOTES / TO DO columns. Mirrors the Canvas
+  // StagingPanel tile look (type-icon-tinted bg, 2-line clamp, FLOW badge
+  // as an overlay outside the rounded body) so the two pages stay visually
+  // in sync. `dimmedClass` is column-specific: NOTES dims tiles outside the
+  // active tag filter, TODO dims completed ones — the caller computes it.
+  const renderColumnTile = (t: Tile, dimmedClass?: string | false) => {
+    const color = getTagColor(t);
+    const shape = resolveShape(t);
+    const si = getIconForTile(t.id);
+    const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
+    const hasFlow = tilesWithFlows.has(t.id);
+    const actionKey = t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
+    const actionColor = actionKey === 'none'
+      ? '#e4e4e7'
+      : (actionColors[actionKey as keyof typeof actionColors] || '#888780');
+    return (
+      <div
+        key={t.id}
+        className="relative shrink-0"
+        style={{ width: 130, breakInside: 'avoid', marginBottom: 6 }}
+      >
+        <div
+          draggable
+          data-tile-id={t.id}
+          onDragStart={(e) => onDragStart(e, t)}
+          onDragEnd={onDragEnd}
+          className={cn(
+            'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
+            t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
+            selectedTileId === t.id && 'ring-2 ring-blue-500',
+            dimmedClass,
+          )}
+          style={{ backgroundColor: tileBg, width: 130, height: 90 }}
+          onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
+          onContextMenu={(e) => onTileContextMenu(e, t)}
+        >
+          <div className="relative h-full flex flex-col p-1.5">
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <p
+                className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]"
+                style={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  wordBreak: 'break-word',
+                }}
+              >
+                {t.title || 'Senza titolo'}
+              </p>
+            </div>
+            <div className="mt-auto relative z-10">
+              {t.subtasks && t.subtasks.length > 0 && (
+                <div className="mb-2">
+                  <ChecklistBar items={t.subtasks} availableWidth={118} />
+                </div>
               )}
-              style={selectedTagId === tag.id ? {
-                backgroundColor: `${tag.color || '#3B82F6'}20`,
-                borderColor: `${tag.color || '#3B82F6'}60`,
-              } : undefined}
-            >
-              <TagIcon className="h-3 w-3" style={{ color: tag.color || '#3B82F6' }} />
-              {tag.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex-1" />
-
-        {/* AI filter */}
-        <div className="flex items-center gap-2">
-          <div className="relative">
-            <input
-              type="text"
-              value={aiQuery}
-              onChange={(e) => setAiQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleAiFilter()}
-              placeholder="Filtra con AI..."
-              className="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-500 w-48 pr-8"
-            />
-            {aiFilterActive ? (
-              <button onClick={clearAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-                <X className="h-3.5 w-3.5 text-zinc-400" />
-              </button>
-            ) : (
-              <button onClick={handleAiFilter} className="absolute right-2 top-1/2 -translate-y-1/2">
-                {aiLoading ? (
-                  <Loader2 className="h-3.5 w-3.5 text-zinc-400 animate-spin" />
-                ) : (
-                  <Sparkles className="h-3.5 w-3.5 text-zinc-400" />
-                )}
-              </button>
+              <div className="flex items-end justify-between gap-1">
+                <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+              </div>
+            </div>
+            {shape !== 'solid' && (
+              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
+                <svg className="w-full h-full">
+                  <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
+                </svg>
+              </div>
             )}
           </div>
         </div>
+        {hasFlow && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onDragStart={(e) => e.stopPropagation()}
+            className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+            title="Apri Flow"
+          >
+            FLOW
+          </button>
+        )}
+      </div>
+    );
+  };
 
-        {/* Add event buttons */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowTilePicker(true)}
-          className="bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-700 text-xs"
+  return (
+    <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
+      <Header title="Chrono" />
+
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* Board area — toolbar + 3 kanban-style columns (NOTES, TODO, CALENDAR) */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Top Toolbar */}
+          <div className="h-12 flex items-center gap-1 px-4 border-b border-zinc-800 bg-zinc-950 shrink-0">
+            <button
+              onClick={() => setModal({
+                ...emptyModal,
+                open: true,
+                mode: 'create',
+                startAt: new Date().toISOString(),
+                endAt: new Date(Date.now() + 3600000).toISOString(),
+              })}
+              className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+              title="Aggiungi tile"
+            >
+              <IconLayoutGrid size={13} />
+              Tile
+            </button>
+          </div>
+          {/* Columns container — NOTES, TODO and CALENDAR sit flush against
+              each other separated by draggable splitters (same layout as the
+              Canvas page). No padding or gap so the splitters drive the
+              visual seam. */}
+          <div className="flex-1 flex overflow-hidden bg-zinc-950">
+
+        {/* 2 — COLONNA NOTES */}
+        <div
+          data-kanban-column="notes"
+          style={notesOpen ? { width: notesWidth } : undefined}
+          className={cn(
+            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
+            !notesOpen && 'w-8',
+            dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50'
+          )}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
+          onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
+          onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
+          onContextMenu={(e) => {
+            if (!notesOpen) return;
+            if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
+            e.preventDefault();
+            setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'notes' });
+          }}
         >
-          <CalendarIcon className="h-3.5 w-3.5 mr-1.5" />
-          Schedule Tile
-        </Button>
-        <Button
-          size="sm"
-          onClick={() => setModal({
-            ...emptyModal,
-            open: true,
-            mode: 'create',
-            startAt: new Date().toISOString(),
-            endAt: new Date(Date.now() + 3600000).toISOString(),
-          })}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
+          {!notesOpen ? (
+            // Collapsed: thin strip with expand button + count. Outer div keeps
+            // the drop handlers so dropping an event here still unschedules it.
+            <>
+              <button
+                onClick={toggleNotesOpen}
+                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
+                style={{ backgroundColor: `${actionColors.none}15` }}
+                title="Espandi NOTES"
+              >
+                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+              {processedNotes.length > 0 && (
+                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
+                  <span className="text-[10px] tabular-nums">{processedNotes.length}</span>
+                </div>
+              )}
+            </>
+          ) : (
+          <>
+          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+            <button
+              onClick={toggleNotesOpen}
+              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              title="Collassa NOTES"
+            >
+              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+            </button>
+            <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
+            <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
+            <div className="flex items-center gap-0.5 ml-auto">
+              {/* Sort */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesSort !== 'date_desc' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconArrowsSort className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'sort' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesSort(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesSort === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesSort === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Filter */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconFilter className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'filter' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['all', 'Tutti'], ['completion', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesFilter(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesFilter === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Group */}
+              <div className="relative">
+                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconLayoutList className="h-3 w-3" />
+                </button>
+                {notesMenuOpen === 'group' && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setNotesGroup(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {notesGroup === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {groupedNotes ? (
+              <div className="space-y-3">
+              {Object.entries(groupedNotes).map(([group, tiles]) => (
+                <div key={group}>
+                  <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
+                  <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+                  {tiles.map((t) => renderColumnTile(t, isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'))}
+                  </div>
+                </div>
+              ))}
+              </div>
+            ) : (
+              <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+              {processedNotes.map((t) => renderColumnTile(t, isTileDimmed(t, selectedTagIds) && 'opacity-20 saturate-0'))}
+              </div>
+            )}
+            {processedNotes.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun appunto</span>}
+          </div>
+          </>
+          )}
+        </div>
+
+        {/* Splitter NOTES → TODO. Hidden when NOTES is collapsed (the strip
+            has a fixed w-8 so there's nothing to resize). */}
+        {notesOpen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={handleNotesResizeStart}
+            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            title="Trascina per ridimensionare"
+          >
+            <div
+              aria-hidden
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+            />
+          </div>
+        )}
+
+        {/* 3 — COLONNA TODO */}
+        <div
+          data-kanban-column="todo"
+          style={todoOpen ? { width: todoWidth } : undefined}
+          className={cn(
+            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
+            !todoOpen && 'w-8',
+            dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50'
+          )}
+          onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
+          onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
+          onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
+          onContextMenu={(e) => {
+            if (!todoOpen) return;
+            if ((e.target as HTMLElement).closest('[data-tile-id]')) return;
+            e.preventDefault();
+            setColCtxMenu({ x: e.clientX, y: e.clientY, type: 'todo' });
+          }}
         >
-          <Plus className="h-3.5 w-3.5 mr-1.5" />
-          New Tile
-        </Button>
+          {!todoOpen ? (
+            // Collapsed: thin strip with expand button + count. Outer div keeps
+            // the drop handlers so dropping an event here still unschedules it.
+            <>
+              <button
+                onClick={toggleTodoOpen}
+                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
+                style={{ backgroundColor: `${actionColors.anytime}15` }}
+                title="Espandi TO DO"
+              >
+                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+              </button>
+              {processedTodos.length > 0 && (
+                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
+                  <span className="text-[10px] tabular-nums">{processedTodos.length}</span>
+                </div>
+              )}
+            </>
+          ) : (
+          <>
+          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+            <button
+              onClick={toggleTodoOpen}
+              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              title="Collassa TO DO"
+            >
+              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+            </button>
+            <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
+            <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
+            <div className="flex items-center gap-0.5 ml-auto">
+              {/* Sort */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoSort !== 'order' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconArrowsSort className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'sort' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['order', 'Ordine'], ['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoSort(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoSort === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoSort === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Filter */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconFilter className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'filter' && (
+                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['all', 'Tutti'], ['active', 'Attivi'], ['completed', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoFilter(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoFilter === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Group */}
+              <div className="relative">
+                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
+                  <IconLayoutList className="h-3 w-3" />
+                </button>
+                {todoMenuOpen === 'group' && (
+                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                    {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
+                      <button key={val} onClick={() => { setTodoGroup(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
+                        {todoGroup === val && <span className="text-blue-400">•</span>}
+                        <span>{label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-1.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {groupedTodos ? (
+              <div className="space-y-3">
+              {Object.entries(groupedTodos).map(([group, tiles]) => (
+                <div key={group}>
+                  <div className="text-[8px] uppercase tracking-wider text-zinc-500 font-semibold px-1 pt-1.5 pb-0.5">{group}</div>
+                  <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+                  {tiles.map((t) => renderColumnTile(t, isDone(t) && 'opacity-50'))}
+                  </div>
+                </div>
+              ))}
+              </div>
+            ) : (
+              <div style={{ columnWidth: '130px', columnGap: '6px' }}>
+              {processedTodos.map((t) => renderColumnTile(t, isDone(t) && 'opacity-50'))}
+              </div>
+            )}
+            {processedTodos.length === 0 && <span className="text-[10px] text-zinc-500 py-2">Nessun task</span>}
+          </div>
+          </>
+          )}
+        </div>
+
+        {/* Splitter TODO → CALENDAR. Hidden when TODO is collapsed. */}
+        {todoOpen && (
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            onMouseDown={handleTodoResizeStart}
+            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            title="Trascina per ridimensionare"
+          >
+            <div
+              aria-hidden
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+            />
+          </div>
+        )}
+
+        {/* 4 — COLONNA CALENDAR (kanban-style, flex-1) */}
+        <div className="flex-1 min-w-0 flex flex-col rounded bg-[#1f1f22] overflow-hidden">
+
+      {/* Column header — title + range label + view switcher + nav */}
+      <div className="h-8 flex items-center gap-1.5 px-2 relative z-20">
+        <IconCalendar className="h-3.5 w-3.5 shrink-0 text-zinc-300" />
+        <span className="text-[10px] font-bold tracking-widest text-zinc-300">CALENDARIO</span>
+        <span className="text-[10px] text-zinc-500 capitalize">
+          {viewMode === 'week' ? formatWeekRange(days) : formatMonthLabel(currentMonth)}
+        </span>
+        <div className="flex items-center gap-0.5 ml-auto">
+          {/* View switcher — WEEK / MONTH segmented control */}
+          <div className="flex items-center mr-1 rounded bg-zinc-900/60 p-0.5">
+            <button
+              onClick={() => changeViewMode('week')}
+              className={cn(
+                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
+                viewMode === 'week' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
+              )}
+              title="Vista settimanale"
+            >
+              WEEK
+            </button>
+            <button
+              onClick={() => changeViewMode('month')}
+              className={cn(
+                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
+                viewMode === 'month' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
+              )}
+              title="Vista mensile"
+            >
+              MONTH
+            </button>
+          </div>
+          {/* Prev / Oggi / Next — operate on whichever offset matches the active view */}
+          <button
+            onClick={() => viewMode === 'week' ? setWeekOffset((o) => o - 1) : setMonthOffset((o) => o - 1)}
+            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+          >
+            <IconChevronLeft size={14} />
+          </button>
+          <button
+            onClick={() => { setWeekOffset(0); setMonthOffset(0); }}
+            className="px-1.5 h-6 rounded text-[10px] text-zinc-400 hover:bg-zinc-800"
+          >
+            Oggi
+          </button>
+          <button
+            onClick={() => viewMode === 'week' ? setWeekOffset((o) => o + 1) : setMonthOffset((o) => o + 1)}
+            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+          >
+            <IconChevronRight size={14} />
+          </button>
+        </div>
       </div>
 
-      {/* Calendar */}
-      <div className="flex-1 p-4 overflow-auto calendar-dark">
-        <style jsx global>{`
-          .calendar-dark .fc {
-            --fc-border-color: #3E3E42;
-            --fc-button-bg-color: #27272a;
-            --fc-button-border-color: #3E3E42;
-            --fc-button-hover-bg-color: #3f3f46;
-            --fc-button-hover-border-color: #52525b;
-            --fc-button-active-bg-color: #528BFF;
-            --fc-button-active-border-color: #528BFF;
-            --fc-button-text-color: #d4d4d8;
-            --fc-today-bg-color: rgba(82, 139, 255, 0.08);
-            --fc-neutral-bg-color: #18181b;
-            --fc-page-bg-color: #09090b;
-            --fc-event-bg-color: #528BFF;
-            --fc-event-border-color: #528BFF;
-            --fc-event-text-color: #fff;
-            --fc-highlight-color: rgba(82, 139, 255, 0.15);
-            --fc-now-indicator-color: #EF4444;
-            color: #d4d4d8;
-            font-size: 13px;
+      {/* FullCalendar grid */}
+      <div
+        className="flex-1 overflow-hidden fc-dark"
+        onContextMenu={(e) => {
+          // Only show slot context menu if not clicking on an event
+          const target = e.target as HTMLElement;
+          const eventEl = target.closest('.fc-event') as HTMLElement | null;
+          if (eventEl) {
+            // Fallback: if the event's own contextmenu listener didn't fire
+            // (can happen for all-day events with nested handlers), trigger
+            // the tile context menu here using the data-tile-id we attach in
+            // eventDidMount.
+            const tileId = eventEl.getAttribute('data-tile-id');
+            if (tileId) {
+              const tile = filteredEvents.find((t) => t.id === tileId) || allTiles.find((t) => t.id === tileId);
+              if (tile) {
+                e.preventDefault();
+                e.stopPropagation();
+                setCtxMenu({ x: e.clientX, y: e.clientY, tile });
+              }
+            }
+            return;
           }
-          .calendar-dark .fc .fc-col-header-cell {
-            background-color: #18181b;
-            padding: 8px 0;
+          e.preventDefault();
+          // Try to find the date from the slot element
+          const slotEl = target.closest('[data-date]') as HTMLElement | null;
+          const tdEl = target.closest('td.fc-timegrid-slot') as HTMLElement | null;
+          if (slotEl) {
+            const dateStr = slotEl.getAttribute('data-date');
+            if (dateStr) {
+              const date = new Date(dateStr);
+              const allDay = !!target.closest('.fc-daygrid-body, .fc-daygrid-day');
+              setSlotCtxMenu({ x: e.clientX, y: e.clientY, date, allDay });
+              return;
+            }
           }
-          .calendar-dark .fc .fc-timegrid-slot {
-            height: 40px;
+          if (tdEl) {
+            const dateAttr = tdEl.getAttribute('data-time');
+            // Find the day column from X position
+            const api = fcRef.current?.getApi();
+            if (api && dateAttr) {
+              // Use the column header to find the day
+              const colHeaders = document.querySelectorAll('.fc-col-header-cell');
+              let dayDate = new Date();
+              colHeaders.forEach((header) => {
+                const rect = header.getBoundingClientRect();
+                if (e.clientX >= rect.left && e.clientX <= rect.right) {
+                  const d = (header as HTMLElement).getAttribute('data-date');
+                  if (d) dayDate = new Date(d);
+                }
+              });
+              const [h, m] = dateAttr.split(':').map(Number);
+              dayDate.setHours(h, m, 0, 0);
+              setSlotCtxMenu({ x: e.clientX, y: e.clientY, date: dayDate, allDay: false });
+              return;
+            }
           }
-          .calendar-dark .fc .fc-daygrid-day-number,
-          .calendar-dark .fc .fc-col-header-cell-cushion {
-            color: #a1a1aa;
-            text-decoration: none;
-          }
-          .calendar-dark .fc .fc-event {
-            border-radius: 4px;
-            padding: 2px 4px;
-            cursor: pointer;
-            font-size: 12px;
-          }
-          .calendar-dark .fc .fc-toolbar-title {
-            color: #f4f4f5;
-            font-size: 18px;
-          }
-          .calendar-dark .fc .fc-button {
-            font-size: 12px;
-            padding: 4px 12px;
-            border-radius: 6px;
-          }
-          .calendar-dark .fc .fc-scrollgrid {
-            border-radius: 8px;
-            overflow: hidden;
-          }
-          .calendar-dark .fc .fc-daygrid-day.fc-day-today {
-            background-color: rgba(82, 139, 255, 0.06);
-          }
-        `}</style>
-
+          // Fallback: all-day area or header
+          setSlotCtxMenu(null);
+          setCtxMenu(null);
+        }}
+      >
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
+            <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : (
           <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, multiMonthPlugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'timeGridDay,timeGridWeek,dayGridMonth,multiMonthYear',
-            }}
-            buttonText={{
-              today: 'Oggi',
-              day: 'Giorno',
-              week: 'Settimana',
-              month: 'Mese',
-              year: 'Anno',
-            }}
+            ref={fcRef}
+            plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+            initialView={viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek'}
             locale="it"
             firstDay={1}
-            nowIndicator={true}
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            eventResizableFromStart={true}
-            events={calendarEvents}
-            datesSet={handleDatesSet}
-            eventDrop={handleEventDrop}
-            eventResize={handleEventResize}
-            select={handleDateSelect}
-            eventClick={handleEventClick}
+            headerToolbar={false}
+            slotMinTime="06:00:00"
+            slotMaxTime="22:00:00"
+            slotDuration="00:30:00"
+            slotLabelInterval="01:00:00"
+            slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
             height="100%"
             allDaySlot={true}
-            allDayText="Tutto il giorno"
-            slotMinTime="00:00:00"
-            slotMaxTime="24:00:00"
-            slotDuration="00:30:00"
-            scrollTime="08:00:00"
-            expandRows={true}
-            stickyHeaderDates={true}
-            dayMaxEventRows={4}
+            allDayText=""
+            nowIndicator={true}
+            editable={true}
+            droppable={true}
+            eventDurationEditable={true}
+            eventStartEditable={true}
+            snapDuration="00:15:00"
+            dayHeaderFormat={{ weekday: 'short', day: 'numeric' }}
+            initialDate={days[0]}
+            events={fcEvents}
+            dateClick={(info) => {
+              // Ignore if clicked on an event element
+              const target = info.jsEvent.target as HTMLElement;
+              if (target.closest('.fc-event')) return;
+              // Left-click on empty slot — open modal pre-filled
+              setModal({
+                ...emptyModal,
+                open: true,
+                mode: 'create',
+                actionType: 'event',
+                allDay: info.allDay,
+                startAt: info.date.toISOString(),
+                endAt: info.allDay
+                  ? new Date(info.date.getFullYear(), info.date.getMonth(), info.date.getDate(), 23, 59, 59).toISOString()
+                  : new Date(info.date.getTime() + 3600000).toISOString(),
+              });
+            }}
+            eventClick={(info) => {
+              const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+              if (tile) { setSelectedTileId(tile.id); if (!sidebarOpen) setSidebarOpen(true); }
+            }}
+            eventDragStart={() => { setDragOver(null); }}
+            eventDragStop={(info) => {
+              // If the drop landed over the NOTES or TODO column, unschedule the
+              // tile and reclassify it instead of leaving it on the calendar.
+              const { clientX, clientY } = info.jsEvent;
+              const notesEl = document.querySelector('[data-kanban-column="notes"]') as HTMLElement | null;
+              const todoEl = document.querySelector('[data-kanban-column="todo"]') as HTMLElement | null;
+              const within = (el: HTMLElement | null) => {
+                if (!el) return false;
+                const r = el.getBoundingClientRect();
+                return clientX >= r.left && clientX <= r.right && clientY >= r.top && clientY <= r.bottom;
+              };
+              const target: 'notes' | 'todo' | null = within(notesEl) ? 'notes' : within(todoEl) ? 'todo' : null;
+              if (!target) return;
+              // Mark the drop as externally handled so eventDrop doesn't also fire a move
+              externalDropRef.current = info.event.id;
+              info.event.remove();
+              moveTileMutation.mutate({
+                id: info.event.id,
+                updates: {
+                  action_type: target === 'notes' ? 'none' : 'anytime',
+                  is_event: false,
+                  all_day: false,
+                  start_at: null,
+                  end_at: null,
+                },
+              });
+              setDragOver(null);
+            }}
+            eventDrop={(info) => {
+              // Skip if this drop was already handled by eventDragStop (external target)
+              if (externalDropRef.current === info.event.id) {
+                externalDropRef.current = null;
+                return;
+              }
+              const { id } = info.event;
+              const start = info.event.start;
+              const end = info.event.end;
+              if (!start) return;
+              const allDay = info.event.allDay;
+              const updates: Record<string, unknown> = {
+                start_at: start.toISOString(),
+                end_at: end ? end.toISOString() : new Date(start.getTime() + 3600000).toISOString(),
+                all_day: allDay,
+                action_type: allDay ? 'event' : 'event',
+                is_event: true,
+              };
+              moveTileMutation.mutate({ id, updates });
+            }}
+            eventResize={(info) => {
+              const { id } = info.event;
+              const end = info.event.end;
+              if (!end) return;
+              moveTileMutation.mutate({ id, updates: { end_at: end.toISOString() } });
+            }}
+            eventDidMount={(info) => {
+              // Mark the FC event element with the tile id so a useEffect can
+              // toggle the blue selection ring reactively when selectedTileId changes.
+              info.el.setAttribute('data-tile-id', info.event.id);
+              // Right-click context menu
+              info.el.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+                if (tile) setCtxMenu({ x: e.clientX, y: e.clientY, tile });
+              });
+              // Match generic tile style: bg = type color (80% alpha) or dark, border = subtle white
+              const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
+              if (tile) {
+                const tileSi = getIconForTile(tile.id);
+                const tileBg = tileSi?.color ? `${tileSi.color}80` : '#1C1C1E';
+                info.el.style.backgroundColor = tileBg;
+                if (tile.action_type === 'deadline') {
+                  info.el.style.border = '1px dashed #ef4444';
+                  info.el.style.borderLeft = '1px dashed #ef4444';
+                } else {
+                  info.el.style.border = '1px solid rgba(255,255,255,0.08)';
+                  info.el.style.borderLeft = '1px solid rgba(255,255,255,0.08)';
+                }
+              }
+              // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
+              // We attach to the `.fc-event-main` child instead of `info.el` because
+              // FullCalendar uses absolute positioning on `info.el` itself to place
+              // the event in the grid — overriding its position would break layout.
+              if (tile) {
+                const shape = resolveShape(tile);
+                if (shape !== 'solid') {
+                  const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                  if (main) {
+                    const tagColor = getTagColor(tile);
+                    const shapeColor = tile.action_type === 'none' ? '#e4e4e7' : tagColor;
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const { renderToString: rts } = require('react-dom/server');
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const ReactM = require('react');
+                    let svgInner: string = rts(ReactM.createElement(InlineStatus, { shape, color: shapeColor }));
+                    // For pattern-based shapes, expand the inner rect to fill the
+                    // entire event (instead of fixed 120×80 / 130×90 from the
+                    // 130×90 design viewBox). The SVG below uses no scaling
+                    // (viewBox sized to the event in pixels), so the pattern unit
+                    // (10×10 / 16×20 px) keeps its exact pixel dimensions
+                    // regardless of the tile size.
+                    svgInner = svgInner
+                      .replace(/x="5" y="5" width="120" height="80"/g, 'x="0" y="0" width="100%" height="100%"')
+                      .replace(/width="130" height="90"/g, 'width="100%" height="100%"');
+                    const overlay = document.createElement('div');
+                    overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;';
+                    const evRect = info.el.getBoundingClientRect();
+                    const w = Math.max(1, Math.round(evRect.width));
+                    const h = Math.max(1, Math.round(evRect.height));
+                    overlay.innerHTML = `<svg style="display:block;width:100%;height:100%" viewBox="0 0 ${w} ${h}">${svgInner}</svg>`;
+                    if (getComputedStyle(main).position === 'static') {
+                      main.style.position = 'relative';
+                    }
+                    main.insertBefore(overlay, main.firstChild);
+                    // Lift FC's text content above the overlay
+                    Array.from(main.children).forEach((child) => {
+                      if (child !== overlay && child instanceof HTMLElement) {
+                        if (!child.style.position) child.style.position = 'relative';
+                        if (!child.style.zIndex) child.style.zIndex = '1';
+                      }
+                    });
+                  }
+                }
+              }
+              // Inject status icon (if any) into the event.
+              // Attach to `.fc-event-main` (NOT `info.el`) — FullCalendar uses
+              // absolute positioning on `info.el` to place the event in the time
+              // grid, so overriding its position would collapse the event height.
+              const si = tile ? getIconForTile(tile.id) : null;
+              if (si?.icon) {
+                const IconComp = AllIcons[si.icon];
+                if (IconComp) {
+                  const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                  if (main) {
+                    // eslint-disable-next-line @typescript-eslint/no-require-imports
+                    const { renderToString } = require('react-dom/server');
+                    const React = require('react');
+                    const bg = si.color || '#27272A';
+                    const iconColor = readableOn(bg);
+                    const svg = renderToString(React.createElement(IconComp, { size: 10, color: iconColor }));
+                    const badge = document.createElement('div');
+                    badge.style.cssText = `position:absolute;top:4px;right:4px;width:16px;height:16px;background-color:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;`;
+                    badge.innerHTML = svg;
+                    if (getComputedStyle(main).position === 'static') {
+                      main.style.position = 'relative';
+                    }
+                    main.appendChild(badge);
+                  }
+                }
+              }
+              // FLOW badge — clickable chip pinned to the top-right of the
+              // event, sticking out past the event boundary (overflow:visible
+              // on the event element is needed). Click opens the Flow modal.
+              if (tile && tilesWithFlows.has(tile.id)) {
+                // Allow the badge to overflow the event box.
+                info.el.style.overflow = 'visible';
+                const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                if (main) {
+                  main.style.overflow = 'visible';
+                  const tileId = tile.id;
+                  const tileTitle = tile.title ?? undefined;
+                  const chip = document.createElement('button');
+                  chip.type = 'button';
+                  chip.style.cssText = 'position:absolute;top:-6px;right:8px;padding:1px 5px;border-radius:4px;background:#1E40AF;border:1px solid #3B82F6;color:#DBEAFE;font-size:9px;font-weight:700;letter-spacing:0.6px;line-height:14px;height:16px;cursor:pointer;z-index:3;box-shadow:0 1px 3px rgba(0,0,0,0.4);';
+                  chip.textContent = 'FLOW';
+                  chip.title = 'Apri Flow';
+                  chip.addEventListener('mousedown', (e) => e.stopPropagation());
+                  chip.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    useFlowOpenStore.getState().open(tileId);
+                  });
+                  if (getComputedStyle(main).position === 'static') main.style.position = 'relative';
+                  main.appendChild(chip);
+                }
+              }
+            }}
+            drop={(info) => {
+              // External drop from NOTES/TODO
+              const tileId = info.draggedEl.getAttribute('data-tile-id');
+              if (!tileId) return;
+              const start = info.date;
+              const allDay = info.allDay;
+              const updates: Record<string, unknown> = {
+                action_type: 'event',
+                is_event: true,
+                all_day: allDay,
+                start_at: start.toISOString(),
+                end_at: allDay
+                  ? new Date(start.getFullYear(), start.getMonth(), start.getDate(), 23, 59, 59).toISOString()
+                  : new Date(start.getTime() + 3600000).toISOString(),
+              };
+              moveTileMutation.mutate({ id: tileId, updates });
+            }}
           />
         )}
       </div>
 
       {/* Event modal */}
-      {modal.open && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(emptyModal)}>
-          <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
+      {/* Context menu */}
+      {ctxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
+        <div
+          ref={ctxRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
+          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+        >
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
           >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold">
-                {modal.mode === 'create' ? 'Nuovo Evento' : 'Modifica Evento'}
-              </h2>
-              <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
-                <X className="h-5 w-5" />
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            Copia
+          </button>
+          <button
+            onClick={clipboardTile ? handlePaste : undefined}
+            disabled={!clipboardTile}
+            className={cn(
+              'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors',
+              clipboardTile ? 'text-zinc-300 hover:bg-zinc-700/50' : 'text-zinc-600 cursor-not-allowed'
+            )}
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            Incolla
+          </button>
+          <div className="border-t border-zinc-700 my-1" />
+          <button
+            onClick={() => {
+              if (!ctxMenu) return;
+              const { tile } = ctxMenu;
+              setCtxMenu(null);
+              openFlow(tile.id);
+            }}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconRoute className="h-3.5 w-3.5" />
+            Apri Flow
+          </button>
+          <button
+            onClick={handleDeleteTile}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+          >
+            <IconTrash className="h-3.5 w-3.5" />
+            Elimina
+          </button>
+        </div>
+        </>,
+        document.body
+      )}
+
+      {/* Slot context menu (right-click on empty area) */}
+      {slotCtxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setSlotCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSlotCtxMenu(null); }} />
+        <div
+          ref={slotCtxRef}
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
+          style={{ top: slotCtxMenu.y, left: slotCtxMenu.x }}
+        >
+          <button
+            onClick={handleNewTileAtSlot}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconPlus className="h-3.5 w-3.5" />
+            Nuovo tile qui
+          </button>
+          {clipboardTile && (
+            <>
+              <div className="border-t border-zinc-700 my-1" />
+              <button
+                onClick={() => {
+                  if (!clipboardTile || !slotCtxMenu) return;
+                  const { date, allDay } = slotCtxMenu;
+                  setSlotCtxMenu(null);
+                  (async () => {
+                    try {
+                      const res = await tilesApi.create({ title: clipboardTile.title });
+                      const newId = res?.data?.id;
+                      if (newId) {
+                        await tilesApi.update(newId, {
+                          action_type: 'event' as any,
+                          is_event: true,
+                          all_day: allDay,
+                          start_at: date.toISOString(),
+                          end_at: allDay
+                            ? new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59).toISOString()
+                            : new Date(date.getTime() + 3600000).toISOString(),
+                          status_id: clipboardTile.status_id,
+                        });
+                        const tagId = clipboardTile.tags?.[0]?.id;
+                        if (tagId) await syncTags(newId, [tagId]);
+                        queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+                        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+                      }
+                    } catch { /* ignore */ }
+                  })();
+                }}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                Incolla qui
               </button>
-            </div>
+            </>
+          )}
+        </div>
+        </>,
+        document.body
+      )}
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Titolo</label>
-                <input
-                  type="text"
-                  value={modal.title}
-                  onChange={(e) => setModal({ ...modal, title: e.target.value })}
-                  placeholder="Titolo evento"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500"
-                  autoFocus
-                />
+      {/* Column context menu (right-click on empty NOTES/TODO area) */}
+      {colCtxMenu && createPortal(
+        <>
+        <div className="fixed inset-0 z-[9998]" onClick={() => setColCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColCtxMenu(null); }} />
+        <div
+          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
+          style={{ top: colCtxMenu.y, left: colCtxMenu.x }}
+        >
+          <button
+            onClick={handleNewTileInColumn}
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+          >
+            <IconPlus className="h-3.5 w-3.5" />
+            {colCtxMenu.type === 'notes' ? 'Nuovo appunto' : 'Nuovo task'}
+          </button>
+          {clipboardTile && (
+            <>
+              <div className="border-t border-zinc-700 my-1" />
+              <button
+                onClick={handlePasteInColumn}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                Incolla qui
+              </button>
+            </>
+          )}
+        </div>
+        </>,
+        document.body
+      )}
+
+      {modal.open && (() => {
+        const isDeadline = modal.actionType === 'deadline';
+        const isEvent = modal.actionType === 'event';
+        const isTimed = isEvent && !modal.allDay;
+        const showDate = isDeadline || isEvent;
+        const dateRef = isDeadline ? modal.endAt : modal.startAt;
+        const dateVal = dateRef ? toLocalDatetimeValue(dateRef).slice(0, 10) : '';
+        const startTime = modal.startAt ? toLocalDatetimeValue(modal.startAt).slice(11, 16) : '';
+        const endTime = modal.endAt ? toLocalDatetimeValue(modal.endAt).slice(11, 16) : '';
+
+        const setDate = (newDate: string) => {
+          if (!newDate) return;
+          if (isDeadline) {
+            setModal({ ...modal, endAt: new Date(`${newDate}T23:59:59`).toISOString() });
+          } else if (isTimed) {
+            setModal({
+              ...modal,
+              startAt: new Date(`${newDate}T${startTime || '09:00'}`).toISOString(),
+              endAt: endTime ? new Date(`${newDate}T${endTime}`).toISOString() : modal.endAt,
+            });
+          } else {
+            setModal({
+              ...modal,
+              startAt: new Date(`${newDate}T00:00:00`).toISOString(),
+              endAt: new Date(`${newDate}T23:59:59`).toISOString(),
+            });
+          }
+        };
+
+        // Status icons from store
+        const allTypeIcons = typeIcons;
+        const currentTypeIcon = modal.typeIconId ? allTypeIcons.find((i) => i.id === modal.typeIconId) : null;
+        const CurrentTypeComp = currentTypeIcon?.icon ? AllIcons[currentTypeIcon.icon] : null;
+
+        // Tag info for status shape color
+        const selectedTag = tags.find((t: Tag) => modal.tagIds.includes(t.id));
+        const tagColor = selectedTag ? (getTypeColor(selectedTag.tag_type || 'topic') || '#64748B') : '#64748B';
+
+        return (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(emptyModal)}>
+            <div
+              className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-[340px] shadow-2xl max-h-[85vh] overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm text-white font-semibold">
+                  {modal.mode === 'create' ? 'Nuovo Tile' : 'Modifica Tile'}
+                </h2>
+                <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
+                  <IconX className="h-4 w-4" />
+                </button>
               </div>
 
-              <div>
-                <label className="text-xs text-zinc-400 mb-1 block">Descrizione</label>
-                <textarea
-                  value={modal.description}
-                  onChange={(e) => setModal({ ...modal, description: e.target.value })}
-                  placeholder="Descrizione..."
-                  rows={3}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 resize-none"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-3">
+                {/* Titolo */}
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Inizio</label>
+                  <label className="text-[11px] text-zinc-500">Titolo</label>
                   <input
-                    type="datetime-local"
-                    value={toLocalDatetimeValue(modal.startAt)}
-                    onChange={(e) => setModal({ ...modal, startAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
+                    value={modal.title}
+                    onChange={(e) => setModal({ ...modal, title: e.target.value })}
+                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5"
+                    placeholder="Titolo..."
+                    autoFocus
                   />
                 </div>
-                <div>
-                  <label className="text-xs text-zinc-400 mb-1 block">Fine</label>
-                  <input
-                    type="datetime-local"
-                    value={toLocalDatetimeValue(modal.endAt)}
-                    onChange={(e) => setModal({ ...modal, endAt: e.target.value ? new Date(e.target.value).toISOString() : '' })}
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white"
-                  />
-                </div>
-              </div>
 
-              {/* Tag picker */}
-              {tags.length > 0 && (
+                {/* Tipo — all 5 on one line */}
                 <div>
-                  <label className="text-xs text-zinc-400 mb-1.5 block">Tag</label>
-                  <div className="flex flex-wrap gap-1.5">
-                    {tags.map((tag: Tag) => {
-                      const selected = modal.tagIds.includes(tag.id);
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
+                  <div className="flex gap-1">
+                    {ACTION_OPTIONS.map((opt) => {
+                      const isActive = opt.value === 'event'
+                        ? modal.actionType === 'event' && ((opt as any).extra?.all_day ? modal.allDay : !modal.allDay)
+                        : modal.actionType === opt.value;
                       return (
                         <button
-                          key={tag.id}
+                          key={opt.label}
                           type="button"
-                          onClick={() =>
-                            setModal({
-                              ...modal,
-                              tagIds: selected
-                                ? modal.tagIds.filter((id) => id !== tag.id)
-                                : [...modal.tagIds, tag.id],
-                            })
-                          }
+                          onClick={() => {
+                            const updates: Partial<EventModalState> = { actionType: opt.value };
+                            if (opt.value === 'event') {
+                              updates.allDay = !!(opt as any).extra?.all_day;
+                              if (!modal.startAt) {
+                                updates.startAt = new Date().toISOString();
+                                updates.endAt = new Date(Date.now() + 3600000).toISOString();
+                              }
+                            }
+                            setModal({ ...modal, ...updates });
+                          }}
                           className={cn(
-                            'flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-all',
-                            selected
-                              ? 'text-white'
+                            'flex-1 px-1.5 py-1 rounded text-[10px] font-medium border transition-all text-center',
+                            isActive
+                              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
                               : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
                           )}
-                          style={
-                            selected
-                              ? {
-                                  backgroundColor: `${tag.color || '#3B82F6'}25`,
-                                  borderColor: `${tag.color || '#3B82F6'}70`,
-                                  color: tag.color || '#3B82F6',
-                                }
-                              : undefined
-                          }
                         >
-                          <TagIcon className="h-3 w-3" style={selected ? { color: tag.color || '#3B82F6' } : undefined} />
-                          {tag.name}
+                          {opt.label}
                         </button>
                       );
                     })}
                   </div>
                 </div>
-              )}
 
-              {modal.mode === 'create' && modal.tileId && (
-                <label className="flex items-center gap-2 text-sm text-zinc-300 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={modal.autoDetect}
-                    onChange={(e) => setModal({ ...modal, autoDetect: e.target.checked })}
-                    className="rounded border-zinc-600"
-                  />
-                  <Sparkles className="h-4 w-4 text-blue-400" />
-                  Rileva data/ora dal contenuto con AI
-                </label>
-              )}
-
-              <div className="flex items-center gap-2 pt-2">
-                {modal.mode === 'edit' && modal.tileId && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => unscheduleMutation.mutate(modal.tileId!)}
-                    className="text-red-400 border-red-900 hover:bg-red-950 text-xs"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 mr-1" />
-                    Rimuovi
-                  </Button>
+                {/* Date/time — conditional */}
+                {showDate && (
+                  <div className="space-y-2">
+                    <div>
+                      <label className="text-[11px] text-zinc-500 mb-0.5 block">Date</label>
+                      <input type="date" value={dateVal} onChange={(e) => setDate(e.target.value)}
+                        className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500" />
+                    </div>
+                    {isTimed && (
+                      <div className="flex gap-2">
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
+                          <TimePicker
+                            value={startTime || '09:00'}
+                            onChange={(t) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
+                          <TimePicker
+                            value={endTime || '10:00'}
+                            onChange={(t) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
-                <div className="flex-1" />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setModal(emptyModal)}
-                  className="text-zinc-400 border-zinc-700 text-xs"
-                >
-                  Annulla
-                </Button>
-                <Button
-                  size="sm"
-                  onClick={handleSubmit}
-                  disabled={scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700 text-white text-xs"
-                >
-                  {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
-                    <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+
+                {/* Tag — dropdown like sidebar */}
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
+                  <ModalDropdown
+                    value={modal.tagIds[0] || null}
+                    options={tags.filter((t: Tag) => !t.is_root).map((t: Tag) => ({ id: t.id, label: t.name }))}
+                    placeholder="Seleziona tag..."
+                    onChange={(id) => setModal({ ...modal, tagIds: id ? [id] : [] })}
+                  />
+                </div>
+
+                {/* Status — dropdown like sidebar */}
+                <div>
+                  <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+                  <ModalDropdown
+                    value={modal.typeIconId}
+                    options={[
+                      { id: null as any, label: 'Nessuno' },
+                      ...allTypeIcons.map((si) => ({ id: si.id, label: si.name, icon: si.icon })),
+                    ]}
+                    placeholder="Seleziona tipo..."
+                    onChange={(id) => setModal({ ...modal, typeIconId: id })}
+                    renderOption={(opt) => {
+                      if (!opt.icon) return <span className="text-zinc-400">{opt.label}</span>;
+                      const Comp = AllIcons[opt.icon];
+                      return (
+                        <span className="flex items-center gap-2">
+                          {Comp && <Comp size={14} className="text-zinc-200" />}
+                          <span>{opt.label}</span>
+                        </span>
+                      );
+                    }}
+                    renderSelected={() => {
+                      if (!CurrentTypeComp) return null;
+                      return (
+                        <>
+                          <CurrentTypeComp size={14} className="text-zinc-200 shrink-0" />
+                          <span className="text-xs text-zinc-200 truncate">{currentTypeIcon!.name}</span>
+                        </>
+                      );
+                    }}
+                  />
+                </div>
+
+                {/* Status — dropdown like sidebar */}
+                {allStatuses.length > 0 && (
+                  <div>
+                    <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+                    <ModalDropdown
+                      value={modal.statusId}
+                      options={allStatuses.map((s) => ({ id: s.id, label: s.name, shape: s.shape }))}
+                      placeholder="Seleziona status..."
+                      onChange={(id) => setModal({ ...modal, statusId: id })}
+                    />
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                  {modal.mode === 'edit' && modal.tileId && (
+                    <Button variant="outline" size="sm"
+                      onClick={() => unscheduleMutation.mutate(modal.tileId!)}
+                      className="text-red-400 border-red-900 hover:bg-red-950 text-xs">
+                      <IconTrash className="h-3.5 w-3.5 mr-1" /> Rimuovi
+                    </Button>
                   )}
-                  {modal.mode === 'create' ? 'Crea' : 'Salva'}
-                </Button>
+                  <div className="flex-1" />
+                  <Button variant="outline" size="sm" onClick={() => setModal(emptyModal)}
+                    className="text-zinc-400 border-zinc-700 text-xs">Annulla</Button>
+                  <Button size="sm" onClick={handleSubmit}
+                    disabled={scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs">
+                    {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
+                      <IconLoader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                    )}
+                    {modal.mode === 'create' ? 'Crea' : 'Salva'}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
-      {/* Tile picker modal */}
-      {showTilePicker && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setShowTilePicker(false)}>
-          <div
-            className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[70vh] flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-white font-semibold">Schedula un Tile</h2>
-              <button onClick={() => setShowTilePicker(false)} className="text-zinc-400 hover:text-white">
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      </div>{/* end CALENDAR column */}
 
-            <p className="text-xs text-zinc-400 mb-3">
-              Seleziona un tile da aggiungere al calendario. L&apos;AI cerchera di rilevare data e ora dal contenuto.
-            </p>
+          </div>{/* end columns container */}
+        </div>{/* end board area */}
 
-            <div className="flex-1 overflow-y-auto space-y-2">
-              {unscheduledTiles.length === 0 ? (
-                <p className="text-zinc-500 text-sm text-center py-8">Nessun tile disponibile</p>
-              ) : (
-                unscheduledTiles.map((tile: Tile) => (
-                  <button
-                    key={tile.id}
-                    onClick={() => handleScheduleTile(tile)}
-                    className="w-full text-left bg-zinc-800 hover:bg-zinc-750 border border-zinc-700 rounded-lg p-3 transition-colors"
-                  >
-                    <p className="text-sm text-white font-medium truncate">
-                      {tile.title || 'Tile senza titolo'}
-                    </p>
-                    {tile.description && (
-                      <p className="text-xs text-zinc-400 truncate mt-0.5">{tile.description}</p>
-                    )}
-                    <p className="text-[10px] text-zinc-500 mt-1">
-                      {tile.spark_count || 0} spark &middot; {new Date(tile.created_at).toLocaleDateString('it-IT')}
-                    </p>
-                  </button>
-                ))
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* 5 — SIDEBAR DESTRA */}
+      <TileSidebar
+        tileId={selectedTileId}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        invalidateKeys={['calendar-events', 'tiles-calendar']}
+        forceFlowTab={forceFlowTab}
+      />
+      </div>{/* end flex row */}
     </div>
   );
 }

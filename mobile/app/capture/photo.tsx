@@ -1,16 +1,22 @@
 import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, FlashMode } from 'expo-camera';
-import { useRouter } from 'expo-router';
-import { X, RefreshCw, Zap, ZapOff, Circle } from 'lucide-react-native';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { IconX, IconRefresh, IconBolt, IconBoltOff, IconCircle } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { useThemeColors } from '@/lib/theme';
+import { createSparkForTile } from '@/lib/api';
 
 export default function PhotoCaptureScreen() {
   const colors = useThemeColors();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  // When reached from a tile detail (`/capture/photo?tile=<id>`), the spark
+  // is created directly against that tile; otherwise the legacy buffer flow.
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const cameraRef = useRef<CameraView>(null);
   const [permission, requestPermission] = useCameraPermissions();
   const [facing, setFacing] = useState<CameraType>('back');
@@ -62,9 +68,19 @@ export default function PhotoCaptureScreen() {
     setCapturedUri(null);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!capturedUri) return;
-
+    if (tileId) {
+      const res = await createSparkForTile({ type: 'photo', tileId, uri: capturedUri });
+      if (!res.success) {
+        toast.error(res.error || 'Errore nel salvataggio');
+        return;
+      }
+      queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+      toast.success('Foto salvata');
+      router.back();
+      return;
+    }
     addItem({
       type: 'photo',
       uri: capturedUri,
@@ -126,7 +142,7 @@ export default function PhotoCaptureScreen() {
             onPress={handleClose}
             className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
           >
-            <X size={24} color="#fff" />
+            <IconX size={24} color="#fff" />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -134,9 +150,9 @@ export default function PhotoCaptureScreen() {
             className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
           >
             {flash === 'on' ? (
-              <Zap size={24} color={colors.warning} />
+              <IconBolt size={24} color={colors.warning} />
             ) : (
-              <ZapOff size={24} color="#fff" />
+              <IconBoltOff size={24} color="#fff" />
             )}
           </TouchableOpacity>
         </View>
@@ -166,7 +182,7 @@ export default function PhotoCaptureScreen() {
             onPress={toggleFacing}
             className="w-16 h-16 rounded-full bg-black/50 items-center justify-center"
           >
-            <RefreshCw size={28} color="#fff" />
+            <IconRefresh size={28} color="#fff" />
           </TouchableOpacity>
         </View>
       </CameraView>

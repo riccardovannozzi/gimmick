@@ -12,6 +12,15 @@ import { uploadRouter } from './routes/upload.js';
 import { chatRouter } from './routes/chat.js';
 import { tagsRouter } from './routes/tags.js';
 import { calendarRouter } from './routes/calendar.js';
+import { settingsRouter } from './routes/settings.js';
+import { tagTypesRouter } from './routes/tag-types.js';
+import { statusesRouter } from './routes/statuses.js';
+import { canvasRouter } from './routes/canvas.js';
+import { typeIconsRouter } from './routes/type-icons.js';
+import { subtasksRouter } from './routes/subtasks.js';
+import { kanbanRouter } from './routes/kanban.js';
+import { contactsRouter } from './routes/contacts.js';
+import { tileFlowRouter, flowRouter, flowsHubRouter } from './routes/flow.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -33,7 +42,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
+  max: 1000, // limit each IP to 1000 requests per windowMs (dev-friendly)
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use(limiter);
@@ -58,6 +67,20 @@ app.use('/api/upload', uploadRouter);
 app.use('/api/chat', chatRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/calendar', calendarRouter);
+app.use('/api/settings', settingsRouter);
+app.use('/api/tag-types', tagTypesRouter);
+app.use('/api/statuses', statusesRouter);
+app.use('/api/canvas', canvasRouter);
+app.use('/api/type-icons', typeIconsRouter);
+app.use('/api/subtasks', subtasksRouter);
+app.use('/api/kanban', kanbanRouter);
+app.use('/api/contacts', contactsRouter);
+// Mount the tile-scoped flow router BEFORE /api/tiles is also used to avoid
+// any accidental shadowing; both can coexist because tilesRouter has no
+// `/:id/flow` sub-route. mergeParams gives us req.params.tileId.
+app.use('/api/tiles/:tileId/flow', tileFlowRouter);
+app.use('/api/flow', flowRouter);
+app.use('/api/flows', flowsHubRouter);
 
 // Error handling
 app.use(notFoundHandler);

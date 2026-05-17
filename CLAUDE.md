@@ -460,6 +460,23 @@ sparks/{user_id}/files/{filename}
 
 ---
 
+## Nomenclatura Pannelli UI
+
+Nomi standard per i pannelli dell'app (da sinistra a destra):
+
+| # | Nome | Contenuto |
+|---|------|-----------|
+| 1 | **SIDEBAR SINISTRA** | Tag |
+| 2 | **COLONNA NOTES** | Appunti |
+| 3 | **COLONNA TODO** | Tile da fare |
+| 4 | **PANNELLO CALENDAR** | Calendario settimanale |
+| 4.1 | — LANE DEADLINE | Tile con scadenza |
+| 4.2 | — LANE ALL DAY | Eventi giornata intera |
+| 4.3 | — LANE TIMED | Eventi con orario (fasce orarie) |
+| 5 | **SIDEBAR DESTRA** | Dettaglio tile (TileSidebar) |
+
+---
+
 ## Pattern e Convenzioni
 
 ### Naming Conventions
@@ -512,4 +529,21 @@ eas build --platform android --profile production
 
 ---
 
-*Ultimo aggiornamento: Marzo 2026*
+## Modalità Consulente 
+
+Quando ti viene chiesto esplicitamente di operare come consulente, applica queste regole:
+
+- **Non modificare mai nessun file**
+- Rispondi solo con analisi, suggerimenti e domande
+- Verifica sempre il codice reale nel repository prima di rispondere
+- Segnala eventuali inconsistenze tra questa documentazione e il codice attuale
+
+### Aree di focus
+- Coerenza del modello dati (Tiles, Sparks, Tags) e vincoli del grafo
+- Qualità e performance della AI indexing pipeline
+- Scalabilità con dataset crescenti
+- Architettura del knowledge graph eterogeneo a tre nodi
+
+---
+
+*Ultimo aggiornamento: 21 Marzo 2026*

@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Filter, X } from 'lucide-react';
+import { IconPlus, IconTrash, IconFilter, IconX } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
@@ -29,7 +29,7 @@ import type { Spark } from '@/types';
 
 export default function SparksPage() {
   const [page, setPage] = useState(1);
-  const [typeFilter, setTypeFilter] = useState<string | undefined>();
+  const [typeFilter, setTypeIconFilter] = useState<string | undefined>();
   const [selectedSpark, setSelectedSpark] = useState<Spark | null>(null);
   const queryClient = useQueryClient();
   const { sparkIds: aiFilterIds, clearFilter } = useFilterStore();
@@ -76,7 +76,7 @@ export default function SparksPage() {
               onClick={clearFilter}
               className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 h-7 px-2"
             >
-              <X className="h-3.5 w-3.5 mr-1" />
+              <IconX className="h-3.5 w-3.5 mr-1" />
               Rimuovi filtro
             </Button>
           </div>
@@ -88,24 +88,24 @@ export default function SparksPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="border-zinc-800 bg-zinc-900">
-                  <Filter className="mr-2 h-4 w-4" />
+                  <IconFilter className="mr-2 h-4 w-4" />
                   {typeFilter || 'Tutti i tipi'}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-zinc-900 border-zinc-800">
-                <DropdownMenuItem onClick={() => setTypeFilter(undefined)}>
+                <DropdownMenuItem onClick={() => setTypeIconFilter(undefined)}>
                   Tutti
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter('photo')}>
+                <DropdownMenuItem onClick={() => setTypeIconFilter('photo')}>
                   Foto
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter('text')}>
+                <DropdownMenuItem onClick={() => setTypeIconFilter('text')}>
                   Testo
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter('audio_recording')}>
+                <DropdownMenuItem onClick={() => setTypeIconFilter('audio_recording')}>
                   Audio
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setTypeFilter('file')}>
+                <DropdownMenuItem onClick={() => setTypeIconFilter('file')}>
                   File
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -113,7 +113,7 @@ export default function SparksPage() {
           </div>
 
           <Button className="bg-blue-600 hover:bg-blue-700">
-            <Plus className="mr-2 h-4 w-4" />
+            <IconPlus className="mr-2 h-4 w-4" />
             Nuovo Spark
           </Button>
         </div>
@@ -195,7 +195,7 @@ export default function SparksPage() {
                           deleteMutation.mutate(memo.id);
                         }}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <IconTrash className="h-4 w-4" />
                       </Button>
                     </TableCell>
                   </TableRow>

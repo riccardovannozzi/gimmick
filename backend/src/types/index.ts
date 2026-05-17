@@ -24,7 +24,6 @@ export interface Tile {
   id: string;
   user_id: string;
   title?: string;
-  description?: string;
   start_at?: string;
   end_at?: string;
   is_event?: boolean;
@@ -43,7 +42,6 @@ export interface Tile {
 // Create tile DTO
 export interface CreateTileDto {
   title?: string;
-  description?: string;
   start_at?: string;
   end_at?: string;
   is_event?: boolean;
@@ -106,13 +104,26 @@ export interface UpdateSparkDto {
   metadata?: Record<string, unknown>;
 }
 
+// Tag type entity (dynamic, user-managed)
+export interface TagTypeEntity {
+  id: string;
+  user_id: string;
+  slug: string;
+  name: string;
+  emoji: string;
+  color?: string;
+  sort_order: number;
+  is_default: boolean;
+  created_at: string;
+}
+
 // Tag entity
 export interface Tag {
   id: string;
   user_id: string;
   name: string;
   slug?: string;
-  color?: string;
+  tag_type: string;
   aliases?: string[];
   usage_count?: number;
   is_root?: boolean;

@@ -1,15 +1,20 @@
 import React, { useEffect } from 'react';
 import { View, Text } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBufferStore, toast } from '@/store';
+import { createSparkForTile } from '@/lib/api';
 
 export default function GalleryCaptureScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const addItem = useBufferStore((state) => state.addItem);
 
   useEffect(() => {
     pickImage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const pickImage = async () => {
@@ -31,6 +36,26 @@ export default function GalleryCaptureScreen() {
       });
 
       if (result.canceled) {
+        router.back();
+        return;
+      }
+
+      if (tileId) {
+        // Direct attach to the originating tile — upload + create spark per asset.
+        let ok = 0;
+        for (const asset of result.assets) {
+          const res = await createSparkForTile({
+            type: 'image',
+            tileId,
+            uri: asset.uri,
+            mimeType: asset.mimeType ?? 'image/jpeg',
+            fileName: asset.fileName ?? undefined,
+            size: asset.fileSize ?? undefined,
+          });
+          if (res.success) ok += 1;
+        }
+        queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+        toast.success(ok === 1 ? 'Immagine salvata' : `${ok} immagini salvate`);
         router.back();
         return;
       }

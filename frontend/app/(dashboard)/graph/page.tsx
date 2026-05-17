@@ -1,34 +1,20 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
-import { sparksApi, tilesApi, tagsApi, uploadApi } from '@/lib/api';
-import {
-  Loader2,
-  ZoomIn,
-  ZoomOut,
-  Maximize2,
-  Tag as TagIcon,
-  Plus,
-  X,
-  Trash2,
-  Link as LinkIcon,
-  Pencil,
-  Eye,
-  Settings2,
-  ChevronDown,
-  Filter,
-  SlidersHorizontal,
-  Palette,
-} from 'lucide-react';
+import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
+import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
-import type { TagNode, TagEdge } from '@/types';
+import { useActionColors } from '@/store/action-colors-store';
+import { useTagTypes } from '@/store/tag-types-store';
+import type { TagNode, TagEdge, ActionType } from '@/types';
 
 // ─── Content filter types ───
 type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'text' | 'file';
@@ -61,13 +47,12 @@ const typeLabels: Record<string, string> = {
   file: 'File',
 };
 
-const TAG_COLORS = [
-  '#3B82F6', '#8B5CF6', '#EC4899', '#EF4444',
-  '#F59E0B', '#22C55E', '#06B6D4', '#F97316',
-];
+// Default tag node color (tag colors removed from entities)
+const TAG_NODE_COLOR = '#94A3B8';
 
 // ─── Physics defaults ───
 const defaultPhysics = {
+  showTagClusters: 0, // 0 = off, 1 = on (number for uniform slider handling)
   chargeTag: -400,
   chargeTile: -250,
   chargeSpark: -100,
@@ -81,7 +66,9 @@ const defaultPhysics = {
   collisionTile: 50,
   collisionSpark: 24,
   centerStrength: 0.02,
+  tagClusterStrength: 0.12,
   velocityDecay: 0.3,
+  linkWidth: 2,
 };
 
 // ─── Node / Link types ───
@@ -100,14 +87,10 @@ interface GraphNode extends d3.SimulationNodeDatum {
   usageCount?: number;
   isRoot?: boolean;
   actionType?: string;
+  tagType?: string;
 }
 
-const ACTION_TYPE_COLORS: Record<string, string> = {
-  none: '#528BFF',
-  anytime: '#22C55E',
-  deadline: '#F59E0B',
-  event: '#8B5CF6',
-};
+// ACTION_TYPE_COLORS is now dynamic — loaded from useActionColors() hook inside the component
 
 interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
   source: string | GraphNode;
@@ -124,6 +107,8 @@ export default function GraphPage() {
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const queryClient = useQueryClient();
   const markRead = useTileNotificationStore((s) => s.markRead);
+  const ACTION_TYPE_COLORS = useActionColors();
+  const { tagTypes: tagTypeEntities, getEmoji: getTagTypeEmoji, getColor: getTagTypeColor } = useTagTypes();
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -141,13 +126,19 @@ export default function GraphPage() {
   } | null>(null);
   const [tagRenameValue, setTagRenameValue] = useState('');
   const [tagRenaming, setTagRenaming] = useState(false);
-  const [tagColorPicking, setTagColorPicking] = useState(false);
 
   // Physics console
   const [showPhysicsPanel, setShowPhysicsPanel] = useState(false);
   const [physics, setPhysics] = useState(defaultPhysics);
   const physicsRef = useRef(physics);
   physicsRef.current = physics;
+
+  // Load saved physics from settings
+  useEffect(() => {
+    settingsApi.get<typeof defaultPhysics>('graph_physics').then((res) => {
+      if (res.data) setPhysics({ ...defaultPhysics, ...res.data });
+    }).catch(() => {});
+  }, []);
 
   // Toolbar mode
   const [toolbarMode, setToolbarMode] = useState<'navigate' | 'edit'>('navigate');
@@ -156,7 +147,14 @@ export default function GraphPage() {
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
     () => new Set(filterConfig.map((f) => f.key))
   );
+  const searchParams = useSearchParams();
+  const tagParam = searchParams.get('tag');
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
+
+  // Sync from URL param
+  useEffect(() => {
+    if (tagParam) setSelectedTagId(tagParam);
+  }, [tagParam]);
   const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
@@ -165,7 +163,7 @@ export default function GraphPage() {
 
   // Tag management
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor, setNewTagColor] = useState(TAG_COLORS[0]);
+  const [newTagColor] = useState(TAG_NODE_COLOR);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -239,7 +237,6 @@ export default function GraphPage() {
       queryClient.invalidateQueries({ queryKey: ['graph-data'] });
       setContextMenu(null);
       setTagRenaming(false);
-      setTagColorPicking(false);
       toast.success('Tag aggiornato');
     },
   });
@@ -303,8 +300,8 @@ export default function GraphPage() {
   const handleCreateTag = useCallback(() => {
     const name = newTagName.trim();
     if (!name) return;
-    createMutation.mutate({ name, color: newTagColor });
-  }, [newTagName, newTagColor, createMutation]);
+    createMutation.mutate({ name });
+  }, [newTagName, createMutation]);
 
   const handleZoomIn = useCallback(() => {
     if (svgRef.current && zoomRef.current)
@@ -365,16 +362,21 @@ export default function GraphPage() {
     if (selectedTag && !isEditMode) {
       // ─── Focused tag mode ───
       const tagTileIdSet = new Set(selectedTag.tile_ids || []);
+      const tagTypeOf = (tagId: string): string =>
+        allTags.find((tg) => tg.id === tagId)?.tag_type || 'topic';
+      const colorFor = (tagId: string): string =>
+        getTagTypeColor(tagTypeOf(tagId)) || TAG_NODE_COLOR;
       const centerNode: GraphNode = {
         id: `tag-${selectedTag.id}`,
         type: 'tag',
         label: selectedTag.name,
-        color: selectedTag.color || '#3B82F6',
+        color: colorFor(selectedTag.id),
         fx: width / 2,
         fy: height / 2,
         tileCount: selectedTag.tile_ids.length,
         tagId: selectedTag.id,
         usageCount: tagNodes.find((t) => t.id === selectedTag.id)?.usage_count || 0,
+        tagType: tagTypeOf(selectedTag.id),
       };
       nodes.push(centerNode);
 
@@ -397,10 +399,11 @@ export default function GraphPage() {
           id: `tag-${otherTagId}`,
           type: 'tag',
           label: otherTag.name,
-          color: otherTag.color || '#3B82F6',
+          color: colorFor(otherTagId),
           tagId: otherTagId,
           usageCount: otherTag.usage_count || 0,
           tileCount: graphTags.find((gt) => gt.id === otherTagId)?.tile_ids.length || 0,
+          tagType: tagTypeOf(otherTagId),
         });
         links.push({
           source: `tag-${selectedTag.id}`,
@@ -447,19 +450,28 @@ export default function GraphPage() {
         if (tagNodes.length === 0 && filteredSparks.length === 0 && (!showTiles || timeTiles.length === 0)) return;
       }
 
+      // Build tag_type lookup from allTags
+      const tagTypeMap = new Map<string, string>();
+      for (const tag of allTags) {
+        tagTypeMap.set(tag.id, tag.tag_type || 'topic');
+      }
+
       // Tag nodes from tagGraph (include GIMMICK root as a regular tag node)
       const tagNodeMap = new Map<string, GraphNode>();
       let gimmickNodeId: string | null = null;
+      const colorForTagType = (tt: string): string => getTagTypeColor(tt) || TAG_NODE_COLOR;
       for (const t of tagNodes) {
+        const tt = tagTypeMap.get(t.id) || 'topic';
         const node: GraphNode = {
           id: `tag-${t.id}`,
           type: 'tag',
           label: t.name,
-          color: t.color || '#3B82F6',
+          color: colorForTagType(tt),
           tagId: t.id,
           usageCount: t.usage_count || 0,
           isRoot: t.is_root || false,
           tileCount: 0,
+          tagType: tt,
         };
         tagNodeMap.set(t.id, node);
         nodes.push(node);
@@ -469,13 +481,15 @@ export default function GraphPage() {
       // Also add tags from content data that might not be in tagGraph
       for (const tag of graphTags) {
         if (!tagNodeMap.has(tag.id)) {
+          const tt = tagTypeMap.get(tag.id) || 'topic';
           const node: GraphNode = {
             id: `tag-${tag.id}`,
             type: 'tag',
             label: tag.name,
-            color: tag.color || '#3B82F6',
+            color: colorForTagType(tt),
             tagId: tag.id,
             tileCount: tag.tile_ids.length,
+            tagType: tt,
           };
           tagNodeMap.set(tag.id, node);
           nodes.push(node);
@@ -574,6 +588,8 @@ export default function GraphPage() {
     feMerge.append('feMergeNode').attr('in', 'SourceGraphic');
 
     const g = svg.append('g');
+    // Tag cluster hull layer (rendered first so it sits behind everything else)
+    const hullLayer = g.append('g').attr('class', 'tag-cluster-hulls').attr('pointer-events', 'none');
 
     const zoom = d3
       .zoom<SVGSVGElement, unknown>()
@@ -642,6 +658,60 @@ export default function GraphPage() {
         }).strength(0.8)
       );
 
+    // ─── Tag-type cluster force ───
+    // Gathers tag nodes of the same tag_type around a shared center, so the
+    // view visually groups tags by type without adding extra nodes. The centers
+    // are laid out on a circle around the canvas center; non-tag nodes are
+    // unaffected. Adjustable via physics.tagClusterStrength.
+    const tagTypesPresent = Array.from(new Set(
+      nodes.filter((n) => n.type === 'tag' && n.tagType).map((n) => n.tagType as string),
+    ));
+    const typeCenters = new Map<string, { cx: number; cy: number }>();
+    if (tagTypesPresent.length > 0) {
+      const cx0 = width / 2, cy0 = height / 2;
+      const radius = Math.min(width, height) * 0.28;
+      tagTypesPresent.forEach((tt, i) => {
+        const angle = (i / tagTypesPresent.length) * Math.PI * 2 - Math.PI / 2;
+        typeCenters.set(tt, {
+          cx: cx0 + Math.cos(angle) * radius,
+          cy: cy0 + Math.sin(angle) * radius,
+        });
+      });
+    }
+    simulation.force('tagCluster', (alpha: number) => {
+      const s = p.tagClusterStrength;
+      if (s <= 0 || typeCenters.size === 0) return;
+      for (const node of nodes) {
+        if (node.type !== 'tag' || node.isRoot || !node.tagType) continue;
+        const center = typeCenters.get(node.tagType);
+        if (!center) continue;
+        const k = s * alpha;
+        node.vx = (node.vx || 0) + (center.cx - (node.x ?? center.cx)) * k;
+        node.vy = (node.vy || 0) + (center.cy - (node.y ?? center.cy)) * k;
+      }
+    });
+
+    // Pre-bind hull group per tag type (updated on tick). One group = one type.
+    const hullGroups = hullLayer
+      .selectAll<SVGGElement, string>('g')
+      .data(tagTypesPresent, (d) => d as string)
+      .join((enter) => {
+        const grp = enter.append('g').attr('class', 'tag-cluster');
+        grp.append('circle').attr('class', 'hull-bg').attr('fill-opacity', 0.1).attr('stroke-opacity', 0.4).attr('stroke-dasharray', '6,4').attr('stroke-width', 1.5);
+        grp.append('text').attr('class', 'hull-label').attr('text-anchor', 'middle').attr('font-size', 11).attr('font-weight', 600).attr('letter-spacing', 0.5);
+        return grp;
+      });
+    const getTypeName = (slug: string): string => {
+      const te = tagTypeEntities.find((t) => t.slug === slug);
+      return te?.name || slug.toUpperCase();
+    };
+    hullGroups.select<SVGCircleElement>('circle.hull-bg')
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
+      .attr('stroke', (d) => getTagTypeColor(d) || TAG_NODE_COLOR);
+    hullGroups.select<SVGTextElement>('text.hull-label')
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
+      .text((d) => getTypeName(d));
+
     // ─── Links rendering ───
     const coLinks = links.filter((l) => l.linkType === 'co-occurrence');
     const otherLinks = links.filter((l) => l.linkType !== 'co-occurrence');
@@ -689,7 +759,7 @@ export default function GraphPage() {
           : (l.source as GraphNode);
         return src?.color || '#8B5CF6';
       })
-      .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
+      .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
       .attr('stroke-opacity', 0.5)
       .style('pointer-events', 'none');
 
@@ -783,10 +853,14 @@ export default function GraphPage() {
 
     // GIMMICK root tag → hexagon + bot icon
     const gimmickNodes = tagNodesG.filter((d) => d.isRoot === true);
+    // Opaque background for GIMMICK to hide edges
+    gimmickNodes.append('polygon')
+      .attr('points', hexPoints(24))
+      .attr('fill', '#0C0C0E');
     gimmickNodes.append('polygon')
       .attr('points', hexPoints(24))
       .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
-      .attr('stroke', '#FFFFFF').attr('stroke-width', 1.5)
+      .attr('stroke', '#FFFFFF').attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
     gimmickNodes.each(function () {
       const iconG = d3.select(this).append('g')
@@ -817,43 +891,91 @@ export default function GraphPage() {
       .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', '#4B5563')
       .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
 
-    // Regular tag nodes → circle with usage-based radius
+    // Build tag type emoji lookup from fetched tag type entities
+    const tagTypeEmojiMap: Record<string, string> = {};
+    for (const tt of tagTypeEntities) {
+      tagTypeEmojiMap[tt.slug] = tt.emoji;
+    }
+
+    // Regular tag nodes → circle with usage-based radius + tag type icon
     const regularTagsG = tagNodesG.filter((d) => d.isRoot !== true);
+    // Background circle (opaque) to hide edges passing under
+    regularTagsG.append('circle')
+      .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
+      .attr('fill', '#0C0C0E')
+      .style('cursor', 'pointer');
+    // Visible circle
     regularTagsG.append('circle')
       .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
       .attr('fill', (d) => d.color || '#3B82F6').attr('fill-opacity', 0.15)
-      .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 2.5)
+      .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
+    // Tag type icon via foreignObject (renders Tabler icon or emoji)
+    regularTagsG.each(function (d) {
+      const emoji = tagTypeEmojiMap[d.tagType || 'topic'] || '';
+      const g = d3.select(this);
+      const iconSize = 20;
+      if (emoji && emoji.startsWith('Icon')) {
+        // Render Tabler SVG icon via foreignObject + ReactDOM
+        const fo = g.append('foreignObject')
+          .attr('x', -iconSize / 2).attr('y', -iconSize - 2).attr('width', iconSize).attr('height', iconSize)
+          .style('pointer-events', 'none').style('overflow', 'visible');
+        const container = fo.append('xhtml:div')
+          .style('width', `${iconSize}px`).style('height', `${iconSize}px`)
+          .style('display', 'flex').style('align-items', 'center').style('justify-content', 'center');
+        // Dynamically render the Tabler icon
+        const TablerIcons = require('@tabler/icons-react');
+        const IconComp = TablerIcons[emoji];
+        if (IconComp) {
+          const React = require('react');
+          const { createRoot } = require('react-dom/client');
+          const root = createRoot(container.node());
+          root.render(React.createElement(IconComp, { size: iconSize, color: '#D1D5DB', strokeWidth: 1.5 }));
+        }
+      } else if (emoji) {
+        g.append('text')
+          .text(emoji)
+          .attr('text-anchor', 'middle').attr('dy', '-0.6em')
+          .attr('font-size', '16px').style('pointer-events', 'none');
+      }
+    });
+    // Tag name label
     regularTagsG.append('text')
       .text((d) => d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label)
-      .attr('text-anchor', 'middle').attr('dy', '-0.2em').attr('fill', '#F5F5F5')
+      .attr('text-anchor', 'middle').attr('dy', '1em').attr('fill', '#F5F5F5')
       .attr('font-size', '11px').attr('font-weight', '700').style('pointer-events', 'none');
-    regularTagsG.append('text')
-      .text((d) => `${d.usageCount || d.tileCount || 0} tile`)
-      .attr('text-anchor', 'middle').attr('dy', '1.2em').attr('fill', '#6B7280')
-      .attr('font-size', '9px').style('pointer-events', 'none');
 
     // Tile nodes (square shape)
     const tileSize = (d: GraphNode) => 2 * (18 + Math.min((d.sparkCount || 0) * 2, 16));
+    // Opaque background to hide edges
     node.filter((d) => d.type === 'tile')
       .append('rect')
       .attr('width', tileSize).attr('height', tileSize)
       .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
       .attr('rx', 6).attr('ry', 6)
-      .attr('fill', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF').attr('fill-opacity', 0.2)
-      .attr('stroke', (d) => ACTION_TYPE_COLORS[d.actionType || 'none'] || '#528BFF')
-      .attr('stroke-width', 2).style('filter', 'url(#glow)').style('cursor', 'pointer');
+      .attr('fill', '#0C0C0E');
+    node.filter((d) => d.type === 'tile')
+      .append('rect')
+      .attr('width', tileSize).attr('height', tileSize)
+      .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
+      .attr('rx', 6).attr('ry', 6)
+      .attr('fill', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF').attr('fill-opacity', 0.2)
+      .attr('stroke', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF')
+      .attr('stroke-width', 1).style('filter', 'url(#glow)').style('cursor', 'pointer');
     node.filter((d) => d.type === 'tile')
       .append('text').text((d) => d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label)
       .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', '#F5F5F5')
       .attr('font-size', '11px').attr('font-weight', '600').style('pointer-events', 'none');
 
-    // Spark nodes
+    // Spark nodes — opaque background + visible circle
+    node.filter((d) => d.type === 'spark')
+      .append('circle').attr('r', 12)
+      .attr('fill', '#0C0C0E');
     node.filter((d) => d.type === 'spark')
       .append('circle').attr('r', 12)
       .attr('fill', (d) => typeColors[d.sparkType || ''] || '#6B7280').attr('fill-opacity', 0.3)
       .attr('stroke', (d) => typeColors[d.sparkType || ''] || '#6B7280')
-      .attr('stroke-width', 1.5).style('cursor', 'pointer');
+      .attr('stroke-width', 0.8).style('cursor', 'pointer');
     node.filter((d) => d.type === 'spark')
       .append('text')
       .text((d) => {
@@ -918,7 +1040,6 @@ export default function GraphPage() {
       setContextMenu({ x: px, y: py, type: 'tag', id: rawId, label: d.label, color: d.color });
       setTagRenameValue(d.label);
       setTagRenaming(false);
-      setTagColorPicking(false);
     });
 
     // Hover: tooltip + highlight
@@ -997,13 +1118,13 @@ export default function GraphPage() {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 2);
+      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 1.5);
       linkCo.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
       }).attr('stroke-opacity', 0.9).attr('stroke', d.color || '#528BFF')
-        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)));
+        .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)));
       linkCoLabel.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
@@ -1035,7 +1156,7 @@ export default function GraphPage() {
             : (l.source as GraphNode);
           return src?.color || '#8B5CF6';
         })
-        .attr('stroke-width', (l) => Math.max(2, Math.min((l.weight || 1) * 2, 10)))
+        .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
         .attr('stroke-opacity', 0.5);
       linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
     };
@@ -1047,6 +1168,33 @@ export default function GraphPage() {
 
     // ─── Tick ───
     simulation.on('tick', () => {
+      // Tag cluster hulls: compute centroid + max radius from tag nodes of each type
+      const showHulls = (p.showTagClusters || 0) > 0 && tagTypesPresent.length > 0;
+      hullLayer.style('display', showHulls ? '' : 'none');
+      if (showHulls) {
+        const byType = new Map<string, GraphNode[]>();
+        for (const n of nodes) {
+          if (n.type !== 'tag' || n.isRoot || !n.tagType) continue;
+          const list = byType.get(n.tagType) || [];
+          list.push(n);
+          byType.set(n.tagType, list);
+        }
+        hullGroups.each(function (tt) {
+          const grp = d3.select(this);
+          const members = byType.get(tt) || [];
+          if (members.length === 0) { grp.style('display', 'none'); return; }
+          grp.style('display', '');
+          const avgX = members.reduce((s, n) => s + (n.x ?? 0), 0) / members.length;
+          const avgY = members.reduce((s, n) => s + (n.y ?? 0), 0) / members.length;
+          const maxDist = members.reduce((m, n) => {
+            const dx = (n.x ?? 0) - avgX, dy = (n.y ?? 0) - avgY;
+            return Math.max(m, Math.sqrt(dx * dx + dy * dy));
+          }, 0);
+          const r = Math.max(40, maxDist + 36);
+          grp.select<SVGCircleElement>('circle.hull-bg').attr('cx', avgX).attr('cy', avgY).attr('r', r);
+          grp.select<SVGTextElement>('text.hull-label').attr('x', avgX).attr('y', avgY - r - 4);
+        });
+      }
       linkOther
         .attr('x1', (d) => ((d.source as GraphNode).x ?? 0))
         .attr('y1', (d) => ((d.source as GraphNode).y ?? 0))
@@ -1078,7 +1226,7 @@ export default function GraphPage() {
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1088,7 +1236,7 @@ export default function GraphPage() {
 
   return (
     <div className="flex flex-col h-full">
-      <Header title="Graph" />
+      <Header title="Panopticon" />
 
       {/* Toolbar */}
       <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
@@ -1103,7 +1251,7 @@ export default function GraphPage() {
                 : 'text-zinc-400 hover:text-zinc-300'
             )}
           >
-            <Eye className="h-3.5 w-3.5" />
+            <IconEye className="h-3.5 w-3.5" />
             Navigate
           </button>
           <button
@@ -1115,7 +1263,7 @@ export default function GraphPage() {
                 : 'text-zinc-400 hover:text-zinc-300'
             )}
           >
-            <Settings2 className="h-3.5 w-3.5" />
+            <IconSettings2 className="h-3.5 w-3.5" />
             Edit Tag
           </button>
         </div>
@@ -1130,12 +1278,12 @@ export default function GraphPage() {
                 onClick={() => { setFilterDropdownOpen((p) => !p); setTagDropdownOpen(false); }}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-750 transition-all h-8"
               >
-                <Filter className="h-3.5 w-3.5" />
+                <IconFilter className="h-3.5 w-3.5" />
                 Filtri
                 {activeFilters.size < filterConfig.length && (
                   <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 rounded-full">{activeFilters.size}</span>
                 )}
-                <ChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown className="h-3 w-3 ml-1" />
               </button>
               {filterDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px]">
@@ -1178,11 +1326,11 @@ export default function GraphPage() {
                     : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
                 )}
               >
-                <TagIcon className="h-3.5 w-3.5" />
+                <IconTag className="h-3.5 w-3.5" />
                 {selectedTagId
                   ? graphData?.tags?.find((t) => t.id === selectedTagId)?.name || 'Tag'
                   : 'Tag'}
-                <ChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown className="h-3 w-3 ml-1" />
               </button>
               {tagDropdownOpen && (
                 <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[300px] overflow-y-auto">
@@ -1205,7 +1353,7 @@ export default function GraphPage() {
                         selectedTagId === tag.id ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
                       )}
                     >
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: tag.color || '#3B82F6' }} />
+                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TAG_NODE_COLOR }} />
                       {tag.name}
                       <span className="ml-auto text-[10px] text-zinc-600">{tag.tile_ids.length}</span>
                     </button>
@@ -1220,7 +1368,7 @@ export default function GraphPage() {
                 onClick={() => setSelectedTagId(null)}
                 className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
               >
-                <X className="h-3 w-3" />
+                <IconX className="h-3 w-3" />
               </button>
             )}
           </>
@@ -1235,27 +1383,13 @@ export default function GraphPage() {
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
                 className="h-8 w-40 bg-zinc-800 border-zinc-700 text-white text-xs placeholder:text-zinc-500"
               />
-              <div className="flex gap-1">
-                {TAG_COLORS.map((color) => (
-                  <button
-                    key={color}
-                    onClick={() => setNewTagColor(color)}
-                    className="w-4 h-4 rounded-full transition-transform"
-                    style={{
-                      backgroundColor: color,
-                      transform: newTagColor === color ? 'scale(1.3)' : 'scale(1)',
-                      boxShadow: newTagColor === color ? `0 0 0 2px ${color}50` : 'none',
-                    }}
-                  />
-                ))}
-              </div>
               <Button
                 size="sm"
                 onClick={handleCreateTag}
                 disabled={!newTagName.trim() || createMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
               >
-                <Plus className="h-3.5 w-3.5 mr-1" />
+                <IconPlus className="h-3.5 w-3.5 mr-1" />
                 Crea
               </Button>
             </div>
@@ -1274,7 +1408,7 @@ export default function GraphPage() {
                   : 'bg-zinc-800 border-zinc-700 text-zinc-400'
               )}
             >
-              <LinkIcon className="h-3.5 w-3.5 mr-1.5" />
+              <IconLink className="h-3.5 w-3.5 mr-1.5" />
               {linkMode ? 'Collegamento attivo' : 'Collega tag'}
             </Button>
 
@@ -1286,7 +1420,7 @@ export default function GraphPage() {
                 onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
                 className="text-xs h-8 text-red-400 border-red-900 hover:bg-red-950"
               >
-                <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                <IconTrash className="h-3.5 w-3.5 mr-1.5" />
                 Elimina &quot;{selectedTagForDelete.name}&quot;
               </Button>
             )}
@@ -1369,7 +1503,7 @@ export default function GraphPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <Loader2 className="h-8 w-8 text-zinc-400 animate-spin" />
+            <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
           </div>
         ) : isEmpty ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
@@ -1383,13 +1517,13 @@ export default function GraphPage() {
             {/* Link mode indicator */}
             {linkMode && (
               <div className="absolute top-4 left-4 z-20 bg-blue-600/20 border border-blue-500/40 rounded-lg px-4 py-2 text-sm text-blue-300 flex items-center gap-2">
-                <LinkIcon className="h-4 w-4" />
+                <IconLink className="h-4 w-4" />
                 {linkSource ? 'Clicca il tag di destinazione' : 'Clicca il primo tag da collegare'}
                 <button
                   onClick={() => { setLinkMode(false); setLinkSource(null); }}
                   className="ml-2 text-blue-400 hover:text-white"
                 >
-                  <X className="h-4 w-4" />
+                  <IconX className="h-4 w-4" />
                 </button>
               </div>
             )}
@@ -1400,15 +1534,15 @@ export default function GraphPage() {
             <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
               <Button variant="outline" size="icon" onClick={handleZoomIn}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <ZoomIn className="h-4 w-4" />
+                <IconZoomIn className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={handleZoomOut}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <ZoomOut className="h-4 w-4" />
+                <IconZoomOut className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon" onClick={handleFit}
                 className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <Maximize2 className="h-4 w-4" />
+                <IconMaximize className="h-4 w-4" />
               </Button>
               <Button variant="outline" size="icon"
                 onClick={() => setShowPhysicsPanel((p) => !p)}
@@ -1418,7 +1552,7 @@ export default function GraphPage() {
                     ? 'bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30'
                     : 'bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300'
                 )}>
-                <SlidersHorizontal className="h-4 w-4" />
+                <IconAdjustmentsHorizontal className="h-4 w-4" />
               </Button>
             </div>
 
@@ -1427,15 +1561,27 @@ export default function GraphPage() {
               <div className="absolute bottom-4 left-16 z-20 bg-zinc-900/95 border border-zinc-700 rounded-lg shadow-2xl p-4 w-72 max-h-[calc(100%-2rem)] overflow-y-auto backdrop-blur-sm">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-blue-400" />
+                    <IconAdjustmentsHorizontal className="h-3.5 w-3.5 text-blue-400" />
                     Physics Console
                   </h3>
-                  <button
-                    onClick={() => setPhysics(defaultPhysics)}
-                    className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
-                  >
-                    Reset
-                  </button>
+                  <div className="flex gap-1">
+                    <button
+                      onClick={() => {
+                        settingsApi.set('graph_physics', physics).then(() => {
+                          toast.success('Configurazione salvata');
+                        }).catch(() => toast.error('Errore nel salvataggio'));
+                      }}
+                      className="text-[10px] text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                    >
+                      Salva
+                    </button>
+                    <button
+                      onClick={() => setPhysics(defaultPhysics)}
+                      className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                    >
+                      Reset
+                    </button>
+                  </div>
                 </div>
 
                 {/* Charge */}
@@ -1444,7 +1590,7 @@ export default function GraphPage() {
                   {([
                     ['chargeTag', 'Tag', -800, 0],
                     ['chargeTile', 'Tile', -600, 0],
-                    ['chargeSpark', 'Spark', -400, 0],
+                    ['chargeSpark', 'Spark', -400, 100],
                     ['chargeMax', 'Max dist', 200, 1500],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
@@ -1467,7 +1613,7 @@ export default function GraphPage() {
                   {([
                     ['linkCoDist', 'Co-occ', 50, 500],
                     ['linkTagTile', 'Tag→Tile', 40, 300],
-                    ['linkTileSpark', 'Tile→Spark', 20, 200],
+                    ['linkTileSpark', 'Tile→Spark', 0, 200],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
@@ -1510,7 +1656,7 @@ export default function GraphPage() {
                   {([
                     ['collisionTag', 'Tag', 10, 100],
                     ['collisionTile', 'Tile', 10, 100],
-                    ['collisionSpark', 'Spark', 5, 60],
+                    ['collisionSpark', 'Spark', 0, 60],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
@@ -1531,7 +1677,9 @@ export default function GraphPage() {
                   <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Generale</p>
                   {([
                     ['centerStrength', 'Centro', 0, 0.1],
+                    ['tagClusterStrength', 'Tag cluster', 0, 0.5],
                     ['velocityDecay', 'Friction', 0.1, 0.8],
+                    ['linkWidth', 'Archi', 0.5, 6],
                   ] as const).map(([key, label, min, max]) => (
                     <div key={key} className="flex items-center gap-2 mb-1">
                       <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
@@ -1545,6 +1693,15 @@ export default function GraphPage() {
                       <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
                     </div>
                   ))}
+                  <label className="flex items-center gap-2 mt-1 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={(physics.showTagClusters || 0) > 0}
+                      onChange={(e) => setPhysics((prev) => ({ ...prev, showTagClusters: e.target.checked ? 1 : 0 }))}
+                      className="accent-blue-500"
+                    />
+                    <span className="text-[10px] text-zinc-400">Evidenzia tag cluster</span>
+                  </label>
                 </div>
               </div>
             )}
@@ -1595,7 +1752,7 @@ export default function GraphPage() {
                             }
                           }}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <IconPencil className="h-3 w-3" />
                         </Button>
                       </div>
                     ) : (
@@ -1603,35 +1760,8 @@ export default function GraphPage() {
                         className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
                         onClick={() => setTagRenaming(true)}
                       >
-                        <Pencil className="h-3.5 w-3.5" />
+                        <IconPencil className="h-3.5 w-3.5" />
                         Rinomina
-                      </button>
-                    )}
-
-                    {/* Color picker */}
-                    {tagColorPicking ? (
-                      <div className="px-3 py-2 flex flex-wrap gap-1.5">
-                        {TAG_COLORS.map((color) => (
-                          <button
-                            key={color}
-                            className="w-5 h-5 rounded-full transition-transform hover:scale-125"
-                            style={{
-                              backgroundColor: color,
-                              boxShadow: contextMenu.color === color ? `0 0 0 2px ${color}80` : 'none',
-                            }}
-                            onClick={() => {
-                              updateTagMutation.mutate({ id: contextMenu.id, updates: { color } });
-                            }}
-                          />
-                        ))}
-                      </div>
-                    ) : (
-                      <button
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
-                        onClick={() => setTagColorPicking(true)}
-                      >
-                        <Palette className="h-3.5 w-3.5" />
-                        Cambia colore
                       </button>
                     )}
 
@@ -1645,7 +1775,7 @@ export default function GraphPage() {
                         setContextMenu(null);
                       }}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <IconTrash className="h-3.5 w-3.5" />
                       Elimina tag
                     </button>
                   </>
@@ -1667,7 +1797,7 @@ export default function GraphPage() {
                       setContextMenu(null);
                     }}
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <IconTrash className="h-3.5 w-3.5" />
                     Elimina
                   </button>
                 )}
@@ -1711,7 +1841,7 @@ export default function GraphPage() {
                       }).catch(() => toast.error('Errore'));
                     }}
                   >
-                    <Pencil className="h-3 w-3" />
+                    <IconPencil className="h-3 w-3" />
                   </Button>
                 </div>
                 <div className="flex justify-between items-center">
@@ -1727,7 +1857,7 @@ export default function GraphPage() {
                       }).catch(() => toast.error('Errore'));
                     }}
                   >
-                    <Trash2 className="h-3 w-3 mr-1" />
+                    <IconTrash className="h-3 w-3 mr-1" />
                     Elimina
                   </Button>
                   <Button

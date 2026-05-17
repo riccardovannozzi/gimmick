@@ -354,6 +354,13 @@ async function analyzeFile(spark: Spark): Promise<string> {
 
   // --- PDF ---
   if (mimeType === 'application/pdf' || spark.file_name?.endsWith('.pdf')) {
+    // Fire-and-forget: generate a first-page thumbnail in parallel with text
+    // extraction. Mobile shows this as the inline PDF preview.
+    if (!spark.thumbnail_path) {
+      generatePdfThumbnail(buffer, spark).catch((err) =>
+        console.warn('[Indexing] PDF thumbnail generation failed:', err),
+      );
+    }
     try {
       // @ts-expect-error pdf-parse v1 has no type declarations
       const pdfParse = (await import('pdf-parse/lib/pdf-parse.js')).default;
@@ -444,6 +451,47 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   return response.data[0].embedding;
 }
 
+/**
+ * Upsert the embedding for a tile based on its title + description.
+ * Called fire-and-forget after tile create / title-or-description update so
+ * the unified `find` tool can run semantic search across tiles.
+ *
+ * Failures are logged but never propagated — embeddings are a search aid, not
+ * a critical write path.
+ */
+export async function upsertTileEmbedding(tileId: string): Promise<void> {
+  try {
+    const { data: tile, error } = await supabaseAdmin
+      .from('tiles')
+      .select('title, description')
+      .eq('id', tileId)
+      .maybeSingle();
+
+    if (error || !tile) {
+      console.error('[upsertTileEmbedding] fetch failed:', error);
+      return;
+    }
+
+    const text = [tile.title, tile.description].filter(Boolean).join(' — ').trim();
+    if (!text) return; // empty tile — skip
+
+    const embedding = await generateEmbedding(text);
+    const { error: updateError } = await supabaseAdmin
+      .from('tiles')
+      .update({
+        embedding,
+        embedding_updated_at: new Date().toISOString(),
+      })
+      .eq('id', tileId);
+
+    if (updateError) {
+      console.error('[upsertTileEmbedding] update failed:', updateError);
+    }
+  } catch (err) {
+    console.error('[upsertTileEmbedding] unexpected:', err);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Storage
 // ---------------------------------------------------------------------------
@@ -507,8 +555,8 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     messages: [
       {
         role: 'user',
-        content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) e una descrizione (1 frase) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
-{"title": "...", "description": "..."}
+        content: `Questa è una raccolta di ${sparks.length} spark. Genera un titolo breve (max 5 parole) in ITALIANO per questa raccolta. Rispondi SOLO con JSON valido:
+{"title": "..."}
 
 Riassunti degli spark:
 ${summaries.slice(0, 2000)}`,
@@ -529,7 +577,6 @@ ${summaries.slice(0, 2000)}`,
         .from('tiles')
         .update({
           title: parsed.title,
-          description: parsed.description || null,
           updated_at: new Date().toISOString(),
         })
         .eq('id', tileId);
@@ -552,7 +599,7 @@ ${summaries.slice(0, 2000)}`,
 async function classifyActionType(tileId: string): Promise<void> {
   const { data: tile } = await supabaseAdmin
     .from('tiles')
-    .select('id, title, description, action_type_reviewed, action_type, start_at, is_event')
+    .select('id, title, action_type_reviewed, action_type, start_at, is_event')
     .eq('id', tileId)
     .single();
 
@@ -568,7 +615,6 @@ async function classifyActionType(tileId: string): Promise<void> {
 
   const textParts: string[] = [];
   if (tile.title) textParts.push(`Titolo: ${tile.title}`);
-  if (tile.description) textParts.push(`Descrizione: ${tile.description}`);
   for (const s of sparks || []) {
     const meta = s.metadata as SparkMetadata;
     if (meta?.summary) textParts.push(meta.summary);
@@ -751,4 +797,73 @@ Regole:
   } catch (err) {
     console.error('[Indexing] Date extraction parse failed:', err);
   }
+}
+
+// ---------------------------------------------------------------------------
+// PDF thumbnail generation
+// ---------------------------------------------------------------------------
+//
+// Renders the first page of a PDF as a PNG via pdfjs-dist + @napi-rs/canvas,
+// uploads it to the `sparks` storage bucket next to the original file, and
+// stores the resulting path on `spark.thumbnail_path` so the mobile client
+// can render it inline. Runs asynchronously (fire-and-forget); failures are
+// logged but never block the indexing pipeline.
+
+async function generatePdfThumbnail(pdfBuffer: Buffer, spark: Spark): Promise<void> {
+  if (!spark.storage_path) return;
+
+  // Dynamic imports — pdfjs-dist is large; only loaded when we actually have
+  // a PDF to render. The 'legacy' build runs in plain Node without DOM polyfills.
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.js');
+  const { createCanvas } = await import('@napi-rs/canvas');
+
+  // pdfjs expects a Uint8Array, not a Node Buffer.
+  const data = new Uint8Array(pdfBuffer);
+  const loadingTask = pdfjs.getDocument({
+    data,
+    // Disable font/cmap loading — we render once, the visual fidelity of
+    // exotic fonts isn't critical for a thumbnail.
+    disableFontFace: true,
+    useSystemFonts: true,
+  });
+  const pdfDoc = await loadingTask.promise;
+  const page = await pdfDoc.getPage(1);
+  const viewport = page.getViewport({ scale: 1.5 });
+  const canvas = createCanvas(Math.ceil(viewport.width), Math.ceil(viewport.height));
+  const ctx = canvas.getContext('2d');
+
+  // @napi-rs/canvas's context shape isn't 100% identical to pdfjs's
+  // expected CanvasRenderingContext2D type, but the runtime API matches.
+  await page.render({
+    canvasContext: ctx as unknown as object,
+    viewport,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any).promise;
+
+  const pngBuffer = canvas.toBuffer('image/png');
+
+  // Mirror the original storage path with a `.thumb.png` suffix so the
+  // thumbnail lives alongside the source in the same folder.
+  const thumbnailPath = `${spark.storage_path}.thumb.png`;
+  const { error: uploadError } = await supabaseAdmin.storage
+    .from('sparks')
+    .upload(thumbnailPath, pngBuffer, {
+      contentType: 'image/png',
+      upsert: true,
+    });
+  if (uploadError) {
+    console.warn('[Indexing] PDF thumbnail upload failed:', uploadError);
+    return;
+  }
+
+  const { error: updateError } = await supabaseAdmin
+    .from('sparks')
+    .update({ thumbnail_path: thumbnailPath })
+    .eq('id', spark.id);
+  if (updateError) {
+    console.warn('[Indexing] PDF thumbnail thumbnail_path update failed:', updateError);
+    return;
+  }
+
+  console.log(`[Indexing] PDF thumbnail saved: ${thumbnailPath}`);
 }
