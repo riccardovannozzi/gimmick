@@ -145,3 +145,8 @@ export function formatWeekRange(days: string[]): string {
   if (sMonth === eMonth) return `${sDay} – ${eDay} ${sMonth} ${year}`;
   return `${sDay} ${sMonth} – ${eDay} ${eMonth} ${year}`;
 }
+
+/** Header label for the calendar's MONTH view — "ottobre 2026". */
+export function formatMonthLabel(date: Date): string {
+  return date.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+}

@@ -155,8 +155,9 @@ export interface FlowHubItem extends FlowNode {
   days_since_activity: number;
 }
 
-/** Filter keyword for the Hub query. Matches backend GET /api/flows/hub?filter=… */
-export type FlowHubFilter = 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked';
+/** Filter keyword for the Hub query. Matches backend GET /api/flows/hub?filter=…
+ *  Maps 1:1 to the flow node's `state` lifecycle decorator. */
+export type FlowHubFilter = 'done' | 'wait' | 'undo' | 'stop';
 
 /**
  * Subtask - Checklist item belonging to a tile (List view in sidebar).

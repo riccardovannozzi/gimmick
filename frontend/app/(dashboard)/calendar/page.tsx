@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState, useRef, useEffect, DragEvent } from 're
 import { createPortal } from 'react-dom';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin, { Draggable } from '@fullcalendar/interaction';
 import type { EventInput } from '@fullcalendar/core';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
@@ -16,7 +17,7 @@ import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
-import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange } from '@/lib/tile-helpers';
+import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange, formatMonthLabel } from '@/lib/tile-helpers';
 import { useStatuses } from '@/store/statuses-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTypeIcons } from '@/store/type-icons-store';
@@ -237,18 +238,56 @@ export default function CalendarPage() {
     return FALLBACK_COLOR;
   };
 
-  // Week navigation
+  // View selector: WEEK (timeGridWeek with hourly slots) vs MONTH
+  // (dayGridMonth). Persisted to localStorage so the page reopens on the
+  // user's preferred view.
+  type CalendarViewMode = 'week' | 'month';
+  const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('calendar_view_mode');
+      if (raw === 'week' || raw === 'month') setViewMode(raw);
+    } catch { /* */ }
+  }, []);
+  const changeViewMode = useCallback((mode: CalendarViewMode) => {
+    setViewMode(mode);
+    try { localStorage.setItem('calendar_view_mode', mode); } catch { /* */ }
+  }, []);
+
+  // Week + month navigation. The two offsets are independent so that
+  // toggling views doesn't lose the user's place in the other one.
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const days = useMemo(() => generateWeekDays(weekOffset), [weekOffset]);
 
-  // Date range for fetching (covers visible week + buffer)
+  // First day of the month currently visible in month view (relative to
+  // today + monthOffset). Used for the header label, dateRange, and to drive
+  // FullCalendar's gotoDate.
+  const currentMonth = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + monthOffset);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, [monthOffset]);
+
+  // Date range for fetching — covers the visible viewport (week or month)
+  // plus a ±2-month buffer so adjacent overflow days in the month view and
+  // off-screen scheduling pop in without an extra round trip.
   const dateRange = useMemo(() => {
-    const start = new Date(days[0]);
+    if (viewMode === 'week') {
+      const start = new Date(days[0]);
+      start.setMonth(start.getMonth() - 2);
+      const end = new Date(days[days.length - 1]);
+      end.setMonth(end.getMonth() + 2);
+      return { start: start.toISOString(), end: end.toISOString() };
+    }
+    const start = new Date(currentMonth);
     start.setMonth(start.getMonth() - 2);
-    const end = new Date(days[days.length - 1]);
-    end.setMonth(end.getMonth() + 2);
+    const end = new Date(currentMonth);
+    end.setMonth(end.getMonth() + 3); // include next month + 2-month buffer
     return { start: start.toISOString(), end: end.toISOString() };
-  }, [days]);
+  }, [viewMode, days, currentMonth]);
 
   // Filters
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -723,13 +762,17 @@ export default function CalendarPage() {
   const fcRef = useRef<FullCalendar>(null);
   const externalDropRef = useRef<string | null>(null);
 
-  // Navigate FullCalendar when weekOffset changes
+  // Keep FullCalendar in sync with our view+offset state. Switching views
+  // calls `changeView`; week/month nav calls `gotoDate` with the right
+  // anchor (Mon for week, first-of-month for month).
   useEffect(() => {
     const api = fcRef.current?.getApi();
-    if (api && days[0]) {
-      api.gotoDate(days[0]);
-    }
-  }, [days]);
+    if (!api) return;
+    const targetView = viewMode === 'week' ? 'timeGridWeek' : 'dayGridMonth';
+    if (api.view.type !== targetView) api.changeView(targetView);
+    const anchor = viewMode === 'week' ? days[0] : currentMonth;
+    if (anchor) api.gotoDate(anchor);
+  }, [viewMode, days, currentMonth]);
 
   const fcEvents: EventInput[] = useMemo(() => {
     return filteredEvents.map((t) => {
@@ -1336,19 +1379,54 @@ export default function CalendarPage() {
         {/* 4 — COLONNA CALENDAR (kanban-style, flex-1) */}
         <div className="flex-1 min-w-0 flex flex-col rounded bg-[#1f1f22] overflow-hidden">
 
-      {/* Column header — title + week nav */}
+      {/* Column header — title + range label + view switcher + nav */}
       <div className="h-8 flex items-center gap-1.5 px-2 relative z-20">
         <IconCalendar className="h-3.5 w-3.5 shrink-0 text-zinc-300" />
         <span className="text-[10px] font-bold tracking-widest text-zinc-300">CALENDARIO</span>
-        <span className="text-[10px] text-zinc-500 capitalize">{formatWeekRange(days)}</span>
+        <span className="text-[10px] text-zinc-500 capitalize">
+          {viewMode === 'week' ? formatWeekRange(days) : formatMonthLabel(currentMonth)}
+        </span>
         <div className="flex items-center gap-0.5 ml-auto">
-          <button onClick={() => setWeekOffset((o) => o - 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+          {/* View switcher — WEEK / MONTH segmented control */}
+          <div className="flex items-center mr-1 rounded bg-zinc-900/60 p-0.5">
+            <button
+              onClick={() => changeViewMode('week')}
+              className={cn(
+                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
+                viewMode === 'week' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
+              )}
+              title="Vista settimanale"
+            >
+              WEEK
+            </button>
+            <button
+              onClick={() => changeViewMode('month')}
+              className={cn(
+                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
+                viewMode === 'month' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
+              )}
+              title="Vista mensile"
+            >
+              MONTH
+            </button>
+          </div>
+          {/* Prev / Oggi / Next — operate on whichever offset matches the active view */}
+          <button
+            onClick={() => viewMode === 'week' ? setWeekOffset((o) => o - 1) : setMonthOffset((o) => o - 1)}
+            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+          >
             <IconChevronLeft size={14} />
           </button>
-          <button onClick={() => setWeekOffset(0)} className="px-1.5 h-6 rounded text-[10px] text-zinc-400 hover:bg-zinc-800">
+          <button
+            onClick={() => { setWeekOffset(0); setMonthOffset(0); }}
+            className="px-1.5 h-6 rounded text-[10px] text-zinc-400 hover:bg-zinc-800"
+          >
             Oggi
           </button>
-          <button onClick={() => setWeekOffset((o) => o + 1)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400">
+          <button
+            onClick={() => viewMode === 'week' ? setWeekOffset((o) => o + 1) : setMonthOffset((o) => o + 1)}
+            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+          >
             <IconChevronRight size={14} />
           </button>
         </div>
@@ -1423,8 +1501,8 @@ export default function CalendarPage() {
         ) : (
           <FullCalendar
             ref={fcRef}
-            plugins={[timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
+            plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+            initialView={viewMode === 'month' ? 'dayGridMonth' : 'timeGridWeek'}
             locale="it"
             firstDay={1}
             headerToolbar={false}

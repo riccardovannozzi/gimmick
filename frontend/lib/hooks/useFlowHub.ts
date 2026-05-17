@@ -1,17 +1,17 @@
 /**
  * React-query hook for the cross-tile FlowHub.
  *
- *   const { items, isLoading } = useFlowHub('mine');
+ *   const { items, isLoading } = useFlowHub('wait');
  *
- * Filters: `mine` / `theirs` (open nodes by contact ownership), `due_soon`
- * (scheduled within 48h), `stalled` (state=wait), `blocked` (state=stop).
+ * Filters map 1:1 to the flow node's `state` decorator: each value surfaces
+ * every node currently in that state (done / wait / undo / stop).
  */
 'use client';
 import { useQuery } from '@tanstack/react-query';
 import { flowApi } from '@/lib/api';
 import type { FlowHubItem } from '@/types/flow';
 
-export type FlowHubFilter = 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked';
+export type FlowHubFilter = 'done' | 'wait' | 'undo' | 'stop';
 
 export function useFlowHub(filter: FlowHubFilter) {
   const query = useQuery({

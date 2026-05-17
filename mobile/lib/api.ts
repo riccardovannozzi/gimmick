@@ -464,6 +464,61 @@ export const tagTypesApi = {
   },
 };
 
+// ============ Calendar API ============
+
+export const calendarApi = {
+  /** Tiles with start_at falling inside [start, end). Optional tag filter. */
+  async events(start: string, end: string, tagId?: string) {
+    const params = new URLSearchParams({ start, end });
+    if (tagId) params.set('tag_id', tagId);
+    return apiRequest<Tile[]>(`/api/calendar/events?${params}`);
+  },
+  async createEvent(data: { title?: string; start_at?: string; end_at?: string }) {
+    return apiRequest<Tile>('/api/calendar/create-event', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async schedule(data: {
+    tile_id: string;
+    start_at?: string;
+    end_at?: string;
+    title?: string;
+    auto_detect?: boolean;
+  }) {
+    return apiRequest<Tile>('/api/calendar/schedule', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+  async reschedule(id: string, start_at: string, end_at?: string) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}/reschedule`, {
+      method: 'PATCH',
+      body: JSON.stringify({ start_at, end_at }),
+    });
+  },
+  async updateEvent(
+    id: string,
+    updates: {
+      title?: string;
+      start_at?: string;
+      end_at?: string;
+      action_type?: string;
+      all_day?: boolean;
+    },
+  ) {
+    return apiRequest<Tile>(`/api/calendar/events/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
+    });
+  },
+  async unschedule(id: string) {
+    return apiRequest(`/api/calendar/events/${id}/unschedule`, {
+      method: 'DELETE',
+    });
+  },
+};
+
 // ============ Contacts API ============
 
 export const contactsApi = {

@@ -357,11 +357,22 @@ export default function TileDetailScreen() {
   //      isn't included in the Expo Go SDK 54 binary). ───
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'deadline' | 'event'>('event');
+  const [pickerTab, setPickerTab] = useState<'date' | 'start' | 'end'>('date');
 
-  const openSchedulePicker = useCallback(() => {
-    setPickerMode(actionKeyToPickerMode(actionKey));
-    setPickerVisible(true);
-  }, []);
+  /** Open the picker on a specific tab — Date/Start/End fields in the form
+   *  route their tap straight to the matching pane in the bottom sheet.
+   *  `actionKey` is closed over via TDZ-safe lookup (declared via useMemo
+   *  below this callback) — empty deps mirrors the original behaviour. */
+  const openSchedulePicker = useCallback(
+    (tab: 'date' | 'start' | 'end' = 'date') => {
+      // eslint-disable-next-line @typescript-eslint/no-use-before-define
+      setPickerMode(actionKeyToPickerMode(actionKey));
+      setPickerTab(tab);
+      setPickerVisible(true);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   // Re-resolved at the call site to use the live `actionKey` — set via the
   // helper below to keep the dep list explicit.
   function actionKeyToPickerMode(k: ActionKey): 'deadline' | 'event' {
@@ -544,14 +555,14 @@ export default function TileDetailScreen() {
             })}
           </View>
 
-          {/* Date / Start / End — tap any field to open the schedule picker. */}
+          {/* Date / Start / End — each field opens the picker on its own tab. */}
           {showDateRow && (
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
               <View style={{ flex: 1 }}>
                 <SectionLabel text="Date" colors={colors} small />
                 <PickerField
                   value={startDate ? fmtDate(startDate) : '—'}
-                  onPress={openSchedulePicker}
+                  onPress={() => openSchedulePicker('date')}
                   colors={colors}
                 />
               </View>
@@ -561,7 +572,7 @@ export default function TileDetailScreen() {
                     <SectionLabel text="Start" colors={colors} small />
                     <PickerField
                       value={startDate ? fmtTime(startDate) : '—'}
-                      onPress={openSchedulePicker}
+                      onPress={() => openSchedulePicker('start')}
                       colors={colors}
                     />
                   </View>
@@ -569,7 +580,7 @@ export default function TileDetailScreen() {
                     <SectionLabel text="End" colors={colors} small />
                     <PickerField
                       value={endDate ? fmtTime(endDate) : '—'}
-                      onPress={openSchedulePicker}
+                      onPress={() => openSchedulePicker('end')}
                       colors={colors}
                     />
                   </View>
@@ -732,16 +743,10 @@ export default function TileDetailScreen() {
           ))}
         </ScrollView>
 
-        {/* Schedule picker — bottom sheet from ActionTypePicker. */}
-        <ActionTypePicker
-          visible={pickerVisible}
-          mode={pickerMode}
-          initialDate={startDate ?? undefined}
-          initialEndDate={endDate ?? undefined}
-          initialAllDay={tile.all_day ?? false}
-          onConfirm={handlePickerConfirm}
-          onCancel={() => setPickerVisible(false)}
-        />
+        {/* Schedule picker moved to a sibling of TopNav (after the
+            GestureDetector) so its BottomSheet container is the full
+            SafeAreaWrapper — that's what lets `topInset` position the sheet
+            to sit just below TopNav. */}
 
         {/* Type picker modal */}
         <PickerModal
@@ -977,6 +982,18 @@ export default function TileDetailScreen() {
         </Modal>
       </View>
       </GestureDetector>
+      {/* Schedule picker — rendered at SafeAreaWrapper level so its sheet
+          container spans from below TopNav to the screen bottom. */}
+      <ActionTypePicker
+        visible={pickerVisible}
+        mode={pickerMode}
+        initialTab={pickerTab}
+        initialDate={startDate ?? undefined}
+        initialEndDate={endDate ?? undefined}
+        initialAllDay={tile.all_day ?? false}
+        onConfirm={handlePickerConfirm}
+        onCancel={() => setPickerVisible(false)}
+      />
     </SafeAreaWrapper>
   );
 }

@@ -7,9 +7,15 @@
  * don't grow the back stack with redundant entries.
  */
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
 import { usePathname, useRouter } from 'expo-router';
-import { IconHome, IconLayoutGrid, IconRoute, IconSettings } from '@tabler/icons-react-native';
+import {
+  IconHome,
+  IconLayoutGrid,
+  IconRoute,
+  IconCalendarTime,
+  IconSettings,
+} from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeColors } from '@/lib/theme';
 
@@ -17,13 +23,14 @@ const TABS = [
   { name: 'index', path: '/', label: 'Home', icon: IconHome },
   { name: 'history', path: '/history', label: 'Tiles', icon: IconLayoutGrid },
   { name: 'flows', path: '/flows', label: 'Flows', icon: IconRoute },
+  { name: 'chrono', path: '/chrono', label: 'Chrono', icon: IconCalendarTime },
   { name: 'settings', path: '/settings', label: 'Settings', icon: IconSettings },
 ] as const;
 
 interface TopNavProps {
   /** Force a specific tab to render as active (used on non-tab screens like
    *  /tile/[id] where pathname won't match any tab path). */
-  activePath?: '/' | '/history' | '/flows' | '/settings';
+  activePath?: '/' | '/history' | '/flows' | '/chrono' | '/settings';
 }
 
 export function TopNav({ activePath }: TopNavProps) {
@@ -33,13 +40,16 @@ export function TopNav({ activePath }: TopNavProps) {
   const router = useRouter();
 
   return (
-    <View
-      style={{
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      // `flexGrow: 0` keeps a horizontal ScrollView from stretching down the
+      // parent flex column — without it the bar takes up the whole screen.
+      style={{ backgroundColor: colors.background1, flexGrow: 0 }}
+      contentContainerStyle={{
         paddingTop: insets.top + 16,
         paddingBottom: 8,
         paddingHorizontal: 16,
-        backgroundColor: colors.background1,
-        flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
       }}
@@ -77,6 +87,6 @@ export function TopNav({ activePath }: TopNavProps) {
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 }

@@ -1,12 +1,12 @@
 /**
  * /flows — FlowHub: cross-tile inbox of pending Flow nodes.
  *
- * Five tab-filters mirror the backend (`GET /api/flows/hub?filter=…`):
- *   mine      Palla mia (focused node points to self contact or null)
- *   theirs    In attesa di loro (focused node points to a non-self contact)
- *   due_soon  Scheduled within next 48h
- *   stalled   Open leaves untouched > N days
- *   blocked   state='stop'
+ * Four tab-filters mirror the backend (`GET /api/flows/hub?filter=…`), one
+ * per lifecycle decorator on `flow_nodes.state`:
+ *   done   nodes marked as completed
+ *   wait   nodes paused / waiting (default tab on page open)
+ *   undo   nodes reverted / cancelled
+ *   stop   nodes blocked
  *
  * Each card is a deep-link into /canvas — `?tile=<id>&flow=<node_id>` — which
  * canvas/page.tsx resolves by picking a tag the tile belongs to, then opens
@@ -16,7 +16,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { IconRoute, IconClock, IconUserCheck, IconUserOff, IconHourglassHigh, IconLock, IconRefresh } from '@tabler/icons-react';
+import { IconRoute, IconClock, IconRefresh } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { useFlowHub, type FlowHubFilter } from '@/lib/hooks/useFlowHub';
 import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
@@ -30,13 +30,31 @@ function isItemSelf(item: FlowHubItem): boolean {
   return !item.contact || item.contact.is_self;
 }
 
-const TABS: Array<{ key: FlowHubFilter; label: string; icon: typeof IconClock; tint: string }> = [
-  { key: 'mine',     label: 'Palla mia',        icon: IconUserCheck,   tint: '#378ADD' },
-  { key: 'theirs',   label: 'In attesa di loro', icon: IconUserOff,     tint: '#EF9F27' },
-  { key: 'due_soon', label: 'In scadenza',      icon: IconClock,       tint: '#A78BFA' },
-  { key: 'stalled',  label: 'Fermi',            icon: IconHourglassHigh, tint: '#94A3B8' },
-  { key: 'blocked',  label: 'Bloccati',         icon: IconLock,        tint: '#E24B4A' },
+// Four scenarios, one per lifecycle decorator. Labels match the STATUS
+// picker in the Flow inspector verbatim (uppercase English); tints come
+// from the shared FLOW_STATE_COLORS palette. Glyphs are rendered via
+// <StateGlyph> below, which reuses the exact same StatusIcon used inside
+// flow nodes — no tabler-icon approximation.
+const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
+  { key: 'done', label: 'DONE', tint: FLOW_STATE_COLORS.done },
+  { key: 'wait', label: 'WAIT', tint: FLOW_STATE_COLORS.wait },
+  { key: 'undo', label: 'UNDO', tint: FLOW_STATE_COLORS.undo },
+  { key: 'stop', label: 'STOP', tint: FLOW_STATE_COLORS.stop },
 ];
+
+/** Renders one of the four lifecycle glyphs (check / hourglass / slash / X)
+ *  using the same StatusIcon paths that decorate the flow nodes themselves,
+ *  so the Hub tab icon is pixel-identical to what the user sees inside a
+ *  flow. */
+function StateGlyph({ state, color, size = 13 }: { state: FlowHubFilter; color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 block">
+      <g transform={`translate(${size / 2},${size / 2})`}>
+        <StatusIcon state={state} color={color} size={size} />
+      </g>
+    </svg>
+  );
+}
 
 function formatDate(iso: string | null): string | null {
   if (!iso) return null;
@@ -191,7 +209,7 @@ function FlowMiniBadge({
 
 export default function FlowsPage() {
   const router = useRouter();
-  const [filter, setFilter] = useState<FlowHubFilter>('mine');
+  const [filter, setFilter] = useState<FlowHubFilter>('wait');
 
   const { items, isLoading, isError, refetch } = useFlowHub(filter);
 
@@ -232,7 +250,6 @@ export default function FlowsPage() {
           {/* Filter tabs */}
           <div className="flex items-center gap-1 mb-4 border-b border-zinc-800 pb-2 overflow-x-auto">
             {TABS.map((tab) => {
-              const Icon = tab.icon;
               const isActive = filter === tab.key;
               return (
                 <button
@@ -246,7 +263,7 @@ export default function FlowsPage() {
                   )}
                   style={isActive ? { color: tab.tint } : undefined}
                 >
-                  <Icon size={13} />
+                  <StateGlyph state={tab.key} color={isActive ? tab.tint : 'currentColor'} size={13} />
                   {tab.label}
                 </button>
               );
@@ -263,11 +280,10 @@ export default function FlowsPage() {
               <IconRoute size={32} className="mx-auto text-zinc-700 mb-3" />
               <p className="text-sm text-zinc-500">Nessun flusso in questa categoria</p>
               <p className="text-[11px] text-zinc-600 mt-1">
-                {filter === 'mine' && 'Quando avrai dei task aperti tocca a te qui appariranno'}
-                {filter === 'theirs' && 'Le palle in mano agli altri compariranno qui'}
-                {filter === 'due_soon' && 'I task pianificati nelle prossime 48h compariranno qui'}
-                {filter === 'stalled' && 'I nodi marcati come "In attesa" compariranno qui'}
-                {filter === 'blocked' && 'I nodi marcati come "Bloccato" compariranno qui'}
+                {filter === 'done' && 'I nodi marcati come "Fatto" compariranno qui'}
+                {filter === 'wait' && 'I nodi marcati come "In attesa" compariranno qui'}
+                {filter === 'undo' && 'I nodi marcati come "Annullato" compariranno qui'}
+                {filter === 'stop' && 'I nodi marcati come "Bloccato" compariranno qui'}
               </p>
             </div>
           ) : (

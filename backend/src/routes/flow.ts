@@ -340,7 +340,7 @@ flowsHubRouter.get('/tiles', async (req: AuthenticatedRequest, res: Response, ne
 flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
-    const filter = (req.query.filter as string) || 'mine';
+    const filter = (req.query.filter as string) || 'wait';
 
     // Load the activity view rows for this user — small enough to filter in
     // memory and avoids three nearly-identical SQL queries.
@@ -351,7 +351,6 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
     if (actErr) throw actErr;
 
     const now = Date.now();
-    const dueSoonWindowMs = 48 * 60 * 60 * 1000;
 
     type ActivityRow = {
       id: string;
@@ -369,31 +368,17 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       is_leaf: boolean;
     };
 
+    // Hub is now organized by status decorator: one card per flow node whose
+    // `state` matches the requested filter. The four lifecycle decorators
+    // (done/wait/undo/stop) are the four scenarios; nodes in the base
+    // `active` state never appear here.
     const filtered = (activityRows as ActivityRow[] | null ?? []).filter((row) => {
       switch (filter) {
-        case 'mine':
-          // Every OPEN node (active/wait) whose contact is the user's self
-          // row, or has no contact (null = default-self semantics). One row
-          // per matching node — a flow with two open self-contact nodes
-          // produces two cards.
-          return row.is_open && (row.is_self_contact || row.contact_id === null);
-        case 'theirs':
-          // Every open node owned by a non-self contact. Same one-card-per-
-          // node semantic as `mine`.
-          return row.is_open && row.contact_id !== null && !row.is_self_contact;
-        case 'due_soon': {
-          if (!row.scheduled_at) return false;
-          const t = new Date(row.scheduled_at).getTime();
-          return t >= now && t <= now + dueSoonWindowMs;
-        }
-        case 'stalled':
-          // "Fermi" — every node currently in the WAIT state. Renamed from
-          // the old time-based stalled detection: the user marks a node as
-          // wait explicitly, so we just surface them.
-          return row.state === 'wait';
-        case 'blocked':
-          // "Bloccati" — every node in the STOP state.
-          return row.state === 'stop';
+        case 'done':
+        case 'wait':
+        case 'undo':
+        case 'stop':
+          return row.state === filter;
         default:
           return false;
       }
@@ -474,17 +459,10 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       };
     });
 
-    // Sort: oldest activity first for stalled, soonest scheduled first for due_soon,
-    // newest activity first otherwise (most recently touched are usually most relevant).
-    items.sort((a, b) => {
-      if (filter === 'due_soon') {
-        return new Date(a.scheduled_at ?? '').getTime() - new Date(b.scheduled_at ?? '').getTime();
-      }
-      if (filter === 'stalled') {
-        return new Date(a.last_activity_at).getTime() - new Date(b.last_activity_at).getTime();
-      }
-      return new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime();
-    });
+    // Sort: most recently touched first — the four hub filters are status
+    // decorators, so the user typically wants to triage the freshest moves
+    // into each state.
+    items.sort((a, b) => new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime());
 
     res.json({ success: true, data: items });
   } catch (error) {

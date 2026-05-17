@@ -2,14 +2,13 @@
  * Flow Hub — cross-tile inbox of pending Flow nodes. Mobile equivalent of
  * frontend/app/(dashboard)/flows/page.tsx.
  *
- * Five filter tabs (mine / theirs / due_soon / stalled / blocked) drive the
- * same backend endpoint as the web. Tap a card → open the parent tile's FLOW
- * view with that node pre-selected.
+ * Four lifecycle-state filters (done / wait / undo / stop) drive the same
+ * backend endpoint as the web. Default selection is "wait" — matches the web.
+ * Tab labels and glyphs mirror the status decorators used inside the flow
+ * nodes themselves, so the Hub is visually consistent with the inspector.
  *
- * NOTE: deep-linking to a specific node selection inside the tile's FLOW
- * screen isn't supported yet by the mobile FLOW screen (it auto-selects the
- * first node). For now the card just navigates to the tile — port `?flow=`
- * if/when needed.
+ * Tapping a card opens the parent tile's FLOW view (deep-link to a specific
+ * node selection isn't supported on mobile yet — see TODO at handleOpen).
  */
 import React, { useState } from 'react';
 import {
@@ -23,38 +22,24 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import Svg, { Rect, Circle, Path } from 'react-native-svg';
-import {
-  IconRoute,
-  IconClock,
-  IconUserCheck,
-  IconUserOff,
-  IconHourglassHigh,
-  IconLock,
-} from '@tabler/icons-react-native';
+import { IconRoute, IconClock } from '@tabler/icons-react-native';
 import { useFlowHub } from '@/hooks/useFlowHub';
-import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
+import { FLOW_STATE_COLORS } from '@/lib/flow-colors';
 import { useThemeColors } from '@/lib/theme';
 import type { FlowHubItem, FlowHubFilter, FlowNodeState } from '@/types';
 
-const TABS: Array<{
-  key: FlowHubFilter;
-  label: string;
-  icon: typeof IconClock;
-  tint: string;
-}> = [
-  { key: 'mine', label: 'Palla mia', icon: IconUserCheck, tint: '#378ADD' },
-  { key: 'theirs', label: 'Loro', icon: IconUserOff, tint: '#EF9F27' },
-  { key: 'due_soon', label: 'Scadenza', icon: IconClock, tint: '#A78BFA' },
-  { key: 'stalled', label: 'Fermi', icon: IconHourglassHigh, tint: '#94A3B8' },
-  { key: 'blocked', label: 'Bloccati', icon: IconLock, tint: '#E24B4A' },
+const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
+  { key: 'done', label: 'DONE', tint: FLOW_STATE_COLORS.done },
+  { key: 'wait', label: 'WAIT', tint: FLOW_STATE_COLORS.wait },
+  { key: 'undo', label: 'UNDO', tint: FLOW_STATE_COLORS.undo },
+  { key: 'stop', label: 'STOP', tint: FLOW_STATE_COLORS.stop },
 ];
 
 const EMPTY_HINTS: Record<FlowHubFilter, string> = {
-  mine: 'Quando avrai dei task aperti tocca a te qui appariranno',
-  theirs: 'Le palle in mano agli altri compariranno qui',
-  due_soon: 'I task pianificati nelle prossime 48h compariranno qui',
-  stalled: 'I nodi marcati come "In attesa" compariranno qui',
-  blocked: 'I nodi marcati come "Bloccato" compariranno qui',
+  done: 'I nodi marcati come "Fatto" compariranno qui',
+  wait: 'I nodi marcati come "In attesa" compariranno qui',
+  undo: 'I nodi marcati come "Annullato" compariranno qui',
+  stop: 'I nodi marcati come "Bloccato" compariranno qui',
 };
 
 function isItemSelf(item: FlowHubItem): boolean {
@@ -83,7 +68,7 @@ function formatDate(iso: string | null): string | null {
 export default function FlowsScreen() {
   const router = useRouter();
   const colors = useThemeColors();
-  const [filter, setFilter] = useState<FlowHubFilter>('mine');
+  const [filter, setFilter] = useState<FlowHubFilter>('wait');
   const { items, isLoading, isError, refetch } = useFlowHub(filter);
 
   const handleOpen = (item: FlowHubItem) => {
@@ -92,30 +77,8 @@ export default function FlowsScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-      {/* Page title + sub */}
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          paddingHorizontal: 16,
-          paddingTop: 12,
-          paddingBottom: 10,
-        }}
-      >
-        <IconRoute size={20} color="#60A5FA" />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 17, fontWeight: '600', color: colors.primary }}>
-            Flow Hub
-          </Text>
-          <Text style={{ fontSize: 11, color: colors.tertiary, marginTop: 1 }}>
-            Inbox dei flussi pendenti, aggregati da tutti i tile
-          </Text>
-        </View>
-      </View>
-
-      {/* Filter tabs — horizontal scroller because 5 buttons don't fit on
-          narrow phones in a single fixed-width row. */}
+      {/* Filter tabs — 4 lifecycle decorators. Each tab uses the same status
+          glyph that decorates a flow node in that state. */}
       <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
         <ScrollView
           horizontal
@@ -123,8 +86,8 @@ export default function FlowsScreen() {
           contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6 }}
         >
           {TABS.map((tab) => {
-            const Icon = tab.icon;
             const isActive = filter === tab.key;
+            const tabColor = isActive ? tab.tint : colors.tertiary;
             return (
               <TouchableOpacity
                 key={tab.key}
@@ -136,18 +99,12 @@ export default function FlowsScreen() {
                   gap: 6,
                   paddingHorizontal: 12,
                   height: 32,
-                  borderRadius: 16,
+                  borderRadius: 6,
                   backgroundColor: isActive ? colors.surfaceVariant : 'transparent',
                 }}
               >
-                <Icon size={14} color={isActive ? tab.tint : colors.tertiary} />
-                <Text
-                  style={{
-                    fontSize: 12,
-                    fontWeight: '500',
-                    color: isActive ? tab.tint : colors.tertiary,
-                  }}
-                >
+                <StateGlyph state={tab.key} color={tabColor} size={13} />
+                <Text style={{ fontSize: 12, fontWeight: '500', color: tabColor }}>
                   {tab.label}
                 </Text>
               </TouchableOpacity>
@@ -186,7 +143,7 @@ export default function FlowsScreen() {
             paddingHorizontal: 32,
           }}
         >
-          <IconRoute size={36} color={colors.tertiary} />
+          <IconRoute size={32} color={colors.tertiary} />
           <Text
             style={{
               fontSize: 13,
@@ -213,10 +170,22 @@ export default function FlowsScreen() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 12, gap: 8 }}
+          contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 32 }}
           renderItem={({ item }) => (
             <FlowItemCard item={item} colors={colors} onPress={() => handleOpen(item)} />
           )}
+          ListFooterComponent={
+            <Text
+              style={{
+                fontSize: 11,
+                color: colors.tertiary,
+                textAlign: 'center',
+                marginTop: 16,
+              }}
+            >
+              {items.length} {items.length === 1 ? 'flusso' : 'flussi'}
+            </Text>
+          }
           refreshControl={
             <RefreshControl
               refreshing={false}
@@ -230,6 +199,12 @@ export default function FlowsScreen() {
   );
 }
 
+/**
+ * 3-column layout matching the frontend FlowItemCard:
+ *   col 1 — tag (top, caps) + tile title (bottom)
+ *   col 2 — node label (top) + contact pill (bottom)
+ *   col 3 — mini badge (spans both rows)
+ */
 function FlowItemCard({
   item,
   colors,
@@ -240,10 +215,8 @@ function FlowItemCard({
   onPress: () => void;
 }) {
   const isSelf = isItemSelf(item);
-  const ownerLabel = isSelf ? 'Palla mia' : item.contact?.name ?? 'Palla loro';
-  const stateLabel = FLOW_STATE_LABELS[item.state];
-  const pillLabel = item.state !== 'active' ? stateLabel : ownerLabel;
-  const isDue = item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
+  const isDue =
+    item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
   const scheduled = formatScheduled(item.scheduled_at);
   const occurred = formatDate(item.occurred_at);
 
@@ -256,79 +229,95 @@ function FlowItemCard({
         borderRadius: 10,
         borderWidth: 1,
         borderColor: colors.border,
-        paddingHorizontal: 14,
+        paddingHorizontal: 16,
         paddingVertical: 12,
       }}
     >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        {/* Left: tag + title + node label + contact */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        {/* Column 1 — tag (top) + tile title (bottom) */}
         <View style={{ flex: 1, minWidth: 0 }}>
-          {!!item.tile.tag?.name && (
-            <Text
-              style={{
-                fontSize: 10,
-                letterSpacing: 1.2,
-                color: colors.tertiary,
-                textTransform: 'uppercase',
-              }}
-              numberOfLines={1}
-            >
-              {item.tile.tag.name}
-            </Text>
-          )}
           <Text
+            numberOfLines={1}
             style={{
-              fontSize: 14,
+              fontSize: 10,
+              letterSpacing: 1.2,
+              color: colors.tertiary,
+              textTransform: 'uppercase',
+            }}
+          >
+            {item.tile.tag?.name || ' '}
+          </Text>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 12,
               fontWeight: '600',
               color: colors.primary,
               marginTop: 2,
             }}
-            numberOfLines={1}
           >
             {item.tile.title || '(senza titolo)'}
           </Text>
+        </View>
 
+        {/* Column 2 — node label (top) + contact pill (bottom) */}
+        <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-start', gap: 4 }}>
           <Text
+            numberOfLines={1}
             style={{
               fontSize: 12,
-              color: colors.secondary,
-              marginTop: 6,
+              color: item.label?.trim() ? colors.secondary : colors.tertiary,
+              fontStyle: item.label?.trim() ? 'normal' : 'italic',
             }}
-            numberOfLines={1}
           >
             {item.label?.trim() || '(senza etichetta)'}
           </Text>
-          {item.contact && (
+          {item.contact ? (
             <View
               style={{
-                alignSelf: 'flex-start',
-                marginTop: 6,
                 paddingHorizontal: 8,
                 paddingVertical: 3,
-                borderRadius: 6,
+                borderRadius: 4,
                 borderWidth: 1,
                 borderColor: '#52525B',
+                maxWidth: '100%',
               }}
             >
               <Text
+                numberOfLines={1}
                 style={{
                   fontSize: 11,
-                  color: item.contact.color || colors.secondary,
+                  color: item.contact.color || '#D4D4D8',
                 }}
-                numberOfLines={1}
               >
-                {item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name}
+                {item.contact.is_self
+                  ? `[ ${item.contact.name} ]`
+                  : item.contact.name}
               </Text>
+            </View>
+          ) : (
+            // Invisible placeholder keeps row height stable across cards.
+            <View
+              style={{
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: 'transparent',
+              }}
+            >
+              <Text style={{ fontSize: 11, color: 'transparent' }}>—</Text>
             </View>
           )}
         </View>
 
-        {/* Right: mini badge (square = self, circle = other) */}
+        {/* Column 3 — mini badge (square = self, circle = other) */}
         <FlowMiniBadge isSelf={isSelf} state={item.state} />
       </View>
 
-      {/* Secondary metadata */}
-      {(scheduled || (!scheduled && item.days_since_activity > 0) || item.notes || occurred) && (
+      {/* Secondary metadata — schedule date / age / occurred_at — only when
+          something is present. Matches the frontend's bottom row. */}
+      {(scheduled || (!scheduled && item.days_since_activity > 0) || occurred) && (
         <View
           style={{
             flexDirection: 'row',
@@ -360,20 +349,19 @@ function FlowItemCard({
 
       {!!item.notes && (
         <Text
-          style={{ fontSize: 12, color: colors.secondary, marginTop: 6 }}
           numberOfLines={2}
+          style={{ fontSize: 12, color: colors.secondary, marginTop: 8 }}
         >
           {item.notes}
         </Text>
       )}
-      <Text style={{ fontSize: 10, color: colors.tertiary, marginTop: 6 }}>{pillLabel}</Text>
     </TouchableOpacity>
   );
 }
 
 /**
  * Square (self) or circle (other) node body with the inline status glyph.
- * Mirrors the web FlowMiniBadge.
+ * Mirrors the web FlowMiniBadge exactly (radius 16, same body fill/stroke).
  */
 function FlowMiniBadge({
   isSelf,
@@ -419,9 +407,27 @@ function FlowMiniBadge({
   );
 }
 
-/** Inline status glyph paths. Re-implemented here (rather than imported from
- *  VerticalFlowTrack) so the Hub doesn't pull the entire graph layout module
- *  for a single 32×32 badge. */
+/** Compact status glyph used inside the filter tabs — same proportions as
+ *  the inspector's status icons, sized to 13px by default for inline use. */
+function StateGlyph({
+  state,
+  color,
+  size = 13,
+}: {
+  state: Exclude<FlowNodeState, 'active'>;
+  color: string;
+  size?: number;
+}) {
+  const half = size / 2;
+  return (
+    <Svg width={size} height={size}>
+      <StatusGlyph state={state} color={color} cx={half} cy={half} size={size} />
+    </Svg>
+  );
+}
+
+/** Inline status glyph paths — port of frontend StatusIcon. Re-implemented
+ *  here so the Hub doesn't pull the entire graph layout module. */
 function StatusGlyph({
   state,
   color,

@@ -744,7 +744,7 @@ export const flowApi = {
   async tilesWithFlows() {
     return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');
   },
-  async hub(filter: 'mine' | 'theirs' | 'due_soon' | 'stalled' | 'blocked') {
+  async hub(filter: 'done' | 'wait' | 'undo' | 'stop') {
     return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
   },
 };
