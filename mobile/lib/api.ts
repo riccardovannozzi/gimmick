@@ -10,7 +10,6 @@ import type {
   FlowGraph,
   FlowNode,
   FlowNodeState,
-  FlowEdge,
   FlowHubItem,
   FlowHubFilter,
 } from '@/types';
@@ -569,19 +568,18 @@ export const flowApi = {
       occurred_at?: string | null;
       scheduled_at?: string | null;
       notes?: string | null;
-      parent_node_id?: string;
-      x?: number | null;
-      y?: number | null;
     },
   ) {
-    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+    // Server appends at the end (sort_order = max+1). Response shape keeps
+    // the legacy { node, edge } for mid-rollout client compatibility.
+    return apiRequest<{ node: FlowNode; edge: null }>(
       `/api/tiles/${tileId}/flow/nodes`,
       { method: 'POST', body: JSON.stringify(body) },
     );
   },
   async updateNode(
     id: string,
-    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>,
+    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'sort_order'>>,
   ) {
     return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
       method: 'PATCH',
@@ -591,14 +589,12 @@ export const flowApi = {
   async deleteNode(id: string) {
     return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
   },
-  async createEdge(body: { parent_id: string; child_id: string }) {
-    return apiRequest<FlowEdge>('/api/flow/edges', {
-      method: 'POST',
-      body: JSON.stringify(body),
+  /** Bulk reorder — send the full list with new sort_order values. */
+  async reorderNodes(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/flow/nodes/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     });
-  },
-  async deleteEdge(id: string) {
-    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
   },
   /** Cross-tile inbox of pending flow nodes. Mounted at /api/flows. */
   async hub(filter: FlowHubFilter) {

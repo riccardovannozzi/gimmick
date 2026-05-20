@@ -1,25 +1,32 @@
 /**
- * Flow API — DAG of micro-actions inside a Tile.
+ * Flow API — linear list of micro-actions inside a Tile.
+ *
+ * After migration 030 the data model is a flat, ordered list (sort_order).
+ * The old DAG (flow_edges) is no longer read by the API and the edge
+ * endpoints are retired — callers should reorder via PUT /api/flow/nodes/
+ * reorder.
  *
  * Three routers exported, each mounted at a different prefix in index.ts:
  *
  *   tileFlowRouter  → /api/tiles/:tileId/flow
- *     GET    /                read the whole DAG of a tile
- *     POST   /nodes           create a node (optional parent_node_id → edge too)
+ *     GET    /                read the tile's flow as { nodes }
+ *     POST   /nodes           create a new node at the end of the list
  *
  *   flowRouter      → /api/flow
- *     PATCH  /nodes/:id       partial update
- *     DELETE /nodes/:id       cascade removes adjacent edges
- *     POST   /edges           validates same-tile + assertEdgeAcyclic
- *     DELETE /edges/:id
+ *     PATCH  /nodes/:id       partial update (label / state / contact /
+ *                             dates / notes / sort_order)
+ *     DELETE /nodes/:id
+ *     PUT    /nodes/reorder   bulk reorder (atomic sort_order rewrite)
+ *     POST   /edges           410 Gone — retired with migration 030
+ *     DELETE /edges/:id       410 Gone
  *
  *   flowsHubRouter  → /api/flows
- *     GET    /hub             cross-tile inbox view, filtered
+ *     GET    /tiles           tile_ids that have at least one flow node
+ *     GET    /hub             cross-tile inbox, filtered by state decorator
  */
 import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
-import { assertEdgeAcyclic, EdgeCycleError } from '../services/flow-validation.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 import type { FlowNodeState } from '../types/flow.js';
 
@@ -30,35 +37,26 @@ const VALID_STATES: FlowNodeState[] = ['active', 'done', 'wait', 'undo', 'stop']
 export const tileFlowRouter = Router({ mergeParams: true });
 tileFlowRouter.use(authenticate);
 
-/** GET /api/tiles/:tileId/flow → { nodes, edges } */
+/** GET /api/tiles/:tileId/flow → { nodes } (ordered by sort_order ASC) */
 tileFlowRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tileId } = req.params as { tileId: string };
     const userId = req.user!.id;
 
-    const [nodesRes, edgesRes] = await Promise.all([
-      supabaseAdmin
-        .from('flow_nodes')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('tile_id', tileId)
-        .order('created_at', { ascending: true }),
-      supabaseAdmin
-        .from('flow_edges')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('tile_id', tileId)
-        .order('created_at', { ascending: true }),
-    ]);
+    const { data, error } = await supabaseAdmin
+      .from('flow_nodes')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('tile_id', tileId)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
 
-    if (nodesRes.error) throw nodesRes.error;
-    if (edgesRes.error) throw edgesRes.error;
+    if (error) throw error;
 
     res.json({
       success: true,
       data: {
-        nodes: nodesRes.data ?? [],
-        edges: edgesRes.data ?? [],
+        nodes: data ?? [],
       },
     });
   } catch (error) {
@@ -68,8 +66,11 @@ tileFlowRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) =
 
 /**
  * POST /api/tiles/:tileId/flow/nodes
- * Body: { label?, state?, contact_id?, occurred_at?, scheduled_at?, notes?, parent_node_id? }
- * If parent_node_id is set, also creates the edge inside the same transaction.
+ * Body: { label?, state?, contact_id?, occurred_at?, scheduled_at?, notes? }
+ *
+ * The new node is appended to the END of the list (sort_order = max+1). The
+ * legacy `parent_node_id` field is accepted but ignored — preserved so the
+ * mobile dev-client APK doesn't 400 while we roll out the new clients.
  */
 tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -82,9 +83,6 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
       occurred_at?: string | null;
       scheduled_at?: string | null;
       notes?: string | null;
-      parent_node_id?: string;
-      x?: number | null;
-      y?: number | null;
     };
 
     if (body.state && !VALID_STATES.includes(body.state as FlowNodeState)) {
@@ -92,8 +90,8 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
       return;
     }
 
-    // 1. Verify the tile belongs to this user (RLS gives us that for free at
-    //    insert time, but a 404 message is friendlier than a 403/RLS deny).
+    // Verify the tile belongs to this user (RLS would deny otherwise but a
+    // 404 reads cleaner than a 403/RLS error).
     const { data: tile, error: tileErr } = await supabaseAdmin
       .from('tiles')
       .select('id')
@@ -106,22 +104,19 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
       return;
     }
 
-    // 2. If parent_node_id is set, verify it belongs to the same tile.
-    if (body.parent_node_id) {
-      const { data: parent, error: parentErr } = await supabaseAdmin
-        .from('flow_nodes')
-        .select('id, tile_id')
-        .eq('id', body.parent_node_id)
-        .eq('user_id', userId)
-        .maybeSingle();
-      if (parentErr) throw parentErr;
-      if (!parent || parent.tile_id !== tileId) {
-        res.status(400).json({ success: false, error: 'parent_node_id is not in this tile' });
-        return;
-      }
-    }
+    // New node is appended at the end. Computing max+1 is racy under
+    // concurrent inserts but acceptable for the human-scale use case (and
+    // the user can always drag to reorder anyway).
+    const { data: tail } = await supabaseAdmin
+      .from('flow_nodes')
+      .select('sort_order')
+      .eq('user_id', userId)
+      .eq('tile_id', tileId)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextSortOrder = (tail?.sort_order ?? -1) + 1;
 
-    // 3. Insert the node.
     const { data: node, error: nodeErr } = await supabaseAdmin
       .from('flow_nodes')
       .insert({
@@ -133,37 +128,15 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
         occurred_at: body.occurred_at ?? null,
         scheduled_at: body.scheduled_at ?? null,
         notes: body.notes ?? null,
-        x: body.x ?? null,
-        y: body.y ?? null,
+        sort_order: nextSortOrder,
       })
       .select()
       .single();
 
     if (nodeErr || !node) throw nodeErr ?? new Error('Insert failed');
 
-    // 4. If parent_node_id was given, insert the edge too. (Newly created node
-    //    can't form a cycle with anything, so no DFS needed.)
-    let edge = null;
-    if (body.parent_node_id) {
-      const { data: edgeRow, error: edgeErr } = await supabaseAdmin
-        .from('flow_edges')
-        .insert({
-          user_id: userId,
-          tile_id: tileId,
-          parent_id: body.parent_node_id,
-          child_id: node.id,
-        })
-        .select()
-        .single();
-      if (edgeErr) {
-        // Rollback the orphan node — keeps the data consistent without a real txn.
-        await supabaseAdmin.from('flow_nodes').delete().eq('id', node.id);
-        throw edgeErr;
-      }
-      edge = edgeRow;
-    }
-
-    res.status(201).json({ success: true, data: { node, edge } });
+    // Legacy response shape — old clients destructure `{ node, edge }`.
+    res.status(201).json({ success: true, data: { node, edge: null } });
   } catch (error) {
     next(error);
   }
@@ -173,6 +146,54 @@ tileFlowRouter.post('/nodes', async (req: AuthenticatedRequest, res: Response, n
 
 export const flowRouter = Router();
 flowRouter.use(authenticate);
+
+/**
+ * PUT /api/flow/nodes/reorder
+ * Body: { items: [{ id: string; sort_order: number }, ...] }
+ *
+ * Rewrites sort_order for every supplied node. The client sends the WHOLE
+ * tile's ordered list after a drag-and-drop, so we apply the changes in
+ * one round-trip. RLS scopes to the caller; nodes that don't belong to the
+ * user are silently skipped (the WHERE user_id clause does that for free).
+ */
+flowRouter.put('/nodes/reorder', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const userId = req.user!.id;
+    const body = req.body as { items?: { id: string; sort_order: number }[] };
+
+    const items = Array.isArray(body.items) ? body.items : null;
+    if (!items || items.length === 0) {
+      res.status(400).json({ success: false, error: 'items[] is required' });
+      return;
+    }
+    // Validate shape up-front so we fail before issuing N writes.
+    for (const it of items) {
+      if (!it || typeof it.id !== 'string' || typeof it.sort_order !== 'number') {
+        res.status(400).json({ success: false, error: 'each item needs {id, sort_order}' });
+        return;
+      }
+    }
+
+    // Run the updates in parallel. Supabase has no batch-update-with-
+    // different-values; the alternative is a stored procedure which isn't
+    // worth the operational cost for a list that's at most a few dozen rows.
+    const results = await Promise.all(
+      items.map((it) =>
+        supabaseAdmin
+          .from('flow_nodes')
+          .update({ sort_order: it.sort_order })
+          .eq('id', it.id)
+          .eq('user_id', userId),
+      ),
+    );
+    const firstErr = results.find((r) => r.error)?.error;
+    if (firstErr) throw firstErr;
+
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
 
 /** PATCH /api/flow/nodes/:id */
 flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
@@ -187,7 +208,7 @@ flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, 
     }
 
     const updates: Record<string, unknown> = {};
-    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'x', 'y']) {
+    for (const k of ['label', 'state', 'contact_id', 'occurred_at', 'scheduled_at', 'notes', 'sort_order']) {
       if (k in body) updates[k] = body[k];
     }
 
@@ -209,7 +230,7 @@ flowRouter.patch('/nodes/:id', async (req: AuthenticatedRequest, res: Response, 
   }
 });
 
-/** DELETE /api/flow/nodes/:id (adjacent edges cascade) */
+/** DELETE /api/flow/nodes/:id */
 flowRouter.delete('/nodes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
@@ -226,84 +247,24 @@ flowRouter.delete('/nodes/:id', async (req: AuthenticatedRequest, res: Response,
   }
 });
 
-/**
- * POST /api/flow/edges  body: { parent_id, child_id }
- * Looks up tile_id of the parent, then validates and inserts.
- */
-flowRouter.post('/edges', async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const userId = req.user!.id;
-    const { parent_id, child_id } = req.body as { parent_id?: string; child_id?: string };
+// ─── Edge endpoints — retired ──────────────────────────────────────────────
+//
+// Migration 030 linearised the data model. The flow_edges table is still
+// in the DB for rollback safety, but the API no longer reads or writes it.
+// Old clients hit these endpoints — respond with 410 Gone so they fail loudly.
 
-    if (!parent_id || !child_id) {
-      res.status(400).json({ success: false, error: 'parent_id and child_id are required' });
-      return;
-    }
-
-    // Look up the parent's tile_id (we need it for the edge row and for the
-    // acyclic check).
-    const { data: parent, error: parentErr } = await supabaseAdmin
-      .from('flow_nodes')
-      .select('id, tile_id, user_id')
-      .eq('id', parent_id)
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (parentErr) throw parentErr;
-    if (!parent) {
-      res.status(404).json({ success: false, error: 'parent node not found' });
-      return;
-    }
-
-    try {
-      await assertEdgeAcyclic(userId, parent.tile_id, parent_id, child_id);
-    } catch (e) {
-      if (e instanceof EdgeCycleError) {
-        res.status(400).json({ success: false, error: e.message });
-        return;
-      }
-      throw e;
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('flow_edges')
-      .insert({
-        user_id: userId,
-        tile_id: parent.tile_id,
-        parent_id,
-        child_id,
-      })
-      .select()
-      .single();
-
-    if (error) {
-      // 23505 = unique violation → edge already exists; surface as 409.
-      if ((error as { code?: string }).code === '23505') {
-        res.status(409).json({ success: false, error: 'edge already exists' });
-        return;
-      }
-      throw error;
-    }
-    res.status(201).json({ success: true, data });
-  } catch (error) {
-    next(error);
-  }
+flowRouter.post('/edges', (_req, res: Response) => {
+  res.status(410).json({
+    success: false,
+    error: 'Flow edges retired — the model is now a linear list. Use PUT /api/flow/nodes/reorder.',
+  });
 });
 
-/** DELETE /api/flow/edges/:id */
-flowRouter.delete('/edges/:id', async (req: AuthenticatedRequest, res: Response, next) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user!.id;
-    const { error } = await supabaseAdmin
-      .from('flow_edges')
-      .delete()
-      .eq('id', id)
-      .eq('user_id', userId);
-    if (error) throw error;
-    res.json({ success: true });
-  } catch (error) {
-    next(error);
-  }
+flowRouter.delete('/edges/:id', (_req, res: Response) => {
+  res.status(410).json({
+    success: false,
+    error: 'Flow edges retired — the model is now a linear list. Use PUT /api/flow/nodes/reorder.',
+  });
 });
 
 // ─── flowsHubRouter ────────────────────────────────────────────────────────
@@ -311,12 +272,6 @@ flowRouter.delete('/edges/:id', async (req: AuthenticatedRequest, res: Response,
 export const flowsHubRouter = Router();
 flowsHubRouter.use(authenticate);
 
-/**
- * GET /api/flows/hub?filter=mine|theirs|due_soon|stalled|blocked
- *
- * Uses the `flow_node_activity` view for last_activity / is_open / is_leaf,
- * joins tiles and contacts, returns FlowHubItem[].
- */
 /**
  * GET /api/flows/tiles
  * Returns the set of tile_ids that have at least one flow_node, so the UI
@@ -337,6 +292,12 @@ flowsHubRouter.get('/tiles', async (req: AuthenticatedRequest, res: Response, ne
   }
 });
 
+/**
+ * GET /api/flows/hub?filter=done|wait|undo|stop
+ *
+ * Uses the `flow_node_activity` view for last_activity / is_open / is_leaf,
+ * joins tiles and contacts, returns FlowHubItem[].
+ */
 flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const userId = req.user!.id;
@@ -368,7 +329,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       is_leaf: boolean;
     };
 
-    // Hub is now organized by status decorator: one card per flow node whose
+    // Hub is organised by status decorator: one card per flow node whose
     // `state` matches the requested filter. The four lifecycle decorators
     // (done/wait/undo/stop) are the four scenarios; nodes in the base
     // `active` state never appear here.
@@ -417,10 +378,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
     if (tilesRes.error) throw tilesRes.error;
     if (contactsRes.error) throw contactsRes.error;
 
-    // For each tile, pick the first non-root tag (so the FlowHub card can
-    // show "TAG / TILE TITLE" without exposing the implicit GIMMICK root).
-    // Supabase types the nested join as `tags: TagRow[]` even when it's a
-    // many-to-one relation — flatten with a flatMap and ignore root tags.
+    // For each tile, pick the first non-root tag.
     type TileWithTags = {
       id: string;
       title: string;
@@ -459,9 +417,7 @@ flowsHubRouter.get('/hub', async (req: AuthenticatedRequest, res: Response, next
       };
     });
 
-    // Sort: most recently touched first — the four hub filters are status
-    // decorators, so the user typically wants to triage the freshest moves
-    // into each state.
+    // Most recently touched first.
     items.sort((a, b) => new Date(b.last_activity_at).getTime() - new Date(a.last_activity_at).getTime());
 
     res.json({ success: true, data: items });

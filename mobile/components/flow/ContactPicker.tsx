@@ -4,7 +4,7 @@
  * input, the existing contacts (self pinned to top), and an inline create
  * action when the query has no exact match.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -21,13 +21,30 @@ import type { Contact } from '@/types';
 interface Props {
   value: string | null;
   onChange: (contactId: string | null) => void;
+  /** Open the modal directly on mount, skipping the intermediate "selected
+   *  pill" field. Used when this picker is mounted as the inline editor of
+   *  a chip — the chip itself already plays the field's role. */
+  autoOpen?: boolean;
+  /** Hide the always-visible field that triggers the modal. Pairs with
+   *  `autoOpen` for the inline-editor case. */
+  hideTrigger?: boolean;
+  /** Fired when the modal dismisses (back button, backdrop tap, swipe).
+   *  Lets the caller collapse its own expanded state in sync. */
+  onClose?: () => void;
 }
 
-export function ContactPicker({ value, onChange }: Props) {
+export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger = false, onClose }: Props) {
   const colors = useThemeColors();
   const { contacts, create } = useContacts();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [query, setQuery] = useState('');
+
+  // When the caller mounts us with autoOpen=true, the modal should pop the
+  // first frame so the user doesn't perceive a double-tap.
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [creating, setCreating] = useState(false);
 
   const selected: Contact | null = useMemo(() => {
@@ -83,6 +100,7 @@ export function ContactPicker({ value, onChange }: Props) {
 
   return (
     <>
+      {!hideTrigger && (
       <TouchableOpacity
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
@@ -132,12 +150,16 @@ export function ContactPicker({ value, onChange }: Props) {
         )}
         {!selected && <IconChevronDown size={14} color={colors.tertiary} />}
       </TouchableOpacity>
+      )}
 
       <Modal
         visible={open}
         animationType="slide"
         transparent
-        onRequestClose={() => setOpen(false)}
+        onRequestClose={() => {
+          setOpen(false);
+          onClose?.();
+        }}
       >
         <View
           style={{

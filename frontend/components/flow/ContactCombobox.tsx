@@ -8,6 +8,10 @@ import type { Contact } from '@/types/flow';
 interface Props {
   value: string | null;
   onChange: (contactId: string | null) => void;
+  /** Start with the search input + dropdown already visible — used when this
+   *  combobox is mounted as the inline editor of a chip. The "selected pill
+   *  before open" UI is redundant then. */
+  autoOpen?: boolean;
 }
 
 /**
@@ -15,10 +19,10 @@ interface Props {
  * has no exact match it offers "+ Nuovo contatto: '<query>'" which creates
  * one inline and selects it.
  */
-export function ContactCombobox({ value, onChange }: Props) {
+export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
   const { contacts, create } = useContacts();
   const [query, setQuery] = useState('');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [creating, setCreating] = useState(false);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -63,6 +67,15 @@ export function ContactCombobox({ value, onChange }: Props) {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
+
+  // Focus the search input when the combobox starts already-open — saves the
+  // caller from having to .focus() it from outside.
+  useEffect(() => {
+    if (autoOpen) {
+      requestAnimationFrame(() => inputRef.current?.focus());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleCreate = async () => {
     const name = query.trim();
