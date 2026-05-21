@@ -14,8 +14,8 @@ import {
   IconArrowNarrowDown,
   IconChevronDown,
 } from '@tabler/icons-react';
-import { cn } from '@/lib/utils';
 import { readableOn } from '@/lib/palette';
+import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
@@ -24,39 +24,21 @@ import { useFlowOpenStore } from '@/store/flow-modal-store';
 import type { Tile } from '@/types';
 
 interface Props {
-  /** Tiles belonging to the current tag that are NOT yet positioned on the
-   *  canvas (no entry in canvas_layout). Drag them into the canvas to place. */
   tiles: Tile[];
-  /** Element ref forwarded out — the canvas page uses it for hit-testing
-   *  when a canvas tile is dragged back here. */
   panelRef: React.RefObject<HTMLDivElement | null>;
-  /** True while a canvas-side tile is being dragged. The panel highlights
-   *  itself as a drop target. */
   isCanvasDragActive?: boolean;
-  /** Whether the panel is currently the active drop target (mouse inside). */
   isDropTargetHover?: boolean;
-  /** Currently selected tile (drives the staging card highlight). */
   selectedTileId?: string | null;
-  /** Click handler — opens the tile in the right sidebar. */
   onTileClick?: (tileId: string) => void;
-  /** Panel width in pixels. Driven by the parent's resize handle so the
-   *  splitter between staging and canvas can be dragged. */
   width?: number;
-  /** When false, panel collapses to a thin strip with only an expand button
-   *  (mirrors the right TileSidebar's collapse behavior). */
   open?: boolean;
-  /** Called when the user clicks the collapse/expand chevron. */
   onToggle?: () => void;
 }
 
-// Match CanvasBoard's TILE_W / TILE_H exactly so a tile reads at the same
-// scale whether it's on the canvas or in staging.
 const TILE_W = 130;
 const TILE_H = 90;
 const FALLBACK_COLOR = '#94A3B8';
 
-/** Map action types (and special 'allday') → icon component. Mirrors the
- *  Kanban/canvas vocabulary. NOTES (none) renders no badge. */
 const ACTION_ICON: Record<string, typeof IconBolt | null> = {
   none: null,
   anytime: IconArrowUp,
@@ -71,8 +53,6 @@ type GroupBy = 'none' | 'action' | 'date' | 'tag' | 'type' | 'status';
 const SORT_LS_KEY = 'staging_sort_dir';
 const GROUP_LS_KEY = 'staging_group_by';
 
-// Section ordering when grouping by action — high-priority actions first
-// so deadlines/events bubble to the top of the list.
 const ACTION_GROUP_ORDER: Record<string, number> = {
   deadline: 0,
   event: 1,
@@ -88,7 +68,6 @@ const ACTION_GROUP_LABEL: Record<string, string> = {
   none: 'Note',
 };
 
-// Display label for the group-by selector trigger + each menu item.
 const GROUP_LABEL: Record<GroupBy, string> = {
   none: 'Nessun gruppo',
   action: 'Action',
@@ -106,9 +85,6 @@ interface Group {
   order: number;
 }
 
-// Bucket a date into a sort-friendly section. Uses local-midnight comparisons
-// so "Oggi" / "Domani" snap to calendar days, and "questa/prossima settimana"
-// extend to the upcoming Sunday boundary.
 function dateBucket(iso: string | undefined): { key: string; label: string; order: number } {
   if (!iso) return { key: 'nodate', label: 'Senza data', order: 99 };
   const d = new Date(iso);
@@ -116,7 +92,7 @@ function dateBucket(iso: string | undefined): { key: string; label: string; orde
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
-  const dayOfWeek = today.getDay(); // 0 = Sun
+  const dayOfWeek = today.getDay();
   const daysToSunday = (7 - dayOfWeek) % 7 || 7;
   const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + daysToSunday);
   const nextWeekEnd = new Date(weekEnd); nextWeekEnd.setDate(weekEnd.getDate() + 7);
@@ -130,19 +106,6 @@ function dateBucket(iso: string | undefined): { key: string; label: string; orde
   return { key: 'later', label: 'Più tardi', order: 5 };
 }
 
-/**
- * Vertical "parcheggio" sandwiched between the left Sidebar (tag list) and
- * the canvas. Lists tiles that exist in the current tag but have no canvas
- * position yet, rendered with the same visual vocabulary used on the canvas
- * (type-icon-tinted background, type/action badges, dashed border for
- * deadlines) so a tile looks consistent everywhere it's shown.
- *
- * Drag-back (canvas tile dragged here): CanvasBoard publishes mouse coords
- * via callback; if the gesture ends over this panel's bounding rect the
- * canvas page removes that tile's canvas_layout entry, sending it back to
- * staging. The panel also highlights itself as a drop target while the
- * cursor is hovering it during the drag.
- */
 export function StagingPanel({
   tiles,
   panelRef,
@@ -154,6 +117,7 @@ export function StagingPanel({
   open = true,
   onToggle,
 }: Props) {
+  const theme = usePixelTheme();
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -169,8 +133,6 @@ export function StagingPanel({
     [typeIcons, typeTileIcons],
   );
 
-  // Sort + group preferences, persisted to localStorage so they survive a
-  // reload. Default: no grouping, newest first.
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   useEffect(() => {
@@ -195,9 +157,6 @@ export function StagingPanel({
     try { localStorage.setItem(GROUP_LS_KEY, g); } catch { /* */ }
   }, []);
 
-  // Custom dropdown for the group selector. Same portal + click-outside
-  // pattern as TileSidebar's TypeIconPicker so the menu can escape the
-  // staging panel's overflow clipping.
   const [groupMenuOpen, setGroupMenuOpen] = useState(false);
   const groupTriggerRef = useRef<HTMLButtonElement>(null);
   const groupMenuRef = useRef<HTMLDivElement>(null);
@@ -217,9 +176,6 @@ export function StagingPanel({
     return () => document.removeEventListener('mousedown', handler);
   }, [groupMenuOpen]);
 
-  // Date used for sorting + the "Data" group bucket. Prefer the actionable
-  // start_at (event scheduling) and fall back to created_at so every tile
-  // has a usable timestamp.
   const tileDate = useCallback((t: Tile) => t.start_at || t.created_at, []);
 
   const sortedTiles = useMemo(() => {
@@ -232,8 +188,6 @@ export function StagingPanel({
     return arr;
   }, [tiles, sortDir, tileDate]);
 
-  // status_id → { name, order } lookup used by the STATUS grouping. Reuses
-  // the canonical order baked into useStatuses (active/done/paused/...).
   const statusLookup = useMemo(() => {
     const m = new Map<string, { name: string; order: number }>();
     statuses.forEach((s, i) => m.set(s.id, { name: s.name, order: i }));
@@ -256,9 +210,6 @@ export function StagingPanel({
         const b = dateBucket(tileDate(t));
         add(b.key, b.label, b.order, t);
       } else if (groupBy === 'tag') {
-        // First non-root tag is used as the section. In the canvas context
-        // every staging tile already shares the current tag, so grouping by
-        // tag is most useful for *additional* tags the tile carries.
         const tag = (t.tags || []).find((x) => !x.is_root);
         if (tag) add(tag.id, tag.name, 0, t);
         else add('__notag__', 'Senza tag', 99, t);
@@ -284,69 +235,74 @@ export function StagingPanel({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Render one tile card. Pulled out so both the flat list and the grouped
-  // sections use the same markup — change here, change everywhere.
+  // Outer bg according to drop-target state
+  const panelBg = isDropTargetHover
+    ? `${theme.accent}33`
+    : isCanvasDragActive
+      ? `${theme.accent}14`
+      : theme.bg2;
+  const panelBorderColor = (isDropTargetHover || isCanvasDragActive) ? theme.accent : theme.border;
+
   const renderTile = (t: Tile) => {
     const si = getIconForTile(t.id);
     const actionKey: string =
       t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
     const actionColor: string =
       actionKey === 'none'
-        ? '#e4e4e7'
+        ? theme.ink2
         : ((actionColors as Record<string, string>)[actionKey] as string)
           || FALLBACK_COLOR;
-    // Background = type-icon color at ~50% alpha (matches canvas/kanban
-    // tile bg). When no type icon set, fall back to a neutral zinc.
-    const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
+    const tileBg = si?.color ? `${si.color}CC` : theme.surface;
     const isSelected = selectedTileId === t.id;
     const hasFlow = tilesWithFlows.has(t.id);
     return (
-      // Outer wrapper allows the FLOW badge to overflow past the tile's
-      // rounded body (the body has overflow-hidden for the status patterns,
-      // so the badge has to live outside).
       <div
         key={t.id}
-        className="relative shrink-0"
-        style={{ width: TILE_W, breakInside: 'avoid', marginBottom: 6 }}
+        style={{ position: 'relative', flexShrink: 0, width: TILE_W, breakInside: 'avoid', marginBottom: 6 }}
       >
         <div
           draggable
           data-tile-id={t.id}
           onDragStart={(e) => onDragStart(e, t.id)}
           onClick={() => onTileClick?.(t.id)}
-          className={cn(
-            'shrink-0 rounded overflow-hidden cursor-grab active:cursor-grabbing transition-all border',
-            actionKey === 'deadline'
-              ? 'border-dashed border-red-500'
-              : 'border-white/[0.08]',
-            isSelected && 'ring-2 ring-blue-500',
-            'hover:brightness-110',
-          )}
-          style={{ backgroundColor: tileBg, width: TILE_W, height: TILE_H }}
+          style={{
+            flexShrink: 0,
+            overflow: 'hidden',
+            cursor: 'grab',
+            background: tileBg,
+            width: TILE_W,
+            height: TILE_H,
+            border: actionKey === 'deadline' ? '2px dashed #E24B4A' : `2px solid ${theme.border}`,
+            boxShadow: isSelected ? `0 0 0 3px ${theme.accent}` : 'none',
+          }}
           title={t.title || 'Senza titolo'}
         >
-          <div className="relative h-full flex flex-col p-1.5">
-            <div className="flex-1 min-h-0 overflow-hidden">
+          <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: 6 }}>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <p
-                className="text-[11px] leading-[14px] text-[#D4D4D8] font-normal"
                 style={{
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  lineHeight: '14px',
+                  color: readableOn(tileBg),
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   wordBreak: 'break-word',
+                  margin: 0,
                 }}
               >
                 {t.title || 'Senza titolo'}
               </p>
             </div>
-            <div className="mt-auto flex items-end justify-between gap-1 relative z-10">
-              <ActionBadgeMini actionKey={actionKey} color={actionColor} />
-              {si && <TypeBadgeMini iconName={si.icon} color={si.color} />}
+            <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4, position: 'relative', zIndex: 10 }}>
+              <ActionBadgeMini actionKey={actionKey} color={actionColor} borderColor={theme.border} />
+              {si && <TypeBadgeMini iconName={si.icon} color={si.color} borderColor={theme.border} />}
             </div>
           </div>
         </div>
-        {/* FLOW badge — same overhang and styling as Canvas/Kanban. */}
+        {/* FLOW badge — pixel chip floating past the tile's top-right corner */}
         {hasFlow && (
           <button
             type="button"
@@ -357,7 +313,24 @@ export function StagingPanel({
             onContextMenu={(e) => e.stopPropagation()}
             onMouseDown={(e) => e.stopPropagation()}
             onDragStart={(e) => e.stopPropagation()}
-            className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+            style={{
+              position: 'absolute',
+              top: -8,
+              right: 6,
+              zIndex: 20,
+              padding: '0 5px',
+              height: 16,
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 8,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              display: 'inline-flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+            }}
             title="Apri Flow"
           >
             FLOW
@@ -368,33 +341,40 @@ export function StagingPanel({
   };
 
   if (!open) {
-    // Collapsed: thin strip with expand button. Keeps panelRef + drop-target
-    // tinting so dragging a canvas tile onto the strip still hit-tests and
-    // sends the tile back to staging — the user just won't see it land until
-    // they expand the panel.
     return (
       <div
         ref={panelRef}
         data-staging-panel
-        className={cn(
-          'shrink-0 w-8 border-r flex flex-col transition-colors',
-          isDropTargetHover
-            ? 'bg-blue-500/[0.18] border-blue-500'
-            : isCanvasDragActive
-            ? 'bg-blue-500/[0.06] border-blue-500/30'
-            : 'bg-zinc-950/40 border-zinc-800',
-        )}
+        style={{
+          flexShrink: 0,
+          width: 32,
+          background: panelBg,
+          borderRight: `2px solid ${panelBorderColor}`,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
       >
         <button
           onClick={onToggle}
-          className="h-12 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0 border-b border-zinc-800"
+          style={{
+            height: 40,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: `2px solid ${theme.border}`,
+            cursor: 'pointer',
+            flexShrink: 0,
+            color: theme.ink2,
+          }}
           title="Espandi staging"
         >
-          <IconLayoutSidebarLeftExpand className="h-4 w-4 text-zinc-400" />
+          <IconLayoutSidebarLeftExpand size={14} />
         </button>
         {tiles.length > 0 && (
-          <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
-            <span className="text-[10px] tabular-nums">{tiles.length}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
+            <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -405,58 +385,129 @@ export function StagingPanel({
     <div
       ref={panelRef}
       data-staging-panel
-      style={width != null ? { width } : undefined}
-      className={cn(
-        'shrink-0 border-r flex flex-col transition-colors',
-        width == null && 'w-44',
-        isDropTargetHover
-          ? 'bg-blue-500/[0.18] border-blue-500'
-          : isCanvasDragActive
-          ? 'bg-blue-500/[0.06] border-blue-500/30'
-          : 'bg-zinc-950/40 border-zinc-800',
-      )}
+      style={{
+        flexShrink: 0,
+        width: width != null ? width : 176,
+        background: panelBg,
+        borderRight: `2px solid ${panelBorderColor}`,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
     >
-      <div className="h-12 flex items-center gap-1.5 pl-1 pr-3 border-b border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-500">
+      <div
+        style={{
+          height: 40,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          paddingLeft: 4,
+          paddingRight: 12,
+          borderBottom: `2px solid ${theme.border}`,
+          background: theme.surfaceVariant,
+        }}
+      >
         <button
           onClick={onToggle}
-          className="flex items-center justify-center w-7 h-7 rounded hover:bg-zinc-800 transition-colors shrink-0"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            flexShrink: 0,
+            color: theme.ink2,
+          }}
           title="Collassa staging"
         >
-          <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+          <IconLayoutSidebarLeftCollapse size={14} />
         </button>
-        <span className="text-xs leading-none font-medium normal-case tracking-normal text-zinc-400">Staging</span>
-        <span className="ml-auto tabular-nums">{tiles.length}</span>
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 10,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: theme.ink,
+          }}
+        >
+          Staging
+        </span>
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-pixel-head)', fontSize: 9, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+          {tiles.length}
+        </span>
       </div>
 
-      {/* Controls bar — group-by dropdown + sort-direction toggle. Borderless
-          + transparent to match the "Expand all" sidebar button style. */}
       {tiles.length > 0 && (
-        <div className="h-8 px-2 flex items-center gap-1 border-b border-zinc-800 shrink-0">
+        <div
+          style={{
+            height: 32,
+            padding: '0 8px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            borderBottom: `2px solid ${theme.border}`,
+            flexShrink: 0,
+            background: theme.bg2,
+          }}
+        >
           <button
             ref={groupTriggerRef}
             onClick={() => setGroupMenuOpen((v) => !v)}
-            className="flex-1 min-w-0 h-7 px-1 flex items-center gap-1 bg-transparent border-0 text-[11px] leading-none font-medium text-zinc-500 hover:text-zinc-200 focus:outline-none transition-colors"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              height: 24,
+              padding: '0 4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              background: 'transparent',
+              border: 'none',
+              color: theme.ink2,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
             title="Raggruppa per"
           >
-            <span className="truncate">{GROUP_LABEL[groupBy]}</span>
-            <IconChevronDown className="h-3 w-3 shrink-0" />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{GROUP_LABEL[groupBy]}</span>
+            <IconChevronDown size={11} style={{ flexShrink: 0 }} />
           </button>
           {groupMenuOpen && groupMenuPos && createPortal(
             <div
               ref={groupMenuRef}
-              className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl py-1"
-              style={{ top: groupMenuPos.top, left: groupMenuPos.left, width: groupMenuPos.width, zIndex: 9999 }}
+              className="fixed"
+              style={{
+                top: groupMenuPos.top,
+                left: groupMenuPos.left,
+                width: groupMenuPos.width,
+                zIndex: 9999,
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                padding: 4,
+              }}
             >
               {GROUP_OPTIONS.map((opt) => (
                 <button
                   key={opt}
                   onClick={() => { changeGroup(opt); setGroupMenuOpen(false); }}
-                  className={cn(
-                    'w-full text-left px-3 py-2 text-xs leading-none font-medium transition-colors',
-                    groupBy === opt
-                      ? 'bg-zinc-700/40 text-white'
-                      : 'text-zinc-300 hover:bg-zinc-700/50',
-                  )}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '6px 10px',
+                    background: groupBy === opt ? theme.surfaceVariant : 'transparent',
+                    border: `2px solid ${groupBy === opt ? theme.border : 'transparent'}`,
+                    color: groupBy === opt ? theme.ink : theme.ink2,
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 12,
+                    cursor: 'pointer',
+                  }}
                 >
                   {GROUP_LABEL[opt]}
                 </button>
@@ -466,20 +517,41 @@ export function StagingPanel({
           )}
           <button
             onClick={toggleSort}
-            className="h-7 px-1 flex items-center justify-center text-zinc-500 hover:text-zinc-200 transition-colors shrink-0"
-            title={sortDir === 'asc' ? 'Crescente (più vecchie in cima) — clicca per invertire' : 'Decrescente (più recenti in cima) — clicca per invertire'}
+            style={{
+              height: 24,
+              padding: '0 4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'transparent',
+              border: 'none',
+              color: theme.ink2,
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+            title={sortDir === 'asc' ? 'Crescente — clicca per invertire' : 'Decrescente — clicca per invertire'}
           >
-            {sortDir === 'asc' ? <IconArrowNarrowUp className="h-3 w-3" /> : <IconArrowNarrowDown className="h-3 w-3" />}
+            {sortDir === 'asc' ? <IconArrowNarrowUp size={12} /> : <IconArrowNarrowDown size={12} />}
           </button>
         </div>
       )}
 
-      {/* Tile list. When groupBy='none', tiles flow into a single CSS-column
-          grid driven by container width. Otherwise, render one column-grid
-          per group with a small uppercase header above it. */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden p-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div
+        className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 8 }}
+      >
         {tiles.length === 0 ? (
-          <p className="text-[10px] text-zinc-600 text-center py-6 px-2 leading-relaxed">
+          <p
+            style={{
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 11,
+              color: theme.ink3,
+              textAlign: 'center',
+              padding: '24px 8px',
+              lineHeight: 1.5,
+              margin: 0,
+            }}
+          >
             {isCanvasDragActive || isDropTargetHover
               ? 'Rilascia qui per togliere il tile dal canvas'
               : 'I nuovi tile compaiono qui. Trascinali nel canvas per posizionarli.'}
@@ -489,12 +561,24 @@ export function StagingPanel({
             {sortedTiles.map(renderTile)}
           </div>
         ) : (
-          <div className="space-y-3">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {groups.map((g) => (
               <div key={g.key}>
-                <div className="flex items-center gap-1.5 mb-1 text-[10px] uppercase tracking-wider text-zinc-500">
-                  <span className="truncate">{g.label}</span>
-                  <span className="tabular-nums text-zinc-600">{g.tiles.length}</span>
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginBottom: 4,
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: theme.ink3,
+                  }}
+                >
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.label}</span>
+                  <span style={{ fontVariantNumeric: 'tabular-nums', color: theme.ink3 }}>{g.tiles.length}</span>
                 </div>
                 <div style={{ columnWidth: `${TILE_W}px`, columnGap: '6px' }}>
                   {g.tiles.map(renderTile)}
@@ -508,29 +592,45 @@ export function StagingPanel({
   );
 }
 
-function ActionBadgeMini({ actionKey, color }: { actionKey: string; color: string }) {
+function ActionBadgeMini({ actionKey, color, borderColor }: { actionKey: string; color: string; borderColor: string }) {
   const Icon = ACTION_ICON[actionKey];
-  if (!Icon) return <span className="w-3.5 h-3.5" />;
+  if (!Icon) return <span style={{ width: 14, height: 14, display: 'inline-block' }} />;
   return (
     <div
-      className="w-3.5 h-3.5 rounded-full flex items-center justify-center shrink-0"
-      style={{ backgroundColor: color }}
+      style={{
+        width: 14,
+        height: 14,
+        background: color,
+        border: `2px solid ${borderColor}`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
     >
-      <Icon size={9} color={readableOn(color)} />
+      <Icon size={8} color={readableOn(color)} />
     </div>
   );
 }
 
-function TypeBadgeMini({ iconName, color }: { iconName: string; color?: string }) {
+function TypeBadgeMini({ iconName, color, borderColor }: { iconName: string; color?: string; borderColor: string }) {
   const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[iconName];
   if (!Comp) return null;
   const bg = color || '#27272A';
   return (
     <div
-      className="w-3.5 h-3.5 rounded flex items-center justify-center shrink-0"
-      style={{ backgroundColor: bg }}
+      style={{
+        width: 14,
+        height: 14,
+        background: bg,
+        border: `2px solid ${borderColor}`,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+      }}
     >
-      <Comp size={9} color={readableOn(bg)} />
+      <Comp size={8} color={readableOn(bg)} />
     </div>
   );
 }

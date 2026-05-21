@@ -1,0 +1,32 @@
+/* Gimmick · Pixel Arcade — global styles
+ *
+ * Append to frontend/app/globals.css (or import alongside it).
+ * Provides the press-down animation utilities used by the atoms.
+ */
+
+@keyframes pxBlink   { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+@keyframes pxPulse   { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+
+.px-press      { transition: none; }
+.px-press:active { transform: translate(2px, 2px); }
+.px-blink      { animation: pxBlink 1s steps(2) infinite; }
+.px-pulse      { animation: pxPulse 0.8s steps(4) infinite; }
+.px-dither     {
+  background-image: repeating-linear-gradient(45deg,
+    rgba(0,0,0,0.06) 0 2px, transparent 2px 4px);
+}
+
+/* Scanlines overlay — apply via parent's position: relative + a child with this class. */
+.px-scanlines  { position: relative; }
+.px-scanlines::after {
+  content: ''; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom,
+    rgba(0,0,0,0.12) 0 1px, transparent 1px 3px);
+  z-index: 100; mix-blend-mode: multiply;
+}
+
+/* Disable default focus ring for pixel buttons — they have their own offset */
+.px-press:focus-visible {
+  outline: 2px solid var(--px-accent, currentColor);
+  outline-offset: 2px;
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconPlus, IconX } from '@tabler/icons-react';
 import { useContacts } from '@/lib/hooks/useContacts';
+import { usePixelTheme } from '@/components/pixel';
 import type { Contact } from '@/types/flow';
 
 interface Props {
@@ -20,6 +21,7 @@ interface Props {
  * one inline and selects it.
  */
 export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
+  const theme = usePixelTheme();
   const { contacts, create } = useContacts();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(autoOpen);
@@ -34,8 +36,6 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
 
   const normalizedQuery = query.trim().toLowerCase();
 
-  // Pin the self contact to the top of every list so "ball on me" is always a
-  // one-click pick. Falls back gracefully if the seed row is missing.
   const sortedContacts = useMemo(() => {
     return [...contacts].sort((a, b) => {
       if (a.is_self && !b.is_self) return -1;
@@ -56,7 +56,6 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
     [contacts, normalizedQuery],
   );
 
-  // Close on outside click
   useEffect(() => {
     if (!open) return;
     const onDocClick = (e: MouseEvent) => {
@@ -68,8 +67,6 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  // Focus the search input when the combobox starts already-open — saves the
-  // caller from having to .focus() it from outside.
   useEffect(() => {
     if (autoOpen) {
       requestAnimationFrame(() => inputRef.current?.focus());
@@ -94,28 +91,57 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
   };
 
   return (
-    <div className="relative" ref={containerRef}>
+    <div style={{ position: 'relative' }} ref={containerRef}>
       {selected && !open ? (
         <div
           onClick={() => {
             setOpen(true);
             setTimeout(() => inputRef.current?.focus(), 0);
           }}
-          className="flex items-center justify-between gap-2 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-200 hover:bg-zinc-800 cursor-pointer transition-colors"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+            padding: '0 10px',
+            height: 30,
+            background: theme.surfaceVariant,
+            color: theme.ink,
+            border: `2px solid ${theme.border}`,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+          }}
         >
-          <span className="truncate">
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {selected.color && (
               <span
-                className="inline-block w-2 h-2 rounded-full mr-1.5 align-middle"
-                style={{ backgroundColor: selected.color }}
+                style={{
+                  display: 'inline-block',
+                  width: 8,
+                  height: 8,
+                  background: selected.color,
+                  border: `2px solid ${theme.border}`,
+                  marginRight: 6,
+                  verticalAlign: 'middle',
+                }}
               />
             )}
             {selected.is_self ? `[ ${selected.name} ]` : selected.name}
           </span>
           <button
             onClick={(e) => { e.stopPropagation(); onChange(null); }}
-            className="text-zinc-500 hover:text-red-400"
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: theme.ink3,
+              display: 'inline-flex',
+              padding: 0,
+            }}
             title="Rimuovi contatto"
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
           >
             <IconX size={12} />
           </button>
@@ -127,14 +153,48 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
           onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => setOpen(true)}
           placeholder="Cerca contatto…"
-          className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-blue-500 transition-colors"
+          style={{
+            width: '100%',
+            background: theme.surfaceVariant,
+            border: `2px solid ${theme.border}`,
+            padding: '0 8px',
+            height: 30,
+            color: theme.ink,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            outline: 'none',
+          }}
         />
       )}
 
       {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-50 bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-h-64 overflow-y-auto py-1">
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            right: 0,
+            top: '100%',
+            marginTop: 4,
+            zIndex: 50,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 256,
+            overflowY: 'auto',
+          }}
+        >
           {matches.length === 0 && !normalizedQuery && (
-            <div className="px-2.5 py-2 text-[10px] text-zinc-500">Nessun contatto. Digita un nome per crearne uno.</div>
+            <div
+              style={{
+                padding: '8px 10px',
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 11,
+                color: theme.ink3,
+              }}
+            >
+              Nessun contatto. Digita un nome per crearne uno.
+            </div>
           )}
           {matches.map((c) => {
             const isActive = c.id === value;
@@ -142,19 +202,50 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
               <button
                 key={c.id}
                 onClick={() => { onChange(c.id); setQuery(''); setOpen(false); }}
-                className={`flex items-center gap-2 w-full px-2.5 h-8 text-left text-xs leading-none transition-colors ${
-                  isActive ? 'bg-zinc-800 text-blue-300' : 'text-zinc-200 hover:bg-zinc-800/70'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  height: 30,
+                  textAlign: 'left',
+                  background: isActive ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${isActive ? theme.border : 'transparent'}`,
+                  color: isActive ? theme.ink : theme.ink2,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  cursor: 'pointer',
+                }}
               >
                 {c.color && (
                   <span
-                    className="inline-block w-2 h-2 rounded-full shrink-0"
-                    style={{ backgroundColor: c.color }}
+                    style={{
+                      display: 'inline-block',
+                      width: 8,
+                      height: 8,
+                      background: c.color,
+                      border: `2px solid ${theme.border}`,
+                      flexShrink: 0,
+                    }}
                   />
                 )}
-                <span className="truncate">{c.is_self ? `[ ${c.name} ]` : c.name}</span>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {c.is_self ? `[ ${c.name} ]` : c.name}
+                </span>
                 {c.kind !== 'person' && (
-                  <span className="ml-auto text-[9px] text-zinc-500 uppercase tracking-wider">{c.kind}</span>
+                  <span
+                    style={{
+                      marginLeft: 'auto',
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 8,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: theme.ink3,
+                    }}
+                  >
+                    {c.kind}
+                  </span>
                 )}
               </button>
             );
@@ -163,10 +254,28 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             <button
               onClick={handleCreate}
               disabled={creating}
-              className="flex items-center gap-2 w-full px-2.5 h-8 text-left text-xs leading-none font-medium text-blue-300 hover:bg-zinc-800/70 disabled:opacity-50 transition-colors border-t border-zinc-800"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                width: '100%',
+                padding: '6px 8px',
+                height: 30,
+                textAlign: 'left',
+                background: 'transparent',
+                color: theme.accent,
+                border: 'none',
+                borderTop: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: creating ? 'not-allowed' : 'pointer',
+                opacity: creating ? 0.5 : 1,
+              }}
             >
-              <IconPlus size={12} />
-              {creating ? 'Creazione…' : <>Nuovo contatto: <span className="text-blue-200">&ldquo;{query.trim()}&rdquo;</span></>}
+              <IconPlus size={11} />
+              {creating ? 'Creazione…' : <>Nuovo: <span style={{ color: theme.ink }}>&ldquo;{query.trim()}&rdquo;</span></>}
             </button>
           )}
         </div>

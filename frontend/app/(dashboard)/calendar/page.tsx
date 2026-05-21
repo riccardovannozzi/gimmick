@@ -13,6 +13,7 @@ import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconChevronLeft, IconChevronRight, IconArrowsSort, IconFilter, IconLayoutList, IconArrowUp, IconBolt, IconClock, IconCalendar, IconLayoutGrid, IconRoute, IconLayoutSidebarLeftCollapse, IconLayoutSidebarLeftExpand } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
+import { usePixelTheme } from '@/components/pixel';
 import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -38,7 +39,7 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
   if (!Comp) return null;
   const bg = color || '#27272A';
   return (
-    <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+    <div style={{ width: 16, height: 16, background: bg, border: '2px solid currentColor', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <Comp size={10} color={readableOn(bg)} />
     </div>
   );
@@ -80,6 +81,7 @@ function ModalDropdown({ value, options, placeholder, onChange, renderOption, re
   renderOption?: (opt: { id: string | null; label: string; icon?: string }) => React.ReactNode;
   renderSelected?: () => React.ReactNode;
 }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -107,17 +109,45 @@ function ModalDropdown({ value, options, placeholder, onChange, renderOption, re
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors text-left"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '6px 10px',
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          textAlign: 'left',
+          cursor: 'pointer',
+        }}
       >
         {selected && renderSelected ? renderSelected() : (
-          selected ? <span className="truncate">{selected.label}</span> : <span className="text-[11px] text-zinc-500">{placeholder}</span>
+          selected ? (
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selected.label}</span>
+          ) : (
+            <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>{placeholder}</span>
+          )
         )}
       </button>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 220,
+            overflowY: 'auto',
+          }}
         >
           {options.map((opt, idx) => {
             const isSelected = opt.id === value;
@@ -125,14 +155,28 @@ function ModalDropdown({ value, options, placeholder, onChange, renderOption, re
               <button
                 key={opt.id ?? `none-${idx}`}
                 onClick={() => { onChange(opt.id); setOpen(false); }}
-                className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                  isSelected && 'bg-zinc-700/30'
-                )}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: isSelected ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${isSelected ? theme.border : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  color: theme.ink2,
+                }}
               >
-                {renderOption ? renderOption(opt) : <span className={cn('truncate flex-1', isSelected ? 'text-zinc-200' : 'text-zinc-400')}>{opt.label}</span>}
+                {renderOption ? renderOption(opt) : (
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: isSelected ? theme.ink : theme.ink2 }}>
+                    {opt.label}
+                  </span>
+                )}
                 {isSelected && (
-                  <svg className="w-3 h-3 text-blue-400 shrink-0 ml-auto" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width={12} height={12} style={{ marginLeft: 'auto', color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
             );
@@ -205,6 +249,7 @@ const START_HOUR = 6;
 const END_HOUR = 22;
 
 export default function CalendarPage() {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
   const actionColors = useActionColors();
@@ -303,14 +348,14 @@ export default function CalendarPage() {
   const forceFlowTab = useFlowOpenRequest(setSelectedTileId, (open) => setSidebarOpen(open));
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
-  // Reactively toggle the blue selection ring on FullCalendar events when
+  // Reactively toggle the pixel selection ring on FullCalendar events when
   // selectedTileId changes. eventDidMount sets data-tile-id on each event el.
   useEffect(() => {
     document.querySelectorAll<HTMLElement>('.fc-event[data-tile-id]').forEach((el) => {
       const isSelected = el.getAttribute('data-tile-id') === selectedTileId;
-      el.style.boxShadow = isSelected ? '0 0 0 2px #3b82f6' : '';
+      el.style.boxShadow = isSelected ? `0 0 0 3px ${theme.accent}` : '';
     });
-  }, [selectedTileId]);
+  }, [selectedTileId, theme.accent]);
 
   // Schedule from existing tile
   const [showTilePicker, setShowTilePicker] = useState(false);
@@ -1067,7 +1112,7 @@ export default function CalendarPage() {
   };
 
   return (
-    <div className="flex flex-col h-full" onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
+    <div className="flex flex-col h-full" style={{ background: theme.bg1 }} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }}>
       <Header title="Chrono" />
 
       <div className="flex flex-1 overflow-hidden">
@@ -1075,7 +1120,18 @@ export default function CalendarPage() {
         {/* Board area — toolbar + 3 kanban-style columns (NOTES, TODO, CALENDAR) */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Top Toolbar */}
-          <div className="h-12 flex items-center gap-1 px-4 border-b border-zinc-800 bg-zinc-950 shrink-0">
+          <div
+            className="shrink-0"
+            style={{
+              height: 40,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '0 12px',
+              borderBottom: `2px solid ${theme.border}`,
+              background: theme.bg2,
+            }}
+          >
             <button
               onClick={() => setModal({
                 ...emptyModal,
@@ -1084,28 +1140,45 @@ export default function CalendarPage() {
                 startAt: new Date().toISOString(),
                 endAt: new Date(Date.now() + 3600000).toISOString(),
               })}
-              className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+              className="px-press"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                padding: '0 10px',
+                background: theme.surfaceVariant,
+                color: theme.ink2,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
               title="Aggiungi tile"
             >
-              <IconLayoutGrid size={13} />
+              <IconLayoutGrid size={12} />
               Tile
             </button>
           </div>
-          {/* Columns container — NOTES, TODO and CALENDAR sit flush against
-              each other separated by draggable splitters (same layout as the
-              Canvas page). No padding or gap so the splitters drive the
-              visual seam. */}
-          <div className="flex-1 flex overflow-hidden bg-zinc-950">
+          {/* Columns container */}
+          <div className="flex-1 flex overflow-hidden" style={{ background: theme.bg1 }}>
 
         {/* 2 — COLONNA NOTES */}
         <div
           data-kanban-column="notes"
-          style={notesOpen ? { width: notesWidth } : undefined}
-          className={cn(
-            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
-            !notesOpen && 'w-8',
-            dragOver === 'notes' && 'ring-2 ring-inset ring-blue-500/50'
-          )}
+          style={{
+            ...(notesOpen ? { width: notesWidth } : { width: 32 }),
+            background: theme.bg2,
+            borderRight: `2px solid ${theme.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            flexShrink: 0,
+            outline: dragOver === 'notes' ? `2px solid ${theme.accent}` : 'none',
+            outlineOffset: -2,
+          }}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('notes'); }}
           onDragLeave={() => setDragOver((v) => v === 'notes' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('notes'); }}
@@ -1117,46 +1190,68 @@ export default function CalendarPage() {
           }}
         >
           {!notesOpen ? (
-            // Collapsed: thin strip with expand button + count. Outer div keeps
-            // the drop handlers so dropping an event here still unschedules it.
             <>
               <button
                 onClick={toggleNotesOpen}
-                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
-                style={{ backgroundColor: `${actionColors.none}15` }}
+                style={{
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: `${actionColors.none}22`,
+                  borderBottom: `2px solid ${theme.border}`,
+                  border: 'none',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
                 title="Espandi NOTES"
               >
-                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+                <IconLayoutSidebarLeftExpand size={14} style={{ color: theme.ink2 }} />
               </button>
               {processedNotes.length > 0 && (
-                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
-                  <span className="text-[10px] tabular-nums">{processedNotes.length}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
+                  <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{processedNotes.length}</span>
                 </div>
               )}
             </>
           ) : (
           <>
-          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.none}15` }}>
+          <div
+            style={{
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 4px',
+              background: `${actionColors.none}22`,
+              borderBottom: `2px solid ${theme.border}`,
+              position: 'relative',
+              zIndex: 20,
+            }}
+          >
             <button
               onClick={toggleNotesOpen}
-              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2 }}
               title="Collassa NOTES"
             >
-              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+              <IconLayoutSidebarLeftCollapse size={14} />
             </button>
-            <IconNote className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.none }} />
-            <span className="text-[10px] font-bold tracking-widest text-zinc-300">NOTES</span>
-            <div className="flex items-center gap-0.5 ml-auto">
+            <IconNote size={14} style={{ color: actionColors.none, flexShrink: 0 }} />
+            <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: theme.ink }}>NOTES</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'auto' }}>
               {/* Sort */}
-              <div className="relative">
-                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesSort !== 'date_desc' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconArrowsSort className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setNotesMenuOpen(notesMenuOpen === 'sort' ? null : 'sort')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: notesSort !== 'date_desc' ? theme.accent : theme.ink3 }}
+                >
+                  <IconArrowsSort size={12} />
                 </button>
                 {notesMenuOpen === 'sort' && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setNotesSort(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesSort === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {notesSort === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setNotesSort(val); setNotesMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: notesSort === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${notesSort === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: notesSort === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {notesSort === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1164,15 +1259,18 @@ export default function CalendarPage() {
                 )}
               </div>
               {/* Filter */}
-              <div className="relative">
-                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconFilter className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setNotesMenuOpen(notesMenuOpen === 'filter' ? null : 'filter')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: notesFilter !== 'all' ? theme.accent : theme.ink3 }}
+                >
+                  <IconFilter size={12} />
                 </button>
                 {notesMenuOpen === 'filter' && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['all', 'Tutti'], ['completion', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setNotesFilter(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {notesFilter === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setNotesFilter(val); setNotesMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: notesFilter === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${notesFilter === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: notesFilter === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {notesFilter === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1180,15 +1278,18 @@ export default function CalendarPage() {
                 )}
               </div>
               {/* Group */}
-              <div className="relative">
-                <button onClick={() => setNotesMenuOpen(notesMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', notesGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconLayoutList className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setNotesMenuOpen(notesMenuOpen === 'group' ? null : 'group')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: notesGroup !== 'none' ? theme.accent : theme.ink3 }}
+                >
+                  <IconLayoutList size={12} />
                 </button>
                 {notesMenuOpen === 'group' && (
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setNotesGroup(val); setNotesMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', notesGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {notesGroup === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setNotesGroup(val); setNotesMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: notesGroup === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${notesGroup === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: notesGroup === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {notesGroup === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1220,19 +1321,30 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Splitter NOTES → TODO. Hidden when NOTES is collapsed (the strip
-            has a fixed w-8 so there's nothing to resize). */}
+        {/* Splitter NOTES → TODO */}
         {notesOpen && (
           <div
             role="separator"
             aria-orientation="vertical"
             onMouseDown={handleNotesResizeStart}
-            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            className="group"
+            style={{ position: 'relative', width: 4, marginLeft: -2, marginRight: -2, flexShrink: 0, cursor: 'col-resize', background: 'transparent', zIndex: 10 }}
             title="Trascina per ridimensionare"
+            onMouseEnter={(e) => (e.currentTarget.style.background = `${theme.accent}66`)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <div
               aria-hidden
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 6,
+                height: 40,
+                background: theme.border,
+                pointerEvents: 'none',
+              }}
             />
           </div>
         )}
@@ -1240,12 +1352,17 @@ export default function CalendarPage() {
         {/* 3 — COLONNA TODO */}
         <div
           data-kanban-column="todo"
-          style={todoOpen ? { width: todoWidth } : undefined}
-          className={cn(
-            'shrink-0 flex flex-col bg-zinc-950/40 border-r border-zinc-800 overflow-hidden transition-colors',
-            !todoOpen && 'w-8',
-            dragOver === 'todo' && 'ring-2 ring-inset ring-blue-500/50'
-          )}
+          style={{
+            ...(todoOpen ? { width: todoWidth } : { width: 32 }),
+            background: theme.bg2,
+            borderRight: `2px solid ${theme.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            flexShrink: 0,
+            outline: dragOver === 'todo' ? `2px solid ${theme.accent}` : 'none',
+            outlineOffset: -2,
+          }}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver('todo'); }}
           onDragLeave={() => setDragOver((v) => v === 'todo' ? null : v)}
           onDrop={(e) => { e.preventDefault(); handleDrop('todo'); }}
@@ -1257,46 +1374,68 @@ export default function CalendarPage() {
           }}
         >
           {!todoOpen ? (
-            // Collapsed: thin strip with expand button + count. Outer div keeps
-            // the drop handlers so dropping an event here still unschedules it.
             <>
               <button
                 onClick={toggleTodoOpen}
-                className="h-8 flex items-center justify-center hover:brightness-150 transition-all shrink-0"
-                style={{ backgroundColor: `${actionColors.anytime}15` }}
+                style={{
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: `${actionColors.anytime}22`,
+                  borderBottom: `2px solid ${theme.border}`,
+                  border: 'none',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
                 title="Espandi TO DO"
               >
-                <IconLayoutSidebarLeftExpand className="h-3.5 w-3.5 text-zinc-400" />
+                <IconLayoutSidebarLeftExpand size={14} style={{ color: theme.ink2 }} />
               </button>
               {processedTodos.length > 0 && (
-                <div className="flex flex-col items-center gap-1 pt-2 text-zinc-500">
-                  <span className="text-[10px] tabular-nums">{processedTodos.length}</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
+                  <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{processedTodos.length}</span>
                 </div>
               )}
             </>
           ) : (
           <>
-          <div className="h-8 flex items-center gap-1.5 px-1 relative z-20" style={{ backgroundColor: `${actionColors.anytime}15` }}>
+          <div
+            style={{
+              height: 32,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 4px',
+              background: `${actionColors.anytime}22`,
+              borderBottom: `2px solid ${theme.border}`,
+              position: 'relative',
+              zIndex: 20,
+            }}
+          >
             <button
               onClick={toggleTodoOpen}
-              className="flex items-center justify-center w-6 h-6 rounded hover:bg-zinc-800 transition-colors shrink-0"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2 }}
               title="Collassa TO DO"
             >
-              <IconLayoutSidebarLeftCollapse className="h-3.5 w-3.5 text-zinc-400" />
+              <IconLayoutSidebarLeftCollapse size={14} />
             </button>
-            <IconChecklist className="h-3.5 w-3.5 shrink-0" style={{ color: actionColors.anytime }} />
-            <span className="text-[10px] font-bold tracking-widest text-zinc-300">TO DO</span>
-            <div className="flex items-center gap-0.5 ml-auto">
+            <IconChecklist size={14} style={{ color: actionColors.anytime, flexShrink: 0 }} />
+            <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, letterSpacing: '0.12em', textTransform: 'uppercase', color: theme.ink }}>TO DO</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'auto' }}>
               {/* Sort */}
-              <div className="relative">
-                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'sort' ? null : 'sort')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoSort !== 'order' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconArrowsSort className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setTodoMenuOpen(todoMenuOpen === 'sort' ? null : 'sort')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: todoSort !== 'order' ? theme.accent : theme.ink3 }}
+                >
+                  <IconArrowsSort size={12} />
                 </button>
                 {todoMenuOpen === 'sort' && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['order', 'Ordine'], ['date_desc', 'Data ↓ (recenti)'], ['date_asc', 'Data ↑ (vecchi)'], ['alpha_asc', 'A → Z'], ['alpha_desc', 'Z → A']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setTodoSort(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoSort === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {todoSort === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setTodoSort(val); setTodoMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: todoSort === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${todoSort === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: todoSort === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {todoSort === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1304,15 +1443,18 @@ export default function CalendarPage() {
                 )}
               </div>
               {/* Filter */}
-              <div className="relative">
-                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'filter' ? null : 'filter')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoFilter !== 'all' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconFilter className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setTodoMenuOpen(todoMenuOpen === 'filter' ? null : 'filter')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: todoFilter !== 'all' ? theme.accent : theme.ink3 }}
+                >
+                  <IconFilter size={12} />
                 </button>
                 {todoMenuOpen === 'filter' && (
-                  <div className="absolute left-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', left: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['all', 'Tutti'], ['active', 'Attivi'], ['completed', 'Completati'], ['status', 'Con status']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setTodoFilter(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoFilter === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {todoFilter === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setTodoFilter(val); setTodoMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: todoFilter === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${todoFilter === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: todoFilter === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {todoFilter === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1320,15 +1462,18 @@ export default function CalendarPage() {
                 )}
               </div>
               {/* Group */}
-              <div className="relative">
-                <button onClick={() => setTodoMenuOpen(todoMenuOpen === 'group' ? null : 'group')} className={cn('p-1 rounded hover:bg-zinc-800 transition-colors', todoGroup !== 'none' ? 'text-blue-400' : 'text-zinc-500')}>
-                  <IconLayoutList className="h-3 w-3" />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setTodoMenuOpen(todoMenuOpen === 'group' ? null : 'group')}
+                  style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: todoGroup !== 'none' ? theme.accent : theme.ink3 }}
+                >
+                  <IconLayoutList size={12} />
                 </button>
                 {todoMenuOpen === 'group' && (
-                  <div className="absolute right-0 top-full mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-36">
+                  <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 50, background: theme.surface, border: `2px solid ${theme.border}`, boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`, padding: 4, width: 160 }}>
                     {([['none', 'Nessuno'], ['date', 'Per data'], ['tag', 'Per tag']] as const).map(([val, label]) => (
-                      <button key={val} onClick={() => { setTodoGroup(val); setTodoMenuOpen(null); }} className={cn('flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-[11px] hover:bg-zinc-700/50', todoGroup === val ? 'text-blue-400' : 'text-zinc-300')}>
-                        {todoGroup === val && <span className="text-blue-400">•</span>}
+                      <button key={val} onClick={() => { setTodoGroup(val); setTodoMenuOpen(null); }} style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '6px 8px', textAlign: 'left', background: todoGroup === val ? theme.surfaceVariant : 'transparent', border: `2px solid ${todoGroup === val ? theme.border : 'transparent'}`, fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: todoGroup === val ? theme.ink : theme.ink2, cursor: 'pointer' }}>
+                        {todoGroup === val && <span style={{ color: theme.accent }}>•</span>}
                         <span>{label}</span>
                       </button>
                     ))}
@@ -1360,72 +1505,139 @@ export default function CalendarPage() {
           )}
         </div>
 
-        {/* Splitter TODO → CALENDAR. Hidden when TODO is collapsed. */}
+        {/* Splitter TODO → CALENDAR */}
         {todoOpen && (
           <div
             role="separator"
             aria-orientation="vertical"
             onMouseDown={handleTodoResizeStart}
-            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            style={{ position: 'relative', width: 4, marginLeft: -2, marginRight: -2, flexShrink: 0, cursor: 'col-resize', background: 'transparent', zIndex: 10 }}
             title="Trascina per ridimensionare"
+            onMouseEnter={(e) => (e.currentTarget.style.background = `${theme.accent}66`)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
             <div
               aria-hidden
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 6,
+                height: 40,
+                background: theme.border,
+                pointerEvents: 'none',
+              }}
             />
           </div>
         )}
 
-        {/* 4 — COLONNA CALENDAR (kanban-style, flex-1) */}
-        <div className="flex-1 min-w-0 flex flex-col rounded bg-[#1f1f22] overflow-hidden">
+        {/* 4 — COLONNA CALENDAR */}
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: theme.bg2, overflow: 'hidden' }}>
 
-      {/* Column header — title + range label + view switcher + nav */}
-      <div className="h-8 flex items-center gap-1.5 px-2 relative z-20">
-        <IconCalendar className="h-3.5 w-3.5 shrink-0 text-zinc-300" />
-        <span className="text-[10px] font-bold tracking-widest text-zinc-300">CALENDARIO</span>
-        <span className="text-[10px] text-zinc-500 capitalize">
+      {/* Column header */}
+      <div
+        style={{
+          height: 32,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '0 8px',
+          background: theme.surfaceVariant,
+          borderBottom: `2px solid ${theme.border}`,
+          position: 'relative',
+          zIndex: 20,
+        }}
+      >
+        <IconCalendar size={14} style={{ color: theme.ink2, flexShrink: 0 }} />
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 9,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            color: theme.ink,
+          }}
+        >
+          CALENDARIO
+        </span>
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            color: theme.ink3,
+            textTransform: 'capitalize',
+          }}
+        >
           {viewMode === 'week' ? formatWeekRange(days) : formatMonthLabel(currentMonth)}
         </span>
-        <div className="flex items-center gap-0.5 ml-auto">
-          {/* View switcher — WEEK / MONTH segmented control */}
-          <div className="flex items-center mr-1 rounded bg-zinc-900/60 p-0.5">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'auto' }}>
+          {/* View switcher */}
+          <div style={{ display: 'flex', alignItems: 'center', marginRight: 4, background: theme.bg2, border: `2px solid ${theme.border}`, padding: 2 }}>
             <button
               onClick={() => changeViewMode('week')}
-              className={cn(
-                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
-                viewMode === 'week' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
-              )}
+              style={{
+                padding: '0 8px',
+                height: 18,
+                background: viewMode === 'week' ? theme.accent : 'transparent',
+                color: viewMode === 'week' ? theme.onAccent : theme.ink2,
+                border: 'none',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
               title="Vista settimanale"
             >
               WEEK
             </button>
             <button
               onClick={() => changeViewMode('month')}
-              className={cn(
-                'px-1.5 h-5 rounded text-[10px] font-medium transition-colors',
-                viewMode === 'month' ? 'bg-zinc-700 text-white' : 'text-zinc-500 hover:text-zinc-300',
-              )}
+              style={{
+                padding: '0 8px',
+                height: 18,
+                background: viewMode === 'month' ? theme.accent : 'transparent',
+                color: viewMode === 'month' ? theme.onAccent : theme.ink2,
+                border: 'none',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
               title="Vista mensile"
             >
               MONTH
             </button>
           </div>
-          {/* Prev / Oggi / Next — operate on whichever offset matches the active view */}
+          {/* Prev / Oggi / Next */}
           <button
             onClick={() => viewMode === 'week' ? setWeekOffset((o) => o - 1) : setMonthOffset((o) => o - 1)}
-            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+            style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2 }}
           >
             <IconChevronLeft size={14} />
           </button>
           <button
             onClick={() => { setWeekOffset(0); setMonthOffset(0); }}
-            className="px-1.5 h-6 rounded text-[10px] text-zinc-400 hover:bg-zinc-800"
+            style={{
+              padding: '0 8px',
+              height: 22,
+              background: theme.bg2,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
           >
             Oggi
           </button>
           <button
             onClick={() => viewMode === 'week' ? setWeekOffset((o) => o + 1) : setMonthOffset((o) => o + 1)}
-            className="p-1 rounded hover:bg-zinc-800 text-zinc-400"
+            style={{ width: 24, height: 24, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2 }}
           >
             <IconChevronRight size={14} />
           </button>
@@ -1610,18 +1822,17 @@ export default function CalendarPage() {
                 const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
                 if (tile) setCtxMenu({ x: e.clientX, y: e.clientY, tile });
               });
-              // Match generic tile style: bg = type color (80% alpha) or dark, border = subtle white
+              // Pixel-style tile: bg = type color (80% alpha) or surface, hard 2px border
               const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
               if (tile) {
                 const tileSi = getIconForTile(tile.id);
-                const tileBg = tileSi?.color ? `${tileSi.color}80` : '#1C1C1E';
+                const tileBg = tileSi?.color ? `${tileSi.color}CC` : theme.surface;
                 info.el.style.backgroundColor = tileBg;
+                info.el.style.borderRadius = '0';
                 if (tile.action_type === 'deadline') {
-                  info.el.style.border = '1px dashed #ef4444';
-                  info.el.style.borderLeft = '1px dashed #ef4444';
+                  info.el.style.border = '2px dashed #E24B4A';
                 } else {
-                  info.el.style.border = '1px solid rgba(255,255,255,0.08)';
-                  info.el.style.borderLeft = '1px solid rgba(255,255,255,0.08)';
+                  info.el.style.border = `2px solid ${theme.border}`;
                 }
               }
               // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
@@ -1682,11 +1893,11 @@ export default function CalendarPage() {
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const { renderToString } = require('react-dom/server');
                     const React = require('react');
-                    const bg = si.color || '#27272A';
+                    const bg = si.color || theme.surfaceVariant;
                     const iconColor = readableOn(bg);
                     const svg = renderToString(React.createElement(IconComp, { size: 10, color: iconColor }));
                     const badge = document.createElement('div');
-                    badge.style.cssText = `position:absolute;top:4px;right:4px;width:16px;height:16px;background-color:${bg};border-radius:4px;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;`;
+                    badge.style.cssText = `position:absolute;top:3px;right:3px;width:16px;height:16px;background-color:${bg};border:2px solid ${theme.border};display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:2;`;
                     badge.innerHTML = svg;
                     if (getComputedStyle(main).position === 'static') {
                       main.style.position = 'relative';
@@ -1695,20 +1906,17 @@ export default function CalendarPage() {
                   }
                 }
               }
-              // FLOW badge — clickable chip pinned to the top-right of the
-              // event, sticking out past the event boundary (overflow:visible
-              // on the event element is needed). Click opens the Flow modal.
+              // FLOW badge — pixel chip pinned to the top-right of the event,
+              // sticking out past the event boundary.
               if (tile && tilesWithFlows.has(tile.id)) {
-                // Allow the badge to overflow the event box.
                 info.el.style.overflow = 'visible';
                 const main = info.el.querySelector('.fc-event-main') as HTMLElement | null;
                 if (main) {
                   main.style.overflow = 'visible';
                   const tileId = tile.id;
-                  const tileTitle = tile.title ?? undefined;
                   const chip = document.createElement('button');
                   chip.type = 'button';
-                  chip.style.cssText = 'position:absolute;top:-6px;right:8px;padding:1px 5px;border-radius:4px;background:#1E40AF;border:1px solid #3B82F6;color:#DBEAFE;font-size:9px;font-weight:700;letter-spacing:0.6px;line-height:14px;height:16px;cursor:pointer;z-index:3;box-shadow:0 1px 3px rgba(0,0,0,0.4);';
+                  chip.style.cssText = `position:absolute;top:-8px;right:6px;padding:0 5px;background:${theme.accent};border:2px solid ${theme.border};color:${theme.onAccent};font-family:var(--font-pixel-head),ui-monospace,monospace;font-size:8px;letter-spacing:0.08em;text-transform:uppercase;line-height:14px;height:16px;cursor:pointer;z-index:3;`;
                   chip.textContent = 'FLOW';
                   chip.title = 'Apri Flow';
                   chip.addEventListener('mousedown', (e) => e.stopPropagation());
@@ -1750,28 +1958,34 @@ export default function CalendarPage() {
         <div className="fixed inset-0 z-[9998]" onClick={() => setCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setCtxMenu(null); }} />
         <div
           ref={ctxRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
-          style={{ top: ctxMenu.y, left: ctxMenu.x }}
+          className="fixed"
+          style={{
+            top: ctxMenu.y,
+            left: ctxMenu.x,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            width: 168,
+          }}
         >
           <button
             onClick={handleCopy}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
             Copia
           </button>
           <button
             onClick={clipboardTile ? handlePaste : undefined}
             disabled={!clipboardTile}
-            className={cn(
-              'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs transition-colors',
-              clipboardTile ? 'text-zinc-300 hover:bg-zinc-700/50' : 'text-zinc-600 cursor-not-allowed'
-            )}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: clipboardTile ? 'pointer' : 'not-allowed', color: clipboardTile ? theme.ink2 : theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+            <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
             Incolla
           </button>
-          <div className="border-t border-zinc-700 my-1" />
+          <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
           <button
             onClick={() => {
               if (!ctxMenu) return;
@@ -1779,16 +1993,16 @@ export default function CalendarPage() {
               setCtxMenu(null);
               openFlow(tile.id);
             }}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <IconRoute className="h-3.5 w-3.5" />
+            <IconRoute size={14} />
             Apri Flow
           </button>
           <button
             onClick={handleDeleteTile}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: '#E24B4A', fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <IconTrash className="h-3.5 w-3.5" />
+            <IconTrash size={14} />
             Elimina
           </button>
         </div>
@@ -1796,25 +2010,34 @@ export default function CalendarPage() {
         document.body
       )}
 
-      {/* Slot context menu (right-click on empty area) */}
+      {/* Slot context menu */}
       {slotCtxMenu && createPortal(
         <>
         <div className="fixed inset-0 z-[9998]" onClick={() => setSlotCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setSlotCtxMenu(null); }} />
         <div
           ref={slotCtxRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
-          style={{ top: slotCtxMenu.y, left: slotCtxMenu.x }}
+          className="fixed"
+          style={{
+            top: slotCtxMenu.y,
+            left: slotCtxMenu.x,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            width: 184,
+          }}
         >
           <button
             onClick={handleNewTileAtSlot}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <IconPlus className="h-3.5 w-3.5" />
+            <IconPlus size={14} />
             Nuovo tile qui
           </button>
           {clipboardTile && (
             <>
-              <div className="border-t border-zinc-700 my-1" />
+              <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
               <button
                 onClick={() => {
                   if (!clipboardTile || !slotCtxMenu) return;
@@ -1843,9 +2066,9 @@ export default function CalendarPage() {
                     } catch { /* ignore */ }
                   })();
                 }}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
                 Incolla qui
               </button>
             </>
@@ -1855,29 +2078,38 @@ export default function CalendarPage() {
         document.body
       )}
 
-      {/* Column context menu (right-click on empty NOTES/TODO area) */}
+      {/* Column context menu */}
       {colCtxMenu && createPortal(
         <>
         <div className="fixed inset-0 z-[9998]" onClick={() => setColCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColCtxMenu(null); }} />
         <div
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
-          style={{ top: colCtxMenu.y, left: colCtxMenu.x }}
+          className="fixed"
+          style={{
+            top: colCtxMenu.y,
+            left: colCtxMenu.x,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            width: 184,
+          }}
         >
           <button
             onClick={handleNewTileInColumn}
-            className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
           >
-            <IconPlus className="h-3.5 w-3.5" />
+            <IconPlus size={14} />
             {colCtxMenu.type === 'notes' ? 'Nuovo appunto' : 'Nuovo task'}
           </button>
           {clipboardTile && (
             <>
-              <div className="border-t border-zinc-700 my-1" />
+              <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
               <button
                 onClick={handlePasteInColumn}
-                className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px', textAlign: 'left', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}
               >
-                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
+                <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>
                 Incolla qui
               </button>
             </>
@@ -1925,38 +2157,99 @@ export default function CalendarPage() {
         const selectedTag = tags.find((t: Tag) => modal.tagIds.includes(t.id));
         const tagColor = selectedTag ? (getTypeColor(selectedTag.tag_type || 'topic') || '#64748B') : '#64748B';
 
+        const modalLabelStyle: React.CSSProperties = {
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink3,
+          display: 'block',
+          marginBottom: 4,
+        };
+        const modalInputStyle: React.CSSProperties = {
+          width: '100%',
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '6px 10px',
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          outline: 'none',
+        };
+
         return (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4" onClick={() => setModal(emptyModal)}>
+          <div
+            style={{
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(0,0,0,0.6)',
+              zIndex: 50,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 16,
+            }}
+            onClick={() => setModal(emptyModal)}
+          >
             <div
-              className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-[340px] shadow-2xl max-h-[85vh] overflow-y-auto"
+              style={{
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                width: 360,
+                maxHeight: '85vh',
+                overflowY: 'auto',
+                color: theme.ink,
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm text-white font-semibold">
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 12px',
+                  background: theme.surfaceVariant,
+                  borderBottom: `2px solid ${theme.border}`,
+                }}
+              >
+                <h2
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 11,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: theme.ink,
+                    margin: 0,
+                  }}
+                >
                   {modal.mode === 'create' ? 'Nuovo Tile' : 'Modifica Tile'}
                 </h2>
-                <button onClick={() => setModal(emptyModal)} className="text-zinc-400 hover:text-white">
-                  <IconX className="h-4 w-4" />
+                <button
+                  onClick={() => setModal(emptyModal)}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, display: 'inline-flex' }}
+                >
+                  <IconX size={14} />
                 </button>
               </div>
 
-              <div className="space-y-3">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14 }}>
                 {/* Titolo */}
                 <div>
-                  <label className="text-[11px] text-zinc-500">Titolo</label>
+                  <label style={modalLabelStyle}>Titolo</label>
                   <input
                     value={modal.title}
                     onChange={(e) => setModal({ ...modal, title: e.target.value })}
-                    className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5"
                     placeholder="Titolo..."
                     autoFocus
+                    style={modalInputStyle}
                   />
                 </div>
 
-                {/* Tipo — all 5 on one line */}
+                {/* Tipo */}
                 <div>
-                  <label className="text-[11px] text-zinc-500 mb-1 block">Tipo</label>
-                  <div className="flex gap-1">
+                  <label style={modalLabelStyle}>Tipo</label>
+                  <div style={{ display: 'flex', gap: 4 }}>
                     {ACTION_OPTIONS.map((opt) => {
                       const isActive = opt.value === 'event'
                         ? modal.actionType === 'event' && ((opt as any).extra?.all_day ? modal.allDay : !modal.allDay)
@@ -1976,12 +2269,19 @@ export default function CalendarPage() {
                             }
                             setModal({ ...modal, ...updates });
                           }}
-                          className={cn(
-                            'flex-1 px-1.5 py-1 rounded text-[10px] font-medium border transition-all text-center',
-                            isActive
-                              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                              : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                          )}
+                          style={{
+                            flex: 1,
+                            padding: '6px 4px',
+                            background: isActive ? theme.accent : theme.surfaceVariant,
+                            color: isActive ? theme.onAccent : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                            textAlign: 'center',
+                          }}
                         >
                           {opt.label}
                         </button>
@@ -1990,25 +2290,29 @@ export default function CalendarPage() {
                   </div>
                 </div>
 
-                {/* Date/time — conditional */}
+                {/* Date/time */}
                 {showDate && (
-                  <div className="space-y-2">
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <div>
-                      <label className="text-[11px] text-zinc-500 mb-0.5 block">Date</label>
-                      <input type="date" value={dateVal} onChange={(e) => setDate(e.target.value)}
-                        className="w-full bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500" />
+                      <label style={modalLabelStyle}>Date</label>
+                      <input
+                        type="date"
+                        value={dateVal}
+                        onChange={(e) => setDate(e.target.value)}
+                        style={{ ...modalInputStyle, colorScheme: 'dark' }}
+                      />
                     </div>
                     {isTimed && (
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <label style={modalLabelStyle}>Start</label>
                           <TimePicker
                             value={startTime || '09:00'}
                             onChange={(t) => { if (dateVal) setModal({ ...modal, startAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
+                        <div style={{ flex: 1 }}>
+                          <label style={modalLabelStyle}>End</label>
                           <TimePicker
                             value={endTime || '10:00'}
                             onChange={(t) => { if (dateVal) setModal({ ...modal, endAt: new Date(`${dateVal}T${t}`).toISOString() }); }}
@@ -2019,9 +2323,9 @@ export default function CalendarPage() {
                   </div>
                 )}
 
-                {/* Tag — dropdown like sidebar */}
+                {/* Tag */}
                 <div>
-                  <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
+                  <label style={modalLabelStyle}>Tag</label>
                   <ModalDropdown
                     value={modal.tagIds[0] || null}
                     options={tags.filter((t: Tag) => !t.is_root).map((t: Tag) => ({ id: t.id, label: t.name }))}
@@ -2030,9 +2334,9 @@ export default function CalendarPage() {
                   />
                 </div>
 
-                {/* Status — dropdown like sidebar */}
+                {/* Type Icon */}
                 <div>
-                  <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+                  <label style={modalLabelStyle}>Tipo icona</label>
                   <ModalDropdown
                     value={modal.typeIconId}
                     options={[
@@ -2042,11 +2346,11 @@ export default function CalendarPage() {
                     placeholder="Seleziona tipo..."
                     onChange={(id) => setModal({ ...modal, typeIconId: id })}
                     renderOption={(opt) => {
-                      if (!opt.icon) return <span className="text-zinc-400">{opt.label}</span>;
+                      if (!opt.icon) return <span>{opt.label}</span>;
                       const Comp = AllIcons[opt.icon];
                       return (
-                        <span className="flex items-center gap-2">
-                          {Comp && <Comp size={14} className="text-zinc-200" />}
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                          {Comp && <Comp size={14} />}
                           <span>{opt.label}</span>
                         </span>
                       );
@@ -2055,18 +2359,18 @@ export default function CalendarPage() {
                       if (!CurrentTypeComp) return null;
                       return (
                         <>
-                          <CurrentTypeComp size={14} className="text-zinc-200 shrink-0" />
-                          <span className="text-xs text-zinc-200 truncate">{currentTypeIcon!.name}</span>
+                          <CurrentTypeComp size={14} />
+                          <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentTypeIcon!.name}</span>
                         </>
                       );
                     }}
                   />
                 </div>
 
-                {/* Status — dropdown like sidebar */}
+                {/* Status */}
                 {allStatuses.length > 0 && (
                   <div>
-                    <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+                    <label style={modalLabelStyle}>Status</label>
                     <ModalDropdown
                       value={modal.statusId}
                       options={allStatuses.map((s) => ({ id: s.id, label: s.name, shape: s.shape }))}
@@ -2077,25 +2381,86 @@ export default function CalendarPage() {
                 )}
 
                 {/* Actions */}
-                <div className="flex items-center gap-2 pt-2 border-t border-zinc-800">
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    paddingTop: 10,
+                    borderTop: `2px solid ${theme.border}`,
+                  }}
+                >
                   {modal.mode === 'edit' && modal.tileId && (
-                    <Button variant="outline" size="sm"
+                    <button
                       onClick={() => unscheduleMutation.mutate(modal.tileId!)}
-                      className="text-red-400 border-red-900 hover:bg-red-950 text-xs">
-                      <IconTrash className="h-3.5 w-3.5 mr-1" /> Rimuovi
-                    </Button>
+                      className="px-press"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        height: 28,
+                        padding: '0 10px',
+                        background: theme.surfaceVariant,
+                        color: '#E24B4A',
+                        border: `2px solid #E24B4A`,
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 9,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <IconTrash size={12} /> Rimuovi
+                    </button>
                   )}
-                  <div className="flex-1" />
-                  <Button variant="outline" size="sm" onClick={() => setModal(emptyModal)}
-                    className="text-zinc-400 border-zinc-700 text-xs">Annulla</Button>
-                  <Button size="sm" onClick={handleSubmit}
+                  <div style={{ flex: 1 }} />
+                  <button
+                    onClick={() => setModal(emptyModal)}
+                    className="px-press"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      height: 28,
+                      padding: '0 12px',
+                      background: theme.surfaceVariant,
+                      color: theme.ink2,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Annulla
+                  </button>
+                  <button
+                    onClick={handleSubmit}
                     disabled={scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending}
-                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs">
+                    className="px-press"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      height: 28,
+                      padding: '0 12px',
+                      background: theme.accent,
+                      color: theme.onAccent,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: (scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) ? 'not-allowed' : 'pointer',
+                      opacity: (scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) ? 0.6 : 1,
+                      boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    }}
+                  >
                     {(scheduleMutation.isPending || createEventMutation.isPending || updateMutation.isPending) && (
-                      <IconLoader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                      <IconLoader2 size={12} className="animate-spin" />
                     )}
                     {modal.mode === 'create' ? 'Crea' : 'Salva'}
-                  </Button>
+                  </button>
                 </div>
               </div>
             </div>

@@ -38,7 +38,6 @@ export function ChecklistBar({ items, availableWidth }: ChecklistBarProps) {
             width: itemWidth,
             height: HEIGHT,
             backgroundColor: item.is_done ? DONE_COLOR : TODO_COLOR,
-            borderRadius: 1,
             flexShrink: 0,
           }}
         />

@@ -21,6 +21,7 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -94,6 +95,7 @@ function TagSidebarGroup({
   pinnedIds: Set<string>;
   onTogglePin: (tagId: string) => void;
 }) {
+  const theme = usePixelTheme();
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -123,10 +125,19 @@ function TagSidebarGroup({
 
   return (
     <div className="mb-0.5">
-      {/* Group header */}
+      {/* Group header — pixel font, hard surface, no rounded corners */}
       <button
         onClick={onToggleGroup}
-        className="w-full h-8 flex items-center justify-between px-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400 bg-zinc-800/50 hover:bg-zinc-800 rounded transition-colors duration-150"
+        className="w-full h-8 flex items-center justify-between px-2 transition-colors"
+        style={{
+          background: theme.surfaceVariant,
+          color: theme.ink2,
+          border: `2px solid ${theme.border}`,
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}
       >
         <span className="flex items-center gap-1.5">
           {resolveIcon()}
@@ -212,6 +223,7 @@ function TagSidebarGroup({
 // ─── Main Sidebar ───
 
 export function Sidebar() {
+  const theme = usePixelTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
@@ -433,51 +445,102 @@ export function Sidebar() {
   }, [sidebarWidth]);
 
   return (
-    <div className="flex h-full flex-col border-r border-zinc-800 relative" style={{ width: sidebarWidth, minWidth: SIDEBAR_MIN_W, maxWidth: SIDEBAR_MAX_W, backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
+    <div
+      className="flex h-full flex-col relative"
+      style={{
+        width: sidebarWidth,
+        minWidth: SIDEBAR_MIN_W,
+        maxWidth: SIDEBAR_MAX_W,
+        background: theme.bg2,
+        borderRight: `2px solid ${theme.border}`,
+      }}
+    >
       {/* Resize handle */}
       <div
         className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10"
         onMouseDown={onResizeStart}
       />
-      {/* Logo + notification */}
+      {/* Wordmark + new-tiles notification */}
       <div className="flex h-12 items-center px-3 gap-2 shrink-0">
-        <span className="text-lg font-bold text-white">Gimmick</span>
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 14,
+            color: theme.ink,
+            letterSpacing: '0.04em',
+          }}
+        >
+          GIMMICK
+        </span>
         {newCount > 0 && (
           <Link
             href="/tiles"
             onClick={dismissAll}
-            className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold animate-pulse"
+            className="flex items-center justify-center w-5 h-5 animate-pulse"
+            style={{
+              background: theme.accent,
+              color: theme.onAccent,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              border: `2px solid ${theme.border}`,
+            }}
           >
             {newCount}
           </Link>
         )}
       </div>
 
-      <Separator className="bg-zinc-800" />
-
-      {/* Tags header — All Tags / Pinned occupy all available width (48px) */}
-      <div className="h-12 flex items-center gap-1 px-2 border-b border-zinc-800">
+      {/* Tags header — All Tags / Pinned, pixel-style tabs */}
+      <div
+        className="h-12 flex items-center gap-1 px-2"
+        style={{ borderTop: `2px solid ${theme.border}`, borderBottom: `2px solid ${theme.border}` }}
+      >
         <button
           onClick={() => setViewMode('all')}
-          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center',
-            viewMode === 'all' ? 'bg-blue-600/20 text-blue-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-          )}
-        >All Tags</button>
+          className="flex-1 h-8 px-2.5 transition-colors flex items-center justify-center px-press"
+          style={{
+            background: viewMode === 'all' ? theme.accent : theme.surfaceVariant,
+            color: viewMode === 'all' ? theme.onAccent : theme.ink2,
+            border: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 8,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
+        >
+          All Tags
+        </button>
         <button
           onClick={() => setViewMode('pin')}
-          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center gap-1',
-            viewMode === 'pin' ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-          )}
+          className="flex-1 h-8 px-2.5 transition-colors flex items-center justify-center gap-1 px-press"
+          style={{
+            background: viewMode === 'pin' ? '#F5A623' : theme.surfaceVariant,
+            color: viewMode === 'pin' ? theme.onAccent : theme.ink2,
+            border: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 8,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
         >
-          <IconPinFilled size={11} />
+          <IconPinFilled size={10} />
           Pinned
-          {pinnedIds.size > 0 && <span className="text-[9px] opacity-70">({pinnedIds.size})</span>}
+          {pinnedIds.size > 0 && <span style={{ fontSize: 8, opacity: 0.7 }}>({pinnedIds.size})</span>}
         </button>
         {hasFilter && (
           <button
             onClick={clear}
-            className="shrink-0 h-8 px-2 rounded text-xs leading-none font-medium bg-zinc-800/60 text-blue-400 hover:bg-zinc-800 hover:text-blue-300 transition-colors flex items-center gap-1"
             title="Pulisci filtro"
+            className="shrink-0 h-8 px-2 transition-colors flex items-center gap-1 px-press"
+            style={{
+              background: theme.surfaceVariant,
+              color: theme.accent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 8,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
           >
             <IconX className="h-3 w-3" />
             Clear

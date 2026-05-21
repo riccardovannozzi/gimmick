@@ -8,6 +8,7 @@ import { useStatuses } from '@/store/statuses-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
+import { usePixelTheme } from '@/components/pixel';
 import { TextEditor } from './TextEditor';
 
 const TILE_W = 130;
@@ -116,6 +117,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   isOverStaging, onTilesRemovedFromCanvas,
   onTileDragMove, onTileDragEnd,
 }: CanvasBoardProps) {
+  const theme = usePixelTheme();
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
   // overlayInnerRef gets a CSS transform that mirrors the D3 zoom/pan, so
@@ -189,7 +191,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const linkSrc = useRef<{ id: string; px: number; py: number; port: string } | null>(null);
   const dropTarget = useRef<{ nodeId: string; groupId?: string; port?: string } | null>(null);
 
-  const getColor = useCallback((at: string) => (actionColors as Record<string, string>)[at] || actionColors.none || '#888780', [actionColors]);
+  const getColor = useCallback((at: string) => (actionColors as Record<string, string>)[at] || actionColors.none || theme.ink3, [actionColors]);
 
   const buildNodes = useCallback((): CanvasNode[] => {
     const pm = new Map(layout.map((p) => [p.tile_id, p]));
@@ -354,7 +356,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
 
     // ── Selection rect (ctrl/cmd/shift + drag → multi-select) ──
-    const selRect = board.append('rect').attr('fill', 'rgba(59,130,246,0.1)').attr('stroke', '#3B82F6').attr('stroke-width', 1).attr('stroke-dasharray', '4,3').attr('rx', 4).attr('opacity', 0);
+    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '4,3').attr('opacity', 0);
     let selStart: [number, number] | null = null;
     const isSelectModifier = (e: MouseEvent) => e.ctrlKey || e.metaKey || e.shiftKey;
     d3svg.on('mousedown.sel', (e: MouseEvent) => { if (!isSelectModifier(e) || e.button || e.target !== svg) return; e.preventDefault(); selStart = d3.pointer(e, boardNode) as [number, number]; selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0).attr('opacity', 1); });
@@ -385,7 +387,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
 
     // ── Temp line for link drag ──
-    const tempLine = board.append('line').attr('stroke', '#3B82F6').attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
+    const tempLine = board.append('line').attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
 
     // ── Common link drag handlers ──
     const startLink = (sourceId: string, px: number, py: number, port: string, ev: any) => {
@@ -439,8 +441,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       nodeGrps.each(function (d) {
         const isDeadline = (d as CanvasNode).actionType === 'deadline';
         d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#ef4444' : 'rgba(255,255,255,0.08)')
-          .attr('stroke-width', 1)
+          .attr('stroke', isDeadline ? '#E24B4A' : theme.border)
+          .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
       groupsBg.selectAll('rect').attr('stroke', 'none');
@@ -450,11 +452,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           groupsBg.selectAll('g').each(function (_, i) {
             const grp = groupsRef.current[i];
             if (grp && grp.id === dropTarget.current!.groupId) {
-              d3.select(this as SVGGElement).select('rect').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
+              d3.select(this as SVGGElement).select('rect').attr('stroke', theme.accent).attr('stroke-width', 2.5);
             }
           });
         } else {
-          nodeGrps.filter((d: any) => d.id === dropTarget.current!.nodeId).select('.tile-bg').attr('stroke', '#3B82F6').attr('stroke-width', 2.5);
+          nodeGrps.filter((d: any) => d.id === dropTarget.current!.nodeId).select('.tile-bg').attr('stroke', theme.accent).attr('stroke-width', 2.5);
         }
       }
     };
@@ -463,8 +465,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       nodeGrps.each(function (d) {
         const isDeadline = (d as CanvasNode).actionType === 'deadline';
         d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#ef4444' : 'rgba(255,255,255,0.08)')
-          .attr('stroke-width', 1)
+          .attr('stroke', isDeadline ? '#E24B4A' : theme.border)
+          .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
       groupsBg.selectAll('rect').attr('stroke', 'none');
@@ -486,8 +488,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const b = getGroupBounds(grp, nodes);
         if (!b) return;
         const gw = groupsBg.append('g');
-        gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', 8)
-          .attr('fill', '#1f1f22').attr('stroke', 'none')
+        gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', 0)
+          .attr('fill', theme.surface).attr('stroke', 'none')
           .style('cursor', moveRef.current ? 'grab' : 'default')
           .call((() => {
             let prev: [number, number] | null = null;
@@ -504,7 +506,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               })
               .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
           })());
-        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', '#71717A').attr('font-size', 11).attr('font-weight', 500)
+        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', theme.ink3).attr('font-size', 11).attr('font-weight', 500)
           .text(grp.label || 'Gruppo').style('cursor', 'text')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); const nl = prompt('Nome del gruppo:', grp.label || ''); if (nl !== null) onGroupsChange(groupsRef.current.map((g) => g.id === grp.id ? { ...g, label: nl } : g)); });
         // Group ports
@@ -515,7 +517,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           { key: 'left', cx: b.x, cy: b.y + (b.h - LABEL_H) / 2 },
         ];
         gPorts.forEach(({ key: pk, cx, cy }) => {
-          const pc = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
+          const pc = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
           ha.on('mouseenter', () => { if (linkRef.current) pc.attr('opacity', 1); }).on('mouseleave', () => { if (!linkSrc.current) pc.attr('opacity', 0); });
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
@@ -594,11 +596,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(edge.source_id, edge.target_id, edge.source_port, edge.target_port);
 
-        const sColor = s ? getColor(s.actionType) : '#3F3F46';
-        const tColor = t ? getColor(t.actionType) : '#3F3F46';
+        const sColor = s ? getColor(s.actionType) : theme.border;
+        const tColor = t ? getColor(t.actionType) : theme.border;
         const selIds = selectedIdsRef.current;
         const isSelectedEdge = selIds.length >= 2 && selIds.includes(edge.source_id) && selIds.includes(edge.target_id);
-        const baseStroke = isSelectedEdge ? '#3B82F6' : '#444';
+        const baseStroke = isSelectedEdge ? theme.accent : theme.border;
         const baseWidth = isSelectedEdge ? 2.5 : 1.5;
         const g = edgesG.append('g').attr('class', 'edge-node').attr('data-source', edge.source_id).attr('data-target', edge.target_id);
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
@@ -606,12 +608,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Anchor dots at port positions
         g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
         g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
-        g.on('mouseenter', () => vl.attr('stroke', '#EF4444').attr('stroke-width', 2.5))
+        g.on('mouseenter', () => vl.attr('stroke', '#E24B4A').attr('stroke-width', 2.5))
          .on('mouseleave', () => {
            // Restore selection-aware baseline (selection may have changed during hover)
            const sel = selectedIdsRef.current;
            const sel2 = sel.length >= 2 && sel.includes(edge.source_id) && sel.includes(edge.target_id);
-           vl.attr('stroke', sel2 ? '#3B82F6' : '#444').attr('stroke-width', sel2 ? 2.5 : 1.5);
+           vl.attr('stroke', sel2 ? theme.accent : theme.border).attr('stroke-width', sel2 ? 2.5 : 1.5);
          });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
@@ -622,10 +624,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
     // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
-    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4)
-      .attr('fill', (d) => d.typeColor ? d.typeColor + '80' : '#1C1C1E')
-      .attr('stroke', (d) => d.actionType === 'deadline' ? '#ef4444' : 'rgba(255,255,255,0.08)')
-      .attr('stroke-width', 1)
+    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 0)
+      .attr('fill', (d) => d.typeColor ? d.typeColor + 'CC' : theme.surface)
+      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : theme.border)
+      .attr('stroke-width', 2)
       .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
     // Status shape overlay (uses SVG <pattern> elements under the hood)
@@ -635,22 +637,22 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const g = d3.select(this);
       // For NOTES (action_type === 'none'), patterns use a visible neutral gray
       // so they stand out even without a colored action palette.
-      const color = d.actionType === 'none' ? '#e4e4e7' : getColor(d.actionType);
+      const color = d.actionType === 'none' ? theme.ink : getColor(d.actionType);
       const o = 0.2;
       const pid = `cpat-${patIdx++}`;
       const clip = g.append('clipPath').attr('id', `${pid}-clip`);
-      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 4);
+      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 0);
       const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
       switch (d.statusShape) {
         case 'diagonal_ltr':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 3).attr('fill', `url(#${pid})`);
+          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 0).attr('fill', `url(#${pid})`);
           break;
         case 'diagonal_rtl':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 3).attr('fill', `url(#${pid})`);
+          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 0).attr('fill', `url(#${pid})`);
           break;
         case 'vertical':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 16).attr('height', 20)
@@ -692,8 +694,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             .attr('d', 'M58,41 V35 a7,7 0 0 1 14,0 V41')
             .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
             .attr('stroke-opacity', o + 0.15).attr('stroke-linecap', 'round');
-          pg.append('rect').attr('x', 53).attr('y', 41).attr('width', 24).attr('height', 20).attr('rx', 3).attr('fill', color).attr('fill-opacity', o + 0.1);
-          pg.append('circle').attr('cx', 65).attr('cy', 51).attr('r', 2).attr('fill', '#1C1C1E');
+          pg.append('rect').attr('x', 53).attr('y', 41).attr('width', 24).attr('height', 20).attr('rx', 0).attr('fill', color).attr('fill-opacity', o + 0.1);
+          pg.append('circle').attr('cx', 65).attr('cy', 51).attr('r', 2).attr('fill', theme.bg1);
           break;
         case 'shade':
           // 50% dark overlay covering the whole tile — the "faded / done" treatment.
@@ -733,13 +735,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const textX = 30;
       if (dateLine && timeLine) {
         g.append('text').attr('x', textX).attr('y', TILE_H - 16)
-          .attr('fill', '#D4D4D8').attr('font-size', 9).attr('font-weight', 400).text(dateLine);
+          .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
         g.append('text').attr('x', textX).attr('y', TILE_H - 6)
-          .attr('fill', '#A1A1AA').attr('font-size', 8).attr('font-weight', 400).text(timeLine);
+          .attr('fill', theme.ink2).attr('font-size', 8).attr('font-weight', 400).text(timeLine);
       } else if (dateLine) {
         // Single line — center vertically between badges.
         g.append('text').attr('x', textX).attr('y', TILE_H - 11)
-          .attr('fill', '#D4D4D8').attr('font-size', 9).attr('font-weight', 400).text(dateLine);
+          .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
       }
     });
     // Checklist bar (LIST) — sits between title and the badges row.
@@ -807,15 +809,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const badge = g.append('g').attr('class', 'flow-badge').style('cursor', 'pointer');
       badge.append('rect')
         .attr('x', x).attr('y', y)
-        .attr('width', w).attr('height', h).attr('rx', 4)
-        .attr('fill', '#1E3A8A').attr('fill-opacity', 0.95)
-        .attr('stroke', '#3B82F6').attr('stroke-opacity', 0.9).attr('stroke-width', 1);
+        .attr('width', w).attr('height', h)
+        .attr('fill', theme.accent)
+        .attr('stroke', theme.border).attr('stroke-width', 2);
       badge.append('text')
         .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
         .attr('text-anchor', 'middle')
-        .attr('font-size', 9).attr('font-weight', 700)
-        .attr('fill', '#DBEAFE')
-        .style('letter-spacing', '0.6px')
+        .attr('font-family', 'var(--font-pixel-head), ui-monospace, monospace')
+        .attr('font-size', 8).attr('font-weight', 700)
+        .attr('fill', theme.onAccent)
+        .style('letter-spacing', '0.08em')
+        .style('text-transform', 'uppercase')
         .style('pointer-events', 'none')
         .text('FLOW');
       // Capture interaction at pointerdown to win the race with the tile's
@@ -835,8 +839,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
       if (!IconComp) return;
       const g = d3.select(this);
-      const typeBg = d.typeColor || '#27272A';
-      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', 3).attr('fill', typeBg);
+      const typeBg = d.typeColor || theme.surfaceVariant;
+      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', 0).attr('fill', typeBg);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(typeBg) }));
@@ -849,14 +853,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
-      .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', 6)
-      .attr('fill', 'none').attr('stroke', '#3B82F6').attr('stroke-width', 2)
+      .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', 0)
+      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
       .style('pointer-events', 'none')
       .attr('opacity', (d) => selectedIdsRef.current.includes((d as CanvasNode).id) ? 1 : 0);
 
     // Tile ports
     const portG = nodeGrps.append('g').attr('class', 'ports').attr('opacity', 0);
-    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2).style('cursor', 'crosshair'); });
+    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).style('cursor', 'crosshair'); });
     nodeGrps.on('mouseenter', function () { if (linkRef.current) d3.select(this).select('.ports').attr('opacity', 1); })
       .on('mouseleave', function () { if (!linkSrc.current) d3.select(this).select('.ports').attr('opacity', 0); });
 
@@ -1038,13 +1042,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Background
         g.append('rect')
-          .attr('width', tw).attr('height', th).attr('rx', 6)
-          .attr('fill', '#0C0C0E').attr('stroke', '#3F3F46').attr('stroke-width', 0.5);
+          .attr('width', tw).attr('height', th).attr('rx', 0)
+          .attr('fill', theme.surface).attr('stroke', theme.border).attr('stroke-width', 2);
 
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
-          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', 8)
-          .attr('fill', 'none').attr('stroke', '#3B82F6').attr('stroke-width', 2)
+          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', 0)
+          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
           .style('pointer-events', 'none')
           .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);
 
@@ -1092,7 +1096,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         ];
         tbPortList.forEach(({ key, cx, cy }) => {
           tbPorts.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy)
-            .attr('r', PORT_R).attr('fill', '#3B82F6').attr('stroke', '#1C1C1E').attr('stroke-width', 2)
+            .attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2)
             .style('cursor', 'crosshair');
         });
 
@@ -1307,8 +1311,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // outline is reused for both modes; the mode active at mouseup decides
     // whether to insert a text box or open a file picker for an image box.
     const tbDrawRect = board.append('rect')
-      .attr('fill', 'rgba(12,12,14,0.8)').attr('stroke', '#3F3F46').attr('stroke-width', 0.5)
-      .attr('stroke-dasharray', '4,3').attr('rx', 6).attr('opacity', 0);
+      .attr('fill', theme.surface).attr('fill-opacity', 0.6).attr('stroke', theme.accent).attr('stroke-width', 2)
+      .attr('stroke-dasharray', '4,3').attr('opacity', 0);
     let tbStart: [number, number] | null = null;
     let tbStartMode: 'text' | 'image' | null = null;
 
@@ -1369,7 +1373,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     tbG.raise();
     tempLine.raise();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows]);
+  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows, theme]);
 
   useEffect(() => { render(); }, [render]);
 
@@ -1392,9 +1396,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const src = el.getAttribute('data-source');
       const tgt = el.getAttribute('data-target');
       const isSel = !!(src && tgt && ids.has(src) && ids.has(tgt) && ids.size >= 2);
-      d3.select(el).select('line.edge-visible').attr('stroke', isSel ? '#3B82F6' : '#444').attr('stroke-width', isSel ? 2.5 : 1.5);
+      d3.select(el).select('line.edge-visible').attr('stroke', isSel ? theme.accent : theme.border).attr('stroke-width', isSel ? 2.5 : 1.5);
     });
-  }, [selectedIds]);
+  }, [selectedIds, theme.accent, theme.border]);
 
   useEffect(() => {
     if (!fitTrigger) return;
@@ -1421,7 +1425,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   }, [zoom100Trigger]);
 
   return (
-    <div className="relative w-full h-full bg-zinc-950">
+    <div className="relative w-full h-full" style={{ background: theme.bg1 }}>
       <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
       {/* HTML overlay: hosts TipTap editors as positioned divs OUTSIDE the SVG.
           A single inner wrapper takes the SVG's pan/zoom transform, so editors

@@ -30,6 +30,7 @@ import {
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
+import { usePixelTheme } from '@/components/pixel';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { kanbanApi, tilesApi, tagsApi, statusesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -51,6 +52,121 @@ const FALLBACK_COLOR = '#94A3B8';
 const TILE_W = 130;
 const TILE_H = 90;
 
+// Pixel-styled confirm dialog used for tile + column delete.
+type ConfirmTheme = {
+  surface: string; surfaceVariant: string; border: string; ink: string; ink2: string; ink3: string;
+  shadowOffset: number; shadowColor: string;
+};
+
+function ConfirmDialog({
+  title,
+  body,
+  onCancel,
+  onConfirm,
+  theme,
+}: {
+  title: string;
+  body: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+  theme: ConfirmTheme;
+}) {
+  return createPortal(
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9998,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'rgba(0,0,0,0.6)',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          width: 320,
+          color: theme.ink,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div
+          style={{
+            padding: '10px 14px',
+            background: theme.surfaceVariant,
+            borderBottom: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 11,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+            color: theme.ink,
+          }}
+        >
+          {title}
+        </div>
+        <div style={{ padding: 14, fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2 }}>{body}</div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: 12,
+            borderTop: `2px solid ${theme.border}`,
+            background: theme.surfaceVariant,
+          }}
+        >
+          <button
+            onClick={onCancel}
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 28,
+              padding: '0 12px',
+              background: theme.surface,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 28,
+              padding: '0 12px',
+              background: '#E24B4A',
+              color: '#FFFFFF',
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
+          >
+            Elimina
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 // ─── Shared tile visual helpers (mirror of calendar page) ───
 
 // Rounded-square badge with the type icon inside (background = type color, white icon).
@@ -59,18 +175,18 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
   if (!Comp) return null;
   const bg = color || '#27272A';
   return (
-    <div className="w-4 h-4 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: bg }}>
+    <div style={{ width: 16, height: 16, background: bg, border: '2px solid currentColor', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <Comp size={10} color={readableOn(bg)} />
     </div>
   );
 }
 
-// Round colored badge with the action icon (white). Notes (none) renders nothing.
+// Pixel colored badge with the action icon. Notes (none) renders nothing.
 const ACTION_ICON: Record<string, typeof IconBolt | null> = {
   none:     null,
   anytime:  IconArrowUp,
   deadline: IconBolt,
-  event:    IconClock,     // TIMED
+  event:    IconClock,
   allday:   IconCalendar,
 };
 
@@ -78,7 +194,7 @@ function ActionIconBadge({ actionKey, color }: { actionKey: string; color: strin
   const Icon = ACTION_ICON[actionKey];
   if (!Icon) return null;
   return (
-    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
+    <div style={{ width: 16, height: 16, background: color, border: '2px solid currentColor', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
       <Icon size={10} color={readableOn(color)} />
     </div>
   );
@@ -185,6 +301,7 @@ function matchRelativeNextDays(d: Date, n: number): boolean {
 // Uses type="text" + inputMode="numeric" so there is no spinner but still a
 // numeric keypad on mobile; onChange strips non-digits.
 function DaysInput({ value, onChange }: { value: number | null; onChange: (n: number | null) => void }) {
+  const theme = usePixelTheme();
   const [draft, setDraft] = useState<string>(value !== null ? String(value) : '');
   useEffect(() => {
     setDraft(value !== null ? String(value) : '');
@@ -204,7 +321,16 @@ function DaysInput({ value, onChange }: { value: number | null; onChange: (n: nu
         if (!Number.isFinite(n) || n <= 0) return;
         onChange(n);
       }}
-      className="w-16 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200"
+      style={{
+        width: 64,
+        background: theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        padding: '6px 8px',
+        color: theme.ink,
+        fontFamily: 'var(--font-pixel-body)',
+        fontSize: 12,
+        outline: 'none',
+      }}
     />
   );
 }
@@ -344,6 +470,7 @@ function getFilterLabel(
 // ═══════════════════════════════════════════
 
 export default function KanbanPage() {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
 
@@ -717,29 +844,48 @@ export default function KanbanPage() {
     },
   });
 
+  const toolbarBtn: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    padding: '0 10px',
+    background: theme.surfaceVariant,
+    color: theme.ink2,
+    border: `2px solid ${theme.border}`,
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
       <Header title="Kanban" />
 
       <div className="flex flex-1 overflow-hidden">
         {/* Board column: toolbar + columns */}
         <div className="flex-1 flex flex-col overflow-hidden">
         {/* Toolbar */}
-        <div className="h-12 border-b border-zinc-800 flex items-center gap-1 px-4 shrink-0 bg-zinc-950">
-          <button
-            onClick={handleAddTile}
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
-            title="Aggiungi tile"
-          >
-            <IconLayoutGrid size={13} />
+        <div
+          className="shrink-0"
+          style={{
+            height: 40,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            padding: '0 12px',
+            borderBottom: `2px solid ${theme.border}`,
+            background: theme.bg2,
+          }}
+        >
+          <button onClick={handleAddTile} className="px-press" style={toolbarBtn} title="Aggiungi tile">
+            <IconLayoutGrid size={12} />
             Tile
           </button>
-          <button
-            onClick={() => createColMutation.mutate({ title: 'Nuova colonna' })}
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
-            title="Aggiungi colonna"
-          >
-            <IconPlus size={13} />
+          <button onClick={() => createColMutation.mutate({ title: 'Nuova colonna' })} className="px-press" style={toolbarBtn} title="Aggiungi colonna">
+            <IconPlus size={12} />
             Colonna
           </button>
           <button
@@ -752,15 +898,25 @@ export default function KanbanPage() {
                 c.scrollTo({ top: c.scrollTop + (tRect.top - cRect.top) - 12, behavior: 'smooth' });
               });
             }}
-            className="flex items-center gap-1.5 px-2.5 h-8 rounded text-xs leading-none font-medium bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
+            className="px-press"
+            style={toolbarBtn}
             title="Scorri tutte le colonne fino a oggi"
           >
-            <IconCalendarEvent size={13} />
+            <IconCalendarEvent size={12} />
             Oggi
           </button>
         </div>
         {/* Columns */}
-        <div className="flex-1 flex overflow-x-auto gap-4 px-4 pb-4 pt-2 bg-black">
+        <div
+          className="flex-1"
+          style={{
+            display: 'flex',
+            overflowX: 'auto',
+            gap: 12,
+            padding: '8px 12px 12px',
+            background: theme.bg1,
+          }}
+        >
           {columns.map((col) => {
             const matched = tiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons, doneStatusId));
             const colTiles = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
@@ -774,15 +930,23 @@ export default function KanbanPage() {
             return (
               <div
                 key={col.id}
-                className={cn(
-                  'shrink-0 flex flex-col rounded transition-all bg-[#1f1f22] overflow-hidden',
-                  dragOverCol === col.id && 'ring-2 ring-blue-500/50',
-                  dragOverTileCol === col.id && 'ring-2 ring-green-500/40',
-                )}
-                style={{ width: colPxWidth }}
+                style={{
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  background: theme.bg2,
+                  border: `2px solid ${theme.border}`,
+                  overflow: 'hidden',
+                  width: colPxWidth,
+                  outline: dragOverCol === col.id
+                    ? `2px solid ${theme.accent}`
+                    : dragOverTileCol === col.id
+                      ? `2px dashed ${theme.accent}`
+                      : 'none',
+                  outlineOffset: -2,
+                }}
                 draggable
                 onDragStart={(e) => {
-                  // Only column drag if not from a tile
                   if (e.dataTransfer.types.includes('text/x-tile')) return;
                   onColDragStart(e, col.id);
                 }}
@@ -805,19 +969,36 @@ export default function KanbanPage() {
                   }
                 }}
               >
-                {/* Column header — single row: grip + title + count + menu */}
+                {/* Column header */}
                 <div
-                  className="h-8 flex items-center gap-1 px-2"
-                  style={col.bg_color
-                    ? { backgroundImage: `linear-gradient(${col.bg_color}4D, ${col.bg_color}4D)` }
-                    : undefined}
+                  style={{
+                    height: 32,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: '0 8px',
+                    background: col.bg_color ? `${col.bg_color}4D` : theme.surfaceVariant,
+                    borderBottom: `2px solid ${theme.border}`,
+                  }}
                 >
-                  <IconGripVertical className="h-3 w-3 text-zinc-600 cursor-grab shrink-0" />
+                  <IconGripVertical size={12} style={{ color: theme.ink3, cursor: 'grab', flexShrink: 0 }} />
 
                   {isEditing ? (
                     <input
                       autoFocus
-                      className="flex-1 min-w-0 bg-transparent text-xs leading-none font-medium text-white outline-none border-b border-blue-500"
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        background: 'transparent',
+                        color: theme.ink,
+                        outline: 'none',
+                        border: 'none',
+                        borderBottom: `2px solid ${theme.accent}`,
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 10,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                      }}
                       value={titleDraft}
                       onChange={(e) => setTitleDraft(e.target.value)}
                       onKeyDown={(e) => {
@@ -836,8 +1017,20 @@ export default function KanbanPage() {
                     />
                   ) : (
                     <span
-                      className="flex-1 min-w-0 text-xs leading-none font-medium text-white cursor-pointer hover:text-zinc-300 truncate"
                       onClick={() => { setEditingTitle(col.id); setTitleDraft(col.title); }}
+                      style={{
+                        flex: 1,
+                        minWidth: 0,
+                        color: theme.ink,
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 10,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
                       {col.title}
                     </span>
@@ -853,12 +1046,12 @@ export default function KanbanPage() {
                           return next;
                         });
                       }}
-                      className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+                      style={{ width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, flexShrink: 0 }}
                       title={expandedFilterCols.has(col.id) ? 'Nascondi filtri' : 'Mostra filtri'}
                     >
                       {expandedFilterCols.has(col.id)
-                        ? <IconChevronDown className="h-3.5 w-3.5" />
-                        : <IconChevronRight className="h-3.5 w-3.5" />}
+                        ? <IconChevronDown size={14} />
+                        : <IconChevronRight size={14} />}
                     </button>
                   )}
 
@@ -867,21 +1060,49 @@ export default function KanbanPage() {
                       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
                       setColMenu({ x: rect.right, y: rect.bottom, colId: col.id });
                     }}
-                    className="p-0.5 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0"
+                    style={{ width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2, flexShrink: 0 }}
                     title="Opzioni colonna"
                   >
-                    <IconDots className="h-3.5 w-3.5" />
+                    <IconDots size={14} />
                   </button>
                 </div>
 
                 {/* Sort editor popover */}
                 {isSortOpen && (
-                  <div className="px-3 py-2 border-b border-zinc-800 bg-zinc-900/80 space-y-2">
-                    <div className="text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Ordinamento</div>
-                    <div className="flex flex-col gap-0.5">
+                  <div
+                    style={{
+                      padding: '8px 12px',
+                      borderBottom: `2px solid ${theme.border}`,
+                      background: theme.surface,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 9,
+                        letterSpacing: '0.1em',
+                        textTransform: 'uppercase',
+                        color: theme.ink3,
+                      }}
+                    >
+                      Ordinamento
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                       <button
                         onClick={() => updateColMutation.mutate({ id: col.id, updates: { sort_by: null } })}
-                        className={cn('text-left px-2 py-1 rounded text-[11px] transition-colors', !col.sort_by ? 'text-blue-400 bg-zinc-800/60' : 'text-zinc-300 hover:bg-zinc-800')}
+                        style={{
+                          textAlign: 'left',
+                          padding: '4px 8px',
+                          fontFamily: 'var(--font-pixel-body)',
+                          fontSize: 11,
+                          background: !col.sort_by ? theme.surfaceVariant : 'transparent',
+                          border: `2px solid ${!col.sort_by ? theme.border : 'transparent'}`,
+                          color: !col.sort_by ? theme.ink : theme.ink2,
+                          cursor: 'pointer',
+                        }}
                       >
                         Nessuno
                       </button>
@@ -889,66 +1110,137 @@ export default function KanbanPage() {
                         <button
                           key={key}
                           onClick={() => updateColMutation.mutate({ id: col.id, updates: { sort_by: key } })}
-                          className={cn('text-left px-2 py-1 rounded text-[11px] transition-colors', col.sort_by === key ? 'text-blue-400 bg-zinc-800/60' : 'text-zinc-300 hover:bg-zinc-800')}
+                          style={{
+                            textAlign: 'left',
+                            padding: '4px 8px',
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 11,
+                            background: col.sort_by === key ? theme.surfaceVariant : 'transparent',
+                            border: `2px solid ${col.sort_by === key ? theme.border : 'transparent'}`,
+                            color: col.sort_by === key ? theme.ink : theme.ink2,
+                            cursor: 'pointer',
+                          }}
                         >
                           {SORT_BY_LABELS[key]}
                         </button>
                       ))}
                     </div>
                     {col.sort_by && (
-                      <div className="flex gap-1 pt-1 border-t border-zinc-800">
+                      <div style={{ display: 'flex', gap: 4, paddingTop: 6, borderTop: `2px solid ${theme.border}` }}>
                         <button
                           onClick={() => updateColMutation.mutate({ id: col.id, updates: { sort_dir: 'asc' } })}
-                          className={cn('flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] transition-colors',
-                            (col.sort_dir ?? 'asc') === 'asc' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40' : 'bg-zinc-800 text-zinc-400 border border-zinc-700')}
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                            padding: '4px 8px',
+                            background: (col.sort_dir ?? 'asc') === 'asc' ? theme.accent : theme.surfaceVariant,
+                            color: (col.sort_dir ?? 'asc') === 'asc' ? theme.onAccent : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                          }}
                         >
-                          <IconSortAscending className="h-3 w-3" /> Crescente
+                          <IconSortAscending size={11} /> Crescente
                         </button>
                         <button
                           onClick={() => updateColMutation.mutate({ id: col.id, updates: { sort_dir: 'desc' } })}
-                          className={cn('flex-1 flex items-center justify-center gap-1 px-2 py-1 rounded text-[10px] transition-colors',
-                            col.sort_dir === 'desc' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/40' : 'bg-zinc-800 text-zinc-400 border border-zinc-700')}
+                          style={{
+                            flex: 1,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 4,
+                            padding: '4px 8px',
+                            background: col.sort_dir === 'desc' ? theme.accent : theme.surfaceVariant,
+                            color: col.sort_dir === 'desc' ? theme.onAccent : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                          }}
                         >
-                          <IconSortDescending className="h-3 w-3" /> Decrescente
+                          <IconSortDescending size={11} /> Decrescente
                         </button>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Filter + sort badges (collapsed/expanded by chevron in header) */}
+                {/* Filter + sort chips */}
                 {(col.filters.length > 0 || col.sort_by) && expandedFilterCols.has(col.id) && (
-                  <div className="flex flex-wrap gap-1 px-3 py-1.5 border-b border-zinc-800/50">
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 4,
+                      padding: '6px 12px',
+                      borderBottom: `2px solid ${theme.border}`,
+                    }}
+                  >
                     {col.sort_by && (
-                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-500/10 text-blue-300 border border-blue-500/30">
+                      <span
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 6px',
+                          background: theme.accent,
+                          color: theme.onAccent,
+                          border: `2px solid ${theme.border}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                        }}
+                      >
                         {(col.sort_dir ?? 'asc') === 'desc'
-                          ? <IconSortDescending className="h-2.5 w-2.5" />
-                          : <IconSortAscending className="h-2.5 w-2.5" />}
-                        <span className="uppercase tracking-wider">{SORT_BY_LABELS[col.sort_by]}</span>
+                          ? <IconSortDescending size={10} />
+                          : <IconSortAscending size={10} />}
+                        <span>{SORT_BY_LABELS[col.sort_by]}</span>
                         <button
                           onClick={() => updateColMutation.mutate({ id: col.id, updates: { sort_by: null } })}
-                          className="hover:text-red-400 ml-0.5"
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: theme.onAccent, display: 'inline-flex', padding: 0, marginLeft: 2 }}
                           title="Rimuovi ordinamento"
                         >
-                          <IconX className="h-2.5 w-2.5" />
+                          <IconX size={10} />
                         </button>
                       </span>
                     )}
                     {col.filters.map((f, i) => (
                       <span
                         key={i}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700/50"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '2px 6px',
+                          background: theme.surfaceVariant,
+                          color: theme.ink2,
+                          border: `2px solid ${theme.border}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                        }}
                       >
-                        <span className="text-zinc-500 uppercase">{FILTER_TYPE_LABELS[f.type]}:</span>
-                        {getFilterLabel(f, tags, statuses, typeIcons)}
+                        <span style={{ color: theme.ink3 }}>{FILTER_TYPE_LABELS[f.type]}:</span>
+                        <span>{getFilterLabel(f, tags, statuses, typeIcons)}</span>
                         <button
                           onClick={() => {
                             const newFilters = col.filters.filter((_, j) => j !== i);
                             updateColMutation.mutate({ id: col.id, updates: { filters: newFilters } });
                           }}
-                          className="hover:text-red-400 ml-0.5"
+                          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink3, display: 'inline-flex', padding: 0, marginLeft: 2 }}
                         >
-                          <IconX className="h-2.5 w-2.5" />
+                          <IconX size={10} />
                         </button>
                       </span>
                     ))}
@@ -957,8 +1249,23 @@ export default function KanbanPage() {
 
                 {/* Filter editor is rendered as a modal portal at the end of the component */}
 
-                {/* Tile list — grouped by day; full-width date header forces row break */}
-                <div data-col-list={col.id} className="flex-1 overflow-y-auto p-3 flex flex-row flex-wrap justify-start content-start gap-y-2 gap-x-3 [&::-webkit-scrollbar-thumb]:bg-zinc-800 [&::-webkit-scrollbar-thumb:hover]:bg-zinc-700">
+                {/* Tile list — grouped by day */}
+                <div
+                  data-col-list={col.id}
+                  className="[&::-webkit-scrollbar-thumb]:bg-[var(--px-border)] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--px-accent)]"
+                  style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: 12,
+                    display: 'flex',
+                    flexDirection: 'row',
+                    flexWrap: 'wrap',
+                    justifyContent: 'flex-start',
+                    alignContent: 'flex-start',
+                    rowGap: 8,
+                    columnGap: 12,
+                  }}
+                >
                   {(() => {
                     const dateFieldFor = (t: Tile): string | null => {
                       switch (col.sort_by) {
@@ -982,8 +1289,25 @@ export default function KanbanPage() {
                     const pushTodayHeader = () => {
                       if (insertedToday) return;
                       nodes.push(
-                        <div key={`hdr-today-empty-${nodes.length}`} data-today-row="true" className="w-full flex items-center gap-2 mt-2 first:mt-0">
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider bg-red-600 text-white">
+                        <div
+                          key={`hdr-today-empty-${nodes.length}`}
+                          data-today-row="true"
+                          style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginTop: nodes.length === 0 ? 0 : 8 }}
+                        >
+                          <span
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              padding: '2px 8px',
+                              background: theme.accent,
+                              color: theme.onAccent,
+                              border: `2px solid ${theme.border}`,
+                              fontFamily: 'var(--font-pixel-head)',
+                              fontSize: 9,
+                              letterSpacing: '0.1em',
+                              textTransform: 'uppercase',
+                            }}
+                          >
                             {formatDay(new Date().toISOString())}
                           </span>
                         </div>,
@@ -1006,14 +1330,22 @@ export default function KanbanPage() {
                           <div
                             key={`hdr-${key ?? 'none'}-${nodes.length}`}
                             data-today-row={isToday ? 'true' : undefined}
-                            className="w-full flex items-center gap-2 mt-2 first:mt-0"
+                            style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, marginTop: nodes.length === 0 ? 0 : 8 }}
                           >
-                            <span className={cn(
-                              'inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wider',
-                              isToday
-                                ? 'bg-red-600 text-white'
-                                : 'bg-zinc-200 text-zinc-900',
-                            )}>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                padding: '2px 8px',
+                                background: isToday ? theme.accent : theme.surfaceVariant,
+                                color: isToday ? theme.onAccent : theme.ink2,
+                                border: `2px solid ${theme.border}`,
+                                fontFamily: 'var(--font-pixel-head)',
+                                fontSize: 9,
+                                letterSpacing: '0.1em',
+                                textTransform: 'uppercase',
+                              }}
+                            >
                               {iso ? formatDay(iso) : 'Senza data'}
                             </span>
                           </div>,
@@ -1032,9 +1364,9 @@ export default function KanbanPage() {
                       const actionKey = t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
                       // For NOTES, override to a visible gray so the pattern stands out.
                       const actionColor = actionKey === 'none' ? '#e4e4e7' : ((actionColors as Record<string, string>)[actionKey] || FALLBACK_COLOR);
-                      const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
+                      const tileBg = si?.color ? `${si.color}CC` : theme.surface;
                       nodes.push(
-                        <div key={t.id} className="relative shrink-0" style={{ width: TILE_W }}>
+                        <div key={t.id} style={{ position: 'relative', flexShrink: 0, width: TILE_W }}>
                         <div
                           draggable
                           data-tile-id={t.id}
@@ -1044,67 +1376,112 @@ export default function KanbanPage() {
                             setSelectedTileId(t.id);
                             setTileCtxMenu({ x: e.clientX, y: e.clientY, tileId: t.id });
                           }}
-                        onDragStart={(e) => { e.stopPropagation(); onTileDragStart(e, t); }}
-                        onDragEnd={onTileDragEnd}
-                        onClick={() => { setSelectedTileId(t.id); setSidebarOpen(true); }}
-                        className={cn(
-                          'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-                          actionKey === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-                          selectedTileId === t.id && 'ring-2 ring-blue-500',
-                        )}
-                        style={{ backgroundColor: tileBg, width: TILE_W, height: TILE_H }}
-                      >
-                        <div className="relative h-full flex flex-col p-1.5">
-                          <div className="flex-1 min-h-0 overflow-hidden">
+                          onDragStart={(e) => { e.stopPropagation(); onTileDragStart(e, t); }}
+                          onDragEnd={onTileDragEnd}
+                          onClick={() => { setSelectedTileId(t.id); setSidebarOpen(true); }}
+                          style={{
+                            flexShrink: 0,
+                            overflow: 'hidden',
+                            cursor: 'grab',
+                            background: tileBg,
+                            width: TILE_W,
+                            height: TILE_H,
+                            border: actionKey === 'deadline' ? '2px dashed #E24B4A' : `2px solid ${theme.border}`,
+                            boxShadow: selectedTileId === t.id ? `0 0 0 3px ${theme.accent}` : 'none',
+                          }}
+                        >
+                        <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: 6 }}>
+                          <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                             <p
-                              className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]"
-                              style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', wordBreak: 'break-word' }}
+                              style={{
+                                fontFamily: 'var(--font-pixel-body)',
+                                fontSize: 11,
+                                lineHeight: '14px',
+                                color: readableOn(tileBg),
+                                display: '-webkit-box',
+                                WebkitLineClamp: 2,
+                                WebkitBoxOrient: 'vertical',
+                                overflow: 'hidden',
+                                wordBreak: 'break-word',
+                                margin: 0,
+                              }}
                             >
                               {t.title || 'Senza titolo'}
                             </p>
                           </div>
                           {tileTag && (
-                            <div className="flex items-center gap-1 mb-0.5 relative z-10">
-                              <span className="shrink-0 flex items-center justify-center w-3">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, position: 'relative', zIndex: 10 }}>
+                              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 12 }}>
                                 {renderTagTypeIcon(tileTag.tag_type || '', 10)}
                               </span>
                               <span
-                                className="text-[10px] font-normal truncate text-[#D4D4D8]"
+                                style={{
+                                  fontFamily: 'var(--font-pixel-head)',
+                                  fontSize: 8,
+                                  letterSpacing: '0.06em',
+                                  textTransform: 'uppercase',
+                                  color: readableOn(tileBg),
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                }}
                                 title={tileTag.name}
                               >
                                 {tileTag.name}
                               </span>
                             </div>
                           )}
-                          <div className="mt-auto relative z-10">
+                          <div style={{ marginTop: 'auto', position: 'relative', zIndex: 10 }}>
                             {t.subtasks && t.subtasks.length > 0 && (
-                              <div className="mb-2">
+                              <div style={{ marginBottom: 8 }}>
                                 <ChecklistBar items={t.subtasks} availableWidth={TILE_W - 12} />
                               </div>
                             )}
-                            <div className="flex items-end justify-between gap-1">
-                              <ActionIconBadge actionKey={actionKey} color={actionColor} />
-                              {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+                            <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4 }}>
+                              <span style={{ color: theme.border }}>
+                                <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                              </span>
+                              {si && (
+                                <span style={{ color: theme.border }}>
+                                  <TypeIconBadge iconName={si.icon} color={si.color} />
+                                </span>
+                              )}
                             </div>
                           </div>
                           {shape !== 'solid' && (
-                            <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                              <svg className="w-full h-full">
+                            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+                              <svg style={{ width: '100%', height: '100%' }}>
                                 <InlineStatus shape={shape} color={actionColor} />
                               </svg>
                             </div>
                           )}
                         </div>
                       </div>
-                      {/* FLOW badge — floats past the tile's top-right corner.
-                          Clicking opens the Flow modal (does NOT also select). */}
+                      {/* FLOW badge — pixel chip floating past the tile's top-right corner */}
                       {tilesWithFlows.has(t.id) && (
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
                           onContextMenu={(e) => e.stopPropagation()}
                           onMouseDown={(e) => e.stopPropagation()}
-                          className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+                          style={{
+                            position: 'absolute',
+                            top: -8,
+                            right: 6,
+                            zIndex: 20,
+                            padding: '0 5px',
+                            height: 16,
+                            background: theme.accent,
+                            color: theme.onAccent,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 8,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            cursor: 'pointer',
+                          }}
                           title="Apri Flow"
                         >FLOW</button>
                       )}
@@ -1120,8 +1497,8 @@ export default function KanbanPage() {
                   })()}
 
                   {colTiles.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-8 text-zinc-600 w-full">
-                      <span className="text-[11px]">Nessun tile</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '32px 0', color: theme.ink3, width: '100%' }}>
+                      <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Nessun tile</span>
                     </div>
                   )}
                 </div>
@@ -1154,62 +1531,139 @@ export default function KanbanPage() {
           updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
         };
         const renderSectionHeader = (t: KanbanFilterType, label: string) => (
-          <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between shrink-0">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">{label}</span>
-            <div className="flex items-center gap-1.5">
+          <div
+            style={{
+              padding: '8px 12px',
+              borderBottom: `2px solid ${theme.border}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0,
+              background: theme.surfaceVariant,
+            }}
+          >
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+              }}
+            >
+              {label}
+            </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               {countFor(t) > 0 && (
-                <span className="text-[9px] font-medium bg-blue-500/20 text-blue-400 rounded-full px-1.5 py-0.5">{countFor(t)}</span>
+                <span
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    background: theme.accent,
+                    color: theme.onAccent,
+                    border: `2px solid ${theme.border}`,
+                    padding: '1px 6px',
+                  }}
+                >
+                  {countFor(t)}
+                </span>
               )}
               <button
                 onClick={() => clearSection(t)}
                 disabled={countFor(t) === 0}
-                className={cn(
-                  'p-0.5 rounded transition-colors',
-                  countFor(t) > 0
-                    ? 'text-zinc-400 hover:text-red-400 hover:bg-zinc-800'
-                    : 'text-zinc-700 cursor-not-allowed',
-                )}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: countFor(t) > 0 ? 'pointer' : 'not-allowed',
+                  color: countFor(t) > 0 ? theme.ink2 : theme.ink3,
+                  display: 'inline-flex',
+                  padding: 0,
+                }}
                 title="Ripulisci filtri"
               >
-                <IconX className="h-3 w-3" />
+                <IconX size={12} />
               </button>
             </div>
           </div>
         );
         return createPortal(
           <div
-            className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9998,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0,0,0,0.6)',
+            }}
             onClick={() => setFilterEditorCol(null)}
           >
             <div
-              className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl max-w-[95vw] max-h-[85vh] flex flex-col overflow-hidden"
+              style={{
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                maxWidth: '95vw',
+                maxHeight: '85vh',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                color: theme.ink,
+              }}
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800 shrink-0">
-                <div className="flex items-center gap-2 min-w-0">
-                  <IconFilter className="h-3.5 w-3.5 text-blue-400 shrink-0" />
-                  <h3 className="text-sm font-semibold text-white truncate">Filtri · {filterCol.title}</h3>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 14px',
+                  borderBottom: `2px solid ${theme.border}`,
+                  flexShrink: 0,
+                  background: theme.surfaceVariant,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                  <IconFilter size={14} style={{ color: theme.accent, flexShrink: 0 }} />
+                  <h3
+                    style={{
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 11,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: theme.ink,
+                      margin: 0,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    Filtri · {filterCol.title}
+                  </h3>
                 </div>
-                <button onClick={() => setFilterEditorCol(null)} className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200">
-                  <IconX className="h-4 w-4" />
+                <button
+                  onClick={() => setFilterEditorCol(null)}
+                  style={{ display: 'inline-flex', background: 'transparent', border: 'none', cursor: 'pointer', color: theme.ink2 }}
+                >
+                  <IconX size={16} />
                 </button>
               </div>
 
-              {/* Body: 6 columns side by side, each a filter section */}
-              <div className="flex-1 flex overflow-x-auto overflow-y-hidden">
+              {/* Body: 6 sections side by side */}
+              <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
                 {/* Column 1 — Action */}
-                <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
+                <div style={{ flexShrink: 0, width: 176, display: 'flex', flexDirection: 'column', borderRight: `2px solid ${theme.border}` }}>
                   {renderSectionHeader('action_type', 'Action')}
-                  <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {ACTION_OPTIONS.map((opt) => {
                     const active = filterCol.filters.some((f) => f.type === 'action_type' && f.value === opt.value);
                     const borderKey = opt.value === 'allday' ? 'allday' : opt.value;
                     const clr = (actionColors as Record<string, string>)[borderKey] || FALLBACK_COLOR;
-                    const cssBorder: React.CSSProperties = { border: `1.5px solid ${clr}` };
                     const OptIcon = opt.icon;
                     return (
-                      <div key={opt.label} className="flex items-center gap-1.5">
+                      <div key={opt.label} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={() => {
                             const newFilters = active
@@ -1217,33 +1671,42 @@ export default function KanbanPage() {
                               : [...filterCol.filters, { type: 'action_type' as const, value: opt.value }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
-                          className={cn(
-                            'flex items-center gap-1 py-1.5 px-2 rounded text-[9px] font-medium uppercase transition-all',
-                            active ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200',
-                          )}
-                          style={{ width: TILE_W, ...cssBorder }}
+                          style={{
+                            width: TILE_W,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 8px',
+                            background: active ? theme.surfaceVariant : 'transparent',
+                            color: active ? theme.ink : theme.ink2,
+                            border: `2px solid ${clr}`,
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.06em',
+                            textTransform: 'uppercase',
+                            cursor: 'pointer',
+                          }}
                         >
-                          <OptIcon size={11} className="shrink-0" />
-                          <span className="flex-1 text-left truncate">{opt.label}</span>
+                          <OptIcon size={11} />
+                          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt.label}</span>
                         </button>
-                        <span className="w-4 flex items-center justify-center shrink-0">
-                          {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
+                        <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {active && <IconCheck size={14} strokeWidth={3} style={{ color: theme.accent }} />}
                         </span>
                       </div>
                     );
                   })}
-
                   </div>
                 </div>
 
                 {/* Column 2 — Tag */}
-                <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
+                <div style={{ flexShrink: 0, width: 176, display: 'flex', flexDirection: 'column', borderRight: `2px solid ${theme.border}` }}>
                   {renderSectionHeader('tag', 'Tag')}
-                  <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                     {tags.filter((t) => !t.is_archived).map((tag) => {
                         const active = filterCol.filters.some((f) => f.type === 'tag' && f.value === tag.id);
                         return (
-                          <div key={tag.id} className="flex items-center gap-1.5">
+                          <div key={tag.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <button
                               onClick={() => {
                                 const newFilters = active
@@ -1251,38 +1714,46 @@ export default function KanbanPage() {
                                   : [...filterCol.filters, { type: 'tag' as const, value: tag.id }];
                                 updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                               }}
-                              className={cn(
-                                'flex items-center gap-2.5 px-2 py-1.5 rounded border text-xs transition-colors duration-150',
-                                active ? 'bg-zinc-800 text-white font-medium border-zinc-600' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 border-zinc-700/50',
-                              )}
-                              style={{ width: TILE_W }}
+                              style={{
+                                width: TILE_W,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                                padding: '6px 8px',
+                                background: active ? theme.surfaceVariant : 'transparent',
+                                color: active ? theme.ink : theme.ink2,
+                                border: `2px solid ${theme.border}`,
+                                fontFamily: 'var(--font-pixel-body)',
+                                fontSize: 12,
+                                cursor: 'pointer',
+                              }}
                               title={tag.name}
                             >
-                              <span className="shrink-0 flex items-center justify-center w-3.5">
+                              <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 14 }}>
                                 {renderTagTypeIcon(tag.tag_type || '', 11)}
                               </span>
-                              <span className="flex-1 text-left truncate">{tag.name}</span>
+                              <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
                             </button>
-                            <span className="w-4 flex items-center justify-center shrink-0">
-                              {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
+                            <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              {active && <IconCheck size={14} strokeWidth={3} style={{ color: theme.accent }} />}
                             </span>
                           </div>
                         );
                       })}
                     {tags.filter((t) => !t.is_archived).length === 0 && (
-                      <span className="text-[11px] text-zinc-500">Nessun tag</span>
+                      <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>Nessun tag</span>
                     )}
                   </div>
                 </div>
 
                 {/* Column 3 — Done/Undone */}
-                <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
+                <div style={{ flexShrink: 0, width: 176, display: 'flex', flexDirection: 'column', borderRight: `2px solid ${theme.border}` }}>
                   {renderSectionHeader('completion', 'Done/Undone')}
-                  <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {STATUS_OPTIONS.map(({ value, label }) => {
                     const active = filterCol.filters.some((f) => f.type === 'completion' && f.value === value);
                     return (
-                      <div key={value} className="flex items-center gap-1.5">
+                      <div key={value} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={() => {
                             const newFilters = active
@@ -1290,34 +1761,43 @@ export default function KanbanPage() {
                               : [...filterCol.filters, { type: 'completion' as const, value }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
-                          className={cn(
-                            'flex items-center gap-1.5 pl-1.5 py-1.5 rounded border text-xs transition-colors duration-150',
-                            active ? 'bg-zinc-800 text-white font-medium border-zinc-600' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 border-zinc-700/50',
-                          )}
-                          style={{ width: TILE_W }}
+                          style={{
+                            width: TILE_W,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 8px',
+                            background: active ? theme.surfaceVariant : 'transparent',
+                            color: active ? theme.ink : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
                         >
-                          {value === 'completed' ? <IconCheck size={11} className="shrink-0 text-zinc-400" /> : <span className="inline-block w-[11px] h-[11px] rounded-full border border-zinc-500 shrink-0" />}
-                          <span className="flex-1 text-left truncate">{label}</span>
+                          {value === 'completed'
+                            ? <IconCheck size={11} style={{ color: theme.ink2, flexShrink: 0 }} />
+                            : <span style={{ display: 'inline-block', width: 11, height: 11, border: `2px solid ${theme.ink3}`, flexShrink: 0 }} />}
+                          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
                         </button>
-                        <span className="w-4 flex items-center justify-center shrink-0">
-                          {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
+                        <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {active && <IconCheck size={14} strokeWidth={3} style={{ color: theme.accent }} />}
                         </span>
                       </div>
                     );
                   })}
-
                   </div>
                 </div>
 
                 {/* Column 4 — Type */}
-                <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
+                <div style={{ flexShrink: 0, width: 176, display: 'flex', flexDirection: 'column', borderRight: `2px solid ${theme.border}` }}>
                   {renderSectionHeader('type_icon', 'Type')}
-                  <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {typeIcons.map((si) => {
                     const active = filterCol.filters.some((f) => f.type === 'type_icon' && f.value === si.id);
                     const Ico = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties; className?: string }>>)[si.icon] || IconCheck;
                     return (
-                      <div key={si.id} className="flex items-center gap-1.5">
+                      <div key={si.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={() => {
                             const newFilters = active
@@ -1325,42 +1805,58 @@ export default function KanbanPage() {
                               : [...filterCol.filters, { type: 'type_icon' as const, value: si.id }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
-                          className={cn(
-                            'flex items-center gap-1.5 pl-1.5 py-1.5 rounded border text-xs transition-colors duration-150',
-                            active ? 'bg-zinc-800 text-white font-medium border-zinc-600' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 border-zinc-700/50',
-                          )}
-                          style={{ width: TILE_W }}
+                          style={{
+                            width: TILE_W,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: 6,
+                            padding: '6px 8px',
+                            background: active ? theme.surfaceVariant : 'transparent',
+                            color: active ? theme.ink : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
                           title={si.name}
                         >
                           <div
-                            className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-                            style={{ backgroundColor: si.color || '#27272A' }}
+                            style={{
+                              width: 18,
+                              height: 18,
+                              background: si.color || theme.surfaceVariant,
+                              border: `2px solid ${theme.border}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
                           >
-                            <Ico size={12} className="text-white" />
+                            <Ico size={11} style={{ color: readableOn(si.color || theme.surfaceVariant) }} />
                           </div>
-                          <span className="flex-1 text-left truncate">{si.name}</span>
+                          <span style={{ flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{si.name}</span>
                         </button>
-                        <span className="w-4 flex items-center justify-center shrink-0">
-                          {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
+                        <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {active && <IconCheck size={14} strokeWidth={3} style={{ color: theme.accent }} />}
                         </span>
                       </div>
                     );
                   })}
                   {typeIcons.length === 0 && (
-                    <span className="text-[11px] text-zinc-500">Nessun tipo</span>
+                    <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>Nessun tipo</span>
                   )}
                   </div>
                 </div>
 
                 {/* Column 5 — Status */}
-                <div className="shrink-0 w-44 flex flex-col border-r border-zinc-800">
+                <div style={{ flexShrink: 0, width: 176, display: 'flex', flexDirection: 'column', borderRight: `2px solid ${theme.border}` }}>
                   {renderSectionHeader('status', 'Status')}
-                  <div className="flex-1 overflow-y-auto p-3 flex flex-col items-center gap-1.5">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
                   {statuses.map((st) => {
                     const active = filterCol.filters.some((f) => f.type === 'status' && f.value === st.id);
                     const stColor = st.action_type ? (actionColors[st.action_type as ActionType] || FALLBACK_COLOR) : FALLBACK_COLOR;
                     return (
-                      <div key={st.id} className="flex items-center gap-1.5">
+                      <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <button
                           onClick={() => {
                             const newFilters = active
@@ -1368,36 +1864,45 @@ export default function KanbanPage() {
                               : [...filterCol.filters, { type: 'status' as const, value: st.id }];
                             updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                           }}
-                          className={cn(
-                            'relative overflow-hidden flex items-center px-2 py-1.5 rounded border text-xs transition-colors duration-150',
-                            active ? 'bg-zinc-800 text-white font-medium border-zinc-600' : 'text-zinc-400 hover:text-zinc-300 hover:bg-zinc-900 border-zinc-700/50',
-                          )}
-                          style={{ width: TILE_W }}
+                          style={{
+                            width: TILE_W,
+                            position: 'relative',
+                            overflow: 'hidden',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            padding: '6px 8px',
+                            background: active ? theme.surfaceVariant : 'transparent',
+                            color: active ? theme.ink : theme.ink2,
+                            border: `2px solid ${theme.border}`,
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                          }}
                           title={st.name}
                         >
-                          <span className="absolute inset-0 pointer-events-none">
-                            <svg className="w-full h-full">
+                          <span style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+                            <svg style={{ width: '100%', height: '100%' }}>
                               <InlineStatus shape={st.shape} color={stColor} />
                             </svg>
                           </span>
-                          <span className="relative z-10 flex-1 text-left truncate">{st.name}</span>
+                          <span style={{ position: 'relative', zIndex: 10, flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.name}</span>
                         </button>
-                        <span className="w-4 flex items-center justify-center shrink-0">
-                          {active && <IconCheck size={15} strokeWidth={3} className="text-green-500" />}
+                        <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                          {active && <IconCheck size={14} strokeWidth={3} style={{ color: theme.accent }} />}
                         </span>
                       </div>
                     );
                   })}
                   {statuses.length === 0 && (
-                    <span className="text-[11px] text-zinc-500">Nessuno status</span>
+                    <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>Nessuno status</span>
                   )}
                   </div>
                 </div>
 
                 {/* Column 6 — Data */}
-                <div className="shrink-0 w-56 flex flex-col">
+                <div style={{ flexShrink: 0, width: 224, display: 'flex', flexDirection: 'column' }}>
                   {renderSectionHeader('date_range', 'Data')}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {(() => {
                     // Find existing rules (one of each kind at most)
                     const absRule = filterCol.filters.find((f) => f.type === 'date_range' && dateRangeKind(f.value) === 'absolute');
@@ -1413,24 +1918,56 @@ export default function KanbanPage() {
                       updateColMutation.mutate({ id: filterCol.id, updates: { filters: newFilters } });
                     };
 
+                    const sectionLabel: React.CSSProperties = {
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: theme.ink3,
+                    };
+                    const dateInputStyle: React.CSSProperties = {
+                      flex: 1,
+                      minWidth: 0,
+                      background: theme.surfaceVariant,
+                      border: `2px solid ${theme.border}`,
+                      padding: '6px 8px',
+                      color: theme.ink,
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                      outline: 'none',
+                      colorScheme: 'dark',
+                    };
+                    const rowLabel: React.CSSProperties = {
+                      width: 32,
+                      flexShrink: 0,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      color: theme.ink3,
+                    };
+                    const xBtn: React.CSSProperties = {
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#E24B4A',
+                      display: 'inline-flex',
+                      padding: 0,
+                    };
                     return (
                       <>
                         {/* Absolute range */}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Intervallo</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={sectionLabel}>Intervallo</span>
                             {(curFrom || curTo) && (
-                              <button
-                                onClick={() => replaceRule('absolute', null)}
-                                className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors"
-                                title="Rimuovi"
-                              >
-                                <IconX className="h-3 w-3" />
+                              <button onClick={() => replaceRule('absolute', null)} style={xBtn} title="Rimuovi">
+                                <IconX size={12} />
                               </button>
                             )}
                           </div>
-                          <label className="flex items-center gap-2 text-xs text-zinc-400">
-                            <span className="w-8 shrink-0">Dal</span>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={rowLabel}>Dal</span>
                             <input
                               type="date"
                               value={curFrom}
@@ -1438,11 +1975,11 @@ export default function KanbanPage() {
                                 const from = e.target.value; const to = curTo;
                                 replaceRule('absolute', (!from && !to) ? null : formatDateRange(from, to));
                               }}
-                              className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200"
+                              style={dateInputStyle}
                             />
                           </label>
-                          <label className="flex items-center gap-2 text-xs text-zinc-400">
-                            <span className="w-8 shrink-0">Al</span>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={rowLabel}>Al</span>
                             <input
                               type="date"
                               value={curTo}
@@ -1450,58 +1987,60 @@ export default function KanbanPage() {
                                 const from = curFrom; const to = e.target.value;
                                 replaceRule('absolute', (!from && !to) ? null : formatDateRange(from, to));
                               }}
-                              className="flex-1 min-w-0 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200"
+                              style={dateInputStyle}
                             />
                           </label>
                         </div>
 
                         {/* Ultimi N giorni */}
-                        <div className="space-y-1.5 pt-2 border-t border-zinc-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Ultimi giorni</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: `2px solid ${theme.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={sectionLabel}>Ultimi giorni</span>
                             {curLast !== null && (
-                              <button
-                                onClick={() => replaceRule('last', null)}
-                                className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors"
-                                title="Rimuovi"
-                              >
-                                <IconX className="h-3 w-3" />
+                              <button onClick={() => replaceRule('last', null)} style={xBtn} title="Rimuovi">
+                                <IconX size={12} />
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <DaysInput
                               value={curLast}
                               onChange={(n) => replaceRule('last', n === null ? null : `last:${n}`)}
                             />
-                            <span className="text-xs text-zinc-400">giorni fa</span>
+                            <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2 }}>giorni fa</span>
                           </div>
                         </div>
 
                         {/* Prossimi N giorni */}
-                        <div className="space-y-1.5 pt-2 border-t border-zinc-800">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Prossimi giorni</span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingTop: 8, borderTop: `2px solid ${theme.border}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span style={sectionLabel}>Prossimi giorni</span>
                             {curNext !== null && (
-                              <button
-                                onClick={() => replaceRule('next', null)}
-                                className="text-[10px] text-zinc-500 hover:text-red-400 transition-colors"
-                                title="Rimuovi"
-                              >
-                                <IconX className="h-3 w-3" />
+                              <button onClick={() => replaceRule('next', null)} style={xBtn} title="Rimuovi">
+                                <IconX size={12} />
                               </button>
                             )}
                           </div>
-                          <div className="flex items-center gap-2">
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <DaysInput
                               value={curNext}
                               onChange={(n) => replaceRule('next', n === null ? null : `next:${n}`)}
                             />
-                            <span className="text-xs text-zinc-400">giorni</span>
+                            <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2 }}>giorni</span>
                           </div>
                         </div>
 
-                        <p className="text-[10px] text-zinc-600 leading-tight pt-1 border-t border-zinc-800">
+                        <p
+                          style={{
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 10,
+                            color: theme.ink3,
+                            lineHeight: 1.3,
+                            paddingTop: 8,
+                            borderTop: `2px solid ${theme.border}`,
+                            margin: 0,
+                          }}
+                        >
                           Riferimento: start_at → end_at → created_at. Più regole della data = OR fra loro.
                         </p>
                       </>
@@ -1511,9 +2050,19 @@ export default function KanbanPage() {
                 </div>
               </div>
 
-              {/* Footer — AND/OR logic hint */}
-              <div className="px-4 py-2 border-t border-zinc-800 text-[10px] text-zinc-500 shrink-0">
-                Stesso tipo = <span className="text-zinc-300">OR</span> · Tipi diversi = <span className="text-zinc-300">AND</span>
+              {/* Footer — AND/OR hint */}
+              <div
+                style={{
+                  padding: '8px 14px',
+                  borderTop: `2px solid ${theme.border}`,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  color: theme.ink3,
+                  flexShrink: 0,
+                  background: theme.surfaceVariant,
+                }}
+              >
+                Stesso tipo = <span style={{ color: theme.accent }}>OR</span> · Tipi diversi = <span style={{ color: theme.accent }}>AND</span>
               </div>
             </div>
           </div>,
@@ -1526,12 +2075,38 @@ export default function KanbanPage() {
         const menuCol = columns.find((c) => c.id === colMenu.colId);
         if (!menuCol) return null;
         const menuWidth = Math.max(1, menuCol.width ?? 1);
+        const menuItem: React.CSSProperties = {
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          width: '100%',
+          height: 30,
+          padding: '0 12px',
+          textAlign: 'left',
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink2,
+          background: 'transparent',
+          border: 'none',
+          cursor: 'pointer',
+        };
         return createPortal(
           <>
             <div className="fixed inset-0 z-[9998]" onClick={() => setColMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColMenu(null); }} />
             <div
-              className="fixed bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl py-1 w-80 z-[9999]"
-              style={{ top: Math.min(colMenu.y + 4, window.innerHeight - 360), left: Math.min(colMenu.x - 320, window.innerWidth - 336) }}
+              className="fixed"
+              style={{
+                top: Math.min(colMenu.y + 4, window.innerHeight - 360),
+                left: Math.min(colMenu.x - 320, window.innerWidth - 336),
+                zIndex: 9999,
+                width: 320,
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                padding: 4,
+              }}
             >
               <button
                 onClick={() => {
@@ -1539,12 +2114,14 @@ export default function KanbanPage() {
                   setFilterEditorCol(menuCol.id);
                   setAddFilterType((prev) => prev ?? 'action_type');
                 }}
-                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+                style={menuItem}
               >
-                <IconFilter className={cn('h-3.5 w-3.5', menuCol.filters.length > 0 ? 'text-blue-400' : 'text-zinc-500')} />
+                <IconFilter size={14} style={{ color: menuCol.filters.length > 0 ? theme.accent : theme.ink3 }} />
                 Filtri
                 {menuCol.filters.length > 0 && (
-                  <span className="ml-auto text-[9px] bg-blue-500/20 text-blue-400 rounded-full px-1.5 py-0.5">{menuCol.filters.length}</span>
+                  <span style={{ marginLeft: 'auto', padding: '1px 5px', background: theme.accent, color: theme.onAccent, border: `2px solid ${theme.border}`, fontSize: 9 }}>
+                    {menuCol.filters.length}
+                  </span>
                 )}
               </button>
               <button
@@ -1552,22 +2129,22 @@ export default function KanbanPage() {
                   setColMenu(null);
                   setSortEditorCol(menuCol.id);
                 }}
-                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+                style={menuItem}
               >
                 {menuCol.sort_by ? (
                   (menuCol.sort_dir ?? 'asc') === 'desc'
-                    ? <IconSortDescending className="h-3.5 w-3.5 text-blue-400" />
-                    : <IconSortAscending className="h-3.5 w-3.5 text-blue-400" />
+                    ? <IconSortDescending size={14} style={{ color: theme.accent }} />
+                    : <IconSortAscending size={14} style={{ color: theme.accent }} />
                 ) : (
-                  <IconArrowsSort className="h-3.5 w-3.5 text-zinc-500" />
+                  <IconArrowsSort size={14} style={{ color: theme.ink3 }} />
                 )}
                 Ordinamento
                 {menuCol.sort_by && (
-                  <span className="ml-auto text-[9px] text-blue-400">{SORT_BY_LABELS[menuCol.sort_by]}</span>
+                  <span style={{ marginLeft: 'auto', color: theme.accent, fontSize: 9 }}>{SORT_BY_LABELS[menuCol.sort_by]}</span>
                 )}
               </button>
 
-              <div className="my-1 border-t border-zinc-800" />
+              <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
 
               <button
                 onClick={() => {
@@ -1575,11 +2152,11 @@ export default function KanbanPage() {
                   if (next !== menuWidth) updateColMutation.mutate({ id: menuCol.id, updates: { width: next } });
                 }}
                 disabled={menuWidth >= 10}
-                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
+                style={{ ...menuItem, cursor: menuWidth >= 10 ? 'not-allowed' : 'pointer', color: menuWidth >= 10 ? theme.ink3 : theme.ink2 }}
               >
-                <IconPlus className="h-3.5 w-3.5 text-zinc-500" />
+                <IconPlus size={14} style={{ color: theme.ink3 }} />
                 Aumenta colonna
-                <span className="ml-auto text-[9px] text-zinc-500 tabular-nums">{menuWidth}×</span>
+                <span style={{ marginLeft: 'auto', color: theme.ink3, fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{menuWidth}×</span>
               </button>
               <button
                 onClick={() => {
@@ -1587,16 +2164,27 @@ export default function KanbanPage() {
                   if (next !== menuWidth) updateColMutation.mutate({ id: menuCol.id, updates: { width: next } });
                 }}
                 disabled={menuWidth <= 1}
-                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-zinc-300 hover:bg-zinc-800 transition-colors disabled:text-zinc-600 disabled:cursor-not-allowed"
+                style={{ ...menuItem, cursor: menuWidth <= 1 ? 'not-allowed' : 'pointer', color: menuWidth <= 1 ? theme.ink3 : theme.ink2 }}
               >
-                <IconMinus className="h-3.5 w-3.5 text-zinc-500" />
+                <IconMinus size={14} style={{ color: theme.ink3 }} />
                 Diminuisci colonna
               </button>
 
-              <div className="my-1 border-t border-zinc-800" />
+              <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
 
-              <div className="px-3 py-1.5">
-                <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Colore sfondo</div>
+              <div style={{ padding: '6px 12px' }}>
+                <div
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: theme.ink3,
+                    marginBottom: 6,
+                  }}
+                >
+                  Colore sfondo
+                </div>
                 <ColorPickerGrid
                   selectedColor={menuCol.bg_color ?? null}
                   onSelect={(hex) => updateColMutation.mutate({ id: menuCol.id, updates: { bg_color: hex } })}
@@ -1604,16 +2192,16 @@ export default function KanbanPage() {
                 />
               </div>
 
-              <div className="my-1 border-t border-zinc-800" />
+              <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
 
               <button
                 onClick={() => {
                   setColMenu(null);
                   setDeleteConfirm(menuCol.id);
                 }}
-                className="flex items-center gap-2 w-full h-8 px-3 text-left text-xs leading-none font-medium text-red-400 hover:bg-red-950/30 transition-colors"
+                style={{ ...menuItem, color: '#E24B4A' }}
               >
-                <IconTrash className="h-3.5 w-3.5" />
+                <IconTrash size={14} />
                 Elimina colonna
               </button>
             </div>
@@ -1627,8 +2215,17 @@ export default function KanbanPage() {
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setTileCtxMenu(null)} onContextMenu={(e) => { e.preventDefault(); setTileCtxMenu(null); }} />
           <div
-            className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
-            style={{ top: tileCtxMenu.y, left: tileCtxMenu.x }}
+            className="fixed"
+            style={{
+              top: tileCtxMenu.y,
+              left: tileCtxMenu.x,
+              zIndex: 9999,
+              width: 168,
+              background: theme.surface,
+              border: `2px solid ${theme.border}`,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              padding: 4,
+            }}
           >
             <button
               onClick={() => {
@@ -1636,9 +2233,22 @@ export default function KanbanPage() {
                 setTileCtxMenu(null);
                 openFlow(id);
               }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 8px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.ink2,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 12,
+              }}
             >
-              <IconRoute className="h-3.5 w-3.5" />
+              <IconRoute size={14} />
               Apri Flow
             </button>
             <button
@@ -1646,9 +2256,22 @@ export default function KanbanPage() {
                 setDeleteTileConfirm(tileCtxMenu.tileId);
                 setTileCtxMenu(null);
               }}
-              className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 8px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#E24B4A',
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 12,
+              }}
             >
-              <IconTrash className="h-3.5 w-3.5" />
+              <IconTrash size={14} />
               Elimina tile
             </button>
           </div>
@@ -1657,47 +2280,29 @@ export default function KanbanPage() {
       )}
 
       {/* Tile delete confirm portal */}
-      {deleteTileConfirm && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60" onClick={() => setDeleteTileConfirm(null)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-80 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-white mb-2">Elimina tile</h3>
-            <p className="text-xs text-zinc-400 mb-4">Il tile e tutti i suoi spark verranno eliminati. Azione non reversibile.</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteTileConfirm(null)} className="px-3 py-1.5 rounded text-xs text-zinc-400 border border-zinc-700 hover:bg-zinc-800 transition-colors">Annulla</button>
-              <button
-                onClick={() => {
-                  deleteTileMutation.mutate(deleteTileConfirm);
-                  if (selectedTileId === deleteTileConfirm) setSelectedTileId(null);
-                  setDeleteTileConfirm(null);
-                }}
-                className="px-3 py-1.5 rounded text-xs text-white bg-red-600 hover:bg-red-500 transition-colors"
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {deleteTileConfirm && (
+        <ConfirmDialog
+          title="Elimina tile"
+          body="Il tile e tutti i suoi spark verranno eliminati. Azione non reversibile."
+          onCancel={() => setDeleteTileConfirm(null)}
+          onConfirm={() => {
+            deleteTileMutation.mutate(deleteTileConfirm);
+            if (selectedTileId === deleteTileConfirm) setSelectedTileId(null);
+            setDeleteTileConfirm(null);
+          }}
+          theme={theme}
+        />
       )}
 
-      {/* Delete confirm portal */}
-      {deleteConfirm && createPortal(
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center bg-black/60" onClick={() => setDeleteConfirm(null)}>
-          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-5 w-72 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-sm font-semibold text-white mb-2">Elimina colonna</h3>
-            <p className="text-xs text-zinc-400 mb-4">La colonna verrà eliminata. I tile non vengono toccati.</p>
-            <div className="flex justify-end gap-2">
-              <button onClick={() => setDeleteConfirm(null)} className="px-3 py-1.5 rounded text-xs text-zinc-400 border border-zinc-700 hover:bg-zinc-800 transition-colors">Annulla</button>
-              <button
-                onClick={() => { deleteColMutation.mutate(deleteConfirm); setDeleteConfirm(null); }}
-                className="px-3 py-1.5 rounded text-xs text-white bg-red-600 hover:bg-red-500 transition-colors"
-              >
-                Elimina
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
+      {/* Column delete confirm portal */}
+      {deleteConfirm && (
+        <ConfirmDialog
+          title="Elimina colonna"
+          body="La colonna verrà eliminata. I tile non vengono toccati."
+          onCancel={() => setDeleteConfirm(null)}
+          onConfirm={() => { deleteColMutation.mutate(deleteConfirm); setDeleteConfirm(null); }}
+          theme={theme}
+        />
       )}
     </div>
   );

@@ -29,7 +29,7 @@ import { useFlow } from '@/lib/hooks/useFlow';
 import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { ContactCombobox } from './ContactCombobox';
 import { useContacts } from '@/lib/hooks/useContacts';
-import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 import type { FlowNode, FlowNodeState } from '@/types/flow';
 
 const STATUSES: Exclude<FlowNodeState, 'active'>[] = ['done', 'wait', 'undo', 'stop'];
@@ -51,10 +51,10 @@ interface Props {
 }
 
 export function FlowCardList({ tileId }: Props) {
+  const theme = usePixelTheme();
   const { graph, isLoading, addNode, updateNode, deleteNode, reorderNodes } = useFlow(tileId);
-  const nodes = graph.nodes; // already sort_order ASC from the hook
+  const nodes = graph.nodes;
 
-  // DnD state — same pattern as SubtaskList.
   const [dragIndex, setDragIndex] = useState<number | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
@@ -70,13 +70,30 @@ export function FlowCardList({ tileId }: Props) {
   );
 
   if (isLoading) {
-    return <p className="text-xs text-zinc-500 p-3">Caricamento flow...</p>;
+    return (
+      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, padding: 12 }}>
+        Caricamento flow...
+      </p>
+    );
   }
 
   return (
-    <div className="space-y-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {nodes.length === 0 && (
-        <p className="text-[11px] text-zinc-500 text-center py-2">Nessun nodo nel flow.</p>
+        <p
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 9,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: theme.ink3,
+            textAlign: 'center',
+            padding: '8px 0',
+            margin: 0,
+          }}
+        >
+          Nessun nodo nel flow.
+        </p>
       )}
 
       {nodes.map((node, i) => (
@@ -104,9 +121,25 @@ export function FlowCardList({ tileId }: Props) {
           addNode.mutate({ label: '', state: 'active' })
         }
         disabled={addNode.isPending}
-        className="w-full flex items-center justify-center gap-1 py-1.5 rounded border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-[11px] transition-colors disabled:opacity-40"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          background: 'transparent',
+          color: theme.ink3,
+          border: `2px dashed ${theme.border}`,
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          cursor: addNode.isPending ? 'not-allowed' : 'pointer',
+          opacity: addNode.isPending ? 0.4 : 1,
+        }}
       >
-        <IconPlus className="h-3 w-3" />
+        <IconPlus size={11} />
         Aggiungi nodo
       </button>
     </div>
@@ -138,18 +171,17 @@ function FlowCard({
   onDragOver,
   onDragEnd,
 }: CardProps) {
+  const theme = usePixelTheme();
   const [label, setLabel] = useState(node.label);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expanded, setExpanded] = useState<ExpandedField>(null);
   const labelDirty = useRef(false);
   const taRef = useRef<HTMLTextAreaElement>(null);
 
-  // Sync label from server when the local edit hasn't started.
   useEffect(() => {
     if (!labelDirty.current) setLabel(node.label);
   }, [node.label]);
 
-  // Auto-resize textarea.
   useEffect(() => {
     const el = taRef.current;
     if (!el) return;
@@ -157,7 +189,6 @@ function FlowCard({
     el.style.height = `${el.scrollHeight}px`;
   }, [label]);
 
-  // Auto-clear delete confirm after 3s of inactivity.
   useEffect(() => {
     if (!confirmDelete) return;
     const t = setTimeout(() => setConfirmDelete(false), 3000);
@@ -181,19 +212,24 @@ function FlowCard({
         e.preventDefault();
         onDragEnd();
       }}
-      className={cn(
-        'rounded border border-zinc-800 bg-zinc-900/40 p-2 group relative transition-all',
-        isDragging && 'opacity-40',
-        isDropTarget && 'border-blue-500 border-t-2',
-      )}
+      className="group"
+      style={{
+        background: theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        padding: 10,
+        position: 'relative',
+        opacity: isDragging ? 0.4 : 1,
+        borderTopWidth: isDropTarget ? 4 : 2,
+        borderTopColor: isDropTarget ? theme.accent : theme.border,
+      }}
     >
       {/* Header row — grip + label + delete */}
-      <div className="flex items-start gap-1.5">
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
         <div
-          className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 mt-1 shrink-0"
+          style={{ cursor: 'grab', color: theme.ink3, marginTop: 2, flexShrink: 0 }}
           title="Trascina per riordinare"
         >
-          <IconGripVertical className="h-3.5 w-3.5" />
+          <IconGripVertical size={14} />
         </div>
 
         <textarea
@@ -211,7 +247,19 @@ function FlowCard({
           }}
           rows={1}
           placeholder="Etichetta…"
-          className="flex-1 bg-transparent text-xs text-zinc-200 placeholder-zinc-600 resize-none focus:outline-none overflow-hidden leading-snug min-w-0"
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: 'transparent',
+            color: theme.ink,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            lineHeight: 1.3,
+            resize: 'none',
+            outline: 'none',
+            border: 'none',
+            overflow: 'hidden',
+          }}
         />
 
         <button
@@ -219,23 +267,23 @@ function FlowCard({
             if (confirmDelete) onDelete();
             else setConfirmDelete(true);
           }}
-          className={cn(
-            'p-0.5 rounded transition-colors shrink-0',
-            confirmDelete
-              ? 'bg-red-600 text-white'
-              : 'text-zinc-500 hover:text-red-400 hover:bg-zinc-800',
-          )}
+          style={{
+            padding: 2,
+            background: confirmDelete ? '#E24B4A' : 'transparent',
+            color: confirmDelete ? '#FFFFFF' : theme.ink3,
+            border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            flexShrink: 0,
+          }}
           title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
         >
-          <IconTrash className="h-3 w-3" />
+          <IconTrash size={11} />
         </button>
       </div>
 
-      {/* Chip rows — each row's inline editor sits directly below it, so
-          the dropdown is anchored to the chip the user just tapped. */}
-
       {/* Row 1: Contatto */}
-      <div className="flex flex-wrap gap-1.5 mt-2 pl-5">
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, paddingLeft: 20 }}>
         <ContactChip
           contactId={node.contact_id}
           active={expanded === 'contact'}
@@ -243,9 +291,7 @@ function FlowCard({
         />
       </div>
       {expanded === 'contact' && (
-        <div className="mt-1.5 pl-5">
-          {/* autoOpen skips the redundant "selected pill" intermediate state
-              — the chip above already plays that role. */}
+        <div style={{ marginTop: 6, paddingLeft: 20 }}>
           <ContactCombobox
             autoOpen
             value={node.contact_id}
@@ -257,9 +303,8 @@ function FlowCard({
         </div>
       )}
 
-      {/* Row 2: Status + Data (share the row; their editor opens below if
-          either is clicked). */}
-      <div className="flex flex-wrap gap-1.5 mt-1.5 pl-5">
+      {/* Row 2: Status + Data */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingLeft: 20 }}>
         <StatusChip
           state={node.state}
           active={expanded === 'status'}
@@ -272,7 +317,7 @@ function FlowCard({
         />
       </div>
       {expanded === 'status' && (
-        <div className="mt-1.5 pl-5">
+        <div style={{ marginTop: 6, paddingLeft: 20 }}>
           <StatusEditor
             current={node.state}
             onPick={(s) => {
@@ -283,7 +328,7 @@ function FlowCard({
         </div>
       )}
       {expanded === 'date' && (
-        <div className="mt-1.5 pl-5">
+        <div style={{ marginTop: 6, paddingLeft: 20 }}>
           <DateEditor
             iso={node.occurred_at}
             onChange={(iso) => {
@@ -308,25 +353,28 @@ function StatusChip({
   active: boolean;
   onClick: () => void;
 }) {
-  // Icon-only chip — the full label appears in the inline editor that opens
-  // when this chip is clicked.
+  const theme = usePixelTheme();
   const Icon = state === 'active' ? null : STATUS_ICON[state];
-  const color = state === 'active' ? '#71717A' : FLOW_STATE_COLORS[state];
+  const color = state === 'active' ? theme.ink3 : FLOW_STATE_COLORS[state];
   return (
     <button
       onClick={onClick}
-      className={cn(
-        'flex items-center justify-center w-7 h-6 rounded transition-colors border',
-        active
-          ? 'border-blue-500 bg-blue-500/15'
-          : 'border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900',
-      )}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 28,
+        height: 24,
+        background: active ? theme.accent : theme.surface,
+        border: `2px solid ${active ? theme.border : theme.border}`,
+        cursor: 'pointer',
+      }}
       title={state === 'active' ? 'Imposta status' : FLOW_STATE_LABELS[state]}
     >
       {Icon ? (
-        <Icon className="h-3.5 w-3.5" style={{ color }} stroke={2.5} />
+        <Icon size={13} style={{ color: active ? theme.onAccent : color }} stroke={2.5} />
       ) : (
-        <span className="text-[11px] text-zinc-500 leading-none">—</span>
+        <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
       )}
     </button>
   );
@@ -341,6 +389,7 @@ function ContactChip({
   active: boolean;
   onClick: () => void;
 }) {
+  const theme = usePixelTheme();
   const { contacts } = useContacts();
   const contact = contactId ? contacts.find((c) => c.id === contactId) : null;
   const text = contact
@@ -351,15 +400,30 @@ function ContactChip({
   return (
     <button
       onClick={onClick}
-      className={cn(
-        'flex items-center gap-1 px-2 h-6 rounded text-[11px] transition-colors border max-w-[150px]',
-        active
-          ? 'border-blue-500 bg-blue-500/15 text-blue-200'
-          : 'border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 text-zinc-400',
-      )}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '0 8px',
+        height: 24,
+        maxWidth: 150,
+        background: active ? theme.accent : theme.surface,
+        color: active ? theme.onAccent : theme.ink2,
+        border: `2px solid ${theme.border}`,
+        fontFamily: 'var(--font-pixel-body)',
+        fontSize: 11,
+        cursor: 'pointer',
+      }}
     >
-      <IconUser className="h-3 w-3 shrink-0" />
-      <span className="truncate" style={contact?.color ? { color: contact.color } : undefined}>
+      <IconUser size={11} style={{ flexShrink: 0 }} />
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          ...(contact?.color && !active ? { color: contact.color } : {}),
+        }}
+      >
         {text}
       </span>
     </button>
@@ -375,20 +439,27 @@ function DateChip({
   active: boolean;
   onClick: () => void;
 }) {
-  // Compact GG/MM/AA — full datetime stays in the inline editor below.
+  const theme = usePixelTheme();
   const text = iso ? formatShortDate(iso) : 'Data';
   return (
     <button
       onClick={onClick}
-      className={cn(
-        'flex items-center gap-1 px-2 h-6 rounded text-[11px] transition-colors border',
-        active
-          ? 'border-blue-500 bg-blue-500/15 text-blue-200'
-          : 'border-zinc-800 bg-zinc-900/40 hover:bg-zinc-900 text-zinc-400',
-      )}
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: '0 8px',
+        height: 24,
+        background: active ? theme.accent : theme.surface,
+        color: active ? theme.onAccent : theme.ink2,
+        border: `2px solid ${theme.border}`,
+        fontFamily: 'var(--font-pixel-body)',
+        fontSize: 11,
+        cursor: 'pointer',
+      }}
     >
-      <IconCalendar className="h-3 w-3 shrink-0" />
-      <span className="truncate">{text}</span>
+      <IconCalendar size={11} style={{ flexShrink: 0 }} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{text}</span>
     </button>
   );
 }
@@ -402,11 +473,9 @@ function StatusEditor({
   current: FlowNodeState;
   onPick: (s: FlowNodeState) => void;
 }) {
-  // Only the four lifecycle decorators are shown. Clicking the currently
-  // selected one again resets to 'active' (no decorator), so the user can
-  // still clear a status without a dedicated "Nessuno" row.
+  const theme = usePixelTheme();
   return (
-    <div className="flex flex-col gap-1">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {STATUSES.map((s) => {
         const isActive = current === s;
         const Icon = STATUS_ICON[s];
@@ -416,17 +485,25 @@ function StatusEditor({
           <button
             key={s}
             onClick={() => onPick(isActive ? 'active' : s)}
-            className={cn(
-              'h-8 w-full rounded text-[11px] font-medium flex items-center gap-2 px-3 border transition-colors',
-              isActive ? 'bg-black' : 'bg-zinc-800/60 hover:bg-zinc-800',
-            )}
             style={{
-              borderColor: isActive ? color : 'rgba(255,255,255,0.08)',
-              color: isActive ? color : '#D4D4D8',
-              borderWidth: isActive ? 1.5 : 1,
+              height: 30,
+              width: '100%',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 10px',
+              background: isActive ? color : theme.surfaceVariant,
+              border: `2px solid ${theme.border}`,
+              color: isActive ? '#000000' : theme.ink,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
             }}
           >
-            <Icon className="h-3.5 w-3.5" style={{ color: isActive ? color : '#71717A' }} stroke={2.5} />
+            <Icon size={13} style={{ color: isActive ? '#000000' : color }} stroke={2.5} />
             <span>{label}</span>
           </button>
         );
@@ -442,9 +519,7 @@ function DateEditor({
   iso: string | null;
   onChange: (iso: string | null) => void;
 }) {
-  // Two-row layout: gg/mm/aaaa text input on top, mini-calendar below.
-  // Picking a day commits the change (and closes via the caller); typing in
-  // the input commits on blur when the value parses.
+  const theme = usePixelTheme();
   const initial = iso ? new Date(iso) : null;
   const [text, setText] = useState(initial ? fmtItalianDate(initial) : '');
   const [anchor, setAnchor] = useState<Date>(initial ?? new Date());
@@ -457,7 +532,6 @@ function DateEditor({
     }
     const parsed = parseItalianDate(trimmed);
     if (parsed) {
-      // Preserve the time-of-day if there was one before.
       if (initial) {
         parsed.setHours(initial.getHours(), initial.getMinutes(), 0, 0);
       }
@@ -474,15 +548,25 @@ function DateEditor({
   };
 
   return (
-    <div className="space-y-2">
-      <div className="flex gap-1">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div style={{ display: 'flex', gap: 4 }}>
         <input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           onBlur={commitFromText}
           placeholder="gg/mm/aaaa"
-          className="flex-1 bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-200 focus:outline-none focus:border-blue-500"
+          style={{
+            flex: 1,
+            background: theme.surfaceVariant,
+            border: `2px solid ${theme.border}`,
+            padding: '0 8px',
+            height: 30,
+            color: theme.ink,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            outline: 'none',
+          }}
         />
         {iso && (
           <button
@@ -490,7 +574,16 @@ function DateEditor({
               setText('');
               onChange(null);
             }}
-            className="px-2 h-8 rounded text-zinc-500 hover:text-red-400 hover:bg-zinc-800/60 transition-colors"
+            style={{
+              padding: '0 8px',
+              height: 30,
+              background: theme.surface,
+              color: '#E24B4A',
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 14,
+            }}
             title="Cancella"
           >
             ×
@@ -518,40 +611,64 @@ function MiniCalendar({
   selected: Date | null;
   onSelect: (d: Date) => void;
 }) {
+  const theme = usePixelTheme();
   const days = useMemo(() => monthGridDays(anchor), [anchor]);
   const stepMonth = (delta: number) => {
     const next = new Date(anchor);
     next.setMonth(next.getMonth() + delta);
     onAnchorChange(next);
   };
+  const navBtn: React.CSSProperties = {
+    width: 24,
+    height: 24,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: theme.surface,
+    color: theme.ink2,
+    border: `2px solid ${theme.border}`,
+    cursor: 'pointer',
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 14,
+  };
   return (
-    <div className="bg-zinc-900/60 border border-zinc-800 rounded p-2">
+    <div style={{ background: theme.surface, border: `2px solid ${theme.border}`, padding: 8 }}>
       {/* Header */}
-      <div className="flex items-center justify-between mb-1.5">
-        <button
-          onClick={() => stepMonth(-1)}
-          className="w-6 h-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 flex items-center justify-center"
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+        <button onClick={() => stepMonth(-1)} style={navBtn}>‹</button>
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 10,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: theme.ink,
+          }}
         >
-          ‹
-        </button>
-        <span className="text-[11px] font-semibold text-zinc-200 capitalize">
           {anchor.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' })}
         </span>
-        <button
-          onClick={() => stepMonth(1)}
-          className="w-6 h-6 rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 flex items-center justify-center"
-        >
-          ›
-        </button>
+        <button onClick={() => stepMonth(1)} style={navBtn}>›</button>
       </div>
       {/* Weekday labels */}
-      <div className="grid grid-cols-7 gap-0.5 text-[9px] uppercase tracking-wider text-zinc-500 mb-1">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 4 }}>
         {['L', 'M', 'M', 'G', 'V', 'S', 'D'].map((w, i) => (
-          <div key={i} className="text-center">{w}</div>
+          <div
+            key={i}
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              textAlign: 'center',
+            }}
+          >
+            {w}
+          </div>
         ))}
       </div>
-      {/* Day grid — 6 rows × 7 cols */}
-      <div className="grid grid-cols-7 gap-0.5">
+      {/* Day grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
         {days.map((d) => {
           const inMonth = d.getMonth() === anchor.getMonth();
           const isSel = selected && sameDay(d, selected);
@@ -560,16 +677,19 @@ function MiniCalendar({
             <button
               key={d.toISOString()}
               onClick={() => onSelect(d)}
-              className={cn(
-                'h-7 rounded text-[11px] flex items-center justify-center transition-colors',
-                isSel
-                  ? 'bg-blue-500 text-black font-bold'
-                  : isTd
-                    ? 'border border-blue-500 text-zinc-200'
-                    : inMonth
-                      ? 'text-zinc-200 hover:bg-zinc-800'
-                      : 'text-zinc-600 hover:bg-zinc-800',
-              )}
+              style={{
+                height: 28,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: isSel ? theme.accent : 'transparent',
+                color: isSel ? theme.onAccent : inMonth ? theme.ink : theme.ink3,
+                border: isTd && !isSel ? `2px solid ${theme.accent}` : `2px solid transparent`,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 11,
+                fontWeight: isSel ? 700 : 400,
+                cursor: 'pointer',
+              }}
             >
               {d.getDate()}
             </button>
@@ -589,7 +709,6 @@ function startOfMonth(d: Date): Date {
   return x;
 }
 
-/** Monday-first start-of-week (matches Italian convention). */
 function startOfWeek(d: Date): Date {
   const x = new Date(d);
   x.setHours(0, 0, 0, 0);
@@ -599,8 +718,6 @@ function startOfWeek(d: Date): Date {
   return x;
 }
 
-/** 6 × 7 calendar grid starting on the Monday on/before the 1st of the
- *  given month. Trailing days spill into the next month. */
 function monthGridDays(anchor: Date): Date[] {
   const start = startOfWeek(startOfMonth(anchor));
   return Array.from({ length: 42 }, (_, i) => {
@@ -634,12 +751,9 @@ function parseItalianDate(s: string): Date | null {
 
 // ─── Date helpers ─────────────────────────────────────────────────────────
 
-/** Compact GG/MM/AA used by DateChip. The full datetime stays in the inline
- *  editor (the native <input type="datetime-local">). */
 function formatShortDate(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
 }
-

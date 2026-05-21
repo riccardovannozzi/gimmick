@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/auth-store';
 import { ActionColorsContext, useActionColorsQuery } from '@/store/action-colors-store';
+import { PixelThemeProvider } from '@/components/pixel';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,7 +40,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthInitializer>
         <ActionColorsProvider>
-          {children}
+          {/* Pixel Arcade design system. Lives alongside the legacy Tailwind
+              styling — only screens explicitly migrated to <PixelCard>,
+              <PixelButton>, usePixelTheme() pick it up. */}
+          <PixelThemeProvider>
+            {children}
+          </PixelThemeProvider>
         </ActionColorsProvider>
         <Toaster position="top-right" />
       </AuthInitializer>

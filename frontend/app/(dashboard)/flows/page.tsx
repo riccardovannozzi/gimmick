@@ -18,23 +18,16 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconRoute, IconClock, IconRefresh } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
+import { usePixelTheme } from '@/components/pixel';
 import { useFlowHub, type FlowHubFilter } from '@/lib/hooks/useFlowHub';
 import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { StatusIcon } from '@/components/flow/FlowNodeView';
-import { cn } from '@/lib/utils';
 import type { FlowHubItem } from '@/types/flow';
 
-/** True when the node's "ball" is on the current user — contact is the seeded
- *  self row, or no contact has been assigned (default-self semantics). */
 function isItemSelf(item: FlowHubItem): boolean {
   return !item.contact || item.contact.is_self;
 }
 
-// Four scenarios, one per lifecycle decorator. Labels match the STATUS
-// picker in the Flow inspector verbatim (uppercase English); tints come
-// from the shared FLOW_STATE_COLORS palette. Glyphs are rendered via
-// <StateGlyph> below, which reuses the exact same StatusIcon used inside
-// flow nodes — no tabler-icon approximation.
 const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
   { key: 'done', label: 'DONE', tint: FLOW_STATE_COLORS.done },
   { key: 'wait', label: 'WAIT', tint: FLOW_STATE_COLORS.wait },
@@ -42,10 +35,6 @@ const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
   { key: 'stop', label: 'STOP', tint: FLOW_STATE_COLORS.stop },
 ];
 
-/** Renders one of the four lifecycle glyphs (check / hourglass / slash / X)
- *  using the same StatusIcon paths that decorate the flow nodes themselves,
- *  so the Hub tab icon is pixel-identical to what the user sees inside a
- *  flow. */
 function StateGlyph({ state, color, size = 13 }: { state: FlowHubFilter; color: string; size?: number }) {
   return (
     <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0 block">
@@ -71,12 +60,11 @@ function formatScheduled(iso: string | null): string | null {
 }
 
 function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void }) {
+  const theme = usePixelTheme();
+  const [hover, setHover] = useState(false);
   const isSelf = isItemSelf(item);
   const ownerLabel = isSelf ? 'Palla mia' : item.contact?.name ?? 'Palla loro';
   const stateLabel = FLOW_STATE_LABELS[item.state];
-  // Tooltip text on the badge surfaces the most informative single label:
-  //   - if a status decorator is set (done/wait/undo/stop), the status wins
-  //   - otherwise show the ownership ("Palla mia" / contact name)
   const pillLabel = item.state !== 'active' ? stateLabel : ownerLabel;
   const isDue = item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
 
@@ -84,59 +72,127 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
     <button
       type="button"
       onClick={onOpen}
-      className="w-full text-left bg-zinc-900/60 hover:bg-zinc-900 border border-zinc-800 hover:border-zinc-700 rounded-lg px-4 py-3 transition-colors group"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      className="px-press"
+      style={{
+        width: '100%',
+        textAlign: 'left',
+        background: hover ? theme.surface : theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        padding: '12px 14px',
+        cursor: 'pointer',
+        boxShadow: hover ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+        transition: 'background 100ms',
+      }}
     >
-      {/* 3-column grid, each col split in 2 stacked rows:
-          col 1: TAG (top, grey caps)         | TILE TITLE (bottom, light)
-          col 2: CONTACT pill (top, bordered) | NODE LABEL (bottom, grey)
-          col 3: mini badge (spans both rows) */}
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-4 items-center">
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto',
+          gap: 16,
+          alignItems: 'center',
+        }}
+      >
         {/* Column 1 — tag (top) + tile title (bottom) */}
-        <div className="min-w-0">
-          <div className="text-[10px] uppercase tracking-[0.12em] text-zinc-500 truncate">
-            {item.tile.tag?.name || ' '}
+        <div style={{ minWidth: 0 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.12em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {item.tile.tag?.name || ' '}
           </div>
-          <div className="text-[12px] font-semibold text-zinc-100 group-hover:text-white truncate mt-0.5">
+          <div
+            style={{
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 13,
+              fontWeight: 600,
+              color: theme.ink,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              marginTop: 2,
+            }}
+          >
             {item.tile.title || '(senza titolo)'}
           </div>
         </div>
 
         {/* Column 2 — node label (top) + contact pill (bottom) */}
-        <div className="min-w-0 flex flex-col items-start gap-1 pl-8">
-          <span className="text-[12px] text-zinc-400 truncate max-w-full">
-            {item.label || <span className="italic text-zinc-600">(senza etichetta)</span>}
-          </span>
+        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, paddingLeft: 24 }}>
           <span
-            className={cn(
-              'px-2 py-1 rounded leading-none text-[11px] border max-w-full truncate',
-              !item.contact && 'opacity-0',
-            )}
-            style={
-              item.contact
-                ? {
-                    color: item.contact.color || '#D4D4D8',
-                    borderColor: '#52525B',
-                  }
-                : { color: 'transparent', borderColor: 'transparent' }
-            }
+            style={{
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 12,
+              color: theme.ink2,
+              maxWidth: '100%',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
           >
-            {item.contact
-              ? (item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name)
-              : '—'}
+            {item.label || <span style={{ fontStyle: 'italic', color: theme.ink3 }}>(senza etichetta)</span>}
           </span>
+          {item.contact ? (
+            <span
+              style={{
+                padding: '3px 6px',
+                lineHeight: 1,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: item.contact.color || theme.ink2,
+                border: `2px solid ${theme.border}`,
+                background: theme.surfaceVariant,
+                maxWidth: '100%',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}
+            >
+              {item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name}
+            </span>
+          ) : (
+            <span style={{ height: 18 }} />
+          )}
         </div>
 
-        {/* Column 3 — mini badge, same scale as the modal nodes. */}
-        <span className="shrink-0 flex items-center justify-center" title={pillLabel}>
+        {/* Column 3 — mini badge */}
+        <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title={pillLabel}>
           <FlowMiniBadge isSelf={isSelf} state={item.state} />
         </span>
       </div>
 
-      {/* Secondary metadata — schedule date / age / notes — only when present */}
       {(item.scheduled_at || (!item.scheduled_at && item.days_since_activity > 0) || item.notes) && (
-        <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-500">
+        <div
+          style={{
+            marginTop: 8,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            color: theme.ink3,
+          }}
+        >
           {item.scheduled_at && (
-            <span className={cn('flex items-center gap-1', isDue && 'text-red-400')}>
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                color: isDue ? '#E24B4A' : theme.ink3,
+              }}
+            >
               <IconClock size={11} />
               {formatScheduled(item.scheduled_at)}
             </span>
@@ -145,12 +201,24 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
             <span>{item.days_since_activity}g fa</span>
           )}
           {item.occurred_at && (
-            <span className="ml-auto">{formatDate(item.occurred_at)}</span>
+            <span style={{ marginLeft: 'auto' }}>{formatDate(item.occurred_at)}</span>
           )}
         </div>
       )}
       {item.notes && (
-        <div className="mt-2 text-xs text-zinc-400 line-clamp-2 whitespace-pre-wrap">
+        <div
+          style={{
+            marginTop: 8,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            color: theme.ink2,
+            whiteSpace: 'pre-wrap',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+          }}
+        >
           {item.notes}
         </div>
       )}
@@ -158,11 +226,6 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
   );
 }
 
-/** Reproduction of a FlowNodeView body at the same scale used in the modal
- *  (radius 16 → 32×32 body), so the Hub reads visually identical: black
- *  background + white border, square when the ball is on me (self contact
- *  or null) / circle when it's on someone else, with the inline status glyph
- *  (check/hourglass/slash/X) drawn inside when state is a decorator. */
 function FlowMiniBadge({
   isSelf,
   state,
@@ -170,14 +233,12 @@ function FlowMiniBadge({
   isSelf: boolean;
   state: 'active' | 'done' | 'wait' | 'undo' | 'stop';
 }) {
-  // Match FlowTrack.NODE_RADIUS so the Hub badge has the exact same diameter
-  // as a node body inside the Flow modal.
   const r = 16;
-  const SIZE = r * 2 + 4; // +4 leaves 2px of pad around the stroke
+  const SIZE = r * 2 + 4;
   const half = SIZE / 2;
   const bodyFill = '#000000';
   const bodyStroke = '#FFFFFF';
-  const bodyStrokeWidth = 1;
+  const bodyStrokeWidth = 2;
   const statusColor = FLOW_STATE_COLORS[state];
   const useSquare = isSelf;
 
@@ -190,7 +251,6 @@ function FlowMiniBadge({
             y={-r}
             width={r * 2}
             height={r * 2}
-            rx={4}
             fill={bodyFill}
             stroke={bodyStroke}
             strokeWidth={bodyStrokeWidth}
@@ -198,9 +258,6 @@ function FlowMiniBadge({
         ) : (
           <circle r={r} fill={bodyFill} stroke={bodyStroke} strokeWidth={bodyStrokeWidth} />
         )}
-        {/* Reuse the exact same status glyph component as the modal so the
-            decorator renders pixel-identical (same proportions, same stroke
-            widths). The size formula matches FlowNodeView (radius * 1.2). */}
         {state !== 'active' && <StatusIcon state={state} color={statusColor} size={r * 1.2} />}
       </g>
     </svg>
@@ -208,62 +265,130 @@ function FlowMiniBadge({
 }
 
 export default function FlowsPage() {
+  const theme = usePixelTheme();
   const router = useRouter();
   const [filter, setFilter] = useState<FlowHubFilter>('wait');
+  const [refreshHover, setRefreshHover] = useState(false);
 
   const { items, isLoading, isError, refetch } = useFlowHub(filter);
 
   const handleOpen = (item: FlowHubItem) => {
-    // Navigate to the canvas with this tile + flow node pre-selected. The
-    // canvas page's deep-link effect sets selectedFlowNodeId so TileSidebar
-    // jumps to the Flow tab focused on the right node.
     router.push(`/canvas?tile=${item.tile_id}&flow=${item.id}`);
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1 }}>
       <Header />
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        <div style={{ maxWidth: 768, margin: '0 auto', padding: '24px' }}>
           {/* Page title */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <IconRoute size={22} className="text-blue-400" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div
+                style={{
+                  width: 36,
+                  height: 36,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  color: theme.accent,
+                }}
+              >
+                <IconRoute size={20} />
+              </div>
               <div>
-                <h1 className="text-xl font-semibold text-white">Flow Hub</h1>
-                <p className="text-xs text-zinc-500 mt-0.5">
+                <h1
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 16,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.ink,
+                    margin: 0,
+                  }}
+                >
+                  Flow Hub
+                </h1>
+                <p
+                  style={{
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 11,
+                    color: theme.ink3,
+                    margin: '4px 0 0',
+                  }}
+                >
                   Inbox dei flussi pendenti, aggregati da tutti i tile
                 </p>
               </div>
             </div>
             <button
               onClick={() => refetch()}
-              className="h-8 px-3 rounded text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors flex items-center gap-1.5"
+              onMouseEnter={() => setRefreshHover(true)}
+              onMouseLeave={() => setRefreshHover(false)}
+              className="px-press"
               title="Aggiorna"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                padding: '0 10px',
+                background: refreshHover ? theme.surface : theme.surfaceVariant,
+                color: theme.ink2,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
             >
-              <IconRefresh size={13} />
+              <IconRefresh size={12} />
               Aggiorna
             </button>
           </div>
 
           {/* Filter tabs */}
-          <div className="flex items-center gap-1 mb-4 border-b border-zinc-800 pb-2 overflow-x-auto">
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              marginBottom: 16,
+              borderBottom: `2px solid ${theme.border}`,
+              paddingBottom: 8,
+              overflowX: 'auto',
+            }}
+          >
             {TABS.map((tab) => {
               const isActive = filter === tab.key;
               return (
                 <button
                   key={tab.key}
                   onClick={() => setFilter(tab.key)}
-                  className={cn(
-                    'h-8 px-3 rounded text-xs font-medium transition-colors flex items-center gap-1.5 shrink-0',
-                    isActive
-                      ? 'bg-zinc-800 text-white'
-                      : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-900',
-                  )}
-                  style={isActive ? { color: tab.tint } : undefined}
+                  className="px-press"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    height: 28,
+                    padding: '0 10px',
+                    background: isActive ? tab.tint : theme.surfaceVariant,
+                    color: isActive ? '#000' : theme.ink2,
+                    border: `2px solid ${theme.border}`,
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    cursor: 'pointer',
+                    flexShrink: 0,
+                    boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                  }}
                 >
-                  <StateGlyph state={tab.key} color={isActive ? tab.tint : 'currentColor'} size={13} />
+                  <StateGlyph state={tab.key} color={isActive ? '#000' : tab.tint} size={13} />
                   {tab.label}
                 </button>
               );
@@ -272,14 +397,70 @@ export default function FlowsPage() {
 
           {/* List */}
           {isLoading ? (
-            <div className="text-center py-12 text-zinc-500 text-sm">Caricamento…</div>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '48px 0',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+              }}
+            >
+              Caricamento…
+            </div>
           ) : isError ? (
-            <div className="text-center py-12 text-red-400 text-sm">Errore nel caricamento</div>
+            <div
+              style={{
+                textAlign: 'center',
+                padding: '48px 0',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: '#E24B4A',
+              }}
+            >
+              Errore nel caricamento
+            </div>
           ) : items.length === 0 ? (
-            <div className="text-center py-12">
-              <IconRoute size={32} className="mx-auto text-zinc-700 mb-3" />
-              <p className="text-sm text-zinc-500">Nessun flusso in questa categoria</p>
-              <p className="text-[11px] text-zinc-600 mt-1">
+            <div style={{ textAlign: 'center', padding: '48px 0' }}>
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 48,
+                  height: 48,
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  color: theme.ink3,
+                  marginBottom: 12,
+                }}
+              >
+                <IconRoute size={28} />
+              </div>
+              <p
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 10,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: theme.ink2,
+                  margin: 0,
+                }}
+              >
+                Nessun flusso in questa categoria
+              </p>
+              <p
+                style={{
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  color: theme.ink3,
+                  marginTop: 6,
+                }}
+              >
                 {filter === 'done' && 'I nodi marcati come "Fatto" compariranno qui'}
                 {filter === 'wait' && 'I nodi marcati come "In attesa" compariranno qui'}
                 {filter === 'undo' && 'I nodi marcati come "Annullato" compariranno qui'}
@@ -287,7 +468,7 @@ export default function FlowsPage() {
               </p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {items.map((item) => (
                 <FlowItemCard key={item.id} item={item} onOpen={() => handleOpen(item)} />
               ))}
@@ -295,7 +476,17 @@ export default function FlowsPage() {
           )}
 
           {items.length > 0 && (
-            <div className="mt-6 text-center text-[11px] text-zinc-600">
+            <div
+              style={{
+                marginTop: 24,
+                textAlign: 'center',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+              }}
+            >
               {items.length} {items.length === 1 ? 'flusso' : 'flussi'}
             </div>
           )}

@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useAuthStore } from '@/store';
 import { ThemeProvider, useTheme } from '@/lib/theme';
+import { PixelThemeProvider } from '@/components/pixel';
 
 import '../global.css';
 
@@ -105,7 +106,12 @@ export default function RootLayout() {
         <GestureHandlerRootView style={{ flex: 1 }}>
           <BottomSheetModalProvider>
             <ThemeProvider>
-              <AppContent />
+              {/* Pixel Arcade design system. Sits alongside the legacy
+                  ThemeProvider until existing screens are migrated to use
+                  `usePixelTheme()` instead of `useThemeColors()`. */}
+              <PixelThemeProvider>
+                <AppContent />
+              </PixelThemeProvider>
             </ThemeProvider>
           </BottomSheetModalProvider>
         </GestureHandlerRootView>

@@ -7,16 +7,8 @@ import { toast } from 'sonner';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 import { tilesApi, tagsApi } from '@/lib/api';
 import type { Tile, ActionType, Tag } from '@/types';
 
@@ -24,14 +16,11 @@ const ACTION_TYPE_CONFIG: {
   value: ActionType;
   label: string;
   icon: typeof IconCircle;
-  color: string;
-  bgColor: string;
-  borderColor: string;
 }[] = [
-  { value: 'none', label: 'Appunto', icon: IconCircle, color: 'text-zinc-400', bgColor: 'bg-zinc-800', borderColor: 'border-zinc-600' },
-  { value: 'anytime', label: 'Da fare', icon: IconBolt, color: 'text-green-400', bgColor: 'bg-green-500/15', borderColor: 'border-green-500/40' },
-  { value: 'deadline', label: 'Scadenza', icon: IconClock, color: 'text-amber-400', bgColor: 'bg-amber-500/15', borderColor: 'border-amber-500/40' },
-  { value: 'event', label: 'Evento', icon: IconCalendar, color: 'text-blue-400', bgColor: 'bg-blue-500/15', borderColor: 'border-blue-500/40' },
+  { value: 'none', label: 'Appunto', icon: IconCircle },
+  { value: 'anytime', label: 'Da fare', icon: IconBolt },
+  { value: 'deadline', label: 'Scadenza', icon: IconClock },
+  { value: 'event', label: 'Evento', icon: IconCalendar },
 ];
 
 interface TileDetailModalProps {
@@ -41,6 +30,7 @@ interface TileDetailModalProps {
 }
 
 export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalProps) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState('');
@@ -55,7 +45,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   });
   const allTags: Tag[] = tagsResult?.data || [];
 
-  // Sync form when tile changes
   useEffect(() => {
     if (tile) {
       setTitle(tile.title || '');
@@ -80,7 +69,6 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
       const result = await tilesApi.update(tile.id, updates as Parameters<typeof tilesApi.update>[1]);
       if (!result.success) throw new Error(result.error);
 
-      // Sync tags — add new, remove old
       const currentTagIds = new Set(tile.tags?.map((t) => t.id) || []);
       const toAdd = [...selectedTagIds].filter((id) => !currentTagIds.has(id));
       const toRemove = [...currentTagIds].filter((id) => !selectedTagIds.has(id));
@@ -101,18 +89,83 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
   const hasAiSuggestion = tile && !tile.action_type_reviewed && tile.action_type_ai;
   const aiConfidencePercent = tile?.action_type_confidence ? Math.round(tile.action_type_confidence * 100) : 0;
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 6,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '8px 10px',
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    outline: 'none',
+    colorScheme: 'dark',
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg bg-zinc-900 border-zinc-700 text-white">
-        <DialogHeader>
-          <DialogTitle className="text-white">Dettaglio Tile</DialogTitle>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        style={{
+          maxWidth: 520,
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          borderRadius: 0,
+          color: theme.ink,
+          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          padding: 0,
+          gap: 0,
+          display: 'block',
+        }}
+      >
+        {/* Header */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            height: 40,
+            padding: '0 12px',
+            background: theme.surfaceVariant,
+            borderBottom: `2px solid ${theme.border}`,
+          }}
+        >
+          <span
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+            }}
+          >
+            Dettaglio Tile
+          </span>
+        </div>
 
-        <div className="flex flex-col gap-4">
+        {/* Body */}
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Action Type Selector */}
           <div>
-            <Label className="text-xs text-zinc-400 mb-2 block">Tipo azione</Label>
-            <div className="flex gap-1 p-1 rounded-lg bg-zinc-800/50">
+            <label style={labelStyle}>Tipo azione</label>
+            <div
+              style={{
+                display: 'flex',
+                gap: 4,
+                padding: 4,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+              }}
+            >
               {ACTION_TYPE_CONFIG.map((opt) => {
                 const Icon = opt.icon;
                 const isSelected = actionType === opt.value;
@@ -120,26 +173,46 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                   <button
                     key={opt.value}
                     onClick={() => setActionType(opt.value)}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-all',
-                      isSelected
-                        ? `${opt.bgColor} ${opt.color} border ${opt.borderColor}`
-                        : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800 border border-transparent'
-                    )}
+                    style={{
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      padding: '6px 8px',
+                      background: isSelected ? theme.accent : 'transparent',
+                      color: isSelected ? theme.onAccent : theme.ink2,
+                      border: `2px solid ${isSelected ? theme.border : 'transparent'}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <Icon className="h-3.5 w-3.5" />
+                    <Icon size={12} />
                     {opt.label}
                   </button>
                 );
               })}
             </div>
-            {/* AI suggestion badge */}
             {hasAiSuggestion && (
               <button
                 onClick={() => setActionType(tile.action_type_ai!)}
-                className="mt-2 flex items-center gap-1.5 text-xs text-purple-400 hover:text-purple-300 transition-colors"
+                style={{
+                  marginTop: 8,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: theme.accent,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                }}
               >
-                <IconSparkles className="h-3 w-3" />
+                <IconSparkles size={12} />
                 AI suggerisce: {ACTION_TYPE_CONFIG.find((c) => c.value === tile.action_type_ai)?.label} ({aiConfidencePercent}%)
               </button>
             )}
@@ -147,38 +220,38 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
 
           {/* Title */}
           <div>
-            <Label htmlFor="tile-title" className="text-xs text-zinc-400">Titolo</Label>
-            <Input
+            <label htmlFor="tile-title" style={labelStyle}>Titolo</label>
+            <input
               id="tile-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titolo tile..."
-              className="mt-1 bg-zinc-800 border-zinc-700 text-white"
+              style={inputStyle}
             />
           </div>
 
-          {/* Date fields (conditional) */}
+          {/* Date fields */}
           {(actionType === 'deadline' || actionType === 'event') && (
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <Label className="text-xs text-zinc-400">
+            <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ flex: 1 }}>
+                <label style={labelStyle}>
                   {actionType === 'deadline' ? 'Scadenza' : 'Inizio'}
-                </Label>
-                <Input
+                </label>
+                <input
                   type="datetime-local"
                   value={startAt}
                   onChange={(e) => setStartAt(e.target.value)}
-                  className="mt-1 bg-zinc-800 border-zinc-700 text-white"
+                  style={inputStyle}
                 />
               </div>
               {actionType === 'event' && (
-                <div className="flex-1">
-                  <Label className="text-xs text-zinc-400">Fine</Label>
-                  <Input
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Fine</label>
+                  <input
                     type="datetime-local"
                     value={endAt}
                     onChange={(e) => setEndAt(e.target.value)}
-                    className="mt-1 bg-zinc-800 border-zinc-700 text-white"
+                    style={inputStyle}
                   />
                 </div>
               )}
@@ -187,8 +260,8 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
 
           {/* Tags */}
           <div>
-            <Label className="text-xs text-zinc-400 mb-2 block">Tags</Label>
-            <div className="flex flex-wrap gap-1.5">
+            <label style={labelStyle}>Tags</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {allTags.map((tag) => {
                 const isSelected = selectedTagIds.has(tag.id);
                 return (
@@ -201,21 +274,17 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
                         setSelectedTagIds(new Set([tag.id]));
                       }
                     }}
-                    className={cn(
-                      'px-2 py-0.5 rounded-full text-xs border transition-all',
-                      isSelected
-                        ? 'border-opacity-60'
-                        : 'border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500'
-                    )}
-                    style={
-                      isSelected
-                        ? {
-                            backgroundColor: '#94A3B820',
-                            color: '#94A3B8',
-                            borderColor: '#94A3B860',
-                          }
-                        : undefined
-                    }
+                    style={{
+                      padding: '4px 8px',
+                      background: isSelected ? theme.accent : theme.surfaceVariant,
+                      color: isSelected ? theme.onAccent : theme.ink2,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
                   >
                     {tag.name}
                   </button>
@@ -224,44 +293,88 @@ export function TileDetailModal({ tile, open, onOpenChange }: TileDetailModalPro
             </div>
           </div>
 
-          {/* Sparks preview (read-only) */}
+          {/* Sparks preview */}
           {tile?.sparks && tile.sparks.length > 0 && (
             <div>
-              <Label className="text-xs text-zinc-400 mb-2 block">
-                Sparks ({tile.sparks.length})
-              </Label>
-              <div className="flex flex-wrap gap-1.5 text-xs text-zinc-400">
+              <label style={labelStyle}>Sparks ({tile.sparks.length})</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {tile.sparks.map((s) => (
-                  <Badge
+                  <span
                     key={s.id}
-                    variant="outline"
-                    className="border-zinc-700 text-zinc-400"
+                    style={{
+                      padding: '4px 8px',
+                      background: theme.surfaceVariant,
+                      color: theme.ink2,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 11,
+                    }}
                   >
                     {s.type}{s.file_name ? `: ${s.file_name}` : ''}
-                  </Badge>
+                  </span>
                 ))}
               </div>
             </div>
           )}
         </div>
 
-        <DialogFooter>
-          <Button
-            variant="ghost"
+        {/* Footer */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: 12,
+            borderTop: `2px solid ${theme.border}`,
+            background: theme.surfaceVariant,
+          }}
+        >
+          <button
             onClick={() => onOpenChange(false)}
-            className="text-zinc-400 hover:text-zinc-300"
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: 28,
+              padding: '0 12px',
+              background: theme.surface,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
           >
             Annulla
-          </Button>
-          <Button
+          </button>
+          <button
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              padding: '0 12px',
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: updateMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: updateMutation.isPending ? 0.6 : 1,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
           >
-            <IconDeviceFloppy className="h-4 w-4 mr-1.5" />
+            <IconDeviceFloppy size={12} />
             {updateMutation.isPending ? 'Salvataggio...' : 'Salva'}
-          </Button>
-        </DialogFooter>
+          </button>
+        </div>
       </DialogContent>
     </Dialog>
   );

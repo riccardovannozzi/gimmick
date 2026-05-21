@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
+import { usePixelTheme } from '@/components/pixel';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
@@ -19,6 +20,7 @@ import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
+  const theme = usePixelTheme();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tagId = searchParams.get('tag');
@@ -651,7 +653,7 @@ export default function CanvasPage() {
   }, [tileCtx, tagId, tiles, queryClient]);
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
       <Header title="Canvas" />
 
       {tagId && tag ? (
@@ -675,14 +677,23 @@ export default function CanvasPage() {
             role="separator"
             aria-orientation="vertical"
             onMouseDown={handleStagingResizeStart}
-            className="relative w-1 -mx-0.5 shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors z-10 group"
+            style={{ position: 'relative', width: 4, marginLeft: -2, marginRight: -2, flexShrink: 0, cursor: 'col-resize', background: 'transparent', zIndex: 10 }}
             title="Trascina per ridimensionare"
+            onMouseEnter={(e) => (e.currentTarget.style.background = `${theme.accent}66`)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            {/* Maniglietta visibile a metà altezza — segnala la possibilità
-                di trascinare il bordo per allargare/restringere lo staging. */}
             <div
               aria-hidden
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1.5 h-10 rounded-full bg-zinc-700 group-hover:bg-blue-500 transition-colors pointer-events-none"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: 6,
+                height: 40,
+                background: theme.border,
+                pointerEvents: 'none',
+              }}
             />
           </div>
         )}
@@ -866,30 +877,74 @@ export default function CanvasPage() {
               const groupAllowed = tileCount >= 2 && tbCount === 0;
               return (
                 <div
-                  className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[9999]"
-                  style={{ top, left, width: menuW }}
+                  className="fixed"
+                  style={{
+                    top, left, width: menuW,
+                    zIndex: 9999,
+                    background: theme.surface,
+                    border: `2px solid ${theme.border}`,
+                    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    padding: 4,
+                  }}
                   onMouseDown={(e) => e.stopPropagation()}
                 >
-                  <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-700/60">
+                  <div
+                    style={{
+                      padding: '6px 10px',
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: theme.ink3,
+                      borderBottom: `2px solid ${theme.border}`,
+                    }}
+                  >
                     {selectedIds.length} elementi
                     {tbCount > 0 && tileCount > 0 && (
-                      <span className="ml-1 normal-case text-zinc-600">({tileCount} tile · {tbCount} note)</span>
+                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
                     title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: groupAllowed ? 'pointer' : 'not-allowed',
+                      color: groupAllowed ? theme.ink2 : theme.ink3,
+                      opacity: groupAllowed ? 1 : 0.4,
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                    }}
                   >
-                    <IconBoxMultiple className="h-3.5 w-3.5" />
+                    <IconBoxMultiple size={14} />
                     Crea gruppo
                   </button>
                   <button
                     onClick={handleBulkDeleteSelected}
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#E24B4A',
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                    }}
                   >
-                    <IconTrash className="h-3.5 w-3.5" />
+                    <IconTrash size={14} />
                     Elimina elementi
                   </button>
                 </div>
@@ -903,51 +958,76 @@ export default function CanvasPage() {
             (() => {
               const inMultiSel = selectedIds.length > 1 && selectedTileIds.includes(tileCtx.tileId);
               const groupAllowed = selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0;
+              const menuItem: React.CSSProperties = {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 10px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.ink2,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 12,
+              };
+              const dangerItem: React.CSSProperties = { ...menuItem, color: '#E24B4A' };
               return (
                 <>
                   <div className="fixed inset-0 z-[9998]" onClick={() => setTileCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTileCtx(null); }} />
                   <div
-                    className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-44 z-[9999]"
-                    style={{ top: tileCtx.y, left: tileCtx.x }}
+                    className="fixed"
+                    style={{
+                      top: tileCtx.y,
+                      left: tileCtx.x,
+                      zIndex: 9999,
+                      width: 184,
+                      background: theme.surface,
+                      border: `2px solid ${theme.border}`,
+                      boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                      padding: 4,
+                    }}
                   >
                     {inMultiSel && (
                       <>
-                        <div className="px-3 py-1 text-[10px] uppercase tracking-wide text-zinc-500 border-b border-zinc-700/60">
+                        <div
+                          style={{
+                            padding: '6px 10px',
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            color: theme.ink3,
+                            borderBottom: `2px solid ${theme.border}`,
+                          }}
+                        >
                           {selectedIds.length} selezionati
                         </div>
                         <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
                           title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
-                          className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors disabled:opacity-40 disabled:hover:bg-transparent"
+                          style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
-                          <IconBoxMultiple className="h-3.5 w-3.5" />
+                          <IconBoxMultiple size={14} />
                           Crea gruppo
                         </button>
-                        <button
-                          onClick={() => { setTileCtx(null); handleBulkDeleteSelected(); }}
-                          className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
-                        >
-                          <IconTrash className="h-3.5 w-3.5" />
+                        <button onClick={() => { setTileCtx(null); handleBulkDeleteSelected(); }} style={dangerItem}>
+                          <IconTrash size={14} />
                           Elimina {selectedIds.length} elementi
                         </button>
-                        <div className="my-1 border-t border-zinc-700/60" />
+                        <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
                       </>
                     )}
                     {tileCtx.inGroup && (
-                      <button
-                        onClick={handleUngroupTile}
-                        className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                      <button onClick={handleUngroupTile} style={menuItem}>
+                        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
                         Ungroup
                       </button>
                     )}
-                    <button
-                      onClick={handleDuplicateTile}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
-                    >
-                      <IconCopy className="h-3.5 w-3.5" />
+                    <button onClick={handleDuplicateTile} style={menuItem}>
+                      <IconCopy size={14} />
                       Duplica
                     </button>
                     <button
@@ -957,9 +1037,9 @@ export default function CanvasPage() {
                         setTileCtx(null);
                         openFlow(id);
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                      style={menuItem}
                     >
-                      <IconRoute className="h-3.5 w-3.5" />
+                      <IconRoute size={14} />
                       Apri Flow
                     </button>
                     <button
@@ -973,16 +1053,13 @@ export default function CanvasPage() {
                           queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
                         });
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-zinc-300 hover:bg-zinc-700/50 transition-colors"
+                      style={menuItem}
                     >
-                      <IconInbox className="h-3.5 w-3.5" />
+                      <IconInbox size={14} />
                       Rimuovi dal canvas
                     </button>
-                    <button
-                      onClick={handleConfirmDeleteTile}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
-                    >
-                      <IconTrash className="h-3.5 w-3.5" />
+                    <button onClick={handleConfirmDeleteTile} style={dangerItem}>
+                      <IconTrash size={14} />
                       Delete
                     </button>
                   </div>
@@ -997,14 +1074,36 @@ export default function CanvasPage() {
             <>
               <div className="fixed inset-0 z-[9998]" onClick={() => setTbCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTbCtx(null); }} />
               <div
-                className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
-                style={{ top: tbCtx.y, left: tbCtx.x }}
+                className="fixed"
+                style={{
+                  top: tbCtx.y,
+                  left: tbCtx.x,
+                  zIndex: 9999,
+                  width: 168,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 4,
+                }}
               >
                 <button
                   onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#E24B4A',
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 12,
+                  }}
                 >
-                  <IconTrash className="h-3.5 w-3.5" />
+                  <IconTrash size={14} />
                   Delete
                 </button>
               </div>
@@ -1017,14 +1116,36 @@ export default function CanvasPage() {
             <>
               <div className="fixed inset-0 z-[9998]" onClick={() => setEdgeCtx(null)} onContextMenu={(e) => { e.preventDefault(); setEdgeCtx(null); }} />
               <div
-                className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 w-40 z-[9999]"
-                style={{ top: edgeCtx.y, left: edgeCtx.x }}
+                className="fixed"
+                style={{
+                  top: edgeCtx.y,
+                  left: edgeCtx.x,
+                  zIndex: 9999,
+                  width: 168,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 4,
+                }}
               >
                 <button
                   onClick={handleConfirmDeleteEdge}
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-red-950/30 transition-colors"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#E24B4A',
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 12,
+                  }}
                 >
-                  <IconTrash className="h-3.5 w-3.5" />
+                  <IconTrash size={14} />
                   Delete
                 </button>
               </div>
@@ -1056,9 +1177,36 @@ export default function CanvasPage() {
               finally { queryClient.invalidateQueries({ queryKey: ['tags'] }); }
             }}
           />
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-zinc-500">
-            <IconComponents size={32} strokeWidth={1} />
-            <p className="text-sm">Seleziona un tag dalla sidebar per aprire la lavagna</p>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 56,
+                height: 56,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                color: theme.ink3,
+              }}
+            >
+              <IconComponents size={28} strokeWidth={2} />
+            </div>
+            <p
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+                margin: 0,
+              }}
+            >
+              Seleziona un tag dalla sidebar
+            </p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: 0 }}>
+              per aprire la lavagna
+            </p>
           </div>
         </div>
       )}
