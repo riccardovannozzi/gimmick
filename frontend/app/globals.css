@@ -123,36 +123,98 @@
     @apply bg-background text-foreground;
   }
 
-  /* Dark scrollbar */
+  /* Pixel scrollbar — square thumb in border color, no radius */
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 10px;
+    height: 10px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: var(--px-bg1);
+    border-left: 2px solid var(--px-border);
   }
   ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
-    border-radius: 3px;
+    background: var(--px-border);
+    border-radius: 0;
+    border: 2px solid var(--px-bg1);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background: var(--px-accent);
   }
   ::-webkit-scrollbar-corner {
-    background: transparent;
+    background: var(--px-bg1);
   }
 
-  /* Left sidebar scrollbar — wider and darker than the global default */
+  /* Sidebar scrollbar — keeps the same pixel chrome */
   .sidebar-scroll::-webkit-scrollbar {
-    width: 8px;
+    width: 10px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: var(--px-bg2);
+    border-left: 2px solid var(--px-border);
   }
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: #09090b;
-    border-radius: 4px;
+    background: var(--px-border);
+    border-radius: 0;
+    border: 2px solid var(--px-bg2);
   }
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-    background: #18181b;
+    background: var(--px-accent);
   }
+
+  /* Pixel focus ring — drops accent outline 3px offset 0, no rounding */
+  :focus-visible {
+    outline: 3px solid var(--px-accent);
+    outline-offset: 0;
+    border-radius: 0;
+  }
+
+  /* Selection (highlight) — accent fill with onAccent text */
+  ::selection {
+    background: var(--px-accent);
+    color: var(--px-on-accent);
+  }
+}
+
+/* ─── Sonner toast overrides ─── */
+[data-sonner-toaster] [data-sonner-toast] {
+  background: var(--px-surface) !important;
+  border: 2px solid var(--px-border) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--px-shadow) !important;
+  color: var(--px-ink) !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 12px !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-color: var(--px-border) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-color: #E24B4A !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-family: var(--font-pixel-head), ui-monospace, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--px-ink) !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  color: var(--px-ink-2) !important;
+}
+
+/* ─── Radix tooltip / popover content — pixel chrome ─── */
+[data-radix-popper-content-wrapper] [data-slot="tooltip-content"],
+[role="tooltip"] {
+  background: var(--px-surface) !important;
+  color: var(--px-ink) !important;
+  border: 2px solid var(--px-border) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--px-shadow) !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  padding: 6px 10px !important;
 }
 
 /* ─── FullCalendar · Pixel Arcade theme ───

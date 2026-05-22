@@ -3,14 +3,9 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { IconArrowUp, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
+import { usePixelTheme } from '@/components/pixel';
 import { useActionColorsQuery } from '@/store/action-colors-store';
 import { readableOn } from '@/lib/palette';
 import type { ActionType } from '@/types';
@@ -30,21 +25,49 @@ interface ActionsModalProps {
 }
 
 export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
+  const theme = usePixelTheme();
   const { actionColors, updateActionColor } = useActionColorsQuery();
   const [editingAction, setEditingAction] = useState<ActionType | null>(null);
+
+  const dialogStyle: React.CSSProperties = {
+    maxWidth: 440,
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    borderRadius: 0,
+    color: theme.ink,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 0,
+    gap: 0,
+    display: 'block',
+  };
+  const headerStyle: React.CSSProperties = {
+    padding: '10px 14px',
+    background: theme.surfaceVariant,
+    borderBottom: `2px solid ${theme.border}`,
+  };
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white">Style of actions</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+        <DialogContent showCloseButton={false} style={dialogStyle}>
+          <div style={headerStyle}>
+            <h2
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+                margin: 0,
+              }}
+            >
+              Style of actions
+            </h2>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '4px 0 0' }}>
               Associa un colore a ogni tipo di azione.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+            </p>
+          </div>
+          <div style={{ padding: 14, maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
               const color = actionColors[type];
               const isNotes = type === 'none';
@@ -52,19 +75,48 @@ export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
                 <button
                   key={type}
                   onClick={() => setEditingAction(type)}
-                  className="flex items-center gap-3 w-full rounded-lg bg-zinc-800/30 hover:bg-zinc-800/60 px-3 py-2 transition-colors text-left"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 12,
+                    width: '100%',
+                    background: theme.surfaceVariant,
+                    border: `2px solid ${theme.border}`,
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
                 >
                   {isNotes || !ActionIcon ? (
-                    <div className="w-7 h-7 shrink-0" />
+                    <div style={{ width: 28, height: 28, flexShrink: 0 }} />
                   ) : (
                     <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                      style={{ backgroundColor: color }}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        background: color,
+                        border: `2px solid ${theme.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
                     >
-                      <ActionIcon className="h-4 w-4" color={readableOn(color)} />
+                      <ActionIcon size={14} color={readableOn(color)} />
                     </div>
                   )}
-                  <span className="text-sm font-medium text-zinc-200 flex-1">{label}</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 10,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      color: theme.ink,
+                      flex: 1,
+                    }}
+                  >
+                    {label}
+                  </span>
                 </button>
               );
             })}
@@ -74,7 +126,7 @@ export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
 
       {/* Editor sub-dialog */}
       <Dialog open={editingAction !== null} onOpenChange={(o) => !o && setEditingAction(null)}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
+        <DialogContent showCloseButton={false} style={dialogStyle}>
           {editingAction && (() => {
             const def = ACTION_LABELS.find((a) => a.type === editingAction)!;
             const color = actionColors[editingAction];
@@ -82,34 +134,78 @@ export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
             const isNotes = editingAction === 'none';
             return (
               <>
-                <DialogHeader>
-                  <DialogTitle className="text-white flex items-center gap-2">
+                <div style={headerStyle}>
+                  <h2
+                    style={{
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 11,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: theme.ink,
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
                     {!isNotes && ActionIcon && (
-                      <div className="w-6 h-6 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
-                        <ActionIcon className="h-3.5 w-3.5" color={readableOn(color)} />
+                      <div
+                        style={{
+                          width: 22,
+                          height: 22,
+                          background: color,
+                          border: `2px solid ${theme.border}`,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <ActionIcon size={12} color={readableOn(color)} />
                       </div>
                     )}
                     {def.label}
-                  </DialogTitle>
-                  <DialogDescription className="text-zinc-400">
+                  </h2>
+                  <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '4px 0 0' }}>
                     Colore associato a questa action.
-                  </DialogDescription>
-                </DialogHeader>
-
-                <div className="space-y-4">
+                  </p>
+                </div>
+                <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {isNotes ? (
-                    <p className="text-xs text-zinc-500 italic text-center py-4">
+                    <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, fontStyle: 'italic', textAlign: 'center', padding: '16px 0', margin: 0 }}>
                       Notes non ha un colore personalizzato.
                     </p>
                   ) : (
                     <>
-                      <div className="flex justify-center py-2">
-                        <div className="w-14 h-14 rounded-full flex items-center justify-center" style={{ backgroundColor: color }}>
-                          {ActionIcon && <ActionIcon className="h-7 w-7" color={readableOn(color)} />}
+                      <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0' }}>
+                        <div
+                          style={{
+                            width: 56,
+                            height: 56,
+                            background: color,
+                            border: `2px solid ${theme.border}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                          }}
+                        >
+                          {ActionIcon && <ActionIcon size={28} color={readableOn(color)} />}
                         </div>
                       </div>
                       <div>
-                        <label className="text-[11px] text-zinc-400 mb-2 block uppercase tracking-wide">Colore</label>
+                        <label
+                          style={{
+                            fontFamily: 'var(--font-pixel-head)',
+                            fontSize: 9,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            color: theme.ink3,
+                            display: 'block',
+                            marginBottom: 8,
+                          }}
+                        >
+                          Colore
+                        </label>
                         <ColorPickerGrid
                           selectedColor={color}
                           onSelect={(hex) => {
