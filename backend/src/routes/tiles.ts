@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { upsertTileEmbedding } from '../services/indexing.js';
+import { getActiveStatusId } from '../services/statuses.js';
 import type { AuthenticatedRequest, Tile, ActionType } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
@@ -253,14 +254,8 @@ tilesRouter.post(
       // Default new tiles to the system 'active' status (unless the caller
       // already provided a status_id).
       if (!tileData.status_id) {
-        const { data: activeStatus } = await supabaseAdmin
-          .from('statuses')
-          .select('id')
-          .eq('user_id', req.user!.id)
-          .eq('category', 'system')
-          .eq('name', 'active')
-          .maybeSingle();
-        if (activeStatus?.id) tileData.status_id = activeStatus.id;
+        const activeId = await getActiveStatusId(req.user!.id);
+        if (activeId) tileData.status_id = activeId;
       }
 
       const { data, error } = await supabaseAdmin

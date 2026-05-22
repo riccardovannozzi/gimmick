@@ -270,15 +270,18 @@
   border-radius: 0 !important;
   font-family: var(--font-pixel-body), ui-monospace, monospace;
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 14px;
   cursor: grab;
 }
-.fc-dark .fc-timegrid-event .fc-event-main { padding: 3px 5px; position: relative; }
+.fc-dark .fc-timegrid-event .fc-event-main { padding: 3px 5px; position: relative; color: inherit; }
 .fc-dark .fc-timegrid-event .fc-event-title {
-  font-weight: 600;
+  font-weight: normal;
   padding-right: 24px;
   word-break: break-word;
   font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  color: inherit;
 }
 .fc-dark .fc-timegrid-event .fc-event-time { display: none; }
 
@@ -287,7 +290,7 @@
   border-radius: 0 !important;
   font-family: var(--font-pixel-body), ui-monospace, monospace;
   font-size: 11px;
-  line-height: 1.2;
+  line-height: 14px;
   cursor: grab;
   height: 32px;
   min-height: 32px;
@@ -304,21 +307,27 @@
   white-space: normal;
   word-break: break-word;
   padding-right: 24px;
-  font-weight: 600;
+  font-weight: normal;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  color: inherit;
 }
 .fc-dark .fc-daygrid-day-events { min-height: 32px; }
 
-/* Day cell backgrounds */
+/* Day cell backgrounds — match the Chrono panel bg (px-bg1) */
 .fc-dark .fc-daygrid-day,
 .fc-dark .fc-daygrid-day-frame,
-.fc-dark .fc-daygrid-day-events { background: var(--px-bg2) !important; }
-.fc-dark .fc-timegrid-col-frame { background: var(--px-bg2); }
+.fc-dark .fc-daygrid-day-events { background: var(--px-bg1) !important; }
+.fc-dark .fc-timegrid-col-frame { background: var(--px-bg1); }
 
 /* All-day axis cell match */
-.fc-dark .fc-timegrid-axis { background: var(--px-bg2); }
+.fc-dark .fc-timegrid-axis { background: var(--px-bg1); }
 .fc-dark .fc-timegrid-axis:has(.fc-timegrid-slots) { background: transparent; }
 
-.fc-dark .fc-event-completed { opacity: 0.5; }
+/* DONE tiles are signalled by the status SHAPE (diagonals etc.), not by
+   fading the whole event — fading made the bg semi-transparent and let the
+   calendar grid bleed through the gaps in the diagonal pattern. */
 
 /* Month-view date numbers */
 .fc-dark .fc-daygrid-day-number {
@@ -356,4 +365,107 @@
 }
 .fc-dark .fc-timegrid-event:hover .fc-event-resizer-bottom {
   background: var(--px-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Markdown (rendered preview + TipTap WYSIWYG editor share these rules)
+   ───────────────────────────────────────────────────────────────────── */
+.markdown-preview, .tiptap-md {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--px-ink);
+}
+.markdown-preview h1, .tiptap-md h1 { font-family: var(--font-pixel-head); font-size: 18px; letter-spacing: 0.04em; margin: 14px 0 8px; }
+.markdown-preview h2, .tiptap-md h2 { font-family: var(--font-pixel-head); font-size: 15px; letter-spacing: 0.04em; margin: 12px 0 6px; }
+.markdown-preview h3, .tiptap-md h3 { font-family: var(--font-pixel-head); font-size: 13px; letter-spacing: 0.04em; margin: 10px 0 4px; }
+.markdown-preview p, .tiptap-md p { margin: 6px 0; }
+.markdown-preview strong, .tiptap-md strong { font-weight: 700; }
+.markdown-preview em, .tiptap-md em { font-style: italic; }
+.markdown-preview code, .tiptap-md code {
+  font-family: ui-monospace, monospace;
+  background: var(--px-surface-variant, #f4f4f5);
+  border: 1px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.markdown-preview pre, .tiptap-md pre {
+  background: var(--px-surface-variant, #f4f4f5);
+  border: 2px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 10px;
+  margin: 8px 0;
+  overflow-x: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.markdown-preview pre code, .tiptap-md pre code { background: transparent; border: 0 !important; padding: 0; }
+.markdown-preview ul, .tiptap-md ul { margin: 6px 0; padding-left: 22px; list-style: disc outside; }
+.markdown-preview ol, .tiptap-md ol { margin: 6px 0; padding-left: 22px; list-style: decimal outside; }
+.markdown-preview li, .tiptap-md li { margin: 2px 0; }
+.markdown-preview li::marker, .tiptap-md li::marker { color: var(--px-ink-2, #52525b); }
+.markdown-preview blockquote, .tiptap-md blockquote {
+  border-left: 4px solid var(--px-accent, #2D7FF9) !important;
+  border-left-style: solid !important;
+  background: var(--px-surface-variant, #f4f4f5);
+  padding: 6px 12px;
+  color: var(--px-ink-2, #52525b);
+  margin: 8px 0;
+  font-style: italic;
+}
+.markdown-preview a, .tiptap-md a { color: var(--px-accent, #2D7FF9); text-decoration: underline; }
+.markdown-preview mark, .tiptap-md mark { padding: 0 2px; }
+.markdown-preview hr, .tiptap-md hr { border: 0; border-top: 2px solid var(--px-border, #71717a); margin: 10px 0; }
+/* Tables — TipTap wraps tables in `.tableWrapper`; style both wrapper and
+   table so the outline shows up regardless of how the markdown was parsed. */
+.markdown-preview table, .tiptap-md table {
+  width: 100%;
+  border-collapse: collapse !important;
+  margin: 8px 0;
+  border: 2px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+}
+.tiptap-md .tableWrapper { overflow-x: auto; margin: 8px 0; }
+.markdown-preview th, .markdown-preview td, .tiptap-md th, .tiptap-md td {
+  border: 1px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-preview th, .tiptap-md th {
+  background: var(--px-surface-variant, #f4f4f5);
+  font-family: var(--font-pixel-head);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.markdown-preview input[type="checkbox"], .tiptap-md input[type="checkbox"] { accent-color: var(--px-accent); margin-right: 4px; }
+.tiptap-md ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.tiptap-md ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 6px; }
+.tiptap-md ul[data-type="taskList"] li > label { flex-shrink: 0; margin-top: 2px; }
+.tiptap-md ul[data-type="taskList"] li > div { flex: 1; }
+/* Visible text-selection highlight inside the TipTap editor.
+   `::selection` only honours a tiny whitelist of properties (background,
+   color, text-shadow) and ignores rules with unsupported values like
+   `color-mix(...)` — fall back to a solid color so the rule actually paints.
+   Selectors split across multiple lines because `::selection` cannot be
+   combined behind a comma with other pseudos in a single rule. */
+.tiptap-md ::selection { background: #2D7FF9; color: #FFFFFF; }
+.tiptap-md ::-moz-selection { background: #2D7FF9; color: #FFFFFF; }
+/* TipTap also wraps selected text inside `.ProseMirror`-prefixed spans on
+   some node types; cover them explicitly to win against ProseMirror's own
+   user-agent-ish styling. */
+.ProseMirror ::selection { background: #2D7FF9; color: #FFFFFF; }
+.ProseMirror ::-moz-selection { background: #2D7FF9; color: #FFFFFF; }
+/* TipTap marks the live selection range with `.ProseMirror-selectednode`
+   when a block (image, table, etc.) is picked — make that visible too. */
+.tiptap-md .ProseMirror-selectednode { outline: 2px solid #2D7FF9; outline-offset: 2px; }
+
+/* Mic-listening pulse for the MarkdownEditor dictation button. */
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50%      { opacity: 0.85; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }

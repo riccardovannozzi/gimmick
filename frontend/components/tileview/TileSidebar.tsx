@@ -21,6 +21,8 @@ import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
+import { MarkdownPreview } from '@/components/markdown/markdown-preview';
+import { MarkdownEditorModal } from '@/components/markdown/markdown-editor-modal';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -568,6 +570,8 @@ function SparkEditor({
   const textDirty = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  // Markdown editor modal for the inline text spark.
+  const [textModalOpen, setTextModalOpen] = useState(false);
 
   // Close PDF modal on Escape
   useEffect(() => {
@@ -633,46 +637,68 @@ function SparkEditor({
             Testo
           </span>
         </div>
-        <textarea
-          value={editText}
-          onChange={(e) => {
-            setEditText(e.target.value);
-            textDirty.current = true;
-          }}
-          onBlur={() => { if (textDirty.current) { onUpdateText(editText); textDirty.current = false; } }}
+        <div
+          onClick={() => setTextModalOpen(true)}
           style={{
-            width: '100%',
             flex: 1,
-            background: 'transparent',
-            color: theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
-            fontSize: 12,
-            lineHeight: 1.5,
-            resize: 'none',
-            outline: 'none',
-            border: 'none',
-            overflowY: 'auto',
-          }}
-        />
-        <button
-          onClick={handleDeleteClick}
-          className="opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{
-            position: 'absolute',
-            top: 4,
-            right: 4,
-            padding: 2,
-            background: confirmDelete ? '#E24B4A' : 'transparent',
-            color: confirmDelete ? '#FFFFFF' : theme.ink3,
-            border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+            overflow: 'auto',
             cursor: 'pointer',
-            display: 'inline-flex',
-            ...(confirmDelete ? { opacity: 1 } : {}),
+            paddingRight: 4,
           }}
-          title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
+          title="Apri editor"
         >
-          <IconTrash size={11} />
-        </button>
+          {editText.trim() ? (
+            <MarkdownPreview markdown={editText} />
+          ) : (
+            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12 }}>Vuoto — clicca per scrivere…</span>
+          )}
+        </div>
+        {/* Action chips (edit + delete) appear on hover, top-right corner. */}
+        <div
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 4 }}
+        >
+          <button
+            onClick={() => setTextModalOpen(true)}
+            style={{
+              padding: 2,
+              background: theme.surface,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+              display: 'inline-flex',
+            }}
+            title="Modifica"
+          >
+            <IconMaximize size={11} />
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            style={{
+              padding: 2,
+              background: confirmDelete ? '#E24B4A' : theme.surface,
+              color: confirmDelete ? '#FFFFFF' : theme.ink2,
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+              display: 'inline-flex',
+            }}
+            title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
+          >
+            <IconTrash size={11} />
+          </button>
+        </div>
+        <MarkdownEditorModal
+          open={textModalOpen}
+          initialValue={editText}
+          onSave={(md) => {
+            setEditText(md);
+            textDirty.current = false;
+            onUpdateText(md);
+            setTextModalOpen(false);
+          }}
+          onCancel={() => setTextModalOpen(false)}
+          title="Modifica testo"
+        />
       </div>
     );
   }
@@ -1138,11 +1164,18 @@ export function TileSidebar({
 
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
+  // Toggles the centered markdown editor modal for the in-progress new-text spark.
+  const [newTextModalOpen, setNewTextModalOpen] = useState(false);
   const [dropTargetIcon, setDropTargetIcon] = useState<string | null>(null);
   const addTextMutation = useMutation({
-    mutationFn: async () => {
+    // Accept the content as a parameter so the modal can fire-and-save in one
+    // gesture — otherwise we'd be reading a stale `newTextContent` from the
+    // closure right after calling `setNewTextContent(md)`.
+    mutationFn: async (contentOverride?: string) => {
       if (!tileId) throw new Error('Nessun tile selezionato');
-      const res = await sparksApi.create({ tile_id: tileId, type: 'text', content: newTextContent.trim() });
+      const content = (contentOverride ?? newTextContent).trim();
+      if (!content) throw new Error('Testo vuoto');
+      const res = await sparksApi.create({ tile_id: tileId, type: 'text', content });
       if (!res.success) throw new Error(res.error || 'Errore creazione spark');
       return res;
     },
@@ -1150,6 +1183,7 @@ export function TileSidebar({
       invalidateAll();
       setNewTextContent('');
       setShowNewText(false);
+      setNewTextModalOpen(false);
       toast.success('Testo aggiunto');
     },
     onError: (err: Error) => {
@@ -1589,24 +1623,49 @@ export function TileSidebar({
 
                 {showNewText && (
                   <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    <textarea
-                      value={newTextContent}
-                      onChange={(e) => setNewTextContent(e.target.value)}
-                      rows={3}
-                      autoFocus
+                    {/* Read-only markdown preview. Click anywhere on it (or on
+                        the corner expand icon) to open the centered editor. */}
+                    <button
+                      type="button"
+                      onClick={() => setNewTextModalOpen(true)}
                       style={{
+                        position: 'relative',
                         width: '100%',
+                        minHeight: 80,
+                        textAlign: 'left',
                         background: theme.surfaceVariant,
                         border: `2px solid ${theme.border}`,
-                        padding: '6px 8px',
+                        padding: '8px 10px',
                         color: theme.ink,
                         fontFamily: 'var(--font-pixel-body)',
                         fontSize: 12,
-                        outline: 'none',
-                        resize: 'vertical',
+                        cursor: 'pointer',
                       }}
-                      placeholder="Scrivi testo..."
-                    />
+                      title="Apri editor"
+                    >
+                      {newTextContent.trim() ? (
+                        <MarkdownPreview markdown={newTextContent} />
+                      ) : (
+                        <span style={{ color: theme.ink3, fontStyle: 'italic' }}>Clicca per scrivere…</span>
+                      )}
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          width: 22,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: theme.surface,
+                          border: `2px solid ${theme.border}`,
+                          color: theme.ink2,
+                        }}
+                      >
+                        <IconMaximize size={12} />
+                      </span>
+                    </button>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
                         onClick={() => newTextContent.trim() && addTextMutation.mutate()}
@@ -1651,6 +1710,20 @@ export function TileSidebar({
                         Annulla
                       </button>
                     </div>
+                    <MarkdownEditorModal
+                      open={newTextModalOpen}
+                      initialValue={newTextContent}
+                      onSave={(md) => {
+                        // Persist the draft locally first (in case the API
+                        // call fails we still show what the user wrote), then
+                        // commit it as a spark in one shot — no second click.
+                        setNewTextContent(md);
+                        if (md.trim()) addTextMutation.mutate(md);
+                        else setNewTextModalOpen(false);
+                      }}
+                      onCancel={() => setNewTextModalOpen(false)}
+                      title="Nuovo testo"
+                    />
                   </div>
                 )}
               </div>

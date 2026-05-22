@@ -27,7 +27,8 @@ import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { readableOn } from '@/lib/palette';
 
-import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
+import type { Spark, SparkType, Tile, Tag, ActionType, StatusShape } from '@/types';
+import { StatusPattern } from '@/components/statuses/status-pattern';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -779,118 +780,6 @@ function TagDropdown({
 }
 
 // ─── Spark thumbnail (loads signed URL for images) ───
-// ─── Status shape SVG for table cells ───
-function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
-  const id = `cell-${shape}-${color.replace('#', '')}`;
-  switch (shape) {
-    case 'diagonal_ltr':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-dltr`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-dltr)`} />
-        </svg>
-      );
-    case 'diagonal_rtl':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-drtl`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-drtl)`} />
-        </svg>
-      );
-    case 'vertical':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-vert`} patternUnits="userSpaceOnUse" width={12} height={12}><line x1={6} y1={0} x2={6} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect width={80} height={32} fill={`url(#${id}-vert)`} />
-        </svg>
-      );
-    case 'square':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <rect x={4} y={3} width={72} height={26} fill="none" stroke={color} strokeWidth={3} strokeOpacity={1} rx={3} />
-        </svg>
-      );
-    case 'target':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <circle cx={40} cy={16} r={10} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={40} cy={16} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={40} cy={16} r={2} fill={color} fillOpacity={1} />
-        </svg>
-      );
-    case 'cross':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <line x1={10} y1={10} x2={70} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
-          <line x1={70} y1={10} x2={10} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
-        </svg>
-      );
-    case 'bubble':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
-          <circle cx={42} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.85} />
-          <circle cx={56} cy={14} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
-          <circle cx={70} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-        </svg>
-      );
-    case 'question':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">?</text>
-        </svg>
-      );
-    case 'exclamation':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">!</text>
-        </svg>
-      );
-    case 'arrows':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <line x1={10} y1={11} x2={55} y2={11} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
-          <polyline points="48,5 58,11 48,17" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
-          <line x1={70} y1={21} x2={25} y2={21} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
-          <polyline points="32,15 22,21 32,27" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      );
-    case 'hourglass':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <path d="M32,7 L48,7 L40,16 L48,25 L32,25 L40,16 Z" fill="none" stroke={color} strokeWidth={3.5} strokeOpacity={1} strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-      );
-    case 'pause_bars':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <rect x={34} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
-          <rect x={42} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
-        </svg>
-      );
-    case 'lock':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <path d="M34,14 V10 a6,6 0 0 1 12,0 V14" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={1} strokeLinecap="round" />
-          <rect x={30} y={14} width={20} height={14} rx={2} fill={color} fillOpacity={0.9} />
-        </svg>
-      );
-    case 'shade':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <rect width={80} height={32} fill="#000000" opacity={0.5} />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
-
 function SparkThumbnail({ path }: { path: string }) {
   const theme = usePixelTheme();
   const [url, setUrl] = useState<string | null>(null);
@@ -1200,7 +1089,7 @@ function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Ti
                 border: `2px solid ${theme.border}`,
               }}
             >
-              <CellStatusSvg shape={status.shape} color={theme.ink} />
+              <StatusPattern shape={status.shape as StatusShape} color={theme.ink} bg={theme.surfaceVariant} />
             </div>
             <span
               className="truncate"

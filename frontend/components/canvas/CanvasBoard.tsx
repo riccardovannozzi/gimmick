@@ -644,11 +644,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 0);
       const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
       switch (d.statusShape) {
-        case 'diagonal_ltr':
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(60)')
-            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 0).attr('fill', `url(#${pid})`);
+        case 'diagonal_ltr': {
+          const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
+          const ink = readableOn(tileBg);
+          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(45)')
+            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', ink).attr('stroke-width', 1.5).attr('stroke-opacity', 1);
+          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
           break;
+        }
         case 'diagonal_rtl':
           pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
             .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
@@ -706,8 +709,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     nodeGrps.each(function (d) {
       const g = d3.select(this);
       const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
+      const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
+      const fg = readableOn(tileBg);
       fo.append('xhtml:div')
-        .attr('style', 'color:#D4D4D8;font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;')
+        .attr('style', `color:${fg};font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;`)
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge
@@ -783,7 +788,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (!IconComp) return;
       const g = d3.select(this);
       const actionColor = getColor(d.actionType);
-      g.append('circle').attr('cx', 14).attr('cy', TILE_H - 14).attr('r', 8).attr('fill', actionColor);
+      g.append('rect')
+        .attr('x', 6).attr('y', TILE_H - 22)
+        .attr('width', 16).attr('height', 16)
+        .attr('fill', actionColor)
+        .attr('stroke', theme.border).attr('stroke-width', 2);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
@@ -883,10 +892,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     let dragSuppressedBbox = false;
     nodeGrps.call(d3.drag<SVGGElement, CanvasNode>()
       .filter((ev) => !(ev.target as SVGElement).classList?.contains('port') && moveRef.current)
-      // Allow tiny mouse jitter between mousedown/mouseup to still fire the
-      // subsequent click handler (sidebar open). Without this, any sub-pixel
-      // movement is interpreted as a drag and the click is suppressed.
-      .clickDistance(5)
+      // Allow generous mouse jitter between mousedown/mouseup to still fire
+      // the subsequent click handler (sidebar open). 5 px was too strict —
+      // a touchpad tap or a hand-tremor click would slide past it, D3 would
+      // suppress the click and the tile selection silently failed. 12 px is
+      // wide enough to absorb that without breaking deliberate drags
+      // (which are tens-to-hundreds of pixels long).
+      .clickDistance(12)
       .on('start', function (_, d) {
         const sel = selectedIdsRef.current;
         if (sel.length > 1 && sel.includes(d.id)) {

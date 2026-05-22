@@ -4,10 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import * as TablerIcons from '@tabler/icons-react';
 import {
-  IconBolt,
-  IconArrowUp,
-  IconClock,
-  IconCalendar,
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
   IconArrowNarrowUp,
@@ -21,7 +17,9 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
-import type { Tile } from '@/types';
+import { StatusPattern } from '@/components/statuses/status-pattern';
+import { ActionBadge } from '@/components/actions/action-badge';
+import type { Tile, StatusShape } from '@/types';
 
 interface Props {
   tiles: Tile[];
@@ -38,14 +36,6 @@ interface Props {
 const TILE_W = 130;
 const TILE_H = 90;
 const FALLBACK_COLOR = '#94A3B8';
-
-const ACTION_ICON: Record<string, typeof IconBolt | null> = {
-  none: null,
-  anytime: IconArrowUp,
-  deadline: IconBolt,
-  event: IconClock,
-  allday: IconCalendar,
-};
 
 type SortDir = 'asc' | 'desc';
 type GroupBy = 'none' | 'action' | 'date' | 'tag' | 'type' | 'status';
@@ -121,7 +111,14 @@ export function StagingPanel({
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
-  const { statuses } = useStatuses();
+  const { statuses, getActionTypeShape } = useStatuses();
+  const resolveShape = useCallback((tile: Tile): StatusShape => {
+    if (tile.status_id) {
+      const st = statuses.find((s) => s.id === tile.status_id);
+      if (st) return st.shape as StatusShape;
+    }
+    return getActionTypeShape(tile.action_type || 'none');
+  }, [statuses, getActionTypeShape]);
   const tilesWithFlows = useTilesWithFlows();
   const openFlow = useFlowOpenStore((s) => s.open);
   const getIconForTile = useCallback(
@@ -235,12 +232,13 @@ export function StagingPanel({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Outer bg according to drop-target state
+  // Outer bg according to drop-target state. Default matches the canvas
+  // background (theme.bg1) so the panel feels like a continuation of the board.
   const panelBg = isDropTargetHover
     ? `${theme.accent}33`
     : isCanvasDragActive
       ? `${theme.accent}14`
-      : theme.bg2;
+      : theme.bg1;
   const panelBorderColor = (isDropTargetHover || isCanvasDragActive) ? theme.accent : theme.border;
 
   const renderTile = (t: Tile) => {
@@ -255,6 +253,8 @@ export function StagingPanel({
     const tileBg = si?.color ? `${si.color}CC` : theme.surface;
     const isSelected = selectedTileId === t.id;
     const hasFlow = tilesWithFlows.has(t.id);
+    const shape = resolveShape(t);
+    const shapeColor = actionKey === 'none' ? theme.ink : actionColor;
     return (
       <div
         key={t.id}
@@ -297,9 +297,10 @@ export function StagingPanel({
               </p>
             </div>
             <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4, position: 'relative', zIndex: 10 }}>
-              <ActionBadgeMini actionKey={actionKey} color={actionColor} borderColor={theme.border} />
+              <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
               {si && <TypeBadgeMini iconName={si.icon} color={si.color} borderColor={theme.border} />}
             </div>
+            <StatusPattern shape={shape} color={shapeColor} bg={tileBg} />
           </div>
         </div>
         {/* FLOW badge — pixel chip floating past the tile's top-right corner */}
@@ -450,7 +451,7 @@ export function StagingPanel({
             gap: 4,
             borderBottom: `2px solid ${theme.border}`,
             flexShrink: 0,
-            background: theme.bg2,
+            background: theme.bg1,
           }}
         >
           <button
@@ -588,27 +589,6 @@ export function StagingPanel({
           </div>
         )}
       </div>
-    </div>
-  );
-}
-
-function ActionBadgeMini({ actionKey, color, borderColor }: { actionKey: string; color: string; borderColor: string }) {
-  const Icon = ACTION_ICON[actionKey];
-  if (!Icon) return <span style={{ width: 14, height: 14, display: 'inline-block' }} />;
-  return (
-    <div
-      style={{
-        width: 14,
-        height: 14,
-        background: color,
-        border: `2px solid ${borderColor}`,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <Icon size={8} color={readableOn(color)} />
     </div>
   );
 }

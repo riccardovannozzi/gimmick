@@ -194,6 +194,29 @@ export const PIXEL_BACKGROUNDS = [
 ] as const;
 export type BackgroundId = (typeof PIXEL_BACKGROUNDS)[number];
 
+export const PIXEL_BACKGROUND_LABELS: Record<BackgroundId, string> = {
+  none:      'None · Nessuno',
+  scanlines: 'Scanlines · Linee',
+  dots:      'Dots · Puntini',
+  grid:      'Grid · Griglia',
+  checker:   'Checker · Scacchi',
+  diagonal:  'Diagonal · Diagonali',
+  dither:    'Dither · Retino',
+  stars:     'Stars · Stelle',
+  sunset:    'Sunset · Tramonto',
+  landscape: 'Landscape · Paesaggio',
+  arcade:    'Arcade · Insegna',
+  noise:     'Noise · Rumore',
+};
+
+export function hexWithAlpha(hex: string, a: number): string {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 // ─── Font stack ─────────────────────────────────────────────────────────────
 export const PIXEL_FONTS = {
   head: 'PressStart2P-Regular',

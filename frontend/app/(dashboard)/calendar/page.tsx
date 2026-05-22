@@ -29,6 +29,8 @@ import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import { readableOn } from '@/lib/palette';
 import { ChecklistBar } from '@/components/tileview/ChecklistBar';
+import { StatusPattern } from '@/components/statuses/status-pattern';
+import { ActionBadge } from '@/components/actions/action-badge';
 
 const FALLBACK_COLOR = '#888780';
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
@@ -45,24 +47,6 @@ function TypeIconBadge({ iconName, color }: { iconName: string; color?: string }
   );
 }
 
-// Round action badge (bg = action color, white icon). Notes (none) renders nothing.
-const ACTION_ICON: Record<string, typeof IconBolt | null> = {
-  none:     null,
-  anytime:  IconArrowUp,
-  deadline: null,         // DUE — bordo rosso tratteggiato sostituisce il badge
-  event:    IconClock,     // TIMED
-  allday:   IconCalendar,
-};
-
-function ActionIconBadge({ actionKey, color }: { actionKey: string; color: string }) {
-  const Icon = ACTION_ICON[actionKey];
-  if (!Icon) return null;
-  return (
-    <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: color }}>
-      <Icon size={10} color={readableOn(color)} />
-    </div>
-  );
-}
 
 /** Convert ISO string to datetime-local input value (local time) */
 function toLocalDatetimeValue(iso: string): string {
@@ -225,25 +209,6 @@ const ACTION_OPTIONS = [
   { value: 'event', label: 'TIMED', extra: { all_day: false } },
 ] as const;
 
-
-let _patId = 0;
-function InlineStatus({ shape, color }: { shape: StatusShape; color: string }) {
-  const o = 0.2;
-  const id = useMemo(() => `il-${++_patId}`, []);
-  switch (shape) {
-    case 'solid': return null;
-    case 'diagonal_ltr': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
-    case 'diagonal_rtl': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={120} height={80} rx={3} fill={`url(#${id})`} /></>;
-    case 'vertical': return <><defs><pattern id={id} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#${id})`} /></>;
-    case 'bubble': return <><circle cx={20} cy={20} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={44} cy={16} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={68} cy={22} r={7} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.1} /><circle cx={94} cy={18} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={114} cy={24} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.02} /><circle cx={28} cy={45} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={54} cy={47} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={80} cy={43} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={104} cy={47} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={22} cy={70} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={46} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={70} cy={68} r={6} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.08} /><circle cx={96} cy={72} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={116} cy={68} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /></>;
-    case 'cross': return <><line x1={10} y1={10} x2={120} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /><line x1={120} y1={10} x2={10} y2={80} stroke={color} strokeWidth={10} strokeOpacity={o + 0.3} strokeLinecap="round" /></>;
-    case 'hourglass': return <path d="M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z" fill="none" stroke={color} strokeWidth={4} strokeOpacity={o + 0.25} strokeLinejoin="round" strokeLinecap="round" />;
-    case 'pause_bars': return <><rect x={57} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /><rect x={67} y={26} width={6} height={38} rx={1} fill={color} fillOpacity={o + 0.15} /></>;
-    case 'lock': return <><path d="M58,41 V35 a7,7 0 0 1 14,0 V41" fill="none" stroke={color} strokeWidth={2} strokeOpacity={o + 0.15} strokeLinecap="round" /><rect x={53} y={41} width={24} height={20} rx={3} fill={color} fillOpacity={o + 0.1} /><circle cx={65} cy={51} r={2} fill="#1C1C1E" /></>;
-    case 'shade': return <rect width={130} height={90} fill="#000000" opacity={0.5} />;
-    default: return null;
-  }
-}
 
 const START_HOUR = 6;
 const END_HOUR = 22;
@@ -477,10 +442,12 @@ export default function CalendarPage() {
     staleTime: 2 * 60 * 1000,
   });
 
-  // Fetch tags for filter
+  // Fetch tags for filter — shared cache with the Canvas page; 5 min
+  // staleTime so Chrono↔Canvas navigation skips the network round-trip.
   const { data: tagsData } = useQuery({
     queryKey: ['tags'],
     queryFn: () => tagsApi.list(),
+    staleTime: 5 * 60 * 1000,
   });
 
   // Fetch unscheduled tiles for picker
@@ -488,6 +455,7 @@ export default function CalendarPage() {
     queryKey: ['tiles-unscheduled'],
     queryFn: () => tilesApi.list({ limit: 100 }),
     enabled: showTilePicker,
+    staleTime: 60 * 1000,
   });
 
   const events = eventsData?.data || [];
@@ -821,7 +789,6 @@ export default function CalendarPage() {
 
   const fcEvents: EventInput[] = useMemo(() => {
     return filteredEvents.map((t) => {
-      const color = getTagColor(t);
       const isAllDay = t.all_day || t.action_type === 'deadline';
       return {
         id: t.id,
@@ -829,16 +796,13 @@ export default function CalendarPage() {
         start: t.action_type === 'deadline' ? (t.end_at || t.created_at) : (t.start_at || t.created_at),
         end: t.end_at || (isAllDay ? undefined : new Date(new Date(t.start_at || t.created_at).getTime() + 3600000).toISOString()),
         allDay: isAllDay,
-        backgroundColor: 'rgba(24, 24, 27, 0.9)',
-        borderColor: `${color}60`,
-        textColor: '#A1A1AA',
         classNames: [
           isDone(t) ? 'fc-event-completed' : '',
           t.action_type === 'deadline' ? 'fc-event-deadline' : '',
         ].filter(Boolean),
       };
     });
-  }, [filteredEvents, getTagColor]);
+  }, [filteredEvents]);
 
   // Handle click on a calendar tile (open edit modal + sidebar)
   const handleCalTileClick = useCallback((tile: Tile) => {
@@ -1090,9 +1054,7 @@ export default function CalendarPage() {
                 </div>
               )}
               <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4 }}>
-                <span style={{ color: theme.border }}>
-                  <ActionIconBadge actionKey={actionKey} color={actionColor} />
-                </span>
+                <ActionBadge actionKey={actionKey} color={actionColor} />
                 {si && (
                   <span style={{ color: theme.border }}>
                     <TypeIconBadge iconName={si.icon} color={si.color} />
@@ -1100,13 +1062,7 @@ export default function CalendarPage() {
                 )}
               </div>
             </div>
-            {shape !== 'solid' && (
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
-                <svg style={{ width: '100%', height: '100%' }}>
-                  <InlineStatus shape={shape} color={t.action_type === 'none' ? theme.ink : color} />
-                </svg>
-              </div>
-            )}
+            <StatusPattern shape={shape} color={t.action_type === 'none' ? theme.ink : color} bg={tileBg} />
           </div>
         </div>
         {hasFlow && (
@@ -1201,7 +1157,7 @@ export default function CalendarPage() {
           data-kanban-column="notes"
           style={{
             ...(notesOpen ? { width: notesWidth } : { width: 32 }),
-            background: theme.bg2,
+            background: theme.bg1,
             borderRight: `2px solid ${theme.border}`,
             display: 'flex',
             flexDirection: 'column',
@@ -1385,7 +1341,7 @@ export default function CalendarPage() {
           data-kanban-column="todo"
           style={{
             ...(todoOpen ? { width: todoWidth } : { width: 32 }),
-            background: theme.bg2,
+            background: theme.bg1,
             borderRight: `2px solid ${theme.border}`,
             display: 'flex',
             flexDirection: 'column',
@@ -1564,7 +1520,7 @@ export default function CalendarPage() {
         )}
 
         {/* 4 — COLONNA CALENDAR */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: theme.bg2, overflow: 'hidden' }}>
+        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: theme.bg1, overflow: 'hidden' }}>
 
       {/* Column header */}
       <div
@@ -1853,18 +1809,37 @@ export default function CalendarPage() {
                 const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
                 if (tile) setCtxMenu({ x: e.clientX, y: e.clientY, tile });
               });
-              // Pixel-style tile: bg = type color (80% alpha) or surface, hard 2px border
+              // Pixel-style tile: bg = type color (CC alpha) or surface, hard 2px
+              // border, and an explicit `color` that the title element inherits.
+              // Mirrors the NOTES/TODO tile card: `readableOn(tileBg)` so the
+              // title stays legible whether the tile is on a dark type-color or
+              // a light theme surface.
               const tile = filteredEvents.find((t) => t.id === info.event.id) || allTiles.find((t) => t.id === info.event.id);
               if (tile) {
                 const tileSi = getIconForTile(tile.id);
                 const tileBg = tileSi?.color ? `${tileSi.color}CC` : theme.surface;
-                info.el.style.backgroundColor = tileBg;
+                const tileFg = readableOn(tileBg);
+                // The icon-derived bg has an 80% alpha (`CC`) for visual
+                // softening; layer it over an opaque theme.surface base so the
+                // calendar grid never bleeds through the remaining 20%.
+                if (tileSi?.color) {
+                  info.el.style.background = `linear-gradient(${tileBg}, ${tileBg}), ${theme.surface}`;
+                } else {
+                  info.el.style.backgroundColor = tileBg;
+                }
+                info.el.style.color = tileFg;
                 info.el.style.borderRadius = '0';
                 if (tile.action_type === 'deadline') {
                   info.el.style.border = '2px dashed #E24B4A';
                 } else {
                   info.el.style.border = `2px solid ${theme.border}`;
                 }
+                // Push the fg color down to .fc-event-main and .fc-event-title too,
+                // so FC's own per-element color rules don't bleed through.
+                const mainEl = info.el.querySelector('.fc-event-main') as HTMLElement | null;
+                if (mainEl) mainEl.style.color = tileFg;
+                const titleEl = info.el.querySelector('.fc-event-title') as HTMLElement | null;
+                if (titleEl) titleEl.style.color = tileFg;
               }
               // Inject status SHAPE overlay (pattern) for non-'solid' shapes.
               // We attach to the `.fc-event-main` child instead of `info.el` because
@@ -1877,26 +1852,16 @@ export default function CalendarPage() {
                   if (main) {
                     const tagColor = getTagColor(tile);
                     const shapeColor = tile.action_type === 'none' ? '#e4e4e7' : tagColor;
+                    const tileSi = getIconForTile(tile.id);
+                    const tileBg = tileSi?.color ? `${tileSi.color}CC` : theme.surface;
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const { renderToString: rts } = require('react-dom/server');
                     // eslint-disable-next-line @typescript-eslint/no-require-imports
                     const ReactM = require('react');
-                    let svgInner: string = rts(ReactM.createElement(InlineStatus, { shape, color: shapeColor }));
-                    // For pattern-based shapes, expand the inner rect to fill the
-                    // entire event (instead of fixed 120×80 / 130×90 from the
-                    // 130×90 design viewBox). The SVG below uses no scaling
-                    // (viewBox sized to the event in pixels), so the pattern unit
-                    // (10×10 / 16×20 px) keeps its exact pixel dimensions
-                    // regardless of the tile size.
-                    svgInner = svgInner
-                      .replace(/x="5" y="5" width="120" height="80"/g, 'x="0" y="0" width="100%" height="100%"')
-                      .replace(/width="130" height="90"/g, 'width="100%" height="100%"');
+                    const overlayHtml: string = rts(ReactM.createElement(StatusPattern, { shape, color: shapeColor, bg: tileBg }));
                     const overlay = document.createElement('div');
                     overlay.style.cssText = 'position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:0;';
-                    const evRect = info.el.getBoundingClientRect();
-                    const w = Math.max(1, Math.round(evRect.width));
-                    const h = Math.max(1, Math.round(evRect.height));
-                    overlay.innerHTML = `<svg style="display:block;width:100%;height:100%" viewBox="0 0 ${w} ${h}">${svgInner}</svg>`;
+                    overlay.innerHTML = overlayHtml;
                     if (getComputedStyle(main).position === 'static') {
                       main.style.position = 'relative';
                     }

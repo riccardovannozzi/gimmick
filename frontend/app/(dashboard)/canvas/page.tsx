@@ -46,10 +46,13 @@ export default function CanvasPage() {
   const [fitTrigger, setFitTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch tag
+  // Fetch tag — same queryKey as the Chrono page so they share the cache.
+  // Tags change rarely; 5 min staleTime makes Chrono↔Canvas navigation skip
+  // the network round-trip entirely.
   const { data: tagsData } = useQuery({
     queryKey: ['tags'],
     queryFn: () => tagsApi.list(),
+    staleTime: 5 * 60 * 1000,
   });
   const tags: Tag[] = tagsData?.data || [];
   const tag = tagId ? tags.find((t) => t.id === tagId) || null : null;
@@ -115,6 +118,7 @@ export default function CanvasPage() {
     queryKey: ['canvas-tiles', tagId],
     queryFn: () => tagsApi.getTiles(tagId!),
     enabled: !!tagId,
+    staleTime: 60 * 1000,
   });
   const allTagTiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
   // Set of tile ids that own at least one Flow node — drives the FLOW badge.
@@ -144,6 +148,7 @@ export default function CanvasPage() {
     queryKey: ['canvas-layout', tagId],
     queryFn: () => canvasApi.getLayout(tagId!),
     enabled: !!tagId,
+    staleTime: 60 * 1000,
   });
   const layout = useMemo(() => layoutData?.data || [], [layoutData]);
 
@@ -230,6 +235,7 @@ export default function CanvasPage() {
     queryKey: ['canvas-edges', tagId],
     queryFn: () => canvasApi.getEdges(tagId!),
     enabled: !!tagId,
+    staleTime: 60 * 1000,
   });
   const edges = useMemo(() => (edgesData?.data || []) as CanvasEdge[], [edgesData]);
 
@@ -238,6 +244,7 @@ export default function CanvasPage() {
     queryKey: ['canvas-groups', tagId],
     queryFn: () => canvasApi.getGroups(tagId!),
     enabled: !!tagId,
+    staleTime: 60 * 1000,
   });
   const canvasGroups: CanvasGroup[] = useMemo(() => (groupsData?.data || []).map((g: any) => ({
     id: g.id,
@@ -315,6 +322,7 @@ export default function CanvasPage() {
     queryKey: ['canvas-boxes', tagId],
     queryFn: () => canvasApi.getBoxes(tagId!),
     enabled: !!tagId,
+    staleTime: 60 * 1000,
   });
   const textBoxes = useMemo(() => (boxesData?.data || []) as unknown as CanvasTextBox[], [boxesData]);
 

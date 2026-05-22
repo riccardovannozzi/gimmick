@@ -7,7 +7,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 import { usePixelTheme } from '@/components/pixel';
 import { useActionColorsQuery } from '@/store/action-colors-store';
-import { readableOn } from '@/lib/palette';
+import { ActionBadge } from '@/components/actions/action-badge';
 import type { ActionType } from '@/types';
 
 type ActionDef = { type: ActionType; label: string; icon: typeof IconArrowUp | null };
@@ -68,9 +68,8 @@ export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
             </p>
           </div>
           <div style={{ padding: 14, maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {ACTION_LABELS.map(({ type, label, icon: ActionIcon }) => {
+            {ACTION_LABELS.map(({ type, label }) => {
               const color = actionColors[type];
-              const isNotes = type === 'none';
               return (
                 <button
                   key={type}
@@ -87,24 +86,7 @@ export function ActionsModal({ open, onOpenChange }: ActionsModalProps) {
                     textAlign: 'left',
                   }}
                 >
-                  {isNotes || !ActionIcon ? (
-                    <div style={{ width: 28, height: 28, flexShrink: 0 }} />
-                  ) : (
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        background: color,
-                        border: `2px solid ${theme.border}`,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <ActionIcon size={14} color={readableOn(color)} />
-                    </div>
-                  )}
+                  <ActionBadge actionKey={type} size={28} color={color} keepSpace />
                   <span
                     style={{
                       fontFamily: 'var(--font-pixel-head)',

@@ -1,25 +1,48 @@
 import React, { useState } from 'react';
-import { View, Text, Modal, Image as RNImage, TextInput, TouchableOpacity, FlatList, ScrollView, LayoutAnimation, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  View,
+  Text,
+  Modal,
+  Image as RNImage,
+  TextInput,
+  Pressable,
+  FlatList,
+  ScrollView,
+  LayoutAnimation,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   IconX,
   IconSend,
-  IconMicrophone,
   IconCamera,
   IconVideo,
   IconPhoto,
   IconEdit,
+  IconMicrophone,
   IconPaperclip,
   IconSparkles,
   IconCheck,
+  IconBatteryFilled,
 } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { SetOptionsAccordion, EMPTY_OPTIONS, type TileOptions } from '@/components/SetOptionsAccordion';
 import { useBufferStore, useAuthStore, useSettingsStore, toast } from '@/store';
 import { uploadBufferItems, chatApi } from '@/lib/api';
-import { captureColors, captureColorsBg } from '@/constants/colors';
 import { useThemeColors } from '@/lib/theme';
+import {
+  usePixelTheme,
+  PixelCard,
+  PixelButton,
+  PixelBadge,
+  PixelIconButton,
+  PixelWordmark,
+  PixelBackground,
+  ShadowLayer,
+} from '@/components/pixel';
+import { hexWithAlpha, type CaptureKey } from '@/constants/pixel-theme';
 import { formatFileSize, formatDuration } from '@/utils/formatters';
 import type { BufferItem, SparkType } from '@/types';
 
@@ -41,167 +64,137 @@ const buttonToSparkTypes: Record<string, SparkType[]> = {
   file: ['file'],
 };
 
-const captureOptions = [
-  { id: 'photo', label: 'PHOTO', icon: <IconCamera />, color: captureColors.photo, bg: captureColorsBg.photo, route: '/capture/photo' },
-  { id: 'video', label: 'VIDEO', icon: <IconVideo />, color: captureColors.video, bg: captureColorsBg.video, route: '/capture/video' },
-  { id: 'gallery', label: 'GALLERY', icon: <IconPhoto />, color: captureColors.gallery, bg: captureColorsBg.gallery, route: '/capture/gallery' },
-  { id: 'text', label: 'TEXT', icon: <IconEdit />, color: captureColors.text, bg: captureColorsBg.text, route: '/capture/text' },
-  { id: 'voice', label: 'REC', icon: <IconMicrophone />, color: captureColors.voice, bg: captureColorsBg.voice, route: '/capture/voice' },
-  { id: 'file', label: 'FILE', icon: <IconPaperclip />, color: captureColors.file, bg: captureColorsBg.file, route: '/capture/file' },
-] as const;
+type CaptureOption = {
+  id: CaptureKey;
+  label: string;
+  Icon: typeof IconCamera;
+  route: string;
+};
 
-function SparkChip({ item, index, onRemove, onPress, colors }: { item: BufferItem; index: number; onRemove: () => void; onPress?: () => void; colors: any }) {
-  const getChipColor = (type: SparkType) => {
-    switch (type) {
-      case 'photo': case 'image': return captureColors.photo;
-      case 'video': return captureColors.video;
-      case 'text': return captureColors.text;
-      case 'audio_recording': return captureColors.voice;
-      case 'file': return captureColors.file;
-      default: return colors.accent;
-    }
-  };
+const captureOptions: CaptureOption[] = [
+  { id: 'photo',   label: 'PHOTO',   Icon: IconCamera,     route: '/capture/photo' },
+  { id: 'video',   label: 'VIDEO',   Icon: IconVideo,      route: '/capture/video' },
+  { id: 'gallery', label: 'GALLERY', Icon: IconPhoto,      route: '/capture/gallery' },
+  { id: 'text',    label: 'TEXT',    Icon: IconEdit,       route: '/capture/text' },
+  { id: 'voice',   label: 'REC',     Icon: IconMicrophone, route: '/capture/voice' },
+  { id: 'file',    label: 'FILE',    Icon: IconPaperclip,  route: '/capture/file' },
+];
 
-  const getTypeLabel = (type: SparkType) => {
-    switch (type) {
-      case 'photo': return 'Photo';
-      case 'image': return 'Image';
-      case 'video': return 'Video';
-      case 'audio_recording': return 'Rec';
-      case 'text': return 'Text';
-      case 'file': return 'File';
-      default: return 'Item';
-    }
-  };
+function sparkToCaptureKey(type: SparkType): CaptureKey {
+  switch (type) {
+    case 'photo':
+    case 'image':
+      return 'photo';
+    case 'video':
+      return 'video';
+    case 'text':
+      return 'text';
+    case 'audio_recording':
+      return 'voice';
+    case 'file':
+      return 'file';
+    default:
+      return 'text';
+  }
+}
 
-  const getDetails = (item: BufferItem) => {
-    const parts: string[] = [];
-    if (item.size) parts.push(formatFileSize(item.size));
-    if (item.duration) parts.push(formatDuration(item.duration));
-    if (item.type === 'text' && item.preview) {
-      parts.push(item.preview.substring(0, 30));
-    }
-    if (item.fileName) parts.push(item.fileName);
-    return parts.join(' · ') || getTypeLabel(item.type).toLowerCase();
-  };
+function typeLabel(type: SparkType): string {
+  switch (type) {
+    case 'photo': return 'PHOTO';
+    case 'image': return 'IMAGE';
+    case 'video': return 'VIDEO';
+    case 'audio_recording': return 'REC';
+    case 'text': return 'TEXT';
+    case 'file': return 'FILE';
+    default: return 'ITEM';
+  }
+}
 
-  const chipColor = getChipColor(item.type);
+function PixelSparkChip({
+  item, onRemove, onPress,
+}: { item: BufferItem; onRemove: () => void; onPress?: () => void }) {
+  const theme = usePixelTheme();
+  const capKey = sparkToCaptureKey(item.type);
+  const accentColor = theme.cap[capKey];
   const isMedia = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const isText = item.type === 'text';
-  const isPdf = item.type === 'file' && item.mimeType === 'application/pdf';
 
-  const getSecondLine = () => {
+  const getDetails = (): string => {
     if (isText) return item.preview || '';
     if (item.type === 'audio_recording') {
-      return [item.duration ? formatDuration(item.duration) : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+      return [
+        item.duration ? formatDuration(item.duration) : null,
+        item.size ? formatFileSize(item.size) : null,
+      ].filter(Boolean).join(' · ');
     }
     if (isMedia) {
       const dur = item.duration
         ? formatDuration(item.duration < 1000 ? item.duration * 1000 : item.duration)
         : null;
-      return [item.fileName, dur, item.width && item.height ? `${item.width}×${item.height}` : null, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+      return [
+        item.fileName,
+        dur,
+        item.width && item.height ? `${item.width}×${item.height}` : null,
+        item.size ? formatFileSize(item.size) : null,
+      ].filter(Boolean).join(' · ');
     }
     if (item.type === 'file') {
-      return [item.fileName, item.size ? formatFileSize(item.size) : null].filter(Boolean).join(' · ') || '';
+      return [item.fileName, item.size ? formatFileSize(item.size) : null]
+        .filter(Boolean).join(' · ');
     }
-    return getDetails(item);
+    return '';
   };
 
-  if (isMedia && item.uri) {
-    return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={onPress}
-        style={{
-          backgroundColor: colors.surfaceVariant,
-          borderRadius: 12,
-          marginBottom: 8,
-          paddingHorizontal: 14,
-          paddingVertical: 12,
-        }}
-      >
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ color: chipColor, fontSize: 12, fontWeight: '700' }}>
-            {getTypeLabel(item.type)}
-          </Text>
-          <TouchableOpacity
-            onPress={onRemove}
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: 14,
-              backgroundColor: `${colors.tertiary}20`,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconX size={14} color={colors.secondary} strokeWidth={2.5} />
-          </TouchableOpacity>
-        </View>
-        <RNImage
-          source={{ uri: item.thumbnail ?? item.uri }}
-          style={{ width: '100%', height: 160, borderRadius: 10, marginTop: 8 }}
-          resizeMode="cover"
-        />
-        {(getSecondLine() || item.type === 'video') ? (
-          <Text
-            numberOfLines={2}
-            style={{ color: '#FFFFFF', fontSize: 15, marginTop: 8 }}
-          >
-            {getSecondLine() || `${item.duration ? formatDuration(item.duration) : 'Video'}`}
-          </Text>
-        ) : null}
-      </TouchableOpacity>
-    );
-  }
+  const details = getDetails();
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      onPress={onPress}
-      style={{
-        backgroundColor: colors.surfaceVariant,
-        borderRadius: 12,
-        marginBottom: 8,
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 14,
-        paddingVertical: 12,
-      }}
-    >
-      <View style={{ flex: 1 }}>
-        <Text style={{ color: chipColor, fontSize: 12, fontWeight: '700' }}>
-          {getTypeLabel(item.type)}
-        </Text>
-        {getSecondLine() ? (
-          <Text
-            numberOfLines={4}
-            style={{ color: '#FFFFFF', fontSize: 15, marginTop: 4 }}
-          >
-            {getSecondLine()}
-          </Text>
-        ) : null}
-      </View>
-      <TouchableOpacity
-        onPress={onRemove}
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 14,
-          backgroundColor: `${colors.tertiary}20`,
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginLeft: 8,
-        }}
-      >
-        <IconX size={14} color={colors.secondary} strokeWidth={2.5} />
-      </TouchableOpacity>
-    </TouchableOpacity>
+    <View style={{ marginBottom: 10 }}>
+      <PixelCard theme={theme} bg={theme.surface} style={{ padding: 10 }}>
+        <Pressable onPress={onPress} android_ripple={null}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: isMedia || details ? 8 : 0 }}>
+            <PixelBadge theme={theme} label={typeLabel(item.type)} bg={accentColor} color={theme.onAccent} />
+            <Pressable
+              onPress={onRemove}
+              android_ripple={null}
+              style={({ pressed }) => ({
+                width: 26, height: 26,
+                borderWidth: 2, borderColor: theme.border,
+                backgroundColor: theme.surfaceVariant,
+                alignItems: 'center', justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <IconX size={14} color={theme.ink} strokeWidth={2.5} />
+            </Pressable>
+          </View>
+
+          {isMedia && item.uri && (
+            <View style={{ borderWidth: 2, borderColor: theme.border, marginBottom: details ? 8 : 0 }}>
+              <RNImage
+                source={{ uri: item.thumbnail ?? item.uri }}
+                style={{ width: '100%', height: 160 }}
+                resizeMode="cover"
+              />
+            </View>
+          )}
+
+          {details ? (
+            <Text
+              numberOfLines={4}
+              style={{ color: theme.ink, fontFamily: theme.fontBody, fontSize: 13, lineHeight: 18 }}
+            >
+              {details}
+            </Text>
+          ) : null}
+        </Pressable>
+      </PixelCard>
+    </View>
   );
 }
 
 export default function HomeScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = useThemeColors(); // ancora usato dai sub-component legacy
   const router = useRouter();
   const items = useBufferStore((state) => state.items);
   const clearBuffer = useBufferStore((state) => state.clearBuffer);
@@ -343,21 +336,40 @@ export default function HomeScreen() {
   const renderChatMessage = ({ item }: { item: ChatMessage }) => {
     const isUser = item.role === 'user';
     return (
-      <View style={{ paddingHorizontal: 16, marginBottom: 12, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
-        <View
+      <View style={{ paddingHorizontal: 16, marginBottom: 10, alignItems: isUser ? 'flex-end' : 'flex-start' }}>
+        <View style={{ maxWidth: '82%' }}>
+          <ShadowLayer theme={theme}>
+            <View
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 10,
+                borderWidth: 2,
+                borderColor: theme.border,
+                backgroundColor: isUser ? theme.accent : theme.surface,
+              }}
+            >
+              <Text
+                style={{
+                  color: isUser ? theme.onAccent : theme.ink,
+                  fontFamily: theme.fontBody,
+                  fontSize: 14,
+                  lineHeight: 19,
+                }}
+              >
+                {item.content}
+              </Text>
+            </View>
+          </ShadowLayer>
+        </View>
+        <Text
           style={{
-            borderRadius: 16,
-            paddingHorizontal: 14,
-            paddingVertical: 10,
-            maxWidth: '80%',
-            backgroundColor: isUser ? colors.accentContainer : colors.background2,
+            color: theme.ink3,
+            fontFamily: theme.fontBody,
+            fontSize: 10,
+            marginTop: 4,
+            paddingHorizontal: 4,
           }}
         >
-          <Text style={{ color: colors.primary, fontSize: 15 }}>
-            {item.content}
-          </Text>
-        </View>
-        <Text style={{ color: colors.tertiary, fontSize: 11, marginTop: 4, paddingHorizontal: 4 }}>
           {item.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </Text>
       </View>
@@ -367,29 +379,38 @@ export default function HomeScreen() {
   const bufferCount = items.length;
 
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
-      <View className="flex-1">
+    <PixelBackground theme={theme}>
+      <View style={{ flex: 1 }}>
         {chatMode ? (
           /* ====== CHAT MODE ====== */
-          <View className="flex-1">
+          <View style={{ flex: 1 }}>
             {/* Chat header */}
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                paddingHorizontal: 20,
+                paddingHorizontal: 16,
                 paddingVertical: 12,
-                borderBottomWidth: 1,
-                borderBottomColor: colors.border,
+                borderBottomWidth: 2,
+                borderBottomColor: theme.border,
+                gap: 10,
               }}
             >
-              <IconSparkles size={22} color={colors.accent} />
-              <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, marginLeft: 10, flex: 1 }}>
-                AI Assistant
+              <IconSparkles size={20} color={theme.accent} strokeWidth={2} />
+              <Text
+                style={{
+                  fontFamily: theme.fontHead,
+                  fontSize: 12,
+                  color: theme.ink,
+                  letterSpacing: 1.2,
+                  flex: 1,
+                }}
+              >
+                AI ASSISTANT
               </Text>
-              <TouchableOpacity onPress={toggleChatMode}>
-                <IconX size={22} color={colors.secondary} />
-              </TouchableOpacity>
+              <PixelIconButton theme={theme} onPress={toggleChatMode} size={36}>
+                <IconX size={18} color={theme.ink} strokeWidth={2.5} />
+              </PixelIconButton>
             </View>
 
             <FlatList
@@ -397,13 +418,21 @@ export default function HomeScreen() {
               renderItem={renderChatMessage}
               keyExtractor={(item) => item.id}
               inverted
-              className="flex-1"
-              contentContainerStyle={{ paddingVertical: 8 }}
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingVertical: 12 }}
               ListEmptyComponent={
-                <View className="flex-1 items-center justify-center py-20">
-                  <IconSparkles size={48} color={colors.border} strokeWidth={1} />
-                  <Text style={{ color: colors.tertiary, fontSize: 15, marginTop: 12 }}>
-                    Ask me anything
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 80 }}>
+                  <IconSparkles size={48} color={theme.ink3} strokeWidth={1} />
+                  <Text
+                    style={{
+                      color: theme.ink2,
+                      fontFamily: theme.fontHead,
+                      fontSize: 10,
+                      marginTop: 14,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    ASK ME ANYTHING
                   </Text>
                 </View>
               }
@@ -419,183 +448,135 @@ export default function HomeScreen() {
           </View>
         ) : (
           /* ====== NORMAL MODE ====== */
-          <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            {/* Capture Grid — Phantom style action buttons */}
-            <View
-              style={{
-                marginHorizontal: 16,
-                marginTop: 16,
-                gap: 10,
-              }}
-            >
+          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+            <View style={{ marginHorizontal: 16, marginTop: 16, gap: 10 }}>
+              {/* Header — wordmark a sinistra, battery/level badge a destra */}
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  paddingHorizontal: 2,
+                  marginBottom: 2,
+                }}
+              >
+                <PixelWordmark theme={theme} size={22} />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <PixelBadge theme={theme} label="L. 1" bg={theme.bg1} color={theme.ink} />
+                  <IconBatteryFilled size={20} color={theme.accent as string} />
+                </View>
+              </View>
+
               {/* ASK / SEND GIMMICK — top action button. When the buffer is
                   empty the button opens the chat (ASK GIMMICK); as soon as
                   the user captures something, the same button switches to
                   SEND to GIMMICK and triggers the buffer upload. */}
-              <TouchableOpacity
+              <PixelButton
+                theme={theme}
+                big
+                full
+                bg={bufferCount > 0 ? theme.accent : theme.ink}
+                color={bufferCount > 0 ? theme.onAccent : theme.bg1}
+                label={bufferCount > 0 ? 'SEND TO GIMMICK' : 'ASK GIMMICK'}
+                leading={
+                  bufferCount > 0 ? (
+                    <IconSend
+                      size={18}
+                      color={theme.onAccent as string}
+                      strokeWidth={2.2}
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 12,
+                        color: theme.bg1 as string,
+                      }}
+                    >
+                      ▶
+                    </Text>
+                  )
+                }
                 onPress={bufferCount > 0 ? handleSend : toggleChatMode}
-                disabled={bufferCount > 0 && isUploading}
-                activeOpacity={0.7}
-                style={{
-                  borderRadius: 16,
-                  backgroundColor: colors.background3,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  paddingVertical: 18,
-                  opacity: bufferCount > 0 && isUploading ? 0.6 : 1,
-                }}
-              >
-                {bufferCount > 0 ? (
-                  <IconSend size={20} color="#FFFFFF" strokeWidth={1.8} />
-                ) : (
-                  <IconSparkles size={22} color="#FFFFFF" strokeWidth={1.8} />
-                )}
-                <Text style={{ fontSize: 15, fontWeight: '700', color: '#FFFFFF', letterSpacing: 0.3 }}>
-                  {bufferCount > 0 ? 'SEND to GIMMICK' : 'ASK GIMMICK'}
-                </Text>
-              </TouchableOpacity>
+                style={
+                  bufferCount > 0 && isUploading ? { opacity: 0.5 } : undefined
+                }
+              />
 
-              {/* Row 1 */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {captureOptions.slice(0, 3).map((option) => {
-                  const types = buttonToSparkTypes[option.id] || [];
-                  const count = types.reduce(
-                    (sum, t) => sum + items.filter((i) => i.type === t).length,
-                    0,
-                  );
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      onPress={() => handleCapture(option.route)}
-                      disabled={isUploading}
-                      activeOpacity={0.7}
-                      style={{
-                        flex: 1,
-                        aspectRatio: 1,
-                        borderRadius: 16,
-                        backgroundColor: option.bg,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {React.cloneElement(option.icon as React.ReactElement<any>, {
-                        size: 42,
-                        color: option.color,
-                        strokeWidth: 1.4,
-                      })}
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
-                        {option.label}
-                      </Text>
-                      {count > 0 && (
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: 6,
-                            right: 6,
-                            minWidth: 20,
-                            height: 20,
-                            borderRadius: 10,
-                            backgroundColor: option.color,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            paddingHorizontal: 4,
-                          }}
-                        >
-                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
-                            {count}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-              {/* Row 2 */}
-              <View style={{ flexDirection: 'row', gap: 10 }}>
-                {captureOptions.slice(3, 6).map((option) => {
-                  const types = buttonToSparkTypes[option.id] || [];
-                  const count = types.reduce(
-                    (sum, t) => sum + items.filter((i) => i.type === t).length,
-                    0,
-                  );
-                  return (
-                    <TouchableOpacity
-                      key={option.id}
-                      onPress={() => handleCapture(option.route)}
-                      disabled={isUploading}
-                      activeOpacity={0.7}
-                      style={{
-                        flex: 1,
-                        aspectRatio: 1,
-                        borderRadius: 16,
-                        backgroundColor: option.bg,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {React.cloneElement(option.icon as React.ReactElement<any>, {
-                        size: 42,
-                        color: option.color,
-                        strokeWidth: 1.4,
-                      })}
-                      <Text style={{ fontSize: 11, fontWeight: '600', color: '#FFFFFF', marginTop: 20, letterSpacing: 0.5 }}>
-                        {option.label}
-                      </Text>
-                      {count > 0 && (
-                        <View
-                          style={{
-                            position: 'absolute',
-                            top: 6,
-                            right: 6,
-                            minWidth: 20,
-                            height: 20,
-                            borderRadius: 10,
-                            backgroundColor: option.color,
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            paddingHorizontal: 4,
-                          }}
-                        >
-                          <Text style={{ color: '#FFFFFF', fontSize: 10, fontWeight: '700' }}>
-                            {count}
-                          </Text>
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {/* Capture grid — 2 rows × 3 buttons */}
+              {[captureOptions.slice(0, 3), captureOptions.slice(3, 6)].map((row, rowIdx) => (
+                <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
+                  {row.map((option) => {
+                    const types = buttonToSparkTypes[option.id] || [];
+                    const count = types.reduce(
+                      (sum, t) => sum + items.filter((i) => i.type === t).length,
+                      0,
+                    );
+                    const tintBg = theme.tint[option.id];
+                    const accent = theme.cap[option.id];
+                    const Icon = option.Icon;
+                    return (
+                      <View key={option.id} style={{ flex: 1, aspectRatio: 1 }}>
+                        <ShadowLayer theme={theme} style={{ flex: 1 }}>
+                          <Pressable
+                            onPress={() => handleCapture(option.route)}
+                            disabled={isUploading}
+                            android_ripple={null}
+                            style={({ pressed }) => ({
+                              flex: 1,
+                              borderWidth: 2,
+                              borderColor: theme.border,
+                              backgroundColor: tintBg,
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              opacity: pressed ? 0.85 : 1,
+                            })}
+                          >
+                            <Icon size={42} color={accent} strokeWidth={1.6} />
+                            <Text
+                              style={{
+                                fontFamily: theme.fontHead,
+                                fontSize: 9,
+                                color: theme.ink,
+                                marginTop: 14,
+                                letterSpacing: 1,
+                              }}
+                            >
+                              {option.label}
+                            </Text>
+                            {count > 0 && (
+                              <View style={{ position: 'absolute', top: 4, right: 4 }}>
+                                <PixelBadge
+                                  theme={theme}
+                                  label={String(count)}
+                                  bg={accent}
+                                  color={theme.onAccent}
+                                />
+                              </View>
+                            )}
+                          </Pressable>
+                        </ShadowLayer>
+                      </View>
+                    );
+                  })}
+                </View>
+              ))}
 
               {/* "Set options" — toggles an accordion below where the user can
                   pre-set tile metadata (Action / Date / Tag / Type / Status)
                   before the buffer is uploaded. Visible only when the buffer
                   has content. */}
               {bufferCount > 0 && (
-                <TouchableOpacity
+                <PixelButton
+                  theme={theme}
+                  full
+                  bg={theme.surface}
+                  label={setOptionsOpen ? 'SET OPTIONS  ▲' : 'SET OPTIONS  ▼'}
                   onPress={() => {
                     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                     setSetOptionsOpen((v) => !v);
                   }}
-                  activeOpacity={0.7}
-                  style={{
-                    borderRadius: 16,
-                    backgroundColor: colors.surfaceVariant,
-                    paddingVertical: 18,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 8,
-                  }}
-                >
-                  <Text style={{ fontSize: 15, fontWeight: '700', color: colors.primary, letterSpacing: 0.3 }}>
-                    Set options
-                  </Text>
-                  <Text style={{ fontSize: 12, color: colors.tertiary }}>
-                    {setOptionsOpen ? '▲' : '▼'}
-                  </Text>
-                </TouchableOpacity>
+                />
               )}
               {bufferCount > 0 && setOptionsOpen && (
                 <SetOptionsAccordion
@@ -604,38 +585,34 @@ export default function HomeScreen() {
                   onChange={setTileOptions}
                 />
               )}
-
             </View>
 
             {/* Buffer chips */}
             {bufferCount > 0 && (
-              <View
-                style={{
-                  marginTop: 12,
-                  paddingHorizontal: 16,
-                }}
-              >
-                <Text style={{ fontSize: 14, fontWeight: '600', color: colors.secondary, marginBottom: 12 }}>
-                  Buffer ({bufferCount})
+              <View style={{ marginTop: 16, paddingHorizontal: 16 }}>
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 10,
+                    color: theme.ink2,
+                    letterSpacing: 1.2,
+                    marginBottom: 10,
+                  }}
+                >
+                  BUFFER ({bufferCount})
                 </Text>
                 <View>
-                  {[...items].reverse().map((item) => {
-                    const sameType = items.filter((it) => it.type === item.type);
-                    const typeIndex = sameType.indexOf(item) + 1;
-                    return (
-                      <SparkChip
-                        key={item.id}
-                        item={item}
-                        index={typeIndex}
-                        onRemove={() => removeItem(item.id)}
-                        onPress={() => {
-                          setEditingItem(item);
-                          if (item.type === 'text') setEditText(item.preview || '');
-                        }}
-                        colors={colors}
-                      />
-                    );
-                  })}
+                  {[...items].reverse().map((item) => (
+                    <PixelSparkChip
+                      key={item.id}
+                      item={item}
+                      onRemove={() => removeItem(item.id)}
+                      onPress={() => {
+                        setEditingItem(item);
+                        if (item.type === 'text') setEditText(item.preview || '');
+                      }}
+                    />
+                  ))}
                 </View>
               </View>
             )}
@@ -652,8 +629,7 @@ export default function HomeScreen() {
           <SafeAreaWrapper edges={['top', 'bottom']}>
             <KeyboardAvoidingView
               behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-              className="flex-1"
-              style={{ backgroundColor: colors.background1 }}
+              style={{ flex: 1, backgroundColor: theme.bg1 }}
             >
               {/* Header */}
               <View
@@ -663,77 +639,103 @@ export default function HomeScreen() {
                   justifyContent: 'space-between',
                   paddingHorizontal: 16,
                   paddingVertical: 12,
-                  borderBottomWidth: 1,
-                  borderBottomColor: colors.border,
+                  borderBottomWidth: 2,
+                  borderBottomColor: theme.border,
                 }}
               >
-                <TouchableOpacity
-                  onPress={handleCloseEdit}
+                <PixelIconButton theme={theme} onPress={handleCloseEdit} size={48}>
+                  <IconX size={22} color={theme.ink} strokeWidth={2.4} />
+                </PixelIconButton>
+
+                <Text
                   style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 28,
-                    backgroundColor: colors.surfaceVariant,
-                    alignItems: 'center',
-                    justifyContent: 'center',
+                    fontFamily: theme.fontHead,
+                    fontSize: 11,
+                    color: theme.ink,
+                    letterSpacing: 1.2,
                   }}
                 >
-                  <IconX size={26} color="#FFFFFF" />
-                </TouchableOpacity>
-
-                <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>
-                  {editingItem?.type === 'text' ? 'Edit note' : 'Preview'}
+                  {editingItem?.type === 'text' ? 'EDIT NOTE' : 'PREVIEW'}
                 </Text>
 
                 {editingItem?.type === 'text' ? (
-                  <TouchableOpacity
+                  <PixelIconButton
+                    theme={theme}
                     onPress={handleSaveEdit}
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 28,
-                      backgroundColor: editText.trim() ? '#22C55E' : colors.border,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
+                    size={48}
+                    bg={editText.trim() ? theme.cap.text : theme.surfaceVariant}
+                    disabled={!editText.trim()}
                   >
-                    <IconCheck size={26} color={editText.trim() ? '#fff' : colors.secondary} />
-                  </TouchableOpacity>
+                    <IconCheck
+                      size={22}
+                      color={editText.trim() ? (theme.onAccent as string) : theme.ink3}
+                      strokeWidth={2.4}
+                    />
+                  </PixelIconButton>
                 ) : (
-                  <View style={{ width: 56 }} />
+                  <View style={{ width: 48 }} />
                 )}
               </View>
 
               {/* Content */}
-              <View className="flex-1 p-4">
+              <View style={{ flex: 1, padding: 16 }}>
                 {editingItem?.type === 'text' ? (
-                  <TextInput
+                  <View
                     style={{
                       flex: 1,
-                      textAlignVertical: 'top',
-                      color: colors.primary,
-                      fontSize: 20,
-                      lineHeight: 30,
+                      borderWidth: 2,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      padding: 12,
                     }}
-                    multiline
-                    value={editText}
-                    onChangeText={setEditText}
-                    placeholder="Write your note..."
-                    placeholderTextColor={colors.secondary}
-                    autoFocus
-                  />
-                ) : editingItem?.type === 'photo' || editingItem?.type === 'image' || editingItem?.type === 'video' ? (
-                  <View className="flex-1 items-center justify-center">
+                  >
+                    <TextInput
+                      style={{
+                        flex: 1,
+                        textAlignVertical: 'top',
+                        color: theme.ink,
+                        fontFamily: theme.fontBody,
+                        fontSize: 16,
+                        lineHeight: 24,
+                      }}
+                      multiline
+                      value={editText}
+                      onChangeText={setEditText}
+                      placeholder="Write your note..."
+                      placeholderTextColor={hexWithAlpha(theme.ink2, 0.6)}
+                      autoFocus
+                    />
+                  </View>
+                ) : editingItem?.type === 'photo' ||
+                  editingItem?.type === 'image' ||
+                  editingItem?.type === 'video' ? (
+                  <View
+                    style={{
+                      flex: 1,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      borderWidth: 2,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                    }}
+                  >
                     <RNImage
                       source={{ uri: editingItem.uri }}
-                      className="w-full h-full rounded-xl"
+                      style={{ width: '100%', height: '100%' }}
                       resizeMode="contain"
                     />
                   </View>
                 ) : (
-                  <View className="flex-1 items-center justify-center">
-                    <Text style={{ color: colors.tertiary }}>
-                      Preview not available
+                  <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text
+                      style={{
+                        color: theme.ink3,
+                        fontFamily: theme.fontHead,
+                        fontSize: 10,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      PREVIEW NOT AVAILABLE
                     </Text>
                   </View>
                 )}
@@ -741,8 +743,22 @@ export default function HomeScreen() {
 
               {/* Footer */}
               {editingItem?.type === 'text' && (
-                <View style={{ paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <Text style={{ color: colors.secondary, fontSize: 13, textAlign: 'right' }}>
+                <View
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderTopWidth: 2,
+                    borderTopColor: theme.border,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: theme.ink2,
+                      fontFamily: theme.fontBody,
+                      fontSize: 12,
+                      textAlign: 'right',
+                    }}
+                  >
                     {editText.length} characters
                   </Text>
                 </View>
@@ -751,6 +767,6 @@ export default function HomeScreen() {
           </SafeAreaWrapper>
         </Modal>
       </View>
-    </View>
+    </PixelBackground>
   );
 }

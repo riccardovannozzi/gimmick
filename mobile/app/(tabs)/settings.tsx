@@ -9,6 +9,28 @@ import { settingsApi } from '@/lib/api';
 import { ColorPickerGrid } from '@/components/ColorPickerGrid';
 import { DEFAULT_ACTION_COLORS, getColorName } from '@/constants/palette';
 import type { ActionType } from '@/types';
+import {
+  usePixelTheme,
+  usePixelSettings,
+  PixelCard,
+  Segmented,
+  ChipGrid,
+  PixelToggle,
+  PixelBackground,
+  PixelWordmark,
+} from '@/components/pixel';
+import {
+  PIXEL_PALETTES,
+  PIXEL_BG_COLORS,
+  PIXEL_BACKGROUND_LABELS,
+  bgColorsForMode,
+  type PaletteId,
+  type PaletteMode,
+  type ShadowSize,
+  type BgColorId,
+  type BackgroundId,
+  type CaptureTreatment,
+} from '@/constants/pixel-theme';
 
 interface SettingRowProps {
   label: string;
@@ -106,6 +128,210 @@ function SettingSection({
       >
         {children}
       </View>
+    </View>
+  );
+}
+
+// ─── Pixel Arcade settings block ────────────────────────────────────────────
+function PixelSection({ title, children }: { title: string; children: React.ReactNode }) {
+  const theme = usePixelTheme();
+  return (
+    <View style={{ marginBottom: 16 }}>
+      <Text
+        style={{
+          fontFamily: theme.fontHead,
+          fontSize: 10,
+          color: theme.ink2,
+          letterSpacing: 1.2,
+          marginBottom: 8,
+          paddingHorizontal: 4,
+        }}
+      >
+        {title}
+      </Text>
+      <PixelCard theme={theme} style={{ gap: 14 }}>
+        {children}
+      </PixelCard>
+    </View>
+  );
+}
+
+function PixelRow({
+  label,
+  stack,
+  children,
+}: {
+  label: string;
+  stack?: boolean;
+  children: React.ReactNode;
+}) {
+  const theme = usePixelTheme();
+  if (stack) {
+    return (
+      <View>
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 9,
+            color: theme.ink2,
+            letterSpacing: 1,
+            marginBottom: 8,
+          }}
+        >
+          {label}
+        </Text>
+        {children}
+      </View>
+    );
+  }
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <Text
+        style={{
+          fontFamily: theme.fontHead,
+          fontSize: 9,
+          color: theme.ink2,
+          letterSpacing: 1,
+          width: 96,
+        }}
+      >
+        {label}
+      </Text>
+      <View style={{ flex: 1, alignItems: 'flex-end' }}>{children}</View>
+    </View>
+  );
+}
+
+function PixelSettingsBlock() {
+  const theme = usePixelTheme();
+  const { settings, setSetting } = usePixelSettings();
+
+  const paletteOptions = (Object.keys(PIXEL_PALETTES) as PaletteId[]).map((id) => ({
+    id,
+    label: PIXEL_PALETTES[id].label.split('·')[0].trim().toUpperCase(),
+    sw: PIXEL_PALETTES[id][theme.mode].accent,
+  }));
+
+  const shadowOptions: { id: ShadowSize; label: string }[] = [
+    { id: 'none', label: '0' },
+    { id: 's', label: '2' },
+    { id: 'm', label: '4' },
+    { id: 'l', label: '6' },
+  ];
+
+  const treatments: { id: CaptureTreatment; label: string }[] = [
+    { id: 'tinted', label: 'TINTED' },
+    { id: 'dot', label: 'DOT' },
+    { id: 'outline', label: 'OUTLINE' },
+    { id: 'mono', label: 'MONO' },
+  ];
+
+  const bgOptions = (Object.keys(PIXEL_BACKGROUND_LABELS) as BackgroundId[]).map((id) => ({
+    id,
+    label: PIXEL_BACKGROUND_LABELS[id].split('·')[0].trim().toUpperCase(),
+  }));
+
+  const bgColorOptions = bgColorsForMode(theme.mode).map((id) => {
+    const p = PIXEL_BG_COLORS[id];
+    const hex = theme.mode === 'light' ? p.light : p.dark;
+    return { id, label: p.label.toUpperCase(), sw: (hex || theme.bg1) as string };
+  });
+
+  return (
+    <View style={{ marginHorizontal: 16, marginBottom: 24 }}>
+      <PixelSection title="16-BIT MOOD">
+        <PixelRow label="MODE">
+          <Segmented<PaletteMode>
+            theme={theme}
+            options={[
+              { id: 'light', label: 'LIGHT' },
+              { id: 'dark', label: 'DARK' },
+            ]}
+            value={settings.mode}
+            onChange={(v) => setSetting('mode', v)}
+          />
+        </PixelRow>
+        <PixelRow label="PALETTE" stack>
+          <ChipGrid<PaletteId>
+            theme={theme}
+            options={paletteOptions}
+            swatched
+            value={settings.paletteId}
+            onChange={(v) => setSetting('paletteId', v)}
+          />
+        </PixelRow>
+      </PixelSection>
+
+      <PixelSection title="APPEARANCE">
+        <PixelRow label="SHADOWS">
+          <Segmented<ShadowSize>
+            theme={theme}
+            options={shadowOptions}
+            value={settings.shadowSize}
+            onChange={(v) => setSetting('shadowSize', v)}
+          />
+        </PixelRow>
+        <PixelRow label="BACKGROUND" stack>
+          <ChipGrid<BackgroundId>
+            theme={theme}
+            options={bgOptions}
+            value={settings.backgroundId ?? 'none'}
+            onChange={(v) => setSetting('backgroundId', v)}
+          />
+        </PixelRow>
+        <PixelRow label="BG COLOR" stack>
+          <ChipGrid<BgColorId>
+            theme={theme}
+            options={bgColorOptions}
+            swatched
+            value={settings.bgColorId ?? 'paletteDefault'}
+            onChange={(v) => setSetting('bgColorId', v)}
+          />
+        </PixelRow>
+        <PixelRow label="CAPTURE">
+          <Segmented<CaptureTreatment>
+            theme={theme}
+            options={treatments}
+            small
+            value={settings.captureTreatment ?? 'tinted'}
+            onChange={(v) => setSetting('captureTreatment', v)}
+          />
+        </PixelRow>
+        <PixelRow label="SCANLINES">
+          <PixelToggle
+            theme={theme}
+            on={!!settings.scanlines}
+            onChange={(v) => setSetting('scanlines', v)}
+          />
+        </PixelRow>
+        <View>
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink2,
+              letterSpacing: 1,
+              marginBottom: 8,
+            }}
+          >
+            PREVIEW
+          </Text>
+          <View
+            style={{
+              height: 96,
+              borderWidth: 2,
+              borderColor: theme.border,
+              overflow: 'hidden',
+            }}
+          >
+            <PixelBackground theme={theme}>
+              <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                <PixelWordmark theme={theme} size={14} />
+              </View>
+            </PixelBackground>
+          </View>
+        </View>
+      </PixelSection>
     </View>
   );
 }
@@ -272,6 +498,9 @@ export default function SettingsScreen() {
             onValueChange={setConfirmDelete}
           />
         </SettingSection>
+
+        {/* Pixel Arcade design system sections */}
+        <PixelSettingsBlock />
 
         {/* Action Colors section */}
         <SettingSection title="Colori delle azioni">
