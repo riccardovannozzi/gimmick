@@ -259,6 +259,45 @@ export function backgroundCSS(bgId: BackgroundId, theme: PixelTheme): React.CSSP
 // ─── Capture treatment ──────────────────────────────────────────────────────
 export type CaptureTreatment = 'tinted' | 'dot' | 'outline' | 'mono';
 
+/**
+ * Resolved visual style for a single capture-type button (photo/video/voice/...).
+ * 4 treatments:
+ *   - tinted:   pastel bg + saturated 2px border + saturated icon (default)
+ *   - dot:      surface bg + 2px border (palette ink) + saturated icon
+ *               + a small saturated dot in the corner — minimalist
+ *   - outline:  transparent bg + 2px saturated border + saturated icon
+ *   - mono:     surface bg + 2px border (palette ink) + ink-2 icon — monochrome
+ */
+export interface CaptureStyle {
+  background: string;
+  border: string;
+  iconColor: string;
+  /** When set, render a small 4×4 swatch in the top-right corner of the button. */
+  dot?: string;
+}
+
+export function resolveCaptureStyle(
+  treatment: CaptureTreatment,
+  cap: string,
+  tint: string,
+  surface: string,
+  border: string,
+  ink2: string,
+): CaptureStyle {
+  switch (treatment) {
+    case 'tinted':
+      return { background: tint, border: cap, iconColor: cap };
+    case 'dot':
+      return { background: surface, border, iconColor: cap, dot: cap };
+    case 'outline':
+      return { background: 'transparent', border: cap, iconColor: cap };
+    case 'mono':
+      return { background: surface, border, iconColor: ink2 };
+    default:
+      return { background: tint, border: cap, iconColor: cap };
+  }
+}
+
 // ─── Theme builder ──────────────────────────────────────────────────────────
 export interface PixelTheme extends PalettePerMode {
   paletteId: PaletteId;

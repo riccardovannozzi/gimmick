@@ -10,7 +10,8 @@ import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
-import { usePixelTheme } from '@/components/pixel';
+import { usePixelTheme, usePixelSettings } from '@/components/pixel';
+import { resolveCaptureStyle } from '@/lib/pixel-theme';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -1005,6 +1006,7 @@ export function TileSidebar({
   forceFlowTab?: number;
 }) {
   const theme = usePixelTheme();
+  const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
@@ -1517,6 +1519,8 @@ export function TileSidebar({
                     const acceptsDrop = opt.id !== 'text';
                     const cap = theme.cap[opt.capKey];
                     const tint = theme.tint[opt.capKey];
+                    const treatment = pixelSettings.captureTreatment ?? 'tinted';
+                    const cstyle = resolveCaptureStyle(treatment, cap, tint, theme.surface, theme.border, theme.ink2);
                     return (
                       <button
                         key={opt.id}
@@ -1542,19 +1546,32 @@ export function TileSidebar({
                         } : undefined}
                         className="px-press"
                         style={{
+                          position: 'relative',
                           width: 32,
                           height: 32,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: tint,
-                          border: `2px solid ${cap}`,
+                          background: cstyle.background,
+                          border: `2px solid ${cstyle.border}`,
                           cursor: 'pointer',
                           ...(isDropTarget ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
                         }}
                         title={opt.id}
                       >
-                        <BtnIcon size={14} style={{ color: cap }} />
+                        <BtnIcon size={14} style={{ color: cstyle.iconColor }} />
+                        {cstyle.dot && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: 4,
+                              height: 4,
+                              background: cstyle.dot,
+                            }}
+                          />
+                        )}
                       </button>
                     );
                   })}

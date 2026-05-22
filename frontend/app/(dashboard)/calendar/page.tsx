@@ -1033,16 +1033,17 @@ export default function CalendarPage() {
     const color = getTagColor(t);
     const shape = resolveShape(t);
     const si = getIconForTile(t.id);
-    const tileBg = si?.color ? `${si.color}80` : '#1C1C1E';
+    const tileBg = si?.color ? `${si.color}CC` : theme.surface;
     const hasFlow = tilesWithFlows.has(t.id);
     const actionKey = t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
     const actionColor = actionKey === 'none'
-      ? '#e4e4e7'
-      : (actionColors[actionKey as keyof typeof actionColors] || '#888780');
+      ? theme.ink2
+      : (actionColors[actionKey as keyof typeof actionColors] || theme.ink3);
+    const isSelected = selectedTileId === t.id;
     return (
       <div
         key={t.id}
-        className="relative shrink-0"
+        className={cn('relative shrink-0', dimmedClass)}
         style={{ width: 130, breakInside: 'avoid', marginBottom: 6 }}
       >
         <div
@@ -1050,46 +1051,59 @@ export default function CalendarPage() {
           data-tile-id={t.id}
           onDragStart={(e) => onDragStart(e, t)}
           onDragEnd={onDragEnd}
-          className={cn(
-            'shrink-0 rounded overflow-hidden cursor-grab hover:brightness-110 transition-all border',
-            t.action_type === 'deadline' ? 'border-dashed border-red-500' : 'border-white/[0.08]',
-            selectedTileId === t.id && 'ring-2 ring-blue-500',
-            dimmedClass,
-          )}
-          style={{ backgroundColor: tileBg, width: 130, height: 90 }}
+          style={{
+            flexShrink: 0,
+            overflow: 'hidden',
+            cursor: 'grab',
+            background: tileBg,
+            width: 130,
+            height: 90,
+            border: t.action_type === 'deadline' ? '2px dashed #E24B4A' : `2px solid ${theme.border}`,
+            boxShadow: isSelected ? `0 0 0 3px ${theme.accent}` : 'none',
+          }}
           onClick={() => { setSelectedTileId(t.id); if (!sidebarOpen) setSidebarOpen(true); }}
           onContextMenu={(e) => onTileContextMenu(e, t)}
         >
-          <div className="relative h-full flex flex-col p-1.5">
-            <div className="flex-1 min-h-0 overflow-hidden">
+          <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: 6 }}>
+            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <p
-                className="text-[11px] font-normal leading-[14px] text-[#D4D4D8]"
                 style={{
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  lineHeight: '14px',
+                  color: readableOn(tileBg),
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   wordBreak: 'break-word',
+                  margin: 0,
                 }}
               >
                 {t.title || 'Senza titolo'}
               </p>
             </div>
-            <div className="mt-auto relative z-10">
+            <div style={{ marginTop: 'auto', position: 'relative', zIndex: 10 }}>
               {t.subtasks && t.subtasks.length > 0 && (
-                <div className="mb-2">
+                <div style={{ marginBottom: 8 }}>
                   <ChecklistBar items={t.subtasks} availableWidth={118} />
                 </div>
               )}
-              <div className="flex items-end justify-between gap-1">
-                <ActionIconBadge actionKey={actionKey} color={actionColor} />
-                {si && <TypeIconBadge iconName={si.icon} color={si.color} />}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4 }}>
+                <span style={{ color: theme.border }}>
+                  <ActionIconBadge actionKey={actionKey} color={actionColor} />
+                </span>
+                {si && (
+                  <span style={{ color: theme.border }}>
+                    <TypeIconBadge iconName={si.icon} color={si.color} />
+                  </span>
+                )}
               </div>
             </div>
             {shape !== 'solid' && (
-              <div className="absolute inset-0 pointer-events-none overflow-hidden rounded">
-                <svg className="w-full h-full">
-                  <InlineStatus shape={shape} color={t.action_type === 'none' ? '#e4e4e7' : color} />
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', overflow: 'hidden' }}>
+                <svg style={{ width: '100%', height: '100%' }}>
+                  <InlineStatus shape={shape} color={t.action_type === 'none' ? theme.ink : color} />
                 </svg>
               </div>
             )}
@@ -1101,7 +1115,24 @@ export default function CalendarPage() {
             onClick={(e) => { e.stopPropagation(); openFlow(t.id); }}
             onMouseDown={(e) => e.stopPropagation()}
             onDragStart={(e) => e.stopPropagation()}
-            className="absolute -top-1.5 right-2 z-20 px-1.5 h-4 rounded text-[9px] font-bold tracking-wider text-blue-100 bg-blue-900/95 border border-blue-500 shadow flex items-center hover:bg-blue-800 transition-colors cursor-pointer"
+            style={{
+              position: 'absolute',
+              top: -8,
+              right: 6,
+              zIndex: 20,
+              padding: '0 5px',
+              height: 16,
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 8,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              display: 'inline-flex',
+              alignItems: 'center',
+              cursor: 'pointer',
+            }}
             title="Apri Flow"
           >
             FLOW
@@ -1198,7 +1229,7 @@ export default function CalendarPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: `${actionColors.none}22`,
+                  background: theme.surfaceVariant,
                   borderBottom: `2px solid ${theme.border}`,
                   border: 'none',
                   cursor: 'pointer',
@@ -1222,8 +1253,8 @@ export default function CalendarPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              padding: '0 4px',
-              background: `${actionColors.none}22`,
+              padding: '0 8px',
+              background: theme.surfaceVariant,
               borderBottom: `2px solid ${theme.border}`,
               position: 'relative',
               zIndex: 20,
@@ -1382,7 +1413,7 @@ export default function CalendarPage() {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: `${actionColors.anytime}22`,
+                  background: theme.surfaceVariant,
                   borderBottom: `2px solid ${theme.border}`,
                   border: 'none',
                   cursor: 'pointer',
@@ -1406,8 +1437,8 @@ export default function CalendarPage() {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              padding: '0 4px',
-              background: `${actionColors.anytime}22`,
+              padding: '0 8px',
+              background: theme.surfaceVariant,
               borderBottom: `2px solid ${theme.border}`,
               position: 'relative',
               zIndex: 20,

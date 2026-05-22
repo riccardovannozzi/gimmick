@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2 } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme, PixelToggle } from '@/components/pixel';
+import { PixelSettingsPanel } from '@/components/pixel/PixelSettingsPanel';
 import { useAuthStore } from '@/store/auth-store';
 import { ActionsModal } from '@/components/actions/actions-modal';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
@@ -211,6 +212,11 @@ export default function SettingsPage() {
             </div>
           </PixelSection>
 
+          {/* Pixel Arcade theme */}
+          <PixelSection icon={IconDeviceGamepad2} title="Pixel Arcade" description="Palette, modalità, ombre e sfondo del design system 16-bit">
+            <PixelSettingsPanel />
+          </PixelSection>
+
           {/* Action Colors */}
           <PixelSection icon={IconPalette} title="Style of actions" description="Associa un colore a ogni tipo di azione">
             <PixelManageButton onClick={() => setActionsOpen(true)}>Gestisci actions</PixelManageButton>
@@ -234,13 +240,6 @@ export default function SettingsPage() {
             <div style={{ borderTop: `2px solid ${theme.border}` }} />
             <PixelRow title="Sincronizzazione automatica" description="Sincronizza automaticamente i memo in background">
               <PixelToggle on={autoSync} onChange={setAutoSync} />
-            </PixelRow>
-          </PixelSection>
-
-          {/* Appearance */}
-          <PixelSection icon={IconPalette} title="Aspetto" description="Personalizza l'interfaccia">
-            <PixelRow title="Tema scuro" description="Attualmente è l'unico tema disponibile">
-              <PixelToggle on={true} onChange={() => {}} />
             </PixelRow>
           </PixelSection>
 

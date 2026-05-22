@@ -9,7 +9,7 @@
  * inline styles for theme-driven values (so a single token change in
  * `pixel-theme.ts` propagates everywhere) and Tailwind for spacing.
  */
-import { createContext, useContext, useMemo, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useMemo, useState, useCallback, useEffect, ReactNode } from 'react';
 import {
   PixelTheme, buildPixelTheme, BuildPixelThemeInput,
   PaletteId, PaletteMode, ShadowSize, BgColorId, BackgroundId, CaptureTreatment,
@@ -20,7 +20,7 @@ import {
 
 export type PixelSettings = BuildPixelThemeInput;
 
-const DEFAULTS: PixelSettings = {
+export const PIXEL_DEFAULTS: PixelSettings = {
   paletteId: 'cmyk',
   mode: 'light',
   shadowSize: 'm',
@@ -34,29 +34,86 @@ interface CtxValue {
   theme: PixelTheme;
   settings: PixelSettings;
   setSetting: <K extends keyof PixelSettings>(k: K, v: PixelSettings[K]) => void;
+  setAll: (s: PixelSettings) => void;
+  reset: () => void;
 }
 
 const Ctx = createContext<CtxValue | null>(null);
 
+/** Read settings from localStorage, falling back to defaults. Only the keys
+ *  we know about are merged, so a stale key shape won't crash the provider. */
+function readStoredSettings(storageKey: string | undefined): PixelSettings | null {
+  if (!storageKey || typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== 'object') return null;
+    const merged: PixelSettings = { ...PIXEL_DEFAULTS };
+    (Object.keys(PIXEL_DEFAULTS) as (keyof PixelSettings)[]).forEach((k) => {
+      if (parsed[k] !== undefined) (merged as any)[k] = parsed[k];
+    });
+    return merged;
+  } catch {
+    return null;
+  }
+}
+
 export function PixelThemeProvider({
-  initial = DEFAULTS, onChange, children,
+  initial = PIXEL_DEFAULTS, onChange, storageKey, children,
 }: {
   initial?: PixelSettings;
   onChange?: (s: PixelSettings) => void;
+  /** When set, the provider hydrates from `localStorage[storageKey]` after
+   *  mount and writes back on every change. The server can then sync on top
+   *  via `onChange`. */
+  storageKey?: string;
   children: ReactNode;
 }) {
   const [settings, setSettings] = useState<PixelSettings>(initial);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Client-only hydration from localStorage — done in a useEffect so the
+  // server-rendered HTML matches the first client paint, then the saved
+  // settings take over on the next frame.
+  useEffect(() => {
+    const stored = readStoredSettings(storageKey);
+    if (stored) setSettings(stored);
+    setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const setSetting = useCallback(<K extends keyof PixelSettings>(k: K, v: PixelSettings[K]) => {
     setSettings((s) => {
       const next = { ...s, [k]: v };
+      if (storageKey && typeof window !== 'undefined') {
+        try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* */ }
+      }
       onChange?.(next);
       return next;
     });
-  }, [onChange]);
+  }, [onChange, storageKey]);
+
+  const setAll = useCallback((next: PixelSettings) => {
+    setSettings(next);
+    if (storageKey && typeof window !== 'undefined') {
+      try { window.localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* */ }
+    }
+    onChange?.(next);
+  }, [onChange, storageKey]);
+
+  const reset = useCallback(() => {
+    setAll(PIXEL_DEFAULTS);
+  }, [setAll]);
+
   const theme = useMemo(() => buildPixelTheme(settings), [settings]);
   return (
-    <Ctx.Provider value={{ theme, settings, setSetting }}>
+    <Ctx.Provider value={{ theme, settings, setSetting, setAll, reset }}>
       <div
+        // suppressHydrationWarning: the bg/colors flip post-hydration when
+        // localStorage settings load. The change is purely visual.
+        suppressHydrationWarning
+        className={theme.scanlines ? 'px-scanlines' : undefined}
         style={{
           ...themeCssVars(theme),
           backgroundColor: theme.bg1, color: theme.ink,
@@ -65,7 +122,7 @@ export function PixelThemeProvider({
           ...backgroundCSS(theme.backgroundId, theme),
         }}
       >
-        {children}
+        {hydrated || !storageKey ? children : <div style={{ visibility: 'hidden' }}>{children}</div>}
       </div>
     </Ctx.Provider>
   );
@@ -79,7 +136,7 @@ export function usePixelTheme() {
 export function usePixelSettings() {
   const c = useContext(Ctx);
   if (!c) throw new Error('usePixelSettings must be inside <PixelThemeProvider>');
-  return { settings: c.settings, setSetting: c.setSetting };
+  return { settings: c.settings, setSetting: c.setSetting, setAll: c.setAll, reset: c.reset };
 }
 
 // ─── Atoms ──────────────────────────────────────────────────────────────────
