@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { IconPlus, IconTrash, IconFilter, IconX } from '@tabler/icons-react';
+import { IconTrash, IconFilter, IconX } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import {
@@ -11,7 +11,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { usePixelTheme, PixelCard, PixelButton, PixelBadge } from '@/components/pixel';
+import { usePixelTheme, PixelCard, PixelBadge } from '@/components/pixel';
 import { useFilterStore } from '@/store/filter-store';
 import { sparksApi } from '@/lib/api';
 import { SparkViewer } from '@/components/spark/spark-viewer';
@@ -191,9 +191,6 @@ export default function SparksPage() {
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <PixelButton bg={theme.accent} color={theme.onAccent} leading={<IconPlus size={13} />}>
-            Nuovo Spark
-          </PixelButton>
         </div>
 
         {/* Table — plain HTML table styled with pixel tokens. The shadcn

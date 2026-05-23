@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { Audio } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,24 +7,12 @@ import { IconX, IconMicrophone, IconSquare, IconPlayerPlay, IconPlayerPause } fr
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
-import { usePixelTheme } from '@/components/pixel';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
 import { formatDuration } from '@/utils/formatters';
 import { createSparkForTile } from '@/lib/api';
 
 export default function VoiceCaptureScreen() {
   const theme = usePixelTheme();
-  const colors = {
-    border: theme.border,
-    tertiary: theme.ink2,
-    secondary: theme.ink2,
-    primary: theme.ink,
-    accent: theme.accent,
-    onAccent: theme.onAccent,
-    background1: theme.bg1,
-    background2: theme.bg2,
-    surfaceVariant: theme.surface,
-    error: theme.cap.voice,
-  } as const;
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -43,7 +31,6 @@ export default function VoiceCaptureScreen() {
   useEffect(() => {
     checkPermissions();
     return () => {
-      // Cleanup
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
@@ -196,11 +183,54 @@ export default function VoiceCaptureScreen() {
     router.back();
   };
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Pixel button helper: square con border 2px ink + bg colorato + offset
+  // shadow ink. Pattern Android-safe.
+  const PixelTile = ({
+    onPress, bg, disabled, size = 48, children,
+  }: { onPress: () => void; bg: string; disabled?: boolean; size?: number; children: React.ReactNode }) => {
+    const sh = theme.shadowOffset;
+    return (
+      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.4 : 1 }}>
+        {sh > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: sh, top: sh, right: 0, bottom: 0,
+              backgroundColor: theme.shadowColor,
+            }}
+          />
+        )}
+        <Pressable
+          onPress={onPress}
+          disabled={disabled}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: bg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  };
+
   // Permission loading
   if (permissionGranted === null) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Loading...</Text>
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink, letterSpacing: 1 }}>
+          LOADING…
+        </Text>
       </View>
     );
   }
@@ -208,88 +238,170 @@ export default function VoiceCaptureScreen() {
   // Permission denied
   if (!permissionGranted) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center px-8">
-        <Text className="text-primary text-lg font-medium text-center mb-4">
-          Microphone access denied
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 }}>
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 12,
+            color: theme.ink,
+            textAlign: 'center',
+            letterSpacing: 1,
+          }}
+        >
+          MICROPHONE ACCESS DENIED
         </Text>
-        <Text className="text-secondary text-center mb-6">
+        <Text
+          style={{
+            fontFamily: theme.fontBody,
+            fontSize: 13,
+            color: theme.ink2,
+            textAlign: 'center',
+          }}
+        >
           Gimmick needs microphone access to record audio
         </Text>
-        <TouchableOpacity
+        <PixelButton
+          theme={theme}
+          big
+          label="TRY AGAIN"
+          bg={theme.accent}
+          color={theme.onAccent}
           onPress={checkPermissions}
-          className="bg-accent px-6 py-3 rounded-lg"
-        >
-          <Text className="text-white font-medium">Try again</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Go back</Text>
-        </TouchableOpacity>
+        />
+        <PixelButton
+          theme={theme}
+          label="GO BACK"
+          bg={theme.surface}
+          color={theme.ink}
+          onPress={handleClose}
+        />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-background-1">
-      {/* Header */}
-      <View className="flex-row items-center px-4 pt-12">
-        <TouchableOpacity
-          onPress={handleClose}
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
+      {/* Header — bordo inferiore 2px, X danger + title PressStart2P */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingHorizontal: 16,
+          paddingTop: 48,
+          paddingBottom: 12,
+          borderBottomWidth: 2,
+          borderBottomColor: theme.border,
+          gap: 14,
+        }}
+      >
+        <PixelTile onPress={handleClose} bg={theme.semantic.danger}>
+          <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
+        </PixelTile>
+        <Text
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: 28,
-            backgroundColor: colors.surfaceVariant,
-            alignItems: 'center',
-            justifyContent: 'center',
+            fontFamily: theme.fontHead,
+            fontSize: 11,
+            color: theme.ink,
+            letterSpacing: 1.2,
+            flex: 1,
           }}
         >
-          <IconX size={26} color="#FFFFFF" />
-        </TouchableOpacity>
+          REC NOTE
+        </Text>
       </View>
 
       {/* Main content */}
-      <View className="flex-1 items-center justify-center">
-        {/* Duration display */}
-        <Text className="text-primary text-5xl font-light mb-12">
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 24 }}>
+        {/* Duration display — monospace grande */}
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 36,
+            color: theme.ink,
+            letterSpacing: 2,
+          }}
+        >
           {formatDuration(recordingDuration)}
         </Text>
 
-        {/* Recording indicator */}
+        {/* Recording indicator — pill PressStart2P con dot danger */}
         {isRecording && (
-          <View className="flex-row items-center mb-8">
-            <View className="w-3 h-3 rounded-full bg-error mr-2 animate-pulse" />
-            <Text className="text-error font-medium">Recording...</Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              paddingHorizontal: 10,
+              paddingVertical: 6,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: theme.surface,
+            }}
+          >
+            <View style={{ width: 10, height: 10, backgroundColor: theme.semantic.danger }} />
+            <Text
+              style={{
+                fontFamily: theme.fontHead,
+                fontSize: 10,
+                color: theme.semantic.danger,
+                letterSpacing: 1,
+              }}
+            >
+              RECORDING…
+            </Text>
           </View>
         )}
 
-        {/* Record/Stop button */}
+        {/* Record/Stop — verde (success) per avviare, rosso (danger) per
+            fermare. Stesso linguaggio del capture button di video. */}
         {!recordedUri && (
-          <TouchableOpacity
+          <PixelTile
             onPress={isRecording ? stopRecording : startRecording}
-            className={`w-24 h-24 rounded-full items-center justify-center ${
-              isRecording ? 'bg-error' : 'bg-capture-voice'
-            }`}
+            size={96}
+            bg={isRecording ? theme.semantic.danger : theme.semantic.success}
           >
             {isRecording ? (
-              <IconSquare size={36} color="#fff" fill="#fff" />
+              <IconSquare size={40} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.2} />
             ) : (
-              <IconMicrophone size={40} color="#fff" />
+              <IconMicrophone size={44} color="#FFFFFF" strokeWidth={2} />
             )}
-          </TouchableOpacity>
+          </PixelTile>
         )}
 
-        {/* Playback controls (after recording) */}
+        {/* Playback controls — blu (info) per play, danger per stop */}
         {recordedUri && !isRecording && (
-          <TouchableOpacity
+          <PixelTile
             onPress={isPlaying ? stopPlayback : playRecording}
-            className="w-24 h-24 rounded-full bg-accent items-center justify-center"
+            size={96}
+            bg={isPlaying ? theme.semantic.danger : theme.semantic.info}
           >
             {isPlaying ? (
-              <IconPlayerPause size={36} color="#fff" />
+              <IconPlayerPause size={40} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
             ) : (
-              <IconPlayerPlay size={36} color="#fff" style={{ marginLeft: 4 }} />
+              <IconPlayerPlay
+                size={40}
+                color="#FFFFFF"
+                fill="#FFFFFF"
+                strokeWidth={2}
+                style={{ marginLeft: 4 }}
+              />
             )}
-          </TouchableOpacity>
+          </PixelTile>
+        )}
+
+        {/* Hint — visibile prima di registrare */}
+        {!isRecording && !recordedUri && (
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink2,
+              letterSpacing: 1,
+              marginTop: 16,
+            }}
+          >
+            PRESS TO RECORD
+          </Text>
         )}
       </View>
 

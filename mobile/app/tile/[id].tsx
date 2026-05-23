@@ -46,7 +46,7 @@ import { TopNav } from '@/components/layout/TopNav';
 import { TileHeaderNav } from '@/components/layout/TileHeaderNav';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { tilesApi, sparksApi, statusesApi, typeIconsApi, uploadApi, tagsApi, tagTypesApi, type StatusEntity, type TypeIconEntity, type TagTypeEntity } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
 import type { ActionType, Spark } from '@/types';
@@ -139,7 +139,25 @@ function fmtTime(d: Date): string {
 export default function TileDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+    success: theme.cap.text,
+    warning: theme.cap.file,
+    accentContainer: theme.bg2,
+    outline: theme.border,
+    overlay: 'rgba(0,0,0,0.5)',
+  } as const;
   const queryClient = useQueryClient();
 
   const tileQuery = useQuery({

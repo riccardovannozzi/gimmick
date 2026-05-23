@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePixelTheme } from '@/components/pixel';
 import { MarkdownEditor } from './markdown-editor';
 
@@ -45,6 +45,11 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
           overflow: 'hidden',
         }}
       >
+        {/* Accessibility: Radix requires a DialogTitle and recommends a
+            DialogDescription. The visible custom header below carries the
+            same label, so hide these via sr-only. */}
+        <DialogTitle className="sr-only">{title}</DialogTitle>
+        <DialogDescription className="sr-only">Editor di testo formattato</DialogDescription>
         <div
           style={{
             display: 'flex',

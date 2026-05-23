@@ -182,7 +182,13 @@ export function PixelSettingsPanel() {
                   style={{
                     width: 36,
                     height: 28,
-                    background: previewTheme.bg1,
+                    // Use backgroundColor (longhand) so it can coexist with the
+                    // backgroundImage / backgroundPosition / backgroundSize
+                    // values returned by backgroundCSS — mixing the `background`
+                    // shorthand with those longhands trips React's
+                    // "conflicting property" warning and reorders them on
+                    // re-render, breaking the preview tile pattern.
+                    backgroundColor: previewTheme.bg1,
                     borderRight: `2px solid ${active ? theme.accent : theme.border}`,
                     flexShrink: 0,
                     ...previewBg,

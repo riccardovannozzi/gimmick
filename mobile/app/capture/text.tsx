@@ -1,26 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconCheck } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
-import { usePixelTheme } from '@/components/pixel';
+import { usePixelTheme, PixelTextInput } from '@/components/pixel';
 import { sparksApi } from '@/lib/api';
 
 export default function TextCaptureScreen() {
   const theme = usePixelTheme();
-  const colors = {
-    border: theme.border,
-    tertiary: theme.ink2,
-    secondary: theme.ink2,
-    primary: theme.ink,
-    accent: theme.accent,
-    onAccent: theme.onAccent,
-    background1: theme.bg1,
-    background2: theme.bg2,
-    surfaceVariant: theme.surface,
-  } as const;
   const router = useRouter();
   const queryClient = useQueryClient();
   // When reached from the tile detail (Sparks → text), `?tile=<id>` is set and
@@ -40,7 +29,6 @@ export default function TextCaptureScreen() {
       return;
     }
     if (tileId) {
-      // Direct save → spark linked to the originating tile, no buffer detour.
       try {
         setSaving(true);
         const res = await sparksApi.create({
@@ -53,7 +41,6 @@ export default function TextCaptureScreen() {
           setSaving(false);
           return;
         }
-        // Invalidate the tile cache so the detail picks up the new spark.
         queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
         toast.success('Spark salvato');
         router.back();
@@ -64,10 +51,9 @@ export default function TextCaptureScreen() {
       }
       return;
     }
-    // No tile context → legacy buffer flow.
     addItem({
       type: 'text',
-      uri: '', // Text doesn't have a URI
+      uri: '',
       preview: text,
     });
 
@@ -76,61 +62,132 @@ export default function TextCaptureScreen() {
   };
 
   const charCount = text.length;
+  const canSave = text.trim().length > 0 && !saving;
+
+  // Pixel header tile: border 2px ink + bg colorato + offset shadow ink.
+  // Pattern Android-safe (View bg + Pressable wrapping View interno).
+  const HeaderTile = ({
+    onPress, bg, disabled, children,
+  }: { onPress: () => void; bg: string; disabled?: boolean; children: React.ReactNode }) => {
+    const sh = theme.shadowOffset;
+    const SIZE = 48;
+    return (
+      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.4 : 1 }}>
+        {sh > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: sh, top: sh, right: 0, bottom: 0,
+              backgroundColor: theme.shadowColor,
+            }}
+          />
+        )}
+        <Pressable
+          onPress={onPress}
+          disabled={disabled}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
+          <View
+            style={{
+              width: SIZE,
+              height: SIZE,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: bg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  };
 
   return (
     <SafeAreaWrapper edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={{ flex: 1, backgroundColor: theme.bg1 }}
       >
-        {/* Header */}
-        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-          <TouchableOpacity
-            onPress={handleClose}
+        {/* Header — bordo inferiore 2px, X danger + title PressStart2P + ✓ success */}
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderBottomWidth: 2,
+            borderBottomColor: theme.border,
+          }}
+        >
+          <HeaderTile onPress={handleClose} bg={theme.semantic.danger}>
+            <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
+          </HeaderTile>
+
+          <Text
             style={{
-              width: 56,
-              height: 56,
-              borderRadius: 28,
-              backgroundColor: colors.surfaceVariant,
-              alignItems: 'center',
-              justifyContent: 'center',
+              fontFamily: theme.fontHead,
+              fontSize: 11,
+              color: theme.ink,
+              letterSpacing: 1.2,
             }}
           >
-            <IconX size={26} color="#FFFFFF" />
-          </TouchableOpacity>
+            NEW NOTE
+          </Text>
 
-          <Text style={{ fontSize: 20, fontWeight: '300', color: colors.secondary }}>New note</Text>
-
-          <TouchableOpacity
+          <HeaderTile
             onPress={handleSave}
-            disabled={!text.trim()}
-            className={`w-14 h-14 rounded-full items-center justify-center ${
-              text.trim() ? 'bg-success' : 'bg-border'
-            }`}
+            disabled={!canSave}
+            bg={canSave ? theme.semantic.success : theme.surfaceVariant}
           >
-            <IconCheck size={26} color={text.trim() ? '#fff' : colors.secondary} />
-          </TouchableOpacity>
+            <IconCheck
+              size={22}
+              color={canSave ? '#FFFFFF' : theme.ink3}
+              strokeWidth={2.4}
+            />
+          </HeaderTile>
         </View>
 
-        {/* Text input */}
-        <View className="flex-1 p-4">
-          <TextInput
+        {/* Text input — PixelTextInput multiline che riempie lo spazio */}
+        <View style={{ flex: 1, padding: 16 }}>
+          <PixelTextInput
+            theme={theme}
+            containerStyle={{ flex: 1 }}
             value={text}
             onChangeText={setText}
             placeholder="Write your note..."
-            placeholderTextColor={colors.secondary}
             multiline
             autoFocus
-            textAlignVertical="top"
-            className="flex-1 text-primary text-base leading-6"
-            style={{ fontSize: 20, lineHeight: 30 }}
+            style={{
+              fontSize: 16,
+              lineHeight: 24,
+            }}
           />
         </View>
 
-        {/* Footer with char count */}
-        <View className="px-4 py-3 border-t border-border">
-          <Text className="text-secondary text-sm text-right">
-            {charCount} characters
+        {/* Footer — bordo superiore 2px, char count PressStart2P */}
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderTopWidth: 2,
+            borderTopColor: theme.border,
+            flexDirection: 'row',
+            justifyContent: 'flex-end',
+          }}
+        >
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink2,
+              letterSpacing: 1,
+            }}
+          >
+            {charCount} CHARS
           </Text>
         </View>
       </KeyboardAvoidingView>

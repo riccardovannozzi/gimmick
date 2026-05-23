@@ -1,6 +1,6 @@
 'use client';
 
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePixelTheme } from '@/components/pixel';
 import { PixelSettingsPanel } from './PixelSettingsPanel';
 
@@ -38,6 +38,10 @@ export function PixelArcadeModal({ open, onOpenChange }: PixelArcadeModalProps) 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent showCloseButton={false} style={dialogStyle}>
+        <DialogTitle className="sr-only">Pixel Arcade</DialogTitle>
+        <DialogDescription className="sr-only">
+          Personalizza palette, modalità, ombre e sfondo del design system 16-bit
+        </DialogDescription>
         <div style={headerStyle}>
           <h2
             style={{

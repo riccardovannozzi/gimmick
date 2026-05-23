@@ -236,7 +236,9 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
         top: 48,
         bottom: 0,
         right: 0,
-        width: 240,
+        // Match the TileSidebar's open width so the right rail feels coherent
+        // whether the user has the chat or a tile detail showing.
+        width: 280,
         zIndex: 50,
         display: 'flex',
         flexDirection: 'column',

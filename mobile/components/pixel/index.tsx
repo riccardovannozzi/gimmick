@@ -311,20 +311,25 @@ export function PixelToggle({
 
 // ─── Atom: PixelTextInput ───────────────────────────────────────────────────
 // TextInput stilizzato Pixel: border 2px ink, bg surface, font JetBrainsMono.
-// Supporta tutti i prop standard di TextInput. Per multiline aumenta minHeight.
+// Supporta tutti i prop standard di TextInput. `containerStyle` applica
+// layout (flex/width) al wrapper esterno; `style` resta sul TextInput interno
+// per font/color overrides.
 export function PixelTextInput({
-  theme, multiline, style, placeholderTextColor, ...rest
-}: TextInputProps & { theme: PixelTheme }) {
+  theme, multiline, style, containerStyle, placeholderTextColor, ...rest
+}: TextInputProps & { theme: PixelTheme; containerStyle?: ViewStyle }) {
   return (
     <View
-      style={{
-        borderWidth: 2,
-        borderColor: theme.border,
-        backgroundColor: theme.surface,
-        paddingHorizontal: 10,
-        paddingVertical: multiline ? 10 : 6,
-        minHeight: multiline ? 96 : 40,
-      }}
+      style={[
+        {
+          borderWidth: 2,
+          borderColor: theme.border,
+          backgroundColor: theme.surface,
+          paddingHorizontal: 10,
+          paddingVertical: multiline ? 10 : 6,
+          minHeight: multiline ? 96 : 40,
+        },
+        containerStyle,
+      ]}
     >
       <TextInput
         multiline={multiline}
@@ -337,6 +342,7 @@ export function PixelTextInput({
             lineHeight: 20,
             textAlignVertical: multiline ? 'top' : 'center',
             padding: 0, // reset RN default
+            flex: multiline ? 1 : undefined,
           },
           style,
         ]}

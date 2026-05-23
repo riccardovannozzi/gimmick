@@ -29,14 +29,27 @@ import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { TopNav } from '@/components/layout/TopNav';
 import { TileHeaderNav } from '@/components/layout/TileHeaderNav';
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { subtasksApi } from '@/lib/api';
 import type { Subtask } from '@/types';
 
 export default function TileListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+  } as const;
   const queryClient = useQueryClient();
 
   const queryKey = ['subtasks', id];

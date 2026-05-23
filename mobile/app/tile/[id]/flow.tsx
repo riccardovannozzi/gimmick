@@ -14,12 +14,24 @@ import { TopNav } from '@/components/layout/TopNav';
 import { TileHeaderNav } from '@/components/layout/TileHeaderNav';
 import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 
 export default function TileFlowScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  // Adapter — TileHeaderNav e FlowCardList legacy aspettano ancora `colors.*`
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
 
   const swipe = useHorizontalSwipe({
     onSwipeRight: () => router.replace(`/tile/${id}/list` as any),

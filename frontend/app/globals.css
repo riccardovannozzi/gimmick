@@ -123,42 +123,47 @@
     @apply bg-background text-foreground;
   }
 
-  /* Pixel scrollbar — square thumb in border color, no radius */
+  /* Pixel scrollbar — white track + red thumb so the scrollbar stays visible
+     against the pixel-theme drop-shadow (which is the same hue as the page
+     bg on most themes and used to swallow the default thumb). */
+  * { scrollbar-color: #E24B4A #FFFFFF; }
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    height: 12px;
   }
   ::-webkit-scrollbar-track {
-    background: var(--px-bg1);
+    background: #FFFFFF;
     border-left: 2px solid var(--px-border);
+    border-top: 2px solid var(--px-border);
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--px-border);
+    background: #E24B4A;
     border-radius: 0;
-    border: 2px solid var(--px-bg1);
+    border: 2px solid #FFFFFF;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--px-accent);
+    background: #B83937;
   }
   ::-webkit-scrollbar-corner {
-    background: var(--px-bg1);
+    background: #FFFFFF;
   }
 
-  /* Sidebar scrollbar — keeps the same pixel chrome */
+  /* Sidebar scrollbar — same white/red treatment as the global one */
+  .sidebar-scroll { scrollbar-color: #E24B4A #FFFFFF; }
   .sidebar-scroll::-webkit-scrollbar {
-    width: 10px;
+    width: 12px;
   }
   .sidebar-scroll::-webkit-scrollbar-track {
-    background: var(--px-bg2);
+    background: #FFFFFF;
     border-left: 2px solid var(--px-border);
   }
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: var(--px-border);
+    background: #E24B4A;
     border-radius: 0;
-    border: 2px solid var(--px-bg2);
+    border: 2px solid #FFFFFF;
   }
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-    background: var(--px-accent);
+    background: #B83937;
   }
 
   /* Pixel focus ring — drops accent outline 3px offset 0, no rounding */

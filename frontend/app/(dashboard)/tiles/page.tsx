@@ -29,6 +29,7 @@ import { readableOn } from '@/lib/palette';
 
 import type { Spark, SparkType, Tile, Tag, ActionType, StatusShape } from '@/types';
 import { StatusPattern } from '@/components/statuses/status-pattern';
+import { ActionBadge } from '@/components/actions/action-badge';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -342,7 +343,6 @@ function InlineActionDropdown({
   const isAllDay = at === 'event' && tile.all_day;
   const displayAt = isAllDay ? 'allday' as ActionType : at;
   const cfg = ACTION_TYPE_BADGE[displayAt];
-  const Icon = cfg.icon;
   const atColor = actionColors[displayAt];
   const subtitle = formatActionSubtitle(tile);
   const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
@@ -388,8 +388,8 @@ function InlineActionDropdown({
           background: theme.surfaceVariant,
         }}
       >
-        <div className="flex items-center gap-1 w-full">
-          <Icon size={11} style={{ color: theme.ink2 }} />
+        <div className="flex items-center gap-1.5 w-full">
+          <ActionBadge actionKey={displayAt} size={18} keepSpace />
           <span
             className="flex-1"
             style={{
@@ -427,12 +427,10 @@ function InlineActionDropdown({
                 { value: 'event' as ActionType, label: 'ALL DAY', allDay: true },
                 { value: 'event' as ActionType, label: 'TIMED', allDay: false },
               ]).map((opt) => {
-                const optCfg = ACTION_TYPE_BADGE[opt.value];
-                const OptIcon = opt.allDay ? IconCalendarEvent : optCfg.icon;
                 const isActive = opt.value === 'event'
                   ? at === 'event' && (opt.allDay ? !!tile.all_day : !tile.all_day)
                   : at === opt.value;
-                const colorKey = opt.allDay ? 'allday' as ActionType : opt.value;
+                const colorKey = opt.allDay ? 'allday' : opt.value;
                 return (
                   <button
                     key={opt.label}
@@ -464,7 +462,7 @@ function InlineActionDropdown({
                       }
                     }}
                   >
-                    <OptIcon size={13} style={{ color: actionColors[colorKey] }} />
+                    <ActionBadge actionKey={colorKey} size={18} keepSpace />
                     <span>{opt.label}</span>
                     {isActive && <IconCheck size={11} style={{ color: theme.accent, marginLeft: 'auto' }} />}
                   </button>
@@ -1005,6 +1003,7 @@ function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Ti
   const theme = usePixelTheme();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const assignIcon = useTypeIcons((s) => s.assignIcon);
   const { statuses } = useStatuses();
 
   const tiId = typeTileIcons[tile.id];
@@ -1043,69 +1042,238 @@ function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Ti
 
   return (
     <>
-      {/* Type — colored 24×24 square (type-icon bg) with pixel border */}
+      {/* Type — inline picker */}
       <TableCell
+        className="overflow-visible"
         style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type, ...cellBorder }}
       >
-        {ti && TiComp ? (
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex items-center justify-center shrink-0"
-              style={{
-                width: 24, height: 24,
-                background: ti.color || theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
-              }}
-            >
-              <TiComp size={14} color={readableOn(ti.color || '#27272A')} />
-            </div>
-            <span
-              className="truncate"
-              style={{
-                fontFamily: 'var(--font-pixel-body)',
-                fontSize: 11,
-                color: theme.ink2,
-              }}
-            >
-              {ti.name}
-            </span>
-          </div>
-        ) : (
-          <span style={{ color: theme.ink3, fontSize: 11 }}>—</span>
-        )}
+        <InlineTypePicker
+          icons={typeIcons}
+          currentIconId={tiId || null}
+          onChange={(id) => assignIcon(tile.id, id)}
+        />
       </TableCell>
-      {/* Status — SVG shape patterned tile */}
+      {/* Status — inline picker */}
       <TableCell
-        className="overflow-hidden"
+        className="overflow-visible"
         style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status, ...cellBorder }}
       >
-        {status && status.shape !== 'solid' ? (
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div
-              className="relative shrink-0 overflow-hidden"
-              style={{
-                width: 24, height: 24,
-                background: theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
-              }}
-            >
-              <StatusPattern shape={status.shape as StatusShape} color={theme.ink} bg={theme.surfaceVariant} />
-            </div>
-            <span
-              className="truncate"
-              style={{
-                fontFamily: 'var(--font-pixel-body)',
-                fontSize: 11,
-                color: theme.ink2,
-              }}
-            >
-              {status.name}
-            </span>
-          </div>
-        ) : (
-          <span style={{ color: theme.ink3, fontSize: 11 }}>—</span>
-        )}
+        <InlineStatusPicker
+          statuses={statuses}
+          currentStatusId={tile.status_id || null}
+          onChange={(id) => onUpdate(tile.id, { status_id: id })}
+        />
       </TableCell>
+    </>
+  );
+}
+
+// Generic shared popup chrome used by both Type and Status pickers — mirrors
+// the look of InlineActionDropdown so all three column selectors feel the same.
+function inlinePickerTrigger(theme: ReturnType<typeof usePixelTheme>): React.CSSProperties {
+  return {
+    width: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '0 6px',
+    minHeight: 30,
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 11,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+}
+
+function inlinePickerPopup(theme: ReturnType<typeof usePixelTheme>): React.CSSProperties {
+  return {
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 4,
+    maxHeight: 240,
+    overflowY: 'auto',
+  };
+}
+
+function inlinePickerItem(theme: ReturnType<typeof usePixelTheme>, active: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  };
+}
+
+function InlineTypePicker({
+  icons,
+  currentIconId,
+  onChange,
+}: {
+  icons: { id: string; name: string; icon: string; color?: string }[];
+  currentIconId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const theme = usePixelTheme();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = icons.find((i) => i.id === currentIconId);
+  const CurrentComp = current?.icon ? AllIcons[current.icon] : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(180, r.width) });
+    }
+    const onDown = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button ref={triggerRef} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={inlinePickerTrigger(theme)}>
+        {current && CurrentComp ? (
+          <>
+            <div style={{ width: 18, height: 18, background: current.color || theme.surfaceVariant, border: `2px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CurrentComp size={10} color={readableOn(current.color || theme.surfaceVariant)} />
+            </div>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1 }}>—</span>
+        )}
+        <IconChevronDown size={11} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={dropRef} className="fixed" style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999, ...inlinePickerPopup(theme) }}>
+          <button onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }} style={inlinePickerItem(theme, !currentIconId)}>
+            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1 }}>Nessuno</span>
+            {!currentIconId && <IconCheck size={11} style={{ color: theme.accent }} />}
+          </button>
+          {icons.map((icon) => {
+            const Comp = AllIcons[icon.icon];
+            const isSel = icon.id === currentIconId;
+            return (
+              <button key={icon.id} onClick={(e) => { e.stopPropagation(); onChange(icon.id); setOpen(false); }} style={inlinePickerItem(theme, isSel)}>
+                {Comp && (
+                  <div style={{ width: 18, height: 18, background: icon.color || theme.surfaceVariant, border: `2px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Comp size={10} color={readableOn(icon.color || theme.surfaceVariant)} />
+                  </div>
+                )}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon.name}</span>
+                {isSel && <IconCheck size={11} style={{ color: theme.accent }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+function InlineStatusPicker({
+  statuses,
+  currentStatusId,
+  onChange,
+}: {
+  statuses: { id: string; name: string; shape: string }[];
+  currentStatusId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const theme = usePixelTheme();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = statuses.find((s) => s.id === currentStatusId);
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(180, r.width) });
+    }
+    const onDown = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  const renderShape = (shape: string) => (
+    <div style={{ width: 18, height: 18, background: theme.surfaceVariant, border: `2px solid ${theme.border}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+      <StatusPattern shape={shape as StatusShape} color={theme.ink} bg={theme.surfaceVariant} />
+    </div>
+  );
+
+  return (
+    <>
+      <button ref={triggerRef} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={inlinePickerTrigger(theme)}>
+        {current ? (
+          <>
+            {renderShape(current.shape)}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1 }}>—</span>
+        )}
+        <IconChevronDown size={11} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={dropRef} className="fixed" style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999, ...inlinePickerPopup(theme) }}>
+          <button onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }} style={inlinePickerItem(theme, !currentStatusId)}>
+            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1 }}>Nessuno</span>
+            {!currentStatusId && <IconCheck size={11} style={{ color: theme.accent }} />}
+          </button>
+          {statuses.map((s) => {
+            const isSel = s.id === currentStatusId;
+            return (
+              <button key={s.id} onClick={(e) => { e.stopPropagation(); onChange(s.id); setOpen(false); }} style={inlinePickerItem(theme, isSel)}>
+                {renderShape(s.shape)}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{s.name}</span>
+                {isSel && <IconCheck size={11} style={{ color: theme.accent }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
