@@ -1839,11 +1839,7 @@ export default function KanbanPage() {
                           }}
                           title={st.name}
                         >
-                          <span style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
-                            <svg style={{ width: '100%', height: '100%' }}>
-                              <InlineStatus shape={st.shape} color={stColor} />
-                            </svg>
-                          </span>
+                          <StatusPattern shape={st.shape as StatusShape} color={stColor} bg={active ? theme.surfaceVariant : theme.bg2} />
                           <span style={{ position: 'relative', zIndex: 10, flex: 1, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{st.name}</span>
                         </button>
                         <span style={{ width: 16, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
