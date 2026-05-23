@@ -1668,7 +1668,7 @@ export function TileSidebar({
                     </button>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button
-                        onClick={() => newTextContent.trim() && addTextMutation.mutate()}
+                        onClick={() => newTextContent.trim() && addTextMutation.mutate(newTextContent.trim())}
                         disabled={!newTextContent.trim()}
                         className="px-press"
                         style={{
