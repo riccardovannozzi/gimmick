@@ -1,19 +1,18 @@
+/**
+ * Wrapper di PixelButton che mantiene l'API legacy (title/variant/size/icon/
+ * iconPosition/fullWidth/loading) usata dagli screen non ancora migrati.
+ * Internamente delega al PixelButton del design system Pixel Arcade.
+ */
 import React from 'react';
-import {
-  TouchableOpacity,
-  Text,
-  ActivityIndicator,
-  TouchableOpacityProps,
-  View,
-} from 'react-native';
+import { ActivityIndicator, View, ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { useThemeColors } from '@/lib/theme';
 import { useSettingsStore } from '@/store';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
-interface ButtonProps extends TouchableOpacityProps {
+interface ButtonProps {
   title: string;
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -21,6 +20,9 @@ interface ButtonProps extends TouchableOpacityProps {
   icon?: React.ReactNode;
   iconPosition?: 'left' | 'right';
   fullWidth?: boolean;
+  disabled?: boolean;
+  onPress?: () => void;
+  style?: ViewStyle;
 }
 
 export function Button({
@@ -33,76 +35,58 @@ export function Button({
   fullWidth = false,
   disabled,
   onPress,
-  ...props
+  style,
 }: ButtonProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
-  const handlePress = async (e: any) => {
+  const handlePress = async () => {
     if (hapticFeedback) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    onPress?.(e);
+    onPress?.();
   };
 
-  const getVariantStyle = () => {
+  // Mappa variant legacy → token Pixel
+  const variantBg = (() => {
     switch (variant) {
-      case 'primary':
-        return { bg: colors.accent, text: colors.onAccent };
-      case 'secondary':
-        return { bg: colors.surfaceVariant, text: colors.primary, border: colors.border };
-      case 'ghost':
-        return { bg: 'transparent', text: colors.primary };
-      case 'danger':
-        return { bg: colors.error, text: '#FFFFFF' };
+      case 'primary': return theme.accent;
+      case 'secondary': return theme.surface;
+      case 'ghost': return 'transparent';
+      case 'danger': return '#E24B4A';
     }
-  };
-
-  const getSizeStyle = () => {
-    switch (size) {
-      case 'sm': return { px: 12, py: 8, fontSize: 13 };
-      case 'md': return { px: 16, py: 12, fontSize: 15 };
-      case 'lg': return { px: 24, py: 16, fontSize: 17 };
+  })();
+  const variantColor = (() => {
+    switch (variant) {
+      case 'primary': return theme.onAccent;
+      case 'secondary': return theme.ink;
+      case 'ghost': return theme.ink;
+      case 'danger': return '#FFFFFF';
     }
-  };
+  })();
 
-  const vs = getVariantStyle();
-  const ss = getSizeStyle();
+  const isBig = size === 'lg';
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
-      disabled={disabled || loading}
-      activeOpacity={0.7}
+    <PixelButton
+      theme={theme}
+      label={title}
+      big={isBig}
+      full={fullWidth}
+      bg={variantBg}
+      color={variantColor}
+      leading={
+        loading ? (
+          <ActivityIndicator size="small" color={variantColor as string} />
+        ) : icon && iconPosition === 'left' ? (
+          icon
+        ) : undefined
+      }
+      onPress={disabled || loading ? undefined : handlePress}
       style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: vs.bg,
-        borderRadius: 16,
-        paddingHorizontal: ss.px,
-        paddingVertical: ss.py,
-        width: fullWidth ? '100%' : undefined,
-        opacity: disabled || loading ? 0.5 : 1,
-        borderWidth: vs.border ? 1 : 0,
-        borderColor: vs.border,
+        ...(disabled || loading ? { opacity: 0.5 } : null),
+        ...(style ?? {}),
       }}
-      {...props}
-    >
-      {loading ? (
-        <ActivityIndicator
-          size="small"
-          color={vs.text}
-        />
-      ) : (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          {icon && iconPosition === 'left' && icon}
-          <Text style={{ fontWeight: '600', color: vs.text, fontSize: ss.fontSize }}>
-            {title}
-          </Text>
-          {icon && iconPosition === 'right' && icon}
-        </View>
-      )}
-    </TouchableOpacity>
+    />
   );
 }

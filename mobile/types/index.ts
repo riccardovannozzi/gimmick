@@ -120,13 +120,18 @@ export interface FlowNode {
   occurred_at: string | null;
   scheduled_at: string | null;
   notes: string | null;
-  /** Manual position override (null = use auto-layout). */
+  /** Position in the tile's linear flow list (0 = first card). Replaced the
+   *  previous DAG model in migration 030. */
+  sort_order: number;
+  /** Legacy DAG layout coords — kept for read-back compatibility, ignored
+   *  by the new card-list UI. */
   x: number | null;
   y: number | null;
   created_at: string;
   updated_at: string;
 }
 
+/** @deprecated DAG model retired in migration 030. Kept for type-compat. */
 export interface FlowEdge {
   id: string;
   user_id: string;
@@ -136,9 +141,9 @@ export interface FlowEdge {
   created_at: string;
 }
 
+/** Flow data for a tile — an ordered list of nodes. */
 export interface FlowGraph {
   nodes: FlowNode[];
-  edges: FlowEdge[];
 }
 
 /**

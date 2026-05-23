@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = ['00', '15', '30', '45'];
@@ -16,6 +16,7 @@ interface TimePickerProps {
 }
 
 export function TimePicker({ value, onChange, label, compact, borderless }: TimePickerProps) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -33,7 +34,6 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
       const popH = 220;
       let top = r.bottom + 4;
       let left = r.left;
-      // Keep within viewport
       if (top + popH > window.innerHeight) top = r.top - popH - 4;
       if (left + popW > window.innerWidth) left = window.innerWidth - popW - 8;
       setPos({ top, left });
@@ -61,44 +61,101 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
     setOpen(false);
   };
 
+  const triggerStyle: React.CSSProperties = borderless
+    ? {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: 0,
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        textAlign: 'left',
+        fontFamily: 'var(--font-pixel-body)',
+        fontSize: 11,
+        color: theme.ink3,
+      }
+    : {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 4,
+        padding: compact ? '0 8px' : '6px 8px',
+        height: compact ? 30 : 'auto',
+        background: theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        cursor: 'pointer',
+        textAlign: 'left',
+        fontFamily: 'var(--font-pixel-body)',
+        fontSize: compact ? 11 : 12,
+        color: theme.ink,
+      };
+
+  const gridBtn = (active: boolean): React.CSSProperties => ({
+    background: active ? theme.accent : 'transparent',
+    color: active ? theme.onAccent : theme.ink,
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 11,
+    fontWeight: 600,
+    cursor: 'pointer',
+  });
+
   return (
     <>
-      <button
-        ref={triggerRef}
-        onClick={() => setOpen(!open)}
-        className={cn(
-          'flex items-center gap-1 rounded transition-colors text-left',
-          borderless
-            ? 'px-0 py-0 text-[11px] text-zinc-500 bg-transparent cursor-pointer'
-            : compact
-              ? 'px-2 h-8 text-[11px] text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
-              : 'px-2 py-1.5 text-xs text-zinc-300 bg-zinc-800/60 border border-zinc-700 hover:border-zinc-600'
+      <button ref={triggerRef} onClick={() => setOpen(!open)} style={triggerStyle}>
+        {label && (
+          <span
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              flexShrink: 0,
+            }}
+          >
+            {label}
+          </span>
         )}
-      >
-        {label && <span className="text-zinc-500 shrink-0">{label}</span>}
-        <span className="font-medium">{selectedH}:{selectedM}</span>
+        <span style={{ fontWeight: 600 }}>{selectedH}:{selectedM}</span>
       </button>
       {open && createPortal(
         <div
           ref={popRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl p-2 z-[9999]"
-          style={{ top: pos.top, left: pos.left }}
+          className="fixed"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 8,
+          }}
         >
-          <div className="flex gap-2">
-            {/* Hours grid: 6 columns × 4 rows */}
+          <div style={{ display: 'flex', gap: 8 }}>
+            {/* Hours grid */}
             <div>
-              <span className="text-[9px] text-zinc-500 uppercase tracking-wider block mb-1 text-center">Ore</span>
-              <div className="grid grid-cols-6 gap-0.5">
+              <span
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: theme.ink3,
+                  display: 'block',
+                  marginBottom: 4,
+                  textAlign: 'center',
+                }}
+              >
+                Ore
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 2 }}>
                 {HOURS.map((hr) => (
                   <button
                     key={hr}
                     onClick={() => selectH(hr)}
-                    className={cn(
-                      'w-7 h-7 rounded text-[11px] font-medium transition-colors',
-                      selectedH === hr
-                        ? 'bg-blue-600 text-white'
-                        : 'text-zinc-300 hover:bg-zinc-700'
-                    )}
+                    style={{ ...gridBtn(selectedH === hr), width: 28, height: 28 }}
                   >
                     {hr}
                   </button>
@@ -107,22 +164,30 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             </div>
 
             {/* Separator */}
-            <div className="w-px bg-zinc-700 self-stretch" />
+            <div style={{ width: 2, background: theme.border, alignSelf: 'stretch' }} />
 
             {/* Minutes column */}
             <div>
-              <span className="text-[9px] text-zinc-500 uppercase tracking-wider block mb-1 text-center">Min</span>
-              <div className="flex flex-col gap-0.5">
+              <span
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: theme.ink3,
+                  display: 'block',
+                  marginBottom: 4,
+                  textAlign: 'center',
+                }}
+              >
+                Min
+              </span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 {MINUTES.map((min) => (
                   <button
                     key={min}
                     onClick={() => selectM(min)}
-                    className={cn(
-                      'w-10 h-7 rounded text-[11px] font-medium transition-colors',
-                      selectedM === min
-                        ? 'bg-blue-600 text-white'
-                        : 'text-zinc-300 hover:bg-zinc-700'
-                    )}
+                    style={{ ...gridBtn(selectedM === min), width: 40, height: 28 }}
                   >
                     {min}
                   </button>

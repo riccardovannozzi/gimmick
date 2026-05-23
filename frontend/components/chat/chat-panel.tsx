@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { IconX, IconSend, IconLoader2, IconRobot, IconUser, IconFilter, IconLayoutGrid, IconMicrophone, IconMicrophoneOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
+import { IconX, IconSend, IconLoader2, IconUser, IconFilter, IconLayoutGrid, IconMicrophone, IconMicrophoneOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
+import { MascotSprite } from '@/components/cards/mascot-sprite';
+import { MASCOTS } from '@/lib/mascots';
 
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
@@ -27,8 +29,7 @@ declare global {
   }
 }
 import ReactMarkdown from 'react-markdown';
-import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
+import { usePixelTheme } from '@/components/pixel';
 import { chatApi } from '@/lib/api';
 import { useFilterStore } from '@/store/filter-store';
 
@@ -44,7 +45,11 @@ interface ChatPanelProps {
   onClose: () => void;
 }
 
+// Gimmick mascot — the brand mascot lives in the chat avatar + empty state.
+const GIMMICK = MASCOTS.find((m) => m.id === 'gimmick')!;
+
 export function ChatPanel({ open, onClose }: ChatPanelProps) {
+  const theme = usePixelTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -72,7 +77,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Cleanup audio on unmount
   useEffect(() => {
     return () => {
       audioRef.current?.pause();
@@ -140,10 +144,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Voice input with live transcript (Web Speech API)
-  // ---------------------------------------------------------------------------
-
   const startRecording = useCallback(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -170,7 +170,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
         }
       }
       finalTranscriptRef.current = final;
-      // Show live transcript in input field
       setInput(final + (interim ? interim : ''));
     };
 
@@ -193,15 +192,9 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       recognitionRef.current = null;
     }
     setIsRecording(false);
-    // The transcript is already in the input field — user can edit or send
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Text-to-speech (OpenAI TTS)
-  // ---------------------------------------------------------------------------
-
   const speakMessage = useCallback(async (text: string, msgIndex: number) => {
-    // If already speaking this message, stop
     if (speakingMsgIndex === msgIndex) {
       audioRef.current?.pause();
       audioRef.current = null;
@@ -209,7 +202,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       return;
     }
 
-    // Stop any current playback
     audioRef.current?.pause();
     audioRef.current = null;
 
@@ -243,123 +235,274 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed top-12 bottom-0 right-0 w-60 z-50 flex flex-col bg-zinc-950 border-l border-zinc-800 shadow-2xl">
+    <div
+      style={{
+        position: 'fixed',
+        top: 48,
+        bottom: 0,
+        right: 0,
+        // Match the TileSidebar's open width so the right rail feels coherent
+        // whether the user has the chat or a tile detail showing.
+        width: 280,
+        zIndex: 50,
+        display: 'flex',
+        flexDirection: 'column',
+        background: theme.bg2,
+        borderLeft: `2px solid ${theme.border}`,
+        boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+      }}
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 h-10 border-b border-zinc-800 shrink-0">
-        <div className="flex items-center gap-1.5">
-          <IconRobot className="h-4 w-4 text-blue-400" />
-          <span className="text-sm font-semibold text-white">Ask Gimmick</span>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 12px',
+          height: 40,
+          borderBottom: `2px solid ${theme.border}`,
+          background: theme.surfaceVariant,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+            }}
+          >
+            Ask Gimmick
+          </span>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose} className="h-7 w-7 text-zinc-400 hover:text-white">
-          <IconX className="h-4 w-4" />
-        </Button>
+        <button
+          onClick={onClose}
+          style={{
+            width: 24,
+            height: 24,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            cursor: 'pointer',
+            color: theme.ink2,
+          }}
+        >
+          <IconX size={14} />
+        </button>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4" ref={scrollContainerRef}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: 12 }} ref={scrollContainerRef}>
         {messages.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-center py-20">
-            <IconRobot className="h-12 w-12 text-zinc-600 mb-4" />
-            <p className="text-zinc-400 text-sm">
-              Chiedimi qualcosa sui tuoi spark.
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '64px 0' }}>
+            <div
+              style={{
+                width: 64,
+                height: 64,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                marginBottom: 12,
+              }}
+            >
+              <MascotSprite mascot={GIMMICK} cell={3} />
+            </div>
+            <p
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+                margin: 0,
+              }}
+            >
+              Chiedimi qualcosa
             </p>
-            <p className="text-zinc-500 text-xs mt-2">
-              Es: &quot;Quanti spark ho?&quot;, &quot;Trova le note sul viaggio&quot;
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, marginTop: 6 }}>
+              Es: &quot;Quanti spark ho?&quot;
             </p>
           </div>
         ) : (
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {messages.map((msg, i) => (
               <div key={i}>
                 <div
-                  className={`flex gap-3 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  }}
                 >
                   {msg.role === 'assistant' && (
-                    <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <IconRobot className="h-4 w-4 text-blue-400" />
+                    <div
+                      style={{
+                        width: 36,
+                        height: 36,
+                        background: theme.surface,
+                        border: `2px solid ${theme.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: 2,
+                      }}
+                    >
+                      <MascotSprite mascot={GIMMICK} cell={2} />
                     </div>
                   )}
                   <div
-                    className={`max-w-[80%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-                      msg.role === 'user'
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-zinc-800 text-zinc-200'
-                    }`}
+                    style={{
+                      maxWidth: '80%',
+                      padding: '8px 10px',
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                      lineHeight: 1.5,
+                      background: msg.role === 'user' ? theme.accent : theme.surface,
+                      color: msg.role === 'user' ? theme.onAccent : theme.ink,
+                      border: `2px solid ${theme.border}`,
+                      ...(msg.role === 'user' ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` } : {}),
+                    }}
                   >
                     {msg.role === 'assistant' ? (
                       <ReactMarkdown
                         components={{
-                          p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                          ul: ({ children }) => <ul className="list-disc list-inside mb-2">{children}</ul>,
-                          ol: ({ children }) => <ol className="list-decimal list-inside mb-2">{children}</ol>,
-                          li: ({ children }) => <li className="mb-0.5">{children}</li>,
-                          code: ({ children }) => <code className="bg-zinc-700 px-1 py-0.5 rounded text-xs">{children}</code>,
+                          p: ({ children }) => <p style={{ marginBottom: 6, margin: '0 0 6px' }}>{children}</p>,
+                          strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+                          ul: ({ children }) => <ul style={{ listStyle: 'disc', paddingLeft: 16, marginBottom: 6 }}>{children}</ul>,
+                          ol: ({ children }) => <ol style={{ listStyle: 'decimal', paddingLeft: 16, marginBottom: 6 }}>{children}</ol>,
+                          li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                          code: ({ children }) => <code style={{ background: theme.surfaceVariant, padding: '1px 4px', fontFamily: 'var(--font-pixel-body)', fontSize: 11 }}>{children}</code>,
                         }}
                       >
                         {msg.content}
                       </ReactMarkdown>
                     ) : (
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{msg.content}</p>
                     )}
                   </div>
                   {msg.role === 'user' && (
-                    <div className="w-7 h-7 rounded-full bg-zinc-700 flex items-center justify-center shrink-0 mt-0.5">
-                      <IconUser className="h-4 w-4 text-zinc-300" />
+                    <div
+                      style={{
+                        width: 24,
+                        height: 24,
+                        background: theme.surfaceVariant,
+                        border: `2px solid ${theme.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        marginTop: 2,
+                        color: theme.ink2,
+                      }}
+                    >
+                      <IconUser size={12} />
                     </div>
                   )}
                 </div>
                 {/* Action buttons for assistant messages */}
                 {msg.role === 'assistant' && (
-                  <div className="ml-10 mt-1.5 flex gap-2 flex-wrap">
-                    {/* TTS button */}
+                  <div style={{ marginLeft: 32, marginTop: 6, display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     <button
                       onClick={() => speakMessage(msg.content, i)}
                       disabled={loadingTts && speakingMsgIndex !== i}
-                      className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-30"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        background: 'transparent',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 9,
+                        letterSpacing: '0.06em',
+                        textTransform: 'uppercase',
+                        color: theme.ink3,
+                        padding: 0,
+                        opacity: (loadingTts && speakingMsgIndex !== i) ? 0.3 : 1,
+                      }}
                     >
                       {speakingMsgIndex === i && loadingTts ? (
-                        <><IconLoader2 className="h-3 w-3 animate-spin" /> Carico...</>
+                        <><IconLoader2 size={11} className="animate-spin" /> Carico...</>
                       ) : speakingMsgIndex === i ? (
-                        <><IconVolumeOff className="h-3 w-3" /> Stop</>
+                        <><IconVolumeOff size={11} /> Stop</>
                       ) : (
-                        <><IconVolume className="h-3 w-3" /> Ascolta</>
+                        <><IconVolume size={11} /> Ascolta</>
                       )}
                     </button>
-                    {/* Filter buttons */}
                     {msg.foundSparkIds && msg.foundSparkIds.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <button
                         onClick={() => handleSparkFilter(msg.foundSparkIds!)}
-                        className="border-blue-500/30 bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 hover:text-blue-300 text-xs"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 6px',
+                          background: theme.surfaceVariant,
+                          color: theme.accent,
+                          border: `2px solid ${theme.accent}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
                       >
-                        <IconFilter className="h-3 w-3 mr-1.5" />
-                        Filtra spark ({msg.foundSparkIds.length})
-                      </Button>
+                        <IconFilter size={10} />
+                        Spark ({msg.foundSparkIds.length})
+                      </button>
                     )}
                     {msg.foundTileIds && msg.foundTileIds.length > 0 && (
-                      <Button
-                        variant="outline"
-                        size="sm"
+                      <button
                         onClick={() => handleTileFilter(msg.foundTileIds!)}
-                        className="border-purple-500/30 bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 hover:text-purple-300 text-xs"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '3px 6px',
+                          background: theme.surfaceVariant,
+                          color: theme.accent,
+                          border: `2px solid ${theme.accent}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
                       >
-                        <IconLayoutGrid className="h-3 w-3 mr-1.5" />
-                        Filtra tile ({msg.foundTileIds.length})
-                      </Button>
+                        <IconLayoutGrid size={10} />
+                        Tile ({msg.foundTileIds.length})
+                      </button>
                     )}
                   </div>
                 )}
               </div>
             ))}
             {isLoading && (
-              <div className="flex gap-3">
-                <div className="w-7 h-7 rounded-full bg-blue-500/20 flex items-center justify-center shrink-0">
-                  <IconRobot className="h-4 w-4 text-blue-400" />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    background: theme.surface,
+                    border: `2px solid ${theme.border}`,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <MascotSprite mascot={GIMMICK} cell={2} />
                 </div>
-                <div className="bg-zinc-800 rounded-xl px-4 py-2.5">
-                  <IconLoader2 className="h-4 w-4 text-zinc-400 animate-spin" />
+                <div style={{ background: theme.surface, border: `2px solid ${theme.border}`, padding: '8px 10px' }}>
+                  <IconLoader2 size={14} className="animate-spin" style={{ color: theme.ink2 }} />
                 </div>
               </div>
             )}
@@ -369,37 +512,78 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
       </div>
 
       {/* Input */}
-      <div className="p-3 border-t border-zinc-800 space-y-2">
-        <Textarea
+      <div
+        style={{
+          padding: 10,
+          borderTop: `2px solid ${theme.border}`,
+          background: theme.surfaceVariant,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+        }}
+      >
+        <textarea
           ref={textareaRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Scrivi un messaggio..."
-          className="h-16 min-h-[64px] resize-none bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus-visible:ring-blue-500"
           rows={3}
+          style={{
+            height: 64,
+            minHeight: 64,
+            resize: 'none',
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            padding: 8,
+            color: theme.ink,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            outline: 'none',
+          }}
         />
-        <div className="flex gap-2 justify-end">
-          {/* Mic button */}
-          <Button
+        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+          <button
             onClick={isRecording ? stopRecording : startRecording}
             disabled={isLoading}
-            className={`shrink-0 h-8 w-8 p-0 ${
-              isRecording
-                ? 'bg-red-600 hover:bg-red-700 animate-pulse'
-                : 'bg-zinc-700 hover:bg-zinc-600'
-            }`}
+            style={{
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: isRecording ? '#E24B4A' : theme.surface,
+              color: isRecording ? '#FFFFFF' : theme.ink2,
+              border: `2px solid ${theme.border}`,
+              cursor: isLoading ? 'not-allowed' : 'pointer',
+              opacity: isLoading ? 0.5 : 1,
+              flexShrink: 0,
+            }}
+            className={isRecording ? 'animate-pulse' : ''}
           >
-            {isRecording ? <IconMicrophoneOff className="h-4 w-4" /> : <IconMicrophone className="h-4 w-4" />}
-          </Button>
-          {/* Send button */}
-          <Button
+            {isRecording ? <IconMicrophoneOff size={14} /> : <IconMicrophone size={14} />}
+          </button>
+          <button
             onClick={handleSend}
             disabled={!input.trim() || isLoading}
-            className="bg-blue-600 hover:bg-blue-700 shrink-0 h-8 w-8 p-0"
+            className="px-press"
+            style={{
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              cursor: (!input.trim() || isLoading) ? 'not-allowed' : 'pointer',
+              opacity: (!input.trim() || isLoading) ? 0.5 : 1,
+              flexShrink: 0,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
           >
-            <IconSend className="h-4 w-4" />
-          </Button>
+            <IconSend size={14} />
+          </button>
         </div>
       </div>
     </div>

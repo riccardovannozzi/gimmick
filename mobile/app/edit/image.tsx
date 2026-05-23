@@ -1,36 +1,110 @@
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import { IconX, IconPhoto } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 
 export default function ImageEditorScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const router = useRouter();
+  const sh = theme.shadowOffset;
 
   return (
     <SafeAreaWrapper>
-      <View className="flex-1">
+      <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
         {/* Header */}
-        <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-          <TouchableOpacity onPress={() => router.back()}>
-            <IconX size={24} color={colors.secondary} />
-          </TouchableOpacity>
-          <Text className="text-primary text-lg font-semibold">Editor Immagine</Text>
-          <View className="w-6" />
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 16,
+            paddingVertical: 12,
+            borderBottomWidth: 2,
+            borderBottomColor: theme.border,
+          }}
+        >
+          <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh }}>
+            {sh > 0 && (
+              <View
+                style={{
+                  position: 'absolute',
+                  left: sh, top: sh, right: 0, bottom: 0,
+                  backgroundColor: theme.shadowColor,
+                }}
+              />
+            )}
+            <Pressable
+              onPress={() => router.back()}
+              style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderWidth: 2,
+                  borderColor: theme.border,
+                  backgroundColor: theme.semantic.danger,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
+              </View>
+            </Pressable>
+          </View>
+
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 11,
+              color: theme.ink,
+              letterSpacing: 1.2,
+            }}
+          >
+            IMAGE EDITOR
+          </Text>
+
+          <View style={{ width: 44 + sh }} />
         </View>
 
-        {/* Content - Placeholder */}
-        <View className="flex-1 items-center justify-center px-8">
-          <View className="w-20 h-20 rounded-full bg-background-2 items-center justify-center mb-4">
-            <IconPhoto size={40} color={colors.secondary} />
+        {/* Placeholder content */}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 }}>
+          <View
+            style={{
+              width: 80,
+              height: 80,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: theme.cap.photo,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <IconPhoto size={40} color="#FFFFFF" strokeWidth={1.8} />
           </View>
-          <Text className="text-primary text-lg font-medium text-center mb-2">
-            Editor in arrivo
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 12,
+              color: theme.ink,
+              textAlign: 'center',
+              letterSpacing: 1.2,
+            }}
+          >
+            EDITOR IN ARRIVO
           </Text>
-          <Text className="text-secondary text-sm text-center">
-            L'editor immagini sara disponibile nella prossima versione
+          <Text
+            style={{
+              fontFamily: theme.fontBody,
+              fontSize: 13,
+              color: theme.ink2,
+              textAlign: 'center',
+              lineHeight: 18,
+            }}
+          >
+            L'editor immagini sarà disponibile nella prossima versione
           </Text>
         </View>
       </View>

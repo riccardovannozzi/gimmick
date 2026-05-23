@@ -29,14 +29,27 @@ import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { TopNav } from '@/components/layout/TopNav';
 import { TileHeaderNav } from '@/components/layout/TileHeaderNav';
 import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { subtasksApi } from '@/lib/api';
 import type { Subtask } from '@/types';
 
 export default function TileListScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+  } as const;
   const queryClient = useQueryClient();
 
   const queryKey = ['subtasks', id];
@@ -172,10 +185,10 @@ export default function TileListScreen() {
               gap: 6,
               paddingVertical: 10,
               marginTop: 8,
-              borderWidth: 1,
+              borderWidth: 2,
               borderStyle: 'dashed',
               borderColor: colors.border,
-              borderRadius: 8,
+              borderRadius: 0,
               opacity: addMutation.isPending ? 0.4 : 1,
             }}
           >
@@ -239,8 +252,8 @@ function SubtaskRow({
     <View
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 8,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: isReordering ? colors.accent : colors.border,
         padding: 10,
         marginBottom: 8,
@@ -255,7 +268,7 @@ function SubtaskRow({
           style={{
             width: 22,
             height: 22,
-            borderRadius: 5,
+            borderRadius: 0,
             borderWidth: 1.5,
             borderColor: subtask.is_done ? colors.accent : colors.tertiary,
             backgroundColor: subtask.is_done ? colors.accent : 'transparent',
@@ -314,7 +327,7 @@ function SubtaskRow({
           style={{
             paddingHorizontal: 6,
             paddingVertical: 4,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: isReordering ? `${colors.accent}33` : 'transparent',
           }}
         >
@@ -351,7 +364,7 @@ function SubtaskRow({
           hitSlop={6}
           style={{
             padding: 4,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: confirmDelete ? '#EF4444' : 'transparent',
           }}
         >

@@ -4,17 +4,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { IconPlus, IconTrash, IconTag, IconPencil, IconCheck, IconX } from '@tabler/icons-react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { usePixelTheme } from '@/components/pixel';
 import { tagsApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import type { Tag } from '@/types';
@@ -25,6 +16,7 @@ interface TagManagerModalProps {
 }
 
 export function TagManagerModal({ open, onOpenChange }: TagManagerModalProps) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { tagTypes, getEmoji, getName } = useTagTypes();
   const [newTagName, setNewTagName] = useState('');
@@ -103,150 +95,248 @@ export function TagManagerModal({ open, onOpenChange }: TagManagerModalProps) {
     });
   };
 
+  const inputStyle: React.CSSProperties = {
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '0 8px',
+    height: 30,
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    outline: 'none',
+  };
+  const pillBtn = (active: boolean): React.CSSProperties => ({
+    padding: '4px 8px',
+    background: active ? theme.accent : theme.surfaceVariant,
+    color: active ? theme.onAccent : theme.ink2,
+    border: `2px solid ${theme.border}`,
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.06em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+  });
+  const iconBtn = (danger: boolean = false): React.CSSProperties => ({
+    width: 26,
+    height: 26,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    color: danger ? '#E24B4A' : theme.ink2,
+    flexShrink: 0,
+  });
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <IconTag className="h-5 w-5 text-blue-400" />
+      <DialogContent
+        showCloseButton={false}
+        style={{
+          maxWidth: 440,
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          borderRadius: 0,
+          color: theme.ink,
+          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          padding: 0,
+          gap: 0,
+          display: 'block',
+        }}
+      >
+        <div style={{ padding: '10px 14px', background: theme.surfaceVariant, borderBottom: `2px solid ${theme.border}` }}>
+          <h2
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+              margin: 0,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            <IconTag size={14} style={{ color: theme.accent }} />
             Gestione Tag
-          </DialogTitle>
-          <DialogDescription className="text-zinc-400">
+          </h2>
+          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '4px 0 0' }}>
             Crea e gestisci i tag per organizzare le tue tiles.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Create new tag */}
-        <div className="space-y-3">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Nome del tag..."
-              value={newTagName}
-              onChange={(e) => setNewTagName(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-            />
-            <Button
-              onClick={handleCreate}
-              disabled={!newTagName.trim() || createMutation.isPending}
-              size="icon"
-              className="bg-blue-600 hover:bg-blue-700 shrink-0"
-            >
-              <IconPlus className="h-4 w-4" />
-            </Button>
-          </div>
-
-          <Input
-            placeholder="Alias (separati da virgola)..."
-            value={newTagAliases}
-            onChange={(e) => setNewTagAliases(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-          />
-
-          {/* Tag type pills */}
-          <div className="flex gap-1.5 flex-wrap">
-            {tagTypes.map((t) => (
-              <button
-                key={t.slug}
-                type="button"
-                onClick={() => setNewTagType(t.slug)}
-                className={cn(
-                  'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all',
-                  newTagType === t.slug
-                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                    : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                )}
-              >
-                {t.emoji} {t.name}
-              </button>
-            ))}
-          </div>
+          </p>
         </div>
 
-        {/* Tag list */}
-        <div className="space-y-1 max-h-72 overflow-y-auto mt-2">
-          {isLoading ? (
-            <p className="text-sm text-zinc-500 text-center py-4">Caricamento...</p>
-          ) : tags.length === 0 ? (
-            <p className="text-sm text-zinc-500 text-center py-4">Nessun tag creato</p>
-          ) : (
-            tags.map((tag) => (
-              <div key={tag.id} className="px-3 py-2 rounded-lg bg-zinc-800/50 group">
-                {editingId === tag.id ? (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Input
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
-                        className="h-7 bg-zinc-700 border-zinc-600 text-white text-sm"
-                        autoFocus
-                      />
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-green-400 hover:text-green-300 shrink-0" onClick={confirmEdit}>
-                        <IconCheck className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-400 hover:text-zinc-300 shrink-0" onClick={() => setEditingId(null)}>
-                        <IconX className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <Input
-                      value={editAliases}
-                      onChange={(e) => setEditAliases(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
-                      placeholder="Alias (separati da virgola)..."
-                      className="h-7 bg-zinc-700 border-zinc-600 text-white text-sm placeholder:text-zinc-500"
-                    />
-                    {!tag.is_root && (
-                      <div className="flex gap-1.5 flex-wrap">
-                        {tagTypes.map((t) => (
-                          <button
-                            key={t.slug}
-                            type="button"
-                            onClick={() => setEditTagType(t.slug)}
-                            className={cn(
-                              'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-all',
-                              editTagType === t.slug
-                                ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-                                : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-                            )}
-                          >
-                            {t.emoji} {t.name}
-                          </button>
-                        ))}
+        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Create new tag */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                placeholder="Nome del tag..."
+                value={newTagName}
+                onChange={(e) => setNewTagName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                style={{ ...inputStyle, flex: 1 }}
+              />
+              <button
+                onClick={handleCreate}
+                disabled={!newTagName.trim() || createMutation.isPending}
+                className="px-press"
+                style={{
+                  width: 30,
+                  height: 30,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: theme.accent,
+                  color: theme.onAccent,
+                  border: `2px solid ${theme.border}`,
+                  cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+                  flexShrink: 0,
+                  opacity: (!newTagName.trim() || createMutation.isPending) ? 0.5 : 1,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                }}
+              >
+                <IconPlus size={14} />
+              </button>
+            </div>
+
+            <input
+              placeholder="Alias (separati da virgola)..."
+              value={newTagAliases}
+              onChange={(e) => setNewTagAliases(e.target.value)}
+              onKeyDown={handleKeyDown}
+              style={inputStyle}
+            />
+
+            {/* Tag type pills */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {tagTypes.map((t) => (
+                <button key={t.slug} type="button" onClick={() => setNewTagType(t.slug)} style={pillBtn(newTagType === t.slug)}>
+                  {t.emoji} {t.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Tag list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+            {isLoading ? (
+              <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, textAlign: 'center', padding: '16px 0', margin: 0 }}>
+                Caricamento...
+              </p>
+            ) : tags.length === 0 ? (
+              <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, textAlign: 'center', padding: '16px 0', margin: 0 }}>
+                Nessun tag creato
+              </p>
+            ) : (
+              tags.map((tag) => (
+                <div
+                  key={tag.id}
+                  className="group"
+                  style={{
+                    padding: '8px 10px',
+                    background: theme.surfaceVariant,
+                    border: `2px solid ${theme.border}`,
+                  }}
+                >
+                  {editingId === tag.id ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <input
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
+                          autoFocus
+                          style={{ ...inputStyle, height: 28, flex: 1, background: theme.surface }}
+                        />
+                        <button onClick={confirmEdit} style={{ ...iconBtn(false), color: '#1D9E75' }}>
+                          <IconCheck size={13} />
+                        </button>
+                        <button onClick={() => setEditingId(null)} style={iconBtn(false)}>
+                          <IconX size={13} />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs" title={getName(tag.tag_type || 'topic')}>
-                        {getEmoji(tag.tag_type || 'topic')}
-                      </span>
-                      <span className="text-sm text-white flex-1 truncate">{tag.name}</span>
+                      <input
+                        value={editAliases}
+                        onChange={(e) => setEditAliases(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && confirmEdit()}
+                        placeholder="Alias (separati da virgola)..."
+                        style={{ ...inputStyle, height: 28, background: theme.surface }}
+                      />
                       {!tag.is_root && (
-                        <>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => startEdit(tag)}>
-                            <IconPencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => deleteMutation.mutate(tag.id)}>
-                            <IconTrash className="h-3.5 w-3.5" />
-                          </Button>
-                        </>
+                        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                          {tagTypes.map((t) => (
+                            <button key={t.slug} type="button" onClick={() => setEditTagType(t.slug)} style={pillBtn(editTagType === t.slug)}>
+                              {t.emoji} {t.name}
+                            </button>
+                          ))}
+                        </div>
                       )}
                     </div>
-                    {tag.aliases && tag.aliases.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1.5 ml-5">
-                        {tag.aliases.map((alias) => (
-                          <Badge key={alias} className="text-xs bg-zinc-700 text-zinc-300 px-1.5 py-0">{alias}</Badge>
-                        ))}
+                  ) : (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 12 }} title={getName(tag.tag_type || 'topic')}>
+                          {getEmoji(tag.tag_type || 'topic')}
+                        </span>
+                        <span
+                          style={{
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            color: theme.ink,
+                            flex: 1,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {tag.name}
+                        </span>
+                        {!tag.is_root && (
+                          <>
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={iconBtn(false)}
+                              onClick={() => startEdit(tag)}
+                            >
+                              <IconPencil size={13} />
+                            </button>
+                            <button
+                              className="opacity-0 group-hover:opacity-100 transition-opacity"
+                              style={iconBtn(true)}
+                              onClick={() => deleteMutation.mutate(tag.id)}
+                            >
+                              <IconTrash size={13} />
+                            </button>
+                          </>
+                        )}
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))
-          )}
+                      {tag.aliases && tag.aliases.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6, marginLeft: 20 }}>
+                          {tag.aliases.map((alias) => (
+                            <span
+                              key={alias}
+                              style={{
+                                padding: '2px 6px',
+                                background: theme.surface,
+                                color: theme.ink2,
+                                border: `2px solid ${theme.border}`,
+                                fontFamily: 'var(--font-pixel-body)',
+                                fontSize: 11,
+                              }}
+                            >
+                              {alias}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

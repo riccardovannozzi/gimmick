@@ -14,7 +14,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
 import { isSameDay, isToday, minutesFromMidnight } from '@/lib/chrono-utils';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { useTileColors } from '@/hooks/useTileColors';
 import { EventBlock } from './EventBlock';
 import { AllDayChip } from './AllDayChip';
@@ -37,7 +37,21 @@ export const PX_PER_MINUTE = 1.2;
 export const GUTTER_WIDTH = 48;
 
 export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  // Mappa minimo dei colori legacy ai token Pixel così la firma di EventBlock /
+  // AllDayChip (che ancora aspettano `colors.border/tertiary/...`) non rompe.
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surfaceVariant,
+  } as const;
   const { resolve: resolveTileColors } = useTileColors();
 
   // Events whose start_at falls on the displayed day, split by all-day flag.

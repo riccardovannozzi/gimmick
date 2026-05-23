@@ -4,7 +4,7 @@
  * input, the existing contacts (self pinned to top), and an inline create
  * action when the query has no exact match.
  */
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,19 +15,47 @@ import {
 } from 'react-native';
 import { IconChevronDown, IconPlus, IconX } from '@tabler/icons-react-native';
 import { useContacts } from '@/hooks/useContacts';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import type { Contact } from '@/types';
 
 interface Props {
   value: string | null;
   onChange: (contactId: string | null) => void;
+  /** Open the modal directly on mount, skipping the intermediate "selected
+   *  pill" field. Used when this picker is mounted as the inline editor of
+   *  a chip — the chip itself already plays the field's role. */
+  autoOpen?: boolean;
+  /** Hide the always-visible field that triggers the modal. Pairs with
+   *  `autoOpen` for the inline-editor case. */
+  hideTrigger?: boolean;
+  /** Fired when the modal dismisses (back button, backdrop tap, swipe).
+   *  Lets the caller collapse its own expanded state in sync. */
+  onClose?: () => void;
 }
 
-export function ContactPicker({ value, onChange }: Props) {
-  const colors = useThemeColors();
+export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger = false, onClose }: Props) {
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const { contacts, create } = useContacts();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen);
   const [query, setQuery] = useState('');
+
+  // When the caller mounts us with autoOpen=true, the modal should pop the
+  // first frame so the user doesn't perceive a double-tap.
+  useEffect(() => {
+    if (autoOpen) setOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [creating, setCreating] = useState(false);
 
   const selected: Contact | null = useMemo(() => {
@@ -83,6 +111,7 @@ export function ContactPicker({ value, onChange }: Props) {
 
   return (
     <>
+      {!hideTrigger && (
       <TouchableOpacity
         onPress={() => setOpen(true)}
         activeOpacity={0.7}
@@ -91,8 +120,8 @@ export function ContactPicker({ value, onChange }: Props) {
           alignItems: 'center',
           gap: 8,
           backgroundColor: colors.background2,
-          borderRadius: 8,
-          borderWidth: 1,
+          borderRadius: 0,
+          borderWidth: 2,
           borderColor: colors.border,
           paddingHorizontal: 12,
           height: 40,
@@ -103,7 +132,7 @@ export function ContactPicker({ value, onChange }: Props) {
             style={{
               width: 8,
               height: 8,
-              borderRadius: 4,
+              borderRadius: 0,
               backgroundColor: selected.color,
             }}
           />
@@ -132,12 +161,16 @@ export function ContactPicker({ value, onChange }: Props) {
         )}
         {!selected && <IconChevronDown size={14} color={colors.tertiary} />}
       </TouchableOpacity>
+      )}
 
       <Modal
         visible={open}
         animationType="slide"
         transparent
-        onRequestClose={() => setOpen(false)}
+        onRequestClose={() => {
+          setOpen(false);
+          onClose?.();
+        }}
       >
         <View
           style={{
@@ -149,8 +182,8 @@ export function ContactPicker({ value, onChange }: Props) {
           <View
             style={{
               backgroundColor: colors.background2,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
               paddingBottom: 16,
               maxHeight: '85%',
             }}
@@ -162,7 +195,7 @@ export function ContactPicker({ value, onChange }: Props) {
                 justifyContent: 'space-between',
                 paddingHorizontal: 20,
                 paddingVertical: 16,
-                borderBottomWidth: 1,
+                borderBottomWidth: 2,
                 borderBottomColor: colors.border,
               }}
             >
@@ -183,8 +216,8 @@ export function ContactPicker({ value, onChange }: Props) {
                 placeholderTextColor={colors.tertiary}
                 style={{
                   backgroundColor: colors.background1,
-                  borderRadius: 8,
-                  borderWidth: 1,
+                  borderRadius: 0,
+                  borderWidth: 2,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
                   height: 40,
@@ -224,9 +257,9 @@ export function ContactPicker({ value, onChange }: Props) {
                       gap: 10,
                       paddingHorizontal: 12,
                       paddingVertical: 12,
-                      borderRadius: 8,
+                      borderRadius: 0,
                       backgroundColor: isActive ? `${colors.accent}1F` : 'transparent',
-                      borderWidth: 1,
+                      borderWidth: 2,
                       borderColor: isActive ? colors.accent : 'transparent',
                       marginBottom: 4,
                     }}
@@ -236,7 +269,7 @@ export function ContactPicker({ value, onChange }: Props) {
                         style={{
                           width: 8,
                           height: 8,
-                          borderRadius: 4,
+                          borderRadius: 0,
                           backgroundColor: c.color,
                         }}
                       />
@@ -269,8 +302,8 @@ export function ContactPicker({ value, onChange }: Props) {
                     gap: 8,
                     paddingHorizontal: 12,
                     paddingVertical: 12,
-                    borderRadius: 8,
-                    borderTopWidth: 1,
+                    borderRadius: 0,
+                    borderTopWidth: 2,
                     borderTopColor: colors.border,
                     opacity: creating ? 0.5 : 1,
                   }}

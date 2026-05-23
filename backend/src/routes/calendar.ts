@@ -5,6 +5,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
+import { getActiveStatusId } from '../services/statuses.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
 
 
@@ -211,6 +212,8 @@ calendarRouter.post(
         ? new Date(end_at).toISOString()
         : new Date(new Date(finalStartAt).getTime() + 3600000).toISOString();
 
+      const activeId = await getActiveStatusId(req.user!.id);
+
       // Create tile + schedule in a single insert
       const { data, error } = await supabaseAdmin
         .from('tiles')
@@ -222,6 +225,7 @@ calendarRouter.post(
           is_event: true,
           action_type: 'event',
           action_type_reviewed: true,
+          ...(activeId ? { status_id: activeId } : {}),
         })
         .select()
         .single();

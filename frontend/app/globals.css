@@ -123,84 +123,373 @@
     @apply bg-background text-foreground;
   }
 
-  /* Dark scrollbar */
+  /* Pixel scrollbar — white track + red thumb so the scrollbar stays visible
+     against the pixel-theme drop-shadow (which is the same hue as the page
+     bg on most themes and used to swallow the default thumb). */
+  * { scrollbar-color: #E24B4A #FFFFFF; }
   ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 12px;
+    height: 12px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #FFFFFF;
+    border-left: 2px solid var(--px-border);
+    border-top: 2px solid var(--px-border);
   }
   ::-webkit-scrollbar-thumb {
-    background: #3f3f46;
-    border-radius: 3px;
+    background: #E24B4A;
+    border-radius: 0;
+    border: 2px solid #FFFFFF;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #52525b;
+    background: #B83937;
   }
   ::-webkit-scrollbar-corner {
-    background: transparent;
+    background: #FFFFFF;
   }
 
-  /* Left sidebar scrollbar — wider and darker than the global default */
+  /* Sidebar scrollbar — same white/red treatment as the global one */
+  .sidebar-scroll { scrollbar-color: #E24B4A #FFFFFF; }
   .sidebar-scroll::-webkit-scrollbar {
-    width: 8px;
+    width: 12px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: #FFFFFF;
+    border-left: 2px solid var(--px-border);
   }
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: #09090b;
-    border-radius: 4px;
+    background: #E24B4A;
+    border-radius: 0;
+    border: 2px solid #FFFFFF;
   }
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-    background: #18181b;
+    background: #B83937;
+  }
+
+  /* Pixel focus ring — drops accent outline 3px offset 0, no rounding */
+  :focus-visible {
+    outline: 3px solid var(--px-accent);
+    outline-offset: 0;
+    border-radius: 0;
+  }
+
+  /* Selection (highlight) — accent fill with onAccent text */
+  ::selection {
+    background: var(--px-accent);
+    color: var(--px-on-accent);
   }
 }
 
-/* ─── FullCalendar dark theme ─── */
-.fc-dark {
-  --fc-border-color: #27272a;
-  --fc-page-bg-color: transparent;
-  --fc-neutral-bg-color: rgba(24, 24, 27, 0.5);
-  --fc-today-bg-color: rgba(59, 130, 246, 0.05);
-  --fc-now-indicator-color: #3b82f6;
-  --fc-event-bg-color: rgba(24, 24, 27, 0.9);
-  --fc-event-border-color: #3f3f46;
-  --fc-event-text-color: #a1a1aa;
+/* ─── Sonner toast overrides ─── */
+[data-sonner-toaster] [data-sonner-toast] {
+  background: var(--px-surface) !important;
+  border: 2px solid var(--px-border) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--px-shadow) !important;
+  color: var(--px-ink) !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 12px !important;
 }
-.fc-dark .fc-scrollgrid { border-color: #27272a !important; }
-.fc-dark .fc-col-header-cell { background: #0c0c0e; padding: 6px 0; }
-.fc-dark .fc-col-header-cell-cushion { color: #71717a; font-size: 11px; font-weight: 600; text-transform: uppercase; text-decoration: none; }
-.fc-dark .fc-day-today .fc-col-header-cell-cushion { color: #3b82f6; }
-.fc-dark .fc-timegrid-slot-label-cushion { color: #52525b; font-size: 10px; }
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] {
+  border-color: var(--px-border) !important;
+}
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] {
+  border-color: #E24B4A !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-title] {
+  font-family: var(--font-pixel-head), ui-monospace, monospace !important;
+  font-size: 10px !important;
+  letter-spacing: 0.08em !important;
+  text-transform: uppercase !important;
+  color: var(--px-ink) !important;
+}
+[data-sonner-toaster] [data-sonner-toast] [data-description] {
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  color: var(--px-ink-2) !important;
+}
+
+/* ─── Radix tooltip / popover content — pixel chrome ─── */
+[data-radix-popper-content-wrapper] [data-slot="tooltip-content"],
+[role="tooltip"] {
+  background: var(--px-surface) !important;
+  color: var(--px-ink) !important;
+  border: 2px solid var(--px-border) !important;
+  border-radius: 0 !important;
+  box-shadow: var(--px-shadow) !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
+  font-size: 11px !important;
+  padding: 6px 10px !important;
+}
+
+/* ─── FullCalendar · Pixel Arcade theme ───
+   Bridges the runtime palette emitted by <PixelThemeProvider> as
+   --px-* CSS variables into FullCalendar's own --fc-* vars. */
+.fc-dark {
+  --fc-border-color: var(--px-border);
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: var(--px-bg2);
+  --fc-today-bg-color: color-mix(in srgb, var(--px-accent) 10%, transparent);
+  --fc-now-indicator-color: var(--px-accent);
+  --fc-event-bg-color: var(--px-surface);
+  --fc-event-border-color: var(--px-border);
+  --fc-event-text-color: var(--px-ink);
+}
+/* Grid skeleton — hard 2px borders, no rounding */
+.fc-dark .fc-scrollgrid,
+.fc-dark .fc-scrollgrid > * > tr > * { border-color: var(--px-border) !important; }
+.fc-dark .fc-scrollgrid { border-width: 2px !important; }
+.fc-dark table { border-color: var(--px-border) !important; }
+.fc-dark td, .fc-dark th { border-color: var(--px-border) !important; }
+
+/* Day header row — surfaceVariant strip, Press Start 2P 9px caps */
+.fc-dark .fc-col-header-cell {
+  background: var(--px-surface-variant);
+  padding: 6px 0;
+  border-bottom: 2px solid var(--px-border) !important;
+}
+.fc-dark .fc-col-header-cell-cushion {
+  color: var(--px-ink-2);
+  font-family: var(--font-pixel-head), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-decoration: none;
+}
+.fc-dark .fc-day-today .fc-col-header-cell-cushion {
+  color: var(--px-accent);
+}
+
+/* Slot labels (left axis hour ticks) */
+.fc-dark .fc-timegrid-slot-label-cushion {
+  color: var(--px-ink-3);
+  font-family: var(--font-pixel-head), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+}
 .fc-dark .fc-timegrid-slot { height: 32px; }
-.fc-dark .fc-timegrid-event { border-radius: 4px; font-size: 11px; line-height: 1.2; cursor: grab; }
-.fc-dark .fc-timegrid-event .fc-event-main { padding: 2px 4px; position: relative; }
-.fc-dark .fc-timegrid-event .fc-event-title { font-weight: 500; padding-right: 24px; word-break: break-word; }
+.fc-dark .fc-timegrid-slot-minor { border-top-style: dotted !important; }
+
+/* Timegrid events (week view) — hard square, no rounding */
+.fc-dark .fc-timegrid-event {
+  border-radius: 0 !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  cursor: grab;
+}
+.fc-dark .fc-timegrid-event .fc-event-main { padding: 3px 5px; position: relative; color: inherit; }
+.fc-dark .fc-timegrid-event .fc-event-title {
+  font-weight: normal;
+  padding-right: 24px;
+  word-break: break-word;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  color: inherit;
+}
 .fc-dark .fc-timegrid-event .fc-event-time { display: none; }
-.fc-dark .fc-daygrid-event { border-radius: 3px; font-size: 11px; line-height: 1.2; cursor: grab; height: 32px; min-height: 32px; padding: 2px 4px; display: flex; align-items: center; overflow: hidden; }
-  .fc-dark .fc-daygrid-event .fc-event-title { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; white-space: normal; word-break: break-word; padding-right: 24px; }
+
+/* Daygrid events (month + all-day) — same pixel square treatment */
+.fc-dark .fc-daygrid-event {
+  border-radius: 0 !important;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  cursor: grab;
+  height: 32px;
+  min-height: 32px;
+  padding: 3px 5px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+.fc-dark .fc-daygrid-event .fc-event-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+  word-break: break-word;
+  padding-right: 24px;
+  font-weight: normal;
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 14px;
+  color: inherit;
+}
 .fc-dark .fc-daygrid-day-events { min-height: 32px; }
+
+/* Day cell backgrounds — match the Chrono panel bg (px-bg1) */
 .fc-dark .fc-daygrid-day,
 .fc-dark .fc-daygrid-day-frame,
-.fc-dark .fc-daygrid-day-events { background: rgba(0,0,0,0.35) !important; }
-.fc-dark .fc-timegrid-col-frame { background: rgba(0,0,0,0.35); }
-/* Darken the all-day axis cell (left column at the all-day row level) so it
-   matches the surrounding all-day day cells. The body axis (with hour labels)
-   is excluded via :has() so it stays at the lighter parent bg. */
-.fc-dark .fc-timegrid-axis { background: rgba(0,0,0,0.35); }
+.fc-dark .fc-daygrid-day-events { background: var(--px-bg1) !important; }
+.fc-dark .fc-timegrid-col-frame { background: var(--px-bg1); }
+
+/* All-day axis cell match */
+.fc-dark .fc-timegrid-axis { background: var(--px-bg1); }
 .fc-dark .fc-timegrid-axis:has(.fc-timegrid-slots) { background: transparent; }
-.fc-dark .fc-event-completed { opacity: 0.5; }
-.fc-dark .fc-daygrid-day-number { color: #a1a1aa; font-size: 12px; text-decoration: none; }
-.fc-dark .fc-day-today .fc-daygrid-day-number { color: #3b82f6; font-weight: 600; }
-.fc-dark .fc-timegrid-now-indicator-line { border-color: #3b82f6; }
-.fc-dark .fc-timegrid-now-indicator-arrow { border-color: #3b82f6; color: #3b82f6; }
-.fc-dark .fc-highlight { background: rgba(59, 130, 246, 0.1) !important; }
+
+/* DONE tiles are signalled by the status SHAPE (diagonals etc.), not by
+   fading the whole event — fading made the bg semi-transparent and let the
+   calendar grid bleed through the gaps in the diagonal pattern. */
+
+/* Month-view date numbers */
+.fc-dark .fc-daygrid-day-number {
+  color: var(--px-ink-2);
+  font-family: var(--font-pixel-head), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+  padding: 4px 6px;
+}
+.fc-dark .fc-day-today .fc-daygrid-day-number {
+  color: var(--px-on-accent);
+  background: var(--px-accent);
+  padding: 2px 6px;
+}
+
+/* Now indicator (current-time line) */
+.fc-dark .fc-timegrid-now-indicator-line { border-color: var(--px-accent); border-width: 2px; }
+.fc-dark .fc-timegrid-now-indicator-arrow { border-color: var(--px-accent); color: var(--px-accent); }
+
+/* Drag highlight */
+.fc-dark .fc-highlight {
+  background: color-mix(in srgb, var(--px-accent) 18%, transparent) !important;
+  outline: 2px dashed var(--px-accent);
+  outline-offset: -2px;
+}
+
+/* Bottom resize handle on timegrid events */
 .fc-dark .fc-timegrid-event .fc-event-resizer-bottom {
   height: 6px;
   bottom: 0;
   cursor: s-resize;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 0 0 4px 4px;
+  background: color-mix(in srgb, var(--px-border) 40%, transparent);
+  border-radius: 0;
 }
 .fc-dark .fc-timegrid-event:hover .fc-event-resizer-bottom {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--px-accent);
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Markdown (rendered preview + TipTap WYSIWYG editor share these rules)
+   ───────────────────────────────────────────────────────────────────── */
+.markdown-preview, .tiptap-md {
+  font-family: var(--font-pixel-body), ui-monospace, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--px-ink);
+}
+.markdown-preview h1, .tiptap-md h1 { font-family: var(--font-pixel-head); font-size: 18px; letter-spacing: 0.04em; margin: 14px 0 8px; }
+.markdown-preview h2, .tiptap-md h2 { font-family: var(--font-pixel-head); font-size: 15px; letter-spacing: 0.04em; margin: 12px 0 6px; }
+.markdown-preview h3, .tiptap-md h3 { font-family: var(--font-pixel-head); font-size: 13px; letter-spacing: 0.04em; margin: 10px 0 4px; }
+.markdown-preview p, .tiptap-md p { margin: 6px 0; }
+.markdown-preview strong, .tiptap-md strong { font-weight: 700; }
+.markdown-preview em, .tiptap-md em { font-style: italic; }
+.markdown-preview code, .tiptap-md code {
+  font-family: ui-monospace, monospace;
+  background: var(--px-surface-variant, #f4f4f5);
+  border: 1px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 0 4px;
+  font-size: 12px;
+}
+.markdown-preview pre, .tiptap-md pre {
+  background: var(--px-surface-variant, #f4f4f5);
+  border: 2px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 10px;
+  margin: 8px 0;
+  overflow-x: auto;
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.markdown-preview pre code, .tiptap-md pre code { background: transparent; border: 0 !important; padding: 0; }
+.markdown-preview ul, .tiptap-md ul { margin: 6px 0; padding-left: 22px; list-style: disc outside; }
+.markdown-preview ol, .tiptap-md ol { margin: 6px 0; padding-left: 22px; list-style: decimal outside; }
+.markdown-preview li, .tiptap-md li { margin: 2px 0; }
+.markdown-preview li::marker, .tiptap-md li::marker { color: var(--px-ink-2, #52525b); }
+.markdown-preview blockquote, .tiptap-md blockquote {
+  border-left: 4px solid var(--px-accent, #2D7FF9) !important;
+  border-left-style: solid !important;
+  background: var(--px-surface-variant, #f4f4f5);
+  padding: 6px 12px;
+  color: var(--px-ink-2, #52525b);
+  margin: 8px 0;
+  font-style: italic;
+}
+.markdown-preview a, .tiptap-md a { color: var(--px-accent, #2D7FF9); text-decoration: underline; }
+.markdown-preview mark, .tiptap-md mark { padding: 0 2px; }
+.markdown-preview hr, .tiptap-md hr { border: 0; border-top: 2px solid var(--px-border, #71717a); margin: 10px 0; }
+/* Tables — TipTap wraps tables in `.tableWrapper`; style both wrapper and
+   table so the outline shows up regardless of how the markdown was parsed. */
+.markdown-preview table, .tiptap-md table {
+  width: 100%;
+  border-collapse: collapse !important;
+  margin: 8px 0;
+  border: 2px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+}
+.tiptap-md .tableWrapper { overflow-x: auto; margin: 8px 0; }
+.markdown-preview th, .markdown-preview td, .tiptap-md th, .tiptap-md td {
+  border: 1px solid var(--px-border, #71717a) !important;
+  border-style: solid !important;
+  padding: 6px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+.markdown-preview th, .tiptap-md th {
+  background: var(--px-surface-variant, #f4f4f5);
+  font-family: var(--font-pixel-head);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.markdown-preview input[type="checkbox"], .tiptap-md input[type="checkbox"] { accent-color: var(--px-accent); margin-right: 4px; }
+.tiptap-md ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+.tiptap-md ul[data-type="taskList"] li { display: flex; align-items: flex-start; gap: 6px; }
+.tiptap-md ul[data-type="taskList"] li > label { flex-shrink: 0; margin-top: 2px; }
+.tiptap-md ul[data-type="taskList"] li > div { flex: 1; }
+/* Visible text-selection highlight inside the TipTap editor.
+   `::selection` only honours a tiny whitelist of properties (background,
+   color, text-shadow) and ignores rules with unsupported values like
+   `color-mix(...)` — fall back to a solid color so the rule actually paints.
+   Selectors split across multiple lines because `::selection` cannot be
+   combined behind a comma with other pseudos in a single rule. */
+.tiptap-md ::selection { background: #2D7FF9; color: #FFFFFF; }
+.tiptap-md ::-moz-selection { background: #2D7FF9; color: #FFFFFF; }
+/* TipTap also wraps selected text inside `.ProseMirror`-prefixed spans on
+   some node types; cover them explicitly to win against ProseMirror's own
+   user-agent-ish styling. */
+.ProseMirror ::selection { background: #2D7FF9; color: #FFFFFF; }
+.ProseMirror ::-moz-selection { background: #2D7FF9; color: #FFFFFF; }
+/* TipTap marks the live selection range with `.ProseMirror-selectednode`
+   when a block (image, table, etc.) is picked — make that visible too. */
+.tiptap-md .ProseMirror-selectednode { outline: 2px solid #2D7FF9; outline-offset: 2px; }
+
+/* Mic-listening pulse for the MarkdownEditor dictation button. */
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+  50%      { opacity: 0.85; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
+
+/* Mascot sprite animations — see /MASCOT.md "Animations" section.
+   Pulse = 4-step vertical bob, energetic.
+   Bob   = soft ease-in-out, floaty.
+   Wobble= ±2° rotation, sleepy / chill. */
+@keyframes mascot-pulse {
+  0%, 100% { transform: translateY(0); }
+  25%      { transform: translateY(-1px); }
+  50%      { transform: translateY(-3px); }
+  75%      { transform: translateY(-1px); }
+}
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes mascot-wobble {
+  0%, 100% { transform: rotate(-1deg); }
+  50%      { transform: rotate(2deg); }
 }

@@ -7,8 +7,7 @@ import * as d3 from 'd3';
 import { Header } from '@/components/layout/header';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { usePixelTheme } from '@/components/pixel';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
@@ -19,24 +18,17 @@ import type { TagNode, TagEdge, ActionType } from '@/types';
 // ─── Content filter types ───
 type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'text' | 'file';
 
-const filterConfig: { key: FilterKey; label: string; color: string }[] = [
-  { key: 'tiles', label: 'Tiles', color: '#528BFF' },
-  { key: 'photo', label: 'Foto', color: '#3B82F6' },
-  { key: 'image', label: 'Galleria', color: '#22C55E' },
-  { key: 'video', label: 'Video', color: '#F97316' },
-  { key: 'audio_recording', label: 'Voce', color: '#EF4444' },
-  { key: 'text', label: 'Testo', color: '#A855F7' },
-  { key: 'file', label: 'File', color: '#EAB308' },
+// Filter list (chip labels). Colors are resolved at runtime against theme.cap
+// — see filterColor() inside the component so they react to palette changes.
+const filterConfig: { key: FilterKey; label: string }[] = [
+  { key: 'tiles', label: 'Tiles' },
+  { key: 'photo', label: 'Foto' },
+  { key: 'image', label: 'Galleria' },
+  { key: 'video', label: 'Video' },
+  { key: 'audio_recording', label: 'Voce' },
+  { key: 'text', label: 'Testo' },
+  { key: 'file', label: 'File' },
 ];
-
-const typeColors: Record<string, string> = {
-  photo: '#3B82F6',
-  image: '#22C55E',
-  video: '#F97316',
-  audio_recording: '#EF4444',
-  text: '#A855F7',
-  file: '#EAB308',
-};
 
 const typeLabels: Record<string, string> = {
   photo: 'Foto',
@@ -46,9 +38,6 @@ const typeLabels: Record<string, string> = {
   text: 'Testo',
   file: 'File',
 };
-
-// Default tag node color (tag colors removed from entities)
-const TAG_NODE_COLOR = '#94A3B8';
 
 // ─── Physics defaults ───
 const defaultPhysics = {
@@ -102,6 +91,7 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 }
 
 export default function GraphPage() {
+  const theme = usePixelTheme();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -109,6 +99,22 @@ export default function GraphPage() {
   const markRead = useTileNotificationStore((s) => s.markRead);
   const ACTION_TYPE_COLORS = useActionColors();
   const { tagTypes: tagTypeEntities, getEmoji: getTagTypeEmoji, getColor: getTagTypeColor } = useTagTypes();
+
+  // Theme-aware spark type colors (sourced from theme.cap so capture/spark
+  // chrome remains in sync with the rest of the app's palette).
+  const typeColors: Record<string, string> = useMemo(() => ({
+    photo: theme.cap.photo,
+    image: theme.cap.gallery,
+    video: theme.cap.video,
+    audio_recording: theme.cap.voice,
+    text: theme.cap.text,
+    file: theme.cap.file,
+  }), [theme.cap]);
+  const filterColor = useCallback((key: FilterKey) => {
+    if (key === 'tiles') return theme.accent;
+    return typeColors[key] || theme.ink3;
+  }, [typeColors, theme.accent, theme.ink3]);
+  const TAG_NODE_COLOR_THEME = theme.ink3;
 
   // ─── State ───
   const [tooltip, setTooltip] = useState<{
@@ -163,7 +169,7 @@ export default function GraphPage() {
 
   // Tag management
   const [newTagName, setNewTagName] = useState('');
-  const [newTagColor] = useState(TAG_NODE_COLOR);
+  const [newTagColor] = useState(TAG_NODE_COLOR_THEME);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [linkMode, setLinkMode] = useState(false);
   const [linkSource, setLinkSource] = useState<string | null>(null);
@@ -365,7 +371,7 @@ export default function GraphPage() {
       const tagTypeOf = (tagId: string): string =>
         allTags.find((tg) => tg.id === tagId)?.tag_type || 'topic';
       const colorFor = (tagId: string): string =>
-        getTagTypeColor(tagTypeOf(tagId)) || TAG_NODE_COLOR;
+        getTagTypeColor(tagTypeOf(tagId)) || TAG_NODE_COLOR_THEME;
       const centerNode: GraphNode = {
         id: `tag-${selectedTag.id}`,
         type: 'tag',
@@ -459,7 +465,7 @@ export default function GraphPage() {
       // Tag nodes from tagGraph (include GIMMICK root as a regular tag node)
       const tagNodeMap = new Map<string, GraphNode>();
       let gimmickNodeId: string | null = null;
-      const colorForTagType = (tt: string): string => getTagTypeColor(tt) || TAG_NODE_COLOR;
+      const colorForTagType = (tt: string): string => getTagTypeColor(tt) || TAG_NODE_COLOR_THEME;
       for (const t of tagNodes) {
         const tt = tagTypeMap.get(t.id) || 'topic';
         const node: GraphNode = {
@@ -706,10 +712,10 @@ export default function GraphPage() {
       return te?.name || slug.toUpperCase();
     };
     hullGroups.select<SVGCircleElement>('circle.hull-bg')
-      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
-      .attr('stroke', (d) => getTagTypeColor(d) || TAG_NODE_COLOR);
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR_THEME)
+      .attr('stroke', (d) => getTagTypeColor(d) || TAG_NODE_COLOR_THEME);
     hullGroups.select<SVGTextElement>('text.hull-label')
-      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR)
+      .attr('fill', (d) => getTagTypeColor(d) || TAG_NODE_COLOR_THEME)
       .text((d) => getTypeName(d));
 
     // ─── Links rendering ───
@@ -723,9 +729,9 @@ export default function GraphPage() {
       .data(otherLinks)
       .join('line')
       .attr('stroke', (l) => {
-        if (l.linkType === 'tag-tile') return '#6B7280';
-        if (l.linkType === 'tile-spark') return '#4B5563';
-        return '#3E3E42';
+        if (l.linkType === 'tag-tile') return theme.ink3;
+        if (l.linkType === 'tile-spark') return theme.border;
+        return theme.border;
       })
       .attr('stroke-width', (l) => {
         if (l.linkType === 'tag-tile') return 2;
@@ -757,7 +763,7 @@ export default function GraphPage() {
         const src = typeof l.source === 'string'
           ? nodes.find((n) => n.id === l.source)
           : (l.source as GraphNode);
-        return src?.color || '#8B5CF6';
+        return src?.color || theme.accent;
       })
       .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
       .attr('stroke-opacity', 0.5)
@@ -771,7 +777,7 @@ export default function GraphPage() {
       .join('text')
       .text((l) => (l.weight || 0) > 0 ? (l.weight || 0).toFixed(0) : '')
       .attr('text-anchor', 'middle')
-      .attr('fill', '#9CA3AF')
+      .attr('fill', theme.ink3)
       .attr('font-size', '11px')
       .attr('font-weight', '600')
       .style('pointer-events', 'none');
@@ -856,11 +862,11 @@ export default function GraphPage() {
     // Opaque background for GIMMICK to hide edges
     gimmickNodes.append('polygon')
       .attr('points', hexPoints(24))
-      .attr('fill', '#0C0C0E');
+      .attr('fill', theme.bg1);
     gimmickNodes.append('polygon')
       .attr('points', hexPoints(24))
-      .attr('fill', '#528BFF').attr('fill-opacity', 0.15)
-      .attr('stroke', '#FFFFFF').attr('stroke-width', 1)
+      .attr('fill', theme.accent).attr('fill-opacity', 0.15)
+      .attr('stroke', theme.border).attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
     gimmickNodes.each(function () {
       const iconG = d3.select(this).append('g')
@@ -872,7 +878,7 @@ export default function GraphPage() {
         const p = document.createElementNS(svgNS, 'path');
         p.setAttribute('d', pd);
         p.setAttribute('fill', 'none');
-        p.setAttribute('stroke', '#FFFFFF');
+        p.setAttribute('stroke', theme.border);
         p.setAttribute('stroke-width', '2');
         p.setAttribute('stroke-linecap', 'round');
         p.setAttribute('stroke-linejoin', 'round');
@@ -881,14 +887,14 @@ export default function GraphPage() {
       const rect = document.createElementNS(svgNS, 'rect');
       rect.setAttribute('width', '16'); rect.setAttribute('height', '12');
       rect.setAttribute('x', '4'); rect.setAttribute('y', '8'); rect.setAttribute('rx', '2');
-      rect.setAttribute('fill', 'none'); rect.setAttribute('stroke', '#FFFFFF');
+      rect.setAttribute('fill', 'none'); rect.setAttribute('stroke', theme.border);
       rect.setAttribute('stroke-width', '2'); rect.setAttribute('stroke-linecap', 'round');
       rect.setAttribute('stroke-linejoin', 'round');
       iconG.node()!.appendChild(rect);
     });
     gimmickNodes.append('text')
       .text('GIMMICK')
-      .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', '#4B5563')
+      .attr('text-anchor', 'middle').attr('dy', 38).attr('fill', theme.border)
       .attr('font-size', '10px').attr('font-weight', '700').style('pointer-events', 'none');
 
     // Build tag type emoji lookup from fetched tag type entities
@@ -902,13 +908,13 @@ export default function GraphPage() {
     // Background circle (opaque) to hide edges passing under
     regularTagsG.append('circle')
       .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
-      .attr('fill', '#0C0C0E')
+      .attr('fill', theme.bg1)
       .style('cursor', 'pointer');
     // Visible circle
     regularTagsG.append('circle')
       .attr('r', (d) => 24 + Math.min((d.usageCount || 0) * 3, 20))
-      .attr('fill', (d) => d.color || '#3B82F6').attr('fill-opacity', 0.15)
-      .attr('stroke', (d) => d.color || '#3B82F6').attr('stroke-width', 1)
+      .attr('fill', (d) => d.color || theme.accent).attr('fill-opacity', 0.15)
+      .attr('stroke', (d) => d.color || theme.accent).attr('stroke-width', 1)
       .style('filter', 'url(#glow)').style('cursor', 'pointer');
     // Tag type icon via foreignObject (renders Tabler icon or emoji)
     regularTagsG.each(function (d) {
@@ -930,7 +936,7 @@ export default function GraphPage() {
           const React = require('react');
           const { createRoot } = require('react-dom/client');
           const root = createRoot(container.node());
-          root.render(React.createElement(IconComp, { size: iconSize, color: '#D1D5DB', strokeWidth: 1.5 }));
+          root.render(React.createElement(IconComp, { size: iconSize, color: theme.ink, strokeWidth: 1.5 }));
         }
       } else if (emoji) {
         g.append('text')
@@ -942,7 +948,7 @@ export default function GraphPage() {
     // Tag name label
     regularTagsG.append('text')
       .text((d) => d.label.length > 14 ? d.label.slice(0, 12) + '...' : d.label)
-      .attr('text-anchor', 'middle').attr('dy', '1em').attr('fill', '#F5F5F5')
+      .attr('text-anchor', 'middle').attr('dy', '1em').attr('fill', theme.ink)
       .attr('font-size', '11px').attr('font-weight', '700').style('pointer-events', 'none');
 
     // Tile nodes (square shape)
@@ -953,28 +959,28 @@ export default function GraphPage() {
       .attr('width', tileSize).attr('height', tileSize)
       .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
       .attr('rx', 6).attr('ry', 6)
-      .attr('fill', '#0C0C0E');
+      .attr('fill', theme.bg1);
     node.filter((d) => d.type === 'tile')
       .append('rect')
       .attr('width', tileSize).attr('height', tileSize)
       .attr('x', (d) => -tileSize(d) / 2).attr('y', (d) => -tileSize(d) / 2)
       .attr('rx', 6).attr('ry', 6)
-      .attr('fill', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF').attr('fill-opacity', 0.2)
-      .attr('stroke', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || '#528BFF')
+      .attr('fill', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || theme.accent).attr('fill-opacity', 0.2)
+      .attr('stroke', (d) => ACTION_TYPE_COLORS[(d.actionType || 'none') as ActionType] || theme.accent)
       .attr('stroke-width', 1).style('filter', 'url(#glow)').style('cursor', 'pointer');
     node.filter((d) => d.type === 'tile')
       .append('text').text((d) => d.label.length > 16 ? d.label.slice(0, 14) + '...' : d.label)
-      .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', '#F5F5F5')
+      .attr('text-anchor', 'middle').attr('dy', '0.35em').attr('fill', theme.ink)
       .attr('font-size', '11px').attr('font-weight', '600').style('pointer-events', 'none');
 
     // Spark nodes — opaque background + visible circle
     node.filter((d) => d.type === 'spark')
       .append('circle').attr('r', 12)
-      .attr('fill', '#0C0C0E');
+      .attr('fill', theme.bg1);
     node.filter((d) => d.type === 'spark')
       .append('circle').attr('r', 12)
-      .attr('fill', (d) => typeColors[d.sparkType || ''] || '#6B7280').attr('fill-opacity', 0.3)
-      .attr('stroke', (d) => typeColors[d.sparkType || ''] || '#6B7280')
+      .attr('fill', (d) => typeColors[d.sparkType || ''] || theme.ink3).attr('fill-opacity', 0.3)
+      .attr('stroke', (d) => typeColors[d.sparkType || ''] || theme.ink3)
       .attr('stroke-width', 0.8).style('cursor', 'pointer');
     node.filter((d) => d.type === 'spark')
       .append('text')
@@ -1118,18 +1124,18 @@ export default function GraphPage() {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || '#528BFF') : '#528BFF').attr('stroke-width', 1.5);
+      }).attr('stroke-opacity', 0.8).attr('stroke', d.type === 'tag' ? (d.color || theme.accent) : theme.accent).attr('stroke-width', 1.5);
       linkCo.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).attr('stroke-opacity', 0.9).attr('stroke', d.color || '#528BFF')
+      }).attr('stroke-opacity', 0.9).attr('stroke', d.color || theme.accent)
         .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)));
       linkCoLabel.filter((l) => {
         const src = typeof l.source === 'string' ? l.source : (l.source as GraphNode).id;
         const tgt = typeof l.target === 'string' ? l.target : (l.target as GraphNode).id;
         return src === d.id || tgt === d.id;
-      }).attr('fill-opacity', 1).attr('fill', '#F5F5F5');
+      }).attr('fill-opacity', 1).attr('fill', theme.ink);
     });
 
     // ─── Reset link styles helper ───
@@ -1137,9 +1143,9 @@ export default function GraphPage() {
       node.style('opacity', 1);
       linkOther
         .attr('stroke', (l) => {
-          if (l.linkType === 'tag-tile') return '#6B7280';
-          if (l.linkType === 'tile-spark') return '#4B5563';
-          return '#3E3E42';
+          if (l.linkType === 'tag-tile') return theme.ink3;
+          if (l.linkType === 'tile-spark') return theme.border;
+          return theme.border;
         })
         .attr('stroke-width', (l) => {
           if (l.linkType === 'tag-tile') return 2;
@@ -1154,11 +1160,11 @@ export default function GraphPage() {
           const src = typeof l.source === 'string'
             ? nodes.find((n) => n.id === (l.source as string))
             : (l.source as GraphNode);
-          return src?.color || '#8B5CF6';
+          return src?.color || theme.accent;
         })
         .attr('stroke-width', (l) => Math.max(p.linkWidth, Math.min((l.weight || 1) * p.linkWidth, p.linkWidth * 5)))
         .attr('stroke-opacity', 0.5);
-      linkCoLabel.attr('fill-opacity', 1).attr('fill', '#9CA3AF');
+      linkCoLabel.attr('fill-opacity', 1).attr('fill', theme.ink3);
     };
 
     node.on('mouseleave', function () {
@@ -1226,7 +1232,7 @@ export default function GraphPage() {
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities]);
+  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities, theme, typeColors, TAG_NODE_COLOR_THEME]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1234,79 +1240,186 @@ export default function GraphPage() {
   const isEmpty = (!graphData || (graphData.tiles.length === 0 && graphData.sparks.length === 0))
     && (!tagGraph || (tagGraph.nodes as TagNode[]).length === 0);
 
+  const pillBtn = (active: boolean): React.CSSProperties => ({
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    height: 28,
+    padding: '0 10px',
+    background: active ? theme.accent : theme.surfaceVariant,
+    color: active ? theme.onAccent : theme.ink2,
+    border: `2px solid ${theme.border}`,
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+  });
+  const popupContainer: React.CSSProperties = {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    marginTop: 4,
+    zIndex: 50,
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 4,
+  };
+  const popupItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  });
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
       <Header title="Panopticon" />
 
       {/* Toolbar */}
-      <div className="px-6 py-3 bg-zinc-900 border-b border-zinc-800 flex items-center gap-3 flex-wrap">
-        {/* Mode toggle */}
-        <div className="flex items-center bg-zinc-800 rounded-lg p-0.5">
+      <div
+        style={{
+          padding: '8px 16px',
+          background: theme.bg2,
+          borderBottom: `2px solid ${theme.border}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          flexWrap: 'wrap',
+        }}
+      >
+        {/* Mode toggle (segmented) */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: theme.surfaceVariant,
+            border: `2px solid ${theme.border}`,
+            padding: 2,
+          }}
+        >
           <button
             onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-              toolbarMode === 'navigate'
-                ? 'bg-zinc-700 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-300'
-            )}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 10px',
+              height: 22,
+              background: toolbarMode === 'navigate' ? theme.accent : 'transparent',
+              color: toolbarMode === 'navigate' ? theme.onAccent : theme.ink2,
+              border: 'none',
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
           >
-            <IconEye className="h-3.5 w-3.5" />
+            <IconEye size={12} />
             Navigate
           </button>
           <button
             onClick={() => setToolbarMode('edit')}
-            className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-              toolbarMode === 'edit'
-                ? 'bg-zinc-700 text-white shadow-sm'
-                : 'text-zinc-400 hover:text-zinc-300'
-            )}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '0 10px',
+              height: 22,
+              background: toolbarMode === 'edit' ? theme.accent : 'transparent',
+              color: toolbarMode === 'edit' ? theme.onAccent : theme.ink2,
+              border: 'none',
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
           >
-            <IconSettings2 className="h-3.5 w-3.5" />
+            <IconSettings2 size={12} />
             Edit Tag
           </button>
         </div>
 
-        <div className="w-px h-6 bg-zinc-700" />
+        <div style={{ width: 2, height: 20, background: theme.border }} />
 
         {toolbarMode === 'navigate' ? (
           <>
             {/* Filter dropdown */}
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setFilterDropdownOpen((p) => !p); setTagDropdownOpen(false); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-750 transition-all h-8"
+                className="px-press"
+                style={pillBtn(false)}
               >
-                <IconFilter className="h-3.5 w-3.5" />
+                <IconFilter size={12} />
                 Filtri
                 {activeFilters.size < filterConfig.length && (
-                  <span className="bg-blue-500/20 text-blue-400 text-[10px] px-1.5 rounded-full">{activeFilters.size}</span>
+                  <span
+                    style={{
+                      background: theme.accent,
+                      color: theme.onAccent,
+                      border: `2px solid ${theme.border}`,
+                      padding: '1px 5px',
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 8,
+                    }}
+                  >
+                    {activeFilters.size}
+                  </span>
                 )}
-                <IconChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown size={11} style={{ marginLeft: 2 }} />
               </button>
               {filterDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[160px]">
+                <div style={{ ...popupContainer, minWidth: 180 }}>
                   {filterConfig.map((f) => {
                     const active = activeFilters.has(f.key);
+                    const clr = filterColor(f.key);
                     return (
                       <button
                         key={f.key}
                         onClick={() => toggleFilter(f.key)}
-                        className="w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors"
+                        style={popupItem(active)}
                       >
                         <div
-                          className="w-3 h-3 rounded-full border-2 flex items-center justify-center"
-                          style={{ borderColor: f.color, backgroundColor: active ? f.color : 'transparent' }}
+                          style={{
+                            width: 12,
+                            height: 12,
+                            border: `2px solid ${clr}`,
+                            background: active ? clr : 'transparent',
+                          }}
                         />
-                        <span className={active ? 'text-white' : 'text-zinc-500'}>{f.label}</span>
+                        <span>{f.label}</span>
                       </button>
                     );
                   })}
-                  <div className="border-t border-zinc-700 mt-1 pt-1">
+                  <div style={{ borderTop: `2px solid ${theme.border}`, marginTop: 4, paddingTop: 4 }}>
                     <button
                       onClick={() => setActiveFilters(new Set(filterConfig.map((f) => f.key)))}
-                      className="w-full px-3 py-1.5 text-left text-xs text-zinc-400 hover:text-white hover:bg-zinc-700/50"
+                      style={{
+                        width: '100%',
+                        padding: '6px 8px',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        color: theme.accent,
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 9,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                      }}
                     >
                       Mostra tutti
                     </button>
@@ -1316,46 +1429,46 @@ export default function GraphPage() {
             </div>
 
             {/* Tag dropdown */}
-            <div className="relative">
+            <div style={{ position: 'relative' }}>
               <button
                 onClick={() => { setTagDropdownOpen((p) => !p); setFilterDropdownOpen(false); }}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all h-8',
-                  selectedTagId
-                    ? 'bg-blue-500/10 border-blue-500/40 text-blue-400'
-                    : 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:bg-zinc-750'
-                )}
+                className="px-press"
+                style={pillBtn(!!selectedTagId)}
               >
-                <IconTag className="h-3.5 w-3.5" />
+                <IconTag size={12} />
                 {selectedTagId
                   ? graphData?.tags?.find((t) => t.id === selectedTagId)?.name || 'Tag'
                   : 'Tag'}
-                <IconChevronDown className="h-3 w-3 ml-1" />
+                <IconChevronDown size={11} style={{ marginLeft: 2 }} />
               </button>
               {tagDropdownOpen && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 min-w-[180px] max-h-[300px] overflow-y-auto">
+                <div style={{ ...popupContainer, minWidth: 200, maxHeight: 320, overflowY: 'auto' }}>
                   <button
                     onClick={() => { setSelectedTagId(null); setTagDropdownOpen(false); }}
-                    className={cn(
-                      'w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors',
-                      !selectedTagId ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
-                    )}
+                    style={popupItem(!selectedTagId)}
                   >
                     Tutti i tag
                   </button>
-                  <div className="border-t border-zinc-700 my-1" />
+                  <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
                   {graphData?.tags?.map((tag) => (
                     <button
                       key={tag.id}
                       onClick={() => { setSelectedTagId(tag.id); setTagDropdownOpen(false); }}
-                      className={cn(
-                        'w-full px-3 py-1.5 text-left text-xs flex items-center gap-2 hover:bg-zinc-700/50 transition-colors',
-                        selectedTagId === tag.id ? 'text-white bg-zinc-700/30' : 'text-zinc-400'
-                      )}
+                      style={popupItem(selectedTagId === tag.id)}
                     >
-                      <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: TAG_NODE_COLOR }} />
+                      <div
+                        style={{
+                          width: 10,
+                          height: 10,
+                          background: TAG_NODE_COLOR_THEME,
+                          border: `2px solid ${theme.border}`,
+                          flexShrink: 0,
+                        }}
+                      />
                       {tag.name}
-                      <span className="ml-auto text-[10px] text-zinc-600">{tag.tile_ids.length}</span>
+                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: 'var(--font-pixel-head)', fontSize: 9 }}>
+                        {tag.tile_ids.length}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -1366,71 +1479,99 @@ export default function GraphPage() {
             {selectedTagId && (
               <button
                 onClick={() => setSelectedTagId(null)}
-                className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: theme.ink3,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: 0,
+                }}
               >
-                <IconX className="h-3 w-3" />
+                <IconX size={12} />
               </button>
             )}
           </>
         ) : (
           <>
             {/* Edit mode: create tag */}
-            <div className="flex items-center gap-2">
-              <Input
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
                 placeholder="Nuovo tag..."
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
-                className="h-8 w-40 bg-zinc-800 border-zinc-700 text-white text-xs placeholder:text-zinc-500"
+                style={{
+                  width: 160,
+                  height: 28,
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  padding: '0 8px',
+                  color: theme.ink,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  outline: 'none',
+                }}
               />
-              <Button
-                size="sm"
+              <button
                 onClick={handleCreateTag}
                 disabled={!newTagName.trim() || createMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700 text-white text-xs h-8"
+                className="px-press"
+                style={{
+                  ...pillBtn(true),
+                  cursor: (!newTagName.trim() || createMutation.isPending) ? 'not-allowed' : 'pointer',
+                  opacity: (!newTagName.trim() || createMutation.isPending) ? 0.5 : 1,
+                }}
               >
-                <IconPlus className="h-3.5 w-3.5 mr-1" />
+                <IconPlus size={12} />
                 Crea
-              </Button>
+              </button>
             </div>
 
-            <div className="w-px h-6 bg-zinc-700" />
+            <div style={{ width: 2, height: 20, background: theme.border }} />
 
             {/* Link mode toggle */}
-            <Button
-              variant="outline"
-              size="sm"
+            <button
               onClick={() => { setLinkMode((p) => !p); setLinkSource(null); }}
-              className={cn(
-                'text-xs h-8',
-                linkMode
-                  ? 'bg-blue-600/20 border-blue-500/50 text-blue-400'
-                  : 'bg-zinc-800 border-zinc-700 text-zinc-400'
-              )}
+              className="px-press"
+              style={pillBtn(linkMode)}
             >
-              <IconLink className="h-3.5 w-3.5 mr-1.5" />
+              <IconLink size={12} />
               {linkMode ? 'Collegamento attivo' : 'Collega tag'}
-            </Button>
+            </button>
 
             {/* Delete selected tag */}
             {selectedTagForDelete && (
-              <Button
-                variant="outline"
-                size="sm"
+              <button
                 onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
-                className="text-xs h-8 text-red-400 border-red-900 hover:bg-red-950"
+                className="px-press"
+                style={{
+                  ...pillBtn(false),
+                  color: '#E24B4A',
+                  border: `2px solid #E24B4A`,
+                }}
               >
-                <IconTrash className="h-3.5 w-3.5 mr-1.5" />
+                <IconTrash size={12} />
                 Elimina &quot;{selectedTagForDelete.name}&quot;
-              </Button>
+              </button>
             )}
           </>
         )}
 
-        <div className="flex-1" />
+        <div style={{ flex: 1 }} />
 
         {/* Stats */}
-        <span className="text-xs text-zinc-500">
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 9,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: theme.ink3,
+          }}
+        >
           {tagGraph?.nodes ? (tagGraph.nodes as TagNode[]).filter((t) => !t.is_root).length : 0} tag
           {' '}&middot;{' '}
           {tagGraph?.edges ? Math.floor((tagGraph.edges as TagEdge[]).filter((e) => e.relation_type !== 'root-link').length / 2) : 0} relazioni
@@ -1438,10 +1579,25 @@ export default function GraphPage() {
       </div>
 
       {/* Graph area */}
-      <div className="flex-1 relative overflow-hidden bg-zinc-950" ref={containerRef}>
+      <div className="flex-1 relative overflow-hidden" style={{ background: theme.bg1 }} ref={containerRef}>
         {/* Timeline slider (right side) */}
         {dateExtent && (
-          <div className="absolute right-0 top-0 bottom-0 z-10 w-12 flex flex-col items-center py-4">
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              zIndex: 10,
+              width: 48,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              padding: '16px 0',
+              background: theme.bg2,
+              borderLeft: `2px solid ${theme.border}`,
+            }}
+          >
             {[1, 2, 7, 30].map((days) => {
               const totalRange = dateExtent.max - dateExtent.min;
               const daysMs = days * 24 * 60 * 60 * 1000;
@@ -1451,22 +1607,47 @@ export default function GraphPage() {
                 <button
                   key={days}
                   onClick={() => setTimeRange([startPct, 100])}
-                  className={`text-[9px] font-medium px-1.5 py-0.5 rounded mb-1 transition-colors ${
-                    isActive ? 'bg-blue-500/30 text-blue-400' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-700/30'
-                  }`}
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 8,
+                    letterSpacing: '0.06em',
+                    textTransform: 'uppercase',
+                    padding: '2px 6px',
+                    marginBottom: 4,
+                    background: isActive ? theme.accent : theme.surfaceVariant,
+                    color: isActive ? theme.onAccent : theme.ink2,
+                    border: `2px solid ${theme.border}`,
+                    cursor: 'pointer',
+                  }}
                 >
                   {days}gg
                 </button>
               );
             })}
-            <div className="h-8" />
-            <span className="text-[10px] text-zinc-400 mb-2 leading-tight text-center">
+            <div style={{ height: 24 }} />
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 8,
+                color: theme.ink2,
+                marginBottom: 8,
+                textAlign: 'center',
+                letterSpacing: '0.04em',
+              }}
+            >
               {new Date(dateExtent.min + (timeRange[1] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
             </span>
-            <div className="flex-1 relative w-6 flex justify-center">
+            <div style={{ flex: 1, position: 'relative', width: 24, display: 'flex', justifyContent: 'center' }}>
               <div
                 ref={trackRef}
-                className="h-full w-2.5 bg-zinc-700/15 rounded-full relative cursor-pointer"
+                style={{
+                  height: '100%',
+                  width: 10,
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  position: 'relative',
+                  cursor: 'pointer',
+                }}
                 onClick={(e) => {
                   if (!trackRef.current) return;
                   const rect = trackRef.current.getBoundingClientRect();
@@ -1480,22 +1661,55 @@ export default function GraphPage() {
                 }}
               >
                 <div
-                  className="absolute w-full bg-blue-500/12 rounded-full"
-                  style={{ top: `${100 - timeRange[1]}%`, height: `${timeRange[1] - timeRange[0]}%` }}
+                  style={{
+                    position: 'absolute',
+                    width: '100%',
+                    background: theme.accent,
+                    opacity: 0.35,
+                    top: `${100 - timeRange[1]}%`,
+                    height: `${timeRange[1] - timeRange[0]}%`,
+                  }}
                 />
                 <div
-                  className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
-                  style={{ top: `${100 - timeRange[1]}%`, left: '50%', transform: 'translate(-50%, -50%)' }}
+                  style={{
+                    position: 'absolute',
+                    width: 14,
+                    height: 14,
+                    background: theme.accent,
+                    border: `2px solid ${theme.border}`,
+                    cursor: 'grab',
+                    top: `${100 - timeRange[1]}%`,
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }}
                   onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'end'; }}
                 />
                 <div
-                  className="absolute w-4 h-4 bg-blue-500 rounded-full border-2 border-zinc-900 cursor-grab active:cursor-grabbing shadow-lg"
-                  style={{ top: `${100 - timeRange[0]}%`, left: '50%', transform: 'translate(-50%, -50%)' }}
+                  style={{
+                    position: 'absolute',
+                    width: 14,
+                    height: 14,
+                    background: theme.accent,
+                    border: `2px solid ${theme.border}`,
+                    cursor: 'grab',
+                    top: `${100 - timeRange[0]}%`,
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                  }}
                   onMouseDown={(e) => { e.stopPropagation(); draggingRef.current = 'start'; }}
                 />
               </div>
             </div>
-            <span className="text-[10px] text-zinc-400 mt-2 leading-tight text-center">
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 8,
+                color: theme.ink2,
+                marginTop: 8,
+                textAlign: 'center',
+                letterSpacing: '0.04em',
+              }}
+            >
               {new Date(dateExtent.min + (timeRange[0] / 100) * (dateExtent.max - dateExtent.min)).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
             </span>
           </div>
@@ -1503,12 +1717,23 @@ export default function GraphPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center h-full">
-            <IconLoader2 className="h-8 w-8 text-zinc-400 animate-spin" />
+            <IconLoader2 size={32} className="animate-spin" style={{ color: theme.ink3 }} />
           </div>
         ) : isEmpty ? (
-          <div className="flex flex-col items-center justify-center h-full text-center">
-            <p className="text-zinc-400 text-lg">Nessun dato da visualizzare</p>
-            <p className="text-zinc-500 text-sm mt-2">
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', gap: 8 }}>
+            <p
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+                margin: 0,
+              }}
+            >
+              Nessun dato da visualizzare
+            </p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, margin: 0 }}>
               Crea dei tile e spark per vedere il grafo delle connessioni
             </p>
           </div>
@@ -1516,14 +1741,33 @@ export default function GraphPage() {
           <>
             {/* Link mode indicator */}
             {linkMode && (
-              <div className="absolute top-4 left-4 z-20 bg-blue-600/20 border border-blue-500/40 rounded-lg px-4 py-2 text-sm text-blue-300 flex items-center gap-2">
-                <IconLink className="h-4 w-4" />
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 16,
+                  left: 16,
+                  zIndex: 20,
+                  background: theme.accent,
+                  color: theme.onAccent,
+                  border: `2px solid ${theme.border}`,
+                  padding: '8px 14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                }}
+              >
+                <IconLink size={14} />
                 {linkSource ? 'Clicca il tag di destinazione' : 'Clicca il primo tag da collegare'}
                 <button
                   onClick={() => { setLinkMode(false); setLinkSource(null); }}
-                  className="ml-2 text-blue-400 hover:text-white"
+                  style={{ marginLeft: 8, color: theme.onAccent, background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex' }}
                 >
-                  <IconX className="h-4 w-4" />
+                  <IconX size={14} />
                 </button>
               </div>
             )}
@@ -1531,53 +1775,142 @@ export default function GraphPage() {
             <svg ref={svgRef} className="w-full h-full" />
 
             {/* Zoom controls + physics toggle */}
-            <div className="absolute bottom-4 left-4 flex flex-col gap-2 z-10">
-              <Button variant="outline" size="icon" onClick={handleZoomIn}
-                className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <IconZoomIn className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={handleZoomOut}
-                className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <IconZoomOut className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon" onClick={handleFit}
-                className="bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300 h-9 w-9">
-                <IconMaximize className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="icon"
-                onClick={() => setShowPhysicsPanel((p) => !p)}
-                className={cn(
-                  'h-9 w-9',
-                  showPhysicsPanel
-                    ? 'bg-blue-600/20 border-blue-500/50 text-blue-400 hover:bg-blue-600/30'
-                    : 'bg-zinc-900/80 border-zinc-700 hover:bg-zinc-800 text-zinc-300'
-                )}>
-                <IconAdjustmentsHorizontal className="h-4 w-4" />
-              </Button>
+            <div style={{ position: 'absolute', bottom: 16, left: 16, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 10 }}>
+              {[
+                { Icon: IconZoomIn, onClick: handleZoomIn, active: false, title: 'Zoom in' },
+                { Icon: IconZoomOut, onClick: handleZoomOut, active: false, title: 'Zoom out' },
+                { Icon: IconMaximize, onClick: handleFit, active: false, title: 'Fit' },
+                { Icon: IconAdjustmentsHorizontal, onClick: () => setShowPhysicsPanel((p) => !p), active: showPhysicsPanel, title: 'Physics' },
+              ].map(({ Icon, onClick, active, title }, idx) => (
+                <button
+                  key={idx}
+                  onClick={onClick}
+                  title={title}
+                  className="px-press"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: active ? theme.accent : theme.surface,
+                    color: active ? theme.onAccent : theme.ink2,
+                    border: `2px solid ${theme.border}`,
+                    cursor: 'pointer',
+                    boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                  }}
+                >
+                  <Icon size={14} />
+                </button>
+              ))}
             </div>
 
             {/* Physics console panel */}
-            {showPhysicsPanel && (
-              <div className="absolute bottom-4 left-16 z-20 bg-zinc-900/95 border border-zinc-700 rounded-lg shadow-2xl p-4 w-72 max-h-[calc(100%-2rem)] overflow-y-auto backdrop-blur-sm">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <IconAdjustmentsHorizontal className="h-3.5 w-3.5 text-blue-400" />
+            {showPhysicsPanel && (() => {
+              const sectionLabel: React.CSSProperties = {
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+                marginBottom: 6,
+                margin: 0,
+                paddingBottom: 6,
+              };
+              const fieldLabel: React.CSSProperties = {
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+                width: 56,
+                flexShrink: 0,
+              };
+              const fieldValue: React.CSSProperties = {
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 11,
+                color: theme.ink3,
+                width: 44,
+                textAlign: 'right',
+                fontVariantNumeric: 'tabular-nums',
+              };
+              const sectionWrap: React.CSSProperties = {
+                marginBottom: 12,
+                paddingBottom: 8,
+                borderBottom: `2px solid ${theme.border}`,
+              };
+              const rangeStyle: React.CSSProperties = {
+                flex: 1,
+                height: 4,
+                accentColor: theme.accent,
+              };
+              return (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: 16,
+                  left: 64,
+                  zIndex: 20,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 14,
+                  width: 304,
+                  maxHeight: 'calc(100% - 32px)',
+                  overflowY: 'auto',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <h3
+                    style={{
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 11,
+                      letterSpacing: '0.1em',
+                      textTransform: 'uppercase',
+                      color: theme.ink,
+                      margin: 0,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                    }}
+                  >
+                    <IconAdjustmentsHorizontal size={14} style={{ color: theme.accent }} />
                     Physics Console
                   </h3>
-                  <div className="flex gap-1">
+                  <div style={{ display: 'flex', gap: 4 }}>
                     <button
                       onClick={() => {
                         settingsApi.set('graph_physics', physics).then(() => {
                           toast.success('Configurazione salvata');
                         }).catch(() => toast.error('Errore nel salvataggio'));
                       }}
-                      className="text-[10px] text-blue-400 hover:text-blue-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                      style={{
+                        background: theme.accent,
+                        color: theme.onAccent,
+                        border: `2px solid ${theme.border}`,
+                        padding: '2px 8px',
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 8,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                      }}
                     >
                       Salva
                     </button>
                     <button
                       onClick={() => setPhysics(defaultPhysics)}
-                      className="text-[10px] text-zinc-500 hover:text-zinc-300 px-1.5 py-0.5 rounded hover:bg-zinc-800"
+                      style={{
+                        background: theme.surfaceVariant,
+                        color: theme.ink2,
+                        border: `2px solid ${theme.border}`,
+                        padding: '2px 8px',
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 8,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        cursor: 'pointer',
+                      }}
                     >
                       Reset
                     </button>
@@ -1585,132 +1918,147 @@ export default function GraphPage() {
                 </div>
 
                 {/* Charge */}
-                <div className="mb-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Repulsione</p>
+                <div style={sectionWrap}>
+                  <p style={sectionLabel}>Repulsione</p>
                   {([
                     ['chargeTag', 'Tag', -800, 0],
                     ['chargeTile', 'Tile', -600, 0],
                     ['chargeSpark', 'Spark', -400, 100],
                     ['chargeMax', 'Max dist', 200, 1500],
                   ] as const).map(([key, label, min, max]) => (
-                    <div key={key} className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={fieldLabel}>{label}</span>
                       <input
                         type="range"
                         min={min} max={max} step={key === 'chargeMax' ? 50 : 10}
                         value={physics[key]}
                         onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="flex-1 h-1 accent-blue-500"
+                        style={rangeStyle}
                       />
-                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                      <span style={fieldValue}>{physics[key]}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Links */}
-                <div className="mb-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Link distance</p>
+                <div style={sectionWrap}>
+                  <p style={sectionLabel}>Link distance</p>
                   {([
                     ['linkCoDist', 'Co-occ', 50, 500],
                     ['linkTagTile', 'Tag→Tile', 40, 300],
                     ['linkTileSpark', 'Tile→Spark', 0, 200],
                   ] as const).map(([key, label, min, max]) => (
-                    <div key={key} className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={fieldLabel}>{label}</span>
                       <input
                         type="range"
                         min={min} max={max} step={5}
                         value={physics[key]}
                         onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="flex-1 h-1 accent-blue-500"
+                        style={rangeStyle}
                       />
-                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                      <span style={fieldValue}>{physics[key]}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Link strength */}
-                <div className="mb-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Link strength</p>
+                <div style={sectionWrap}>
+                  <p style={sectionLabel}>Link strength</p>
                   {([
                     ['linkCoStrength', 'Co-occ', 0, 1],
                     ['linkTagTileStrength', 'Tag→Tile', 0, 1],
                   ] as const).map(([key, label, min, max]) => (
-                    <div key={key} className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={fieldLabel}>{label}</span>
                       <input
                         type="range"
                         min={min} max={max} step={0.05}
                         value={physics[key]}
                         onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="flex-1 h-1 accent-blue-500"
+                        style={rangeStyle}
                       />
-                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
+                      <span style={fieldValue}>{physics[key].toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* Collision */}
-                <div className="mb-3">
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Collisione</p>
+                <div style={sectionWrap}>
+                  <p style={sectionLabel}>Collisione</p>
                   {([
                     ['collisionTag', 'Tag', 10, 100],
                     ['collisionTile', 'Tile', 10, 100],
                     ['collisionSpark', 'Spark', 0, 60],
                   ] as const).map(([key, label, min, max]) => (
-                    <div key={key} className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={fieldLabel}>{label}</span>
                       <input
                         type="range"
                         min={min} max={max} step={2}
                         value={physics[key]}
                         onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="flex-1 h-1 accent-blue-500"
+                        style={rangeStyle}
                       />
-                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key]}</span>
+                      <span style={fieldValue}>{physics[key]}</span>
                     </div>
                   ))}
                 </div>
 
                 {/* General */}
                 <div>
-                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1.5">Generale</p>
+                  <p style={sectionLabel}>Generale</p>
                   {([
                     ['centerStrength', 'Centro', 0, 0.1],
                     ['tagClusterStrength', 'Tag cluster', 0, 0.5],
                     ['velocityDecay', 'Friction', 0.1, 0.8],
                     ['linkWidth', 'Archi', 0.5, 6],
                   ] as const).map(([key, label, min, max]) => (
-                    <div key={key} className="flex items-center gap-2 mb-1">
-                      <span className="text-[10px] text-zinc-400 w-14 shrink-0">{label}</span>
+                    <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                      <span style={fieldLabel}>{label}</span>
                       <input
                         type="range"
                         min={min} max={max} step={0.01}
                         value={physics[key]}
                         onChange={(e) => setPhysics((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                        className="flex-1 h-1 accent-blue-500"
+                        style={rangeStyle}
                       />
-                      <span className="text-[10px] text-zinc-500 w-10 text-right tabular-nums">{physics[key].toFixed(2)}</span>
+                      <span style={fieldValue}>{physics[key].toFixed(2)}</span>
                     </div>
                   ))}
-                  <label className="flex items-center gap-2 mt-1 cursor-pointer select-none">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, cursor: 'pointer', userSelect: 'none' }}>
                     <input
                       type="checkbox"
                       checked={(physics.showTagClusters || 0) > 0}
                       onChange={(e) => setPhysics((prev) => ({ ...prev, showTagClusters: e.target.checked ? 1 : 0 }))}
-                      className="accent-blue-500"
+                      style={{ accentColor: theme.accent }}
                     />
-                    <span className="text-[10px] text-zinc-400">Evidenzia tag cluster</span>
+                    <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink2 }}>
+                      Evidenzia tag cluster
+                    </span>
                   </label>
                 </div>
               </div>
-            )}
+              );
+            })()}
 
             {/* Tooltip */}
             {tooltip && (
               <div
-                className="absolute pointer-events-none bg-zinc-800 border border-zinc-600 rounded-lg p-3 shadow-xl max-w-[280px] z-50"
-                style={{ left: tooltip.x + 16, top: tooltip.y - 10 }}
+                className="absolute pointer-events-none"
+                style={{
+                  left: tooltip.x + 16,
+                  top: tooltip.y - 10,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 10,
+                  maxWidth: 280,
+                  zIndex: 50,
+                  color: theme.ink,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                }}
               >
                 {tooltip.content}
               </div>
@@ -1719,11 +2067,34 @@ export default function GraphPage() {
             {/* Context menu (right-click on spark/tile/tag) */}
             {contextMenu && (
               <div
-                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg shadow-xl py-1 min-w-[180px]"
-                style={{ left: contextMenu.x, top: contextMenu.y }}
+                className="absolute"
+                style={{
+                  left: contextMenu.x,
+                  top: contextMenu.y,
+                  zIndex: 50,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 4,
+                  minWidth: 200,
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <p className="px-3 py-1.5 text-xs text-zinc-400 truncate border-b border-zinc-700">
+                <p
+                  style={{
+                    padding: '6px 10px',
+                    margin: 0,
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.ink3,
+                    borderBottom: `2px solid ${theme.border}`,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {contextMenu.type === 'tag' ? 'Tag' : contextMenu.type === 'tile' ? 'Tile' : 'Spark'}: {contextMenu.label}
                 </p>
 
@@ -1731,8 +2102,8 @@ export default function GraphPage() {
                   <>
                     {/* Rename */}
                     {tagRenaming ? (
-                      <div className="px-3 py-2 flex items-center gap-1.5">
-                        <Input
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px' }}>
+                        <input
                           value={tagRenameValue}
                           onChange={(e) => setTagRenameValue(e.target.value)}
                           onKeyDown={(e) => {
@@ -1740,48 +2111,92 @@ export default function GraphPage() {
                               updateTagMutation.mutate({ id: contextMenu.id, updates: { name: tagRenameValue.trim() } });
                             }
                           }}
-                          className="h-7 text-xs bg-zinc-900 border-zinc-700 text-white flex-1"
                           autoFocus
+                          style={{
+                            flex: 1,
+                            height: 28,
+                            background: theme.surfaceVariant,
+                            border: `2px solid ${theme.border}`,
+                            padding: '0 8px',
+                            color: theme.ink,
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            outline: 'none',
+                          }}
                         />
-                        <Button
-                          size="sm"
-                          className="h-7 px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        <button
                           onClick={() => {
                             if (tagRenameValue.trim()) {
                               updateTagMutation.mutate({ id: contextMenu.id, updates: { name: tagRenameValue.trim() } });
                             }
                           }}
+                          style={{
+                            width: 28,
+                            height: 28,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: theme.accent,
+                            color: theme.onAccent,
+                            border: `2px solid ${theme.border}`,
+                            cursor: 'pointer',
+                          }}
                         >
-                          <IconPencil className="h-3 w-3" />
-                        </Button>
+                          <IconPencil size={12} />
+                        </button>
                       </div>
                     ) : (
                       <button
-                        className="w-full px-3 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700/50 flex items-center gap-2"
                         onClick={() => setTagRenaming(true)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          width: '100%',
+                          padding: '6px 10px',
+                          textAlign: 'left',
+                          background: 'transparent',
+                          border: 'none',
+                          color: theme.ink2,
+                          fontFamily: 'var(--font-pixel-body)',
+                          fontSize: 12,
+                          cursor: 'pointer',
+                        }}
                       >
-                        <IconPencil className="h-3.5 w-3.5" />
+                        <IconPencil size={14} />
                         Rinomina
                       </button>
                     )}
 
-                    <div className="border-t border-zinc-700 my-0.5" />
+                    <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
 
                     {/* Delete */}
                     <button
-                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
                       onClick={() => {
                         deleteMutation.mutate(contextMenu.id);
                         setContextMenu(null);
                       }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        width: '100%',
+                        padding: '6px 10px',
+                        textAlign: 'left',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#E24B4A',
+                        fontFamily: 'var(--font-pixel-body)',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
                     >
-                      <IconTrash className="h-3.5 w-3.5" />
+                      <IconTrash size={14} />
                       Elimina tag
                     </button>
                   </>
                 ) : (
                   <button
-                    className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-red-950/50 flex items-center gap-2"
                     onClick={async () => {
                       try {
                         if (contextMenu.type === 'spark') {
@@ -1796,8 +2211,22 @@ export default function GraphPage() {
                       }
                       setContextMenu(null);
                     }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#E24B4A',
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                    }}
                   >
-                    <IconTrash className="h-3.5 w-3.5" />
+                    <IconTrash size={14} />
                     Elimina
                   </button>
                 )}
@@ -1807,19 +2236,40 @@ export default function GraphPage() {
             {/* Edge edit popover */}
             {selectedEdge && (
               <div
-                className="absolute z-50 bg-zinc-800 border border-zinc-600 rounded-lg p-3 shadow-xl w-64"
-                style={{ left: selectedEdge.x + 16, top: selectedEdge.y - 10 }}
+                className="absolute"
+                style={{
+                  left: selectedEdge.x + 16,
+                  top: selectedEdge.y - 10,
+                  zIndex: 50,
+                  background: theme.surface,
+                  border: `2px solid ${theme.border}`,
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  padding: 12,
+                  width: 280,
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
-                <p className="text-xs text-zinc-400 mb-2 truncate">
+                <p
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.ink3,
+                    marginBottom: 8,
+                    margin: 0,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
                   {selectedEdge.fromName} &harr; {selectedEdge.toName}
                 </p>
-                <div className="flex items-center gap-2 mb-2">
-                  <Input
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 8 }}>
+                  <input
                     value={edgeEditLabel}
                     onChange={(e) => setEdgeEditLabel(e.target.value)}
                     placeholder="Tipo relazione..."
-                    className="h-7 text-xs bg-zinc-900 border-zinc-700 text-white flex-1"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         tagsApi.updateRelation(selectedEdge.tagFrom, selectedEdge.tagTo, selectedEdge.weight, edgeEditLabel || undefined).then(() => {
@@ -1829,10 +2279,19 @@ export default function GraphPage() {
                         }).catch(() => toast.error('Errore'));
                       }
                     }}
+                    style={{
+                      flex: 1,
+                      height: 28,
+                      background: theme.surfaceVariant,
+                      border: `2px solid ${theme.border}`,
+                      padding: '0 8px',
+                      color: theme.ink,
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                      outline: 'none',
+                    }}
                   />
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                  <button
                     onClick={() => {
                       tagsApi.updateRelation(selectedEdge.tagFrom, selectedEdge.tagTo, selectedEdge.weight, edgeEditLabel || undefined).then(() => {
                         queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
@@ -1840,15 +2299,23 @@ export default function GraphPage() {
                         setSelectedEdge(null);
                       }).catch(() => toast.error('Errore'));
                     }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: theme.accent,
+                      color: theme.onAccent,
+                      border: `2px solid ${theme.border}`,
+                      cursor: 'pointer',
+                    }}
                   >
-                    <IconPencil className="h-3 w-3" />
-                  </Button>
+                    <IconPencil size={12} />
+                  </button>
                 </div>
-                <div className="flex justify-between items-center">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-950 px-2"
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                  <button
                     onClick={() => {
                       tagsApi.deleteRelation(selectedEdge.tagFrom, selectedEdge.tagTo).then(() => {
                         queryClient.invalidateQueries({ queryKey: ['tag-graph'] });
@@ -1856,18 +2323,40 @@ export default function GraphPage() {
                         setSelectedEdge(null);
                       }).catch(() => toast.error('Errore'));
                     }}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      padding: '4px 8px',
+                      background: 'transparent',
+                      color: '#E24B4A',
+                      border: `2px solid #E24B4A`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
                   >
-                    <IconTrash className="h-3 w-3 mr-1" />
+                    <IconTrash size={11} />
                     Elimina
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 text-xs text-zinc-400 hover:text-zinc-300 px-2"
+                  </button>
+                  <button
                     onClick={() => setSelectedEdge(null)}
+                    style={{
+                      padding: '4px 8px',
+                      background: theme.surfaceVariant,
+                      color: theme.ink2,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                      textTransform: 'uppercase',
+                      cursor: 'pointer',
+                    }}
                   >
                     Chiudi
-                  </Button>
+                  </button>
                 </div>
               </div>
             )}

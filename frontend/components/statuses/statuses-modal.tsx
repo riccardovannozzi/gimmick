@@ -4,15 +4,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { IconChevronRight } from '@tabler/icons-react';
 import { toast } from 'sonner';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { usePixelTheme } from '@/components/pixel';
 import { statusesApi } from '@/lib/api';
 import { StatusPreview, SHAPE_LABELS, ALL_SHAPES } from '@/components/statuses/status-preview';
 import type { Status, StatusShape } from '@/types';
@@ -22,13 +15,8 @@ interface StatusesModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-/**
- * Modal for editing the visual shape of the canonical system statuses.
- * Custom user-created statuses were removed (migration 029); only the
- * seeded `(active, done, paused, blocked, cancelled)` rows are managed
- * here, and only their `shape` is mutable — names are stable.
- */
 export function StatusesModal({ open, onOpenChange }: StatusesModalProps) {
+  const theme = usePixelTheme();
   const [pickerStatus, setPickerStatus] = useState<Status | null>(null);
 
   const { data } = useQuery({
@@ -43,36 +31,107 @@ export function StatusesModal({ open, onOpenChange }: StatusesModalProps) {
     done: 'Applicato al completamento',
   };
 
+  const dialogStyle: React.CSSProperties = {
+    maxWidth: 440,
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    borderRadius: 0,
+    color: theme.ink,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 0,
+    gap: 0,
+    display: 'block',
+  };
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white">Statuses</DialogTitle>
-            <DialogDescription className="text-zinc-400">
+        <DialogContent showCloseButton={false} style={dialogStyle}>
+          <div style={{ padding: '10px 14px', background: theme.surfaceVariant, borderBottom: `2px solid ${theme.border}` }}>
+            <h2
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+                margin: 0,
+              }}
+            >
+              Statuses
+            </h2>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '4px 0 0' }}>
               Gestisci gli status visivi dei tile.
-            </DialogDescription>
-          </DialogHeader>
+            </p>
+          </div>
 
-          <div className="max-h-[60vh] overflow-y-auto space-y-2">
+          <div style={{ padding: 14, maxHeight: '60vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
             {statuses.map((s) => (
-              <div key={s.id} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-zinc-800/50">
+              <div
+                key={s.id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  padding: '8px 12px',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                }}
+              >
                 <StatusPreview shape={s.shape} size={40} />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-white">{s.name}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span
+                      style={{
+                        fontFamily: 'var(--font-pixel-head)',
+                        fontSize: 10,
+                        letterSpacing: '0.08em',
+                        textTransform: 'uppercase',
+                        color: theme.ink,
+                      }}
+                    >
+                      {s.name}
+                    </span>
                     {s.name === 'done' && (
-                      <span className="text-[10px] bg-zinc-700 text-zinc-400 px-1.5 py-0.5 rounded">auto</span>
+                      <span
+                        style={{
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 8,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          background: theme.surface,
+                          color: theme.ink3,
+                          border: `2px solid ${theme.border}`,
+                          padding: '1px 4px',
+                        }}
+                      >
+                        auto
+                      </span>
                     )}
                   </div>
-                  <span className="text-[11px] text-zinc-500">{systemDescriptions[s.name] || ''}</span>
+                  <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
+                    {systemDescriptions[s.name] || ''}
+                  </span>
                 </div>
                 <button
                   onClick={() => setPickerStatus(s)}
-                  className="flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.accent,
+                    padding: 0,
+                  }}
                 >
                   Edit
-                  <IconChevronRight className="h-3 w-3" />
+                  <IconChevronRight size={11} />
                 </button>
               </div>
             ))}
@@ -80,20 +139,16 @@ export function StatusesModal({ open, onOpenChange }: StatusesModalProps) {
         </DialogContent>
       </Dialog>
 
-      <StatusShapePicker
-        status={pickerStatus}
-        onClose={() => setPickerStatus(null)}
-      />
+      <StatusShapePicker status={pickerStatus} onClose={() => setPickerStatus(null)} />
     </>
   );
 }
 
-// ─── Shape picker — only the visual shape is editable for system rows. ───
 function StatusShapePicker({ status, onClose }: { status: Status | null; onClose: () => void }) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const [shape, setShape] = useState<StatusShape>('solid');
 
-  // Seed local state when the picker opens for a status.
   useEffect(() => {
     if (status) setShape(status.shape);
   }, [status]);
@@ -109,56 +164,157 @@ function StatusShapePicker({ status, onClose }: { status: Status | null; onClose
   });
 
   const isOpen = status !== null;
+  const dialogStyle: React.CSSProperties = {
+    maxWidth: 384,
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    borderRadius: 0,
+    color: theme.ink,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 0,
+    gap: 0,
+    display: 'block',
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="text-white">Edit status</DialogTitle>
-          <DialogDescription className="text-zinc-400">
+      <DialogContent showCloseButton={false} style={dialogStyle}>
+        <div style={{ padding: '10px 14px', background: theme.surfaceVariant, borderBottom: `2px solid ${theme.border}` }}>
+          <h2
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+              margin: 0,
+            }}
+          >
+            Edit status
+          </h2>
+          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '4px 0 0' }}>
             Modifica la forma dello status.
-          </DialogDescription>
-        </DialogHeader>
+          </p>
+        </div>
 
-        <div className="space-y-4">
+        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
-            <label className="text-[11px] text-zinc-500">Nome</label>
-            <p className="text-sm text-zinc-300 mt-0.5">{status?.name}</p>
+            <label
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+                display: 'block',
+                marginBottom: 4,
+              }}
+            >
+              Nome
+            </label>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, margin: 0 }}>{status?.name}</p>
           </div>
 
           <div>
-            <label className="text-[11px] text-zinc-500">Forma</label>
-            <div className="grid grid-cols-3 gap-2 mt-1.5">
+            <label
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+                display: 'block',
+                marginBottom: 6,
+              }}
+            >
+              Forma
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
               {ALL_SHAPES.map((s) => (
                 <button
                   key={s}
                   onClick={() => setShape(s)}
-                  className={cn(
-                    'flex flex-col items-center gap-1 p-2 rounded-lg border transition-colors',
-                    shape === s
-                      ? 'border-blue-500 bg-blue-500/10'
-                      : 'border-zinc-700 bg-zinc-800/50 hover:border-zinc-600'
-                  )}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 4,
+                    padding: 8,
+                    background: shape === s ? theme.surfaceVariant : 'transparent',
+                    border: `2px solid ${shape === s ? theme.accent : theme.border}`,
+                    cursor: 'pointer',
+                  }}
                 >
                   <StatusPreview shape={s} size={56} selected={shape === s} />
-                  <span className="text-[10px] text-zinc-400">{SHAPE_LABELS[s]}</span>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 8,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      color: theme.ink2,
+                    }}
+                  >
+                    {SHAPE_LABELS[s]}
+                  </span>
                 </button>
               ))}
             </div>
           </div>
+        </div>
 
-          <div className="flex gap-2 justify-end">
-            <Button variant="ghost" onClick={onClose} className="text-zinc-400">
-              Annulla
-            </Button>
-            <Button
-              onClick={() => updateMutation.mutate()}
-              disabled={!shape || updateMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-500"
-            >
-              Salva
-            </Button>
-          </div>
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'flex-end',
+            gap: 8,
+            padding: 12,
+            borderTop: `2px solid ${theme.border}`,
+            background: theme.surfaceVariant,
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '0 12px',
+              height: 28,
+              background: theme.surface,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={() => updateMutation.mutate()}
+            disabled={!shape || updateMutation.isPending}
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              padding: '0 12px',
+              height: 28,
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: updateMutation.isPending ? 'not-allowed' : 'pointer',
+              opacity: updateMutation.isPending ? 0.5 : 1,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
+          >
+            Salva
+          </button>
         </div>
       </DialogContent>
     </Dialog>

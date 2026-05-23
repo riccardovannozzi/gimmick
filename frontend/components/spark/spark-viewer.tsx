@@ -4,17 +4,13 @@ import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
 } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { IconMicrophone, IconFile, IconDownload, IconLoader2, IconAlertCircle } from '@tabler/icons-react';
 import { uploadApi } from '@/lib/api';
-import { typeColors, typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
-import { cn } from '@/lib/utils';
+import { typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
+import { usePixelTheme } from '@/components/pixel';
 import type { Spark } from '@/types';
 
 interface SparkViewerProps {
@@ -24,6 +20,7 @@ interface SparkViewerProps {
 }
 
 export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
+  const theme = usePixelTheme();
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,18 +62,18 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
   function renderContent() {
     if (loading) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 text-zinc-400">
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: theme.ink3 }}>
           <IconLoader2 className="h-8 w-8 animate-spin mb-3" />
-          <p>Caricamento...</p>
+          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}>Caricamento...</p>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center py-12 text-red-400">
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: '#E24B4A' }}>
           <IconAlertCircle className="h-8 w-8 mb-3" />
-          <p>{error}</p>
+          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}>{error}</p>
         </div>
       );
     }
@@ -91,7 +88,8 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             <img
               src={signedUrl!}
               alt={spark.file_name || 'Immagine'}
-              className="max-h-[70vh] max-w-full rounded-lg object-contain"
+              className="max-h-[70vh] max-w-full object-contain"
+              style={{ border: `2px solid ${theme.border}` }}
             />
           </div>
         );
@@ -101,7 +99,8 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
           <video
             src={signedUrl!}
             controls
-            className="max-h-[70vh] w-full rounded-lg"
+            className="max-h-[70vh] w-full"
+            style={{ border: `2px solid ${theme.border}`, background: '#000' }}
           >
             Il tuo browser non supporta il tag video.
           </video>
@@ -109,11 +108,20 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
 
       case 'audio_recording':
         return (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <IconMicrophone className="h-16 w-16 text-zinc-500" />
+          <div className="flex flex-col items-center gap-4 py-6">
+            <div
+              style={{
+                width: 64, height: 64,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <IconMicrophone size={32} style={{ color: theme.ink2 }} />
+            </div>
             <audio src={signedUrl!} controls className="w-full" />
             {spark.duration != null && (
-              <p className="text-sm text-zinc-400">
+              <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
                 Durata: {formatDuration(spark.duration)}
               </p>
             )}
@@ -122,78 +130,188 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
 
       case 'text':
         return (
-          <ScrollArea className="max-h-[60vh]">
-            <div className="whitespace-pre-wrap text-zinc-200 text-sm leading-relaxed p-4 rounded-lg bg-zinc-800/50">
-              {spark.content || 'Nessun contenuto'}
-            </div>
-          </ScrollArea>
+          <div
+            className="max-h-[60vh] overflow-auto whitespace-pre-wrap"
+            style={{
+              padding: 12,
+              background: theme.surfaceVariant,
+              border: `2px solid ${theme.border}`,
+              color: theme.ink,
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 12,
+              lineHeight: 1.55,
+            }}
+          >
+            {spark.content || 'Nessun contenuto'}
+          </div>
         );
 
       case 'file':
         return (
-          <div className="flex flex-col items-center gap-4 py-8">
-            <IconFile className="h-16 w-16 text-zinc-500" />
-            <div className="text-center space-y-1">
-              <p className="text-white font-medium">{spark.file_name || 'File'}</p>
+          <div className="flex flex-col items-center gap-4 py-6">
+            <div
+              style={{
+                width: 64, height: 64,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <IconFile size={32} style={{ color: theme.ink2 }} />
+            </div>
+            <div className="text-center" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 13, fontWeight: 600, color: theme.ink, wordBreak: 'break-all' }}>
+                {spark.file_name || 'File'}
+              </p>
               {spark.mime_type && (
-                <p className="text-sm text-zinc-400">{spark.mime_type}</p>
+                <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>{spark.mime_type}</p>
               )}
               {spark.file_size != null && (
-                <p className="text-sm text-zinc-400">{formatFileSize(spark.file_size)}</p>
+                <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>{formatFileSize(spark.file_size)}</p>
               )}
             </div>
             {signedUrl && (
-              <Button asChild className="bg-blue-600 hover:bg-blue-700">
-                <a href={signedUrl} download={spark.file_name} target="_blank" rel="noopener noreferrer">
-                  <IconDownload className="mr-2 h-4 w-4" />
-                  Scarica
-                </a>
-              </Button>
+              <a
+                href={signedUrl}
+                download={spark.file_name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-press"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '6px 14px',
+                  background: theme.accent,
+                  color: theme.onAccent,
+                  border: `2px solid ${theme.border}`,
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 10,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                  textDecoration: 'none',
+                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                }}
+              >
+                <IconDownload size={12} />
+                Scarica
+              </a>
             )}
           </div>
         );
 
       default:
-        return <p className="text-zinc-400 text-center py-8">Tipo non supportato</p>;
+        return (
+          <p style={{ textAlign: 'center', padding: '32px 0', color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}>
+            Tipo non supportato
+          </p>
+        );
     }
   }
 
   const isMediaType = spark && ['photo', 'image', 'video'].includes(spark.type);
 
+  const dialogStyle: React.CSSProperties = {
+    maxWidth: isMediaType ? 'min(90vw, 900px)' : 'min(90vw, 520px)',
+    width: '100%',
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    borderRadius: 0,
+    color: theme.ink,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 0,
+    gap: 0,
+    display: 'block',
+  };
+
+  const headerStyle: React.CSSProperties = {
+    padding: '10px 14px',
+    background: theme.surfaceVariant,
+    borderBottom: `2px solid ${theme.border}`,
+  };
+
+  const titleText = spark?.file_name || spark?.content?.substring(0, 60) || (spark ? typeLabels[spark.type] : 'Spark');
+  const dateText = spark
+    ? new Date(spark.created_at).toLocaleDateString('it-IT', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        className={cn(
-          'bg-zinc-900 border-zinc-800',
-          isMediaType ? 'sm:max-w-3xl' : 'sm:max-w-lg'
-        )}
-      >
-        <DialogHeader>
-          <DialogTitle className="text-white truncate">
-            {spark?.file_name || spark?.content?.substring(0, 40) || typeLabels[spark?.type || 'file']}
-          </DialogTitle>
+      <DialogContent showCloseButton={false} style={dialogStyle} className="!gap-0 !p-0 !rounded-none">
+        <div style={headerStyle}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DialogTitle
+              style={{
+                flex: 1,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+                margin: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {titleText}
+            </DialogTitle>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              aria-label="Chiudi"
+              style={{
+                width: 22, height: 22,
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                color: theme.ink2,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              ×
+            </button>
+          </div>
           <DialogDescription asChild>
-            <div className="flex items-center gap-2">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
               {spark && (
-                <Badge className={typeColors[spark.type]}>
+                <span
+                  style={{
+                    padding: '2px 6px',
+                    background: theme.surface,
+                    color: theme.ink2,
+                    border: `2px solid ${theme.border}`,
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 8,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                  }}
+                >
                   {typeLabels[spark.type]}
-                </Badge>
+                </span>
               )}
-              <span className="text-zinc-500 text-sm">
-                {spark
-                  ? new Date(spark.created_at).toLocaleDateString('it-IT', {
-                      day: 'numeric',
-                      month: 'long',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })
-                  : ''}
+              <span style={{ color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 11 }}>
+                {dateText}
               </span>
             </div>
           </DialogDescription>
-        </DialogHeader>
-        {renderContent()}
+        </div>
+        <div style={{ padding: 14 }}>
+          {renderContent()}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -1,17 +1,30 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, FlashMode } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconX, IconRefresh, IconBolt, IconBoltOff, IconCircle } from '@tabler/icons-react-native';
+import { IconX, IconRefresh, IconBolt, IconBoltOff, IconCamera } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
 import { createSparkForTile } from '@/lib/api';
 
 export default function PhotoCaptureScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+    warning: theme.cap.file,
+  } as const;
   const router = useRouter();
   const queryClient = useQueryClient();
   // When reached from a tile detail (`/capture/photo?tile=<id>`), the spark
@@ -98,8 +111,10 @@ export default function PhotoCaptureScreen() {
   // Permission not determined yet
   if (!permission) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Loading...</Text>
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink, letterSpacing: 1 }}>
+          LOADING…
+        </Text>
       </View>
     );
   }
@@ -107,28 +122,90 @@ export default function PhotoCaptureScreen() {
   // Permission denied
   if (!permission.granted) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center px-8">
-        <Text className="text-primary text-lg font-medium text-center mb-4">
-          Camera access denied
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 }}>
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 12,
+            color: theme.ink,
+            textAlign: 'center',
+            letterSpacing: 1,
+          }}
+        >
+          CAMERA ACCESS DENIED
         </Text>
-        <Text className="text-secondary text-center mb-6">
+        <Text
+          style={{
+            fontFamily: theme.fontBody,
+            fontSize: 13,
+            color: theme.ink2,
+            textAlign: 'center',
+          }}
+        >
           Gimmick needs camera access to take photos
         </Text>
-        <TouchableOpacity
+        <PixelButton
+          theme={theme}
+          big
+          label="GRANT ACCESS"
+          bg={theme.accent}
+          color={theme.onAccent}
           onPress={requestPermission}
-          className="bg-accent px-6 py-3 rounded-lg"
-        >
-          <Text className="text-white font-medium">Grant access</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Go back</Text>
-        </TouchableOpacity>
+        />
+        <PixelButton
+          theme={theme}
+          label="GO BACK"
+          bg={theme.surface}
+          color={theme.ink}
+          onPress={handleClose}
+        />
       </View>
     );
   }
 
+  // Camera-overlay icon button: square con border 2px bianco + bg colorato
+  // (o trasparente per il flip neutro) + offset shadow bianco. Pattern
+  // Android-safe (View interno bg/border, Pressable solo per touch).
+  const CameraIconBtn = ({
+    onPress, children, size = 44, bg, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => {
+    const sh = theme.shadowOffset;
+    return (
+      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.5 : 1 }}>
+        {sh > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: sh, top: sh, right: 0, bottom: 0,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+        )}
+        <Pressable
+          onPress={onPress}
+          disabled={disabled}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderWidth: 2,
+              borderColor: '#FFFFFF',
+              backgroundColor: bg ?? 'rgba(0,0,0,0.6)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  };
+
   return (
-    <View className="flex-1 bg-black">
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Camera */}
       <CameraView
         ref={cameraRef}
@@ -137,53 +214,59 @@ export default function PhotoCaptureScreen() {
         flash={flash}
       >
         {/* Top controls */}
-        <View className="flex-row justify-between items-center px-4 pt-12">
-          <TouchableOpacity
-            onPress={handleClose}
-            className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-          >
-            <IconX size={24} color="#fff" />
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={toggleFlash}
-            className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-          >
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingTop: 48,
+          }}
+        >
+          <CameraIconBtn onPress={handleClose} bg={theme.semantic.danger}>
+            <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
+          </CameraIconBtn>
+          <CameraIconBtn onPress={toggleFlash} bg={theme.semantic.warning}>
             {flash === 'on' ? (
-              <IconBolt size={24} color={colors.warning} />
+              <IconBolt size={22} color="#FFFFFF" strokeWidth={2.4} />
             ) : (
-              <IconBoltOff size={24} color="#fff" />
+              <IconBoltOff size={22} color="#FFFFFF" strokeWidth={2.4} />
             )}
-          </TouchableOpacity>
+          </CameraIconBtn>
         </View>
 
         {/* Bottom controls */}
-        <View className="absolute bottom-12 left-0 right-0 flex-row justify-center items-center">
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 48,
+            left: 0,
+            right: 0,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 28,
+          }}
+        >
           {/* Spacer */}
-          <View className="w-16" />
+          <View style={{ width: 56 }} />
 
-          {/* Capture button */}
-          <TouchableOpacity
+          {/* Capture button — stesso stile del tile ADD: quadrato verde pieno
+              con border 2px bianco + offset shadow bianco + icona camera al
+              centro. Opacità ridotta durante lo scatto. */}
+          <CameraIconBtn
             onPress={takePicture}
+            size={78}
+            bg={theme.semantic.success}
             disabled={isTakingPhoto}
-            className="mx-8"
           >
-            <View className="w-20 h-20 rounded-full border-4 border-white items-center justify-center">
-              <View
-                className={`w-16 h-16 rounded-full ${
-                  isTakingPhoto ? 'bg-white/50' : 'bg-white'
-                }`}
-              />
-            </View>
-          </TouchableOpacity>
+            <IconCamera size={36} color="#FFFFFF" strokeWidth={2.2} />
+          </CameraIconBtn>
 
-          {/* Flip camera button */}
-          <TouchableOpacity
-            onPress={toggleFacing}
-            className="w-16 h-16 rounded-full bg-black/50 items-center justify-center"
-          >
-            <IconRefresh size={28} color="#fff" />
-          </TouchableOpacity>
+          {/* Flip camera — colore neutro come prima */}
+          <CameraIconBtn onPress={toggleFacing} size={56}>
+            <IconRefresh size={26} color="#FFFFFF" strokeWidth={2.2} />
+          </CameraIconBtn>
         </View>
       </CameraView>
 

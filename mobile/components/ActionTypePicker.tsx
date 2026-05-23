@@ -27,7 +27,7 @@ import {
   IconChevronRight,
   IconX,
 } from '@tabler/icons-react-native';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import {
   fmtMonthYear,
   isSameDay,
@@ -77,7 +77,18 @@ export function ActionTypePicker({
   onConfirm,
   onCancel,
 }: ActionTypePickerProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const insets = useSafeAreaInsets();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
 
@@ -280,7 +291,7 @@ export function ActionTypePicker({
             style={{
               paddingHorizontal: 12,
               paddingVertical: 6,
-              borderRadius: 8,
+              borderRadius: 0,
               backgroundColor: colors.surfaceVariant,
             }}
           >
@@ -300,7 +311,7 @@ export function ActionTypePicker({
             gap: 6,
             backgroundColor: colors.background1,
             padding: 4,
-            borderRadius: 10,
+            borderRadius: 0,
           }}
         >
           <TabButton
@@ -368,13 +379,23 @@ export function ActionTypePicker({
         <TouchableOpacity
           onPress={handleConfirm}
           style={{
-            backgroundColor: mode === 'deadline' ? '#FBBF24' : '#60A5FA',
-            borderRadius: 12,
-            paddingVertical: 14,
+            backgroundColor: mode === 'deadline' ? theme.semantic.warning : colors.accent,
+            borderWidth: 2,
+            borderColor: theme.border,
+            paddingVertical: 16,
             alignItems: 'center',
           }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: '#000' }}>Conferma</Text>
+          <Text
+            style={{
+              fontFamily: 'PressStart2P-Regular',
+              fontSize: 12,
+              color: mode === 'deadline' ? theme.ink : (colors.onAccent as string),
+              letterSpacing: 1.2,
+            }}
+          >
+            CONFERMA
+          </Text>
         </TouchableOpacity>
       </View>
     </BottomSheetModal>
@@ -404,21 +425,21 @@ function TabButton({
         flex: 1,
         alignItems: 'center',
         paddingVertical: 8,
-        borderRadius: 8,
-        backgroundColor: active ? 'rgba(96,165,250,0.2)' : 'transparent',
+        borderRadius: 0,
+        backgroundColor: active ? colors.accent : 'transparent',
       }}
     >
       <Text
         style={{
-          fontSize: 10,
-          fontWeight: '700',
+          fontFamily: 'PressStart2P-Regular',
+          fontSize: 9,
           letterSpacing: 1,
-          color: active ? '#60A5FA' : colors.tertiary,
+          color: active ? colors.onAccent : colors.tertiary,
         }}
       >
         {label}
       </Text>
-      <Text style={{ fontSize: 13, fontWeight: '600', color: colors.primary, marginTop: 2 }}>
+      <Text style={{ fontSize: 13, fontWeight: '700', color: active ? colors.onAccent : colors.primary, marginTop: 4 }}>
         {value}
       </Text>
     </TouchableOpacity>
@@ -470,7 +491,7 @@ function MiniCalendar({
             height: 32,
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 6,
+            borderRadius: 0,
             backgroundColor: colors.surfaceVariant,
           }}
         >
@@ -493,7 +514,7 @@ function MiniCalendar({
             height: 32,
             alignItems: 'center',
             justifyContent: 'center',
-            borderRadius: 6,
+            borderRadius: 0,
             backgroundColor: colors.surfaceVariant,
           }}
         >
@@ -527,17 +548,17 @@ function MiniCalendar({
                   alignItems: 'center',
                   justifyContent: 'center',
                   margin: 1,
-                  borderRadius: 8,
-                  backgroundColor: isSel ? '#60A5FA' : 'transparent',
+                  borderRadius: 0,
+                  backgroundColor: isSel ? colors.accent : 'transparent',
                   borderWidth: today && !isSel ? 1 : 0,
-                  borderColor: '#60A5FA',
+                  borderColor: colors.accent,
                 }}
               >
                 <Text
                   style={{
                     fontSize: 14,
                     fontWeight: isSel ? '700' : '500',
-                    color: isSel ? '#000' : inMonth ? colors.primary : colors.tertiary,
+                    color: isSel ? colors.onAccent : inMonth ? colors.primary : colors.tertiary,
                   }}
                 >
                   {d.getDate()}
@@ -608,7 +629,7 @@ function TimePane({
               fontSize: 44,
               fontWeight: '700',
               letterSpacing: 1,
-              color: clockMode === 'hour' ? '#60A5FA' : colors.primary,
+              color: clockMode === 'hour' ? colors.accent : colors.primary,
             }}
           >
             {pad(hour)}
@@ -623,7 +644,7 @@ function TimePane({
               fontSize: 44,
               fontWeight: '700',
               letterSpacing: 1,
-              color: clockMode === 'minute' ? '#60A5FA' : colors.primary,
+              color: clockMode === 'minute' ? colors.accent : colors.primary,
             }}
           >
             {pad(minute)}
@@ -646,7 +667,15 @@ function TimePane({
 
       {showDuration && onSelectDuration && (
         <View style={{ marginTop: 16 }}>
-          <Text style={{ fontSize: 11, color: colors.tertiary, marginBottom: 4 }}>
+          <Text
+            style={{
+              fontFamily: 'PressStart2P-Regular',
+              fontSize: 9,
+              color: colors.tertiary,
+              letterSpacing: 1,
+              marginBottom: 8,
+            }}
+          >
             DURATA
           </Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
@@ -657,19 +686,20 @@ function TimePane({
                   key={opt.minutes}
                   onPress={() => onSelectDuration(opt.minutes)}
                   style={{
-                    paddingHorizontal: 12,
+                    paddingHorizontal: 10,
                     paddingVertical: 6,
-                    borderRadius: 14,
-                    backgroundColor: isActive ? 'rgba(96,165,250,0.2)' : colors.surfaceVariant,
-                    borderWidth: isActive ? 1 : 0,
-                    borderColor: '#60A5FA',
+                    borderRadius: 0,
+                    backgroundColor: isActive ? colors.accent : colors.surfaceVariant,
+                    borderWidth: 2,
+                    borderColor: colors.border,
                   }}
                 >
                   <Text
                     style={{
-                      fontSize: 12,
-                      fontWeight: '500',
-                      color: isActive ? '#60A5FA' : colors.secondary,
+                      fontFamily: 'PressStart2P-Regular',
+                      fontSize: 9,
+                      letterSpacing: 1,
+                      color: isActive ? (colors.onAccent as string) : colors.primary,
                     }}
                   >
                     {opt.label}
@@ -806,11 +836,11 @@ function ClockDial({
               y1={cy}
               x2={handEnd.x}
               y2={handEnd.y}
-              stroke="#60A5FA"
+              stroke={colors.accent}
               strokeWidth={2}
             />
-            <Circle cx={cx} cy={cy} r={4} fill="#60A5FA" />
-            <Circle cx={handEnd.x} cy={handEnd.y} r={20} fill="#60A5FA" />
+            <Circle cx={cx} cy={cy} r={4} fill={colors.accent} />
+            <Circle cx={handEnd.x} cy={handEnd.y} r={20} fill={colors.accent} />
 
             {/* Labels — a single ring of either 24 hours or 12 five-minute
                 marks (no more concentric inner ring). */}

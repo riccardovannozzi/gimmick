@@ -9,6 +9,8 @@ import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { usePixelTheme, PixelCard, PixelButton, PixelBadge } from '@/components/pixel';
+import type { CaptureKey } from '@/lib/pixel-theme';
 import { useFilterStore } from '@/store/filter-store';
 import {
   Table,
@@ -25,7 +27,9 @@ import { useActionColors } from '@/store/action-colors-store';
 import { typeLabels } from '@/lib/spark-utils';
 import { readableOn } from '@/lib/palette';
 
-import type { Spark, SparkType, Tile, Tag, ActionType } from '@/types';
+import type { Spark, SparkType, Tile, Tag, ActionType, StatusShape } from '@/types';
+import { StatusPattern } from '@/components/statuses/status-pattern';
+import { ActionBadge } from '@/components/actions/action-badge';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -69,6 +73,7 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const theme = usePixelTheme();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
@@ -103,8 +108,18 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
   return createPortal(
     <div
       ref={ref}
-      className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl p-3 max-h-72 overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="fixed"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        zIndex: 9999,
+        background: theme.surface,
+        border: `2px solid ${theme.border}`,
+        boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+        padding: 10,
+        maxHeight: 320,
+        overflowY: 'auto',
+      }}
     >
       {children}
     </div>,
@@ -132,6 +147,7 @@ function FilterableHead({
   onToggleFilter: () => void;
   headRef: React.RefObject<HTMLTableCellElement | null>;
 }) {
+  const theme = usePixelTheme();
   const startX = useRef(0);
   const startW = useRef(width);
 
@@ -160,18 +176,44 @@ function FilterableHead({
   );
 
   return (
-    <TableHead ref={headRef} className={cn('relative', className)} style={{ width, minWidth: width, maxWidth: width }}>
+    <TableHead
+      ref={headRef}
+      className={cn('relative', className)}
+      style={{
+        width, minWidth: width, maxWidth: width,
+        background: theme.surfaceVariant,
+        borderRight: `2px solid ${theme.border}`,
+        borderBottom: `2px solid ${theme.border}`,
+      }}
+    >
       <button
         onClick={onToggleFilter}
         className="flex items-center gap-1 w-full text-left"
+        style={{
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink2,
+        }}
       >
         <span className="truncate">{label}</span>
-        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
+        <IconFilter
+          size={11}
+          className="shrink-0"
+          style={{ color: hasActiveFilter ? theme.accent : theme.ink3 }}
+        />
       </button>
       <div
         onMouseDown={onMouseDown}
-        className="absolute top-0 bottom-0 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
-        style={{ right: -2, width: 5 }}
+        className="absolute top-0 bottom-0 cursor-col-resize z-10 transition-colors"
+        style={{
+          right: -2,
+          width: 5,
+          background: 'transparent',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = `${theme.accent}66`; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       />
     </TableHead>
   );
@@ -206,6 +248,7 @@ function InlineActionDropdown({
   tile: Tile;
   onUpdate: (data: { action_type: ActionType; start_at?: string | null; end_at?: string | null; is_event?: boolean; all_day?: boolean }) => void;
 }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const [pickerMode, setPickerMode] = useState<'deadline' | 'event' | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -300,63 +343,106 @@ function InlineActionDropdown({
   const isAllDay = at === 'event' && tile.all_day;
   const displayAt = isAllDay ? 'allday' as ActionType : at;
   const cfg = ACTION_TYPE_BADGE[displayAt];
-  const Icon = cfg.icon;
   const atColor = actionColors[displayAt];
   const subtitle = formatActionSubtitle(tile);
   const hasAiHint = !tile.action_type_reviewed && tile.action_type_ai && tile.action_type_ai !== (tile.action_type || 'none');
 
-  const getBorderCSS = (): React.CSSProperties => ({ border: `1.5px solid ${atColor}` });
-
   const showPortal = open || pickerMode;
+
+  // Shared chrome for any inline option button inside the popup.
+  const popupItemStyle = (active: boolean): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 8,
+    width: '100%', padding: '8px 12px',
+    background: active ? theme.surfaceMuted : 'transparent',
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 11,
+    cursor: 'pointer',
+    border: 'none',
+    textAlign: 'left' as const,
+  });
+
+  // Shared chrome for date/time inputs in the picker popup.
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    padding: '6px 8px',
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 11,
+    colorScheme: 'dark',
+    outline: 'none',
+  };
 
   return (
     <div className="relative">
+      {/* Trigger — pixel border colored by action type, body font label */}
       <button
         ref={triggerRef}
         onClick={handleToggle}
-        className="flex flex-col justify-center gap-0 w-full text-left rounded px-1.5"
-        style={{ ...getBorderCSS(), minHeight: 36, backgroundColor: 'rgba(31, 31, 35, 0.8)' }}
+        className="flex flex-col justify-center w-full text-left px-1.5"
+        style={{
+          border: `2px solid ${atColor}`,
+          minHeight: 36,
+          background: theme.surfaceVariant,
+        }}
       >
-        <div className="flex items-center gap-1 w-full">
-          <Icon className="h-3 w-3 text-zinc-400" />
-          <span className="text-xs flex-1 text-zinc-400">{cfg.label}</span>
-          {hasAiHint && <IconSparkles className="h-2.5 w-2.5 text-purple-400" />}
-          <IconChevronDown className="h-3 w-3 text-zinc-500 shrink-0" />
+        <div className="flex items-center gap-1.5 w-full">
+          <ActionBadge actionKey={displayAt} size={18} keepSpace />
+          <span
+            className="flex-1"
+            style={{
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 11,
+              color: theme.ink2,
+            }}
+          >
+            {cfg.label}
+          </span>
+          {hasAiHint && <IconSparkles size={10} style={{ color: theme.accent }} />}
+          <IconChevronDown size={11} style={{ color: theme.ink3 }} />
         </div>
       </button>
       {showPortal && createPortal(
         <div
           ref={popoverRef}
-          className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl"
-          style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: pos.top,
+            left: pos.left,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          }}
         >
           {/* Action type options */}
           {open && (
-            <div className="w-36 py-1">
+            <div style={{ width: 152, padding: '4px 0' }}>
               {([
-                { value: 'none' as ActionType, label: 'Notes', allDay: false },
-                { value: 'anytime' as ActionType, label: 'To Do', allDay: false },
-                { value: 'deadline' as ActionType, label: 'Due', allDay: false },
-                { value: 'event' as ActionType, label: 'All Day', allDay: true },
-                { value: 'event' as ActionType, label: 'Timed', allDay: false },
+                { value: 'none' as ActionType, label: 'NOTES', allDay: false },
+                { value: 'anytime' as ActionType, label: 'TO DO', allDay: false },
+                { value: 'deadline' as ActionType, label: 'DUE', allDay: false },
+                { value: 'event' as ActionType, label: 'ALL DAY', allDay: true },
+                { value: 'event' as ActionType, label: 'TIMED', allDay: false },
               ]).map((opt) => {
-                const optCfg = ACTION_TYPE_BADGE[opt.value];
-                const OptIcon = opt.allDay ? IconCalendarEvent : optCfg.icon;
                 const isActive = opt.value === 'event'
                   ? at === 'event' && (opt.allDay ? !!tile.all_day : !tile.all_day)
                   : at === opt.value;
-                const colorKey = opt.allDay ? 'allday' as ActionType : opt.value;
+                const colorKey = opt.allDay ? 'allday' : opt.value;
                 return (
                   <button
                     key={opt.label}
-                    className={cn(
-                      'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
-                      isActive && 'bg-zinc-800'
-                    )}
+                    style={{
+                      ...popupItemStyle(isActive),
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.08em',
+                    }}
                     onClick={(e) => {
                       e.stopPropagation();
                       if (opt.value === 'event') {
-                        // For event types, set allDay and skip date picker for All Day
                         setOpen(false);
                         if (opt.allDay) {
                           const today = new Date().toISOString().slice(0, 10);
@@ -376,9 +462,9 @@ function InlineActionDropdown({
                       }
                     }}
                   >
-                    <OptIcon className="h-3.5 w-3.5" style={{ color: actionColors[colorKey] }} />
-                    <span className="text-zinc-300">{opt.label}</span>
-                    {isActive && <IconCheck className="h-3 w-3 text-blue-400 ml-auto" />}
+                    <ActionBadge actionKey={colorKey} size={18} keepSpace />
+                    <span>{opt.label}</span>
+                    {isActive && <IconCheck size={11} style={{ color: theme.accent, marginLeft: 'auto' }} />}
                   </button>
                 );
               })}
@@ -387,23 +473,41 @@ function InlineActionDropdown({
 
           {/* Date picker for deadline */}
           {pickerMode === 'deadline' && (
-            <div className="w-56 p-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <IconClock className="h-3.5 w-3.5 text-amber-400" />
-                <span className="text-xs font-medium text-amber-400">Scadenza</span>
+            <div style={{ width: 232, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <IconClock size={13} style={{ color: '#FFB400' }} />
+                <span
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+                    letterSpacing: '0.08em', color: '#FFB400',
+                  }}
+                >
+                  SCADENZA
+                </span>
               </div>
-              <label className="text-[11px] text-zinc-500">Data</label>
+              <label style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 8, letterSpacing: '0.08em', color: theme.ink2 }}>
+                DATA
+              </label>
               <input
                 type="date"
                 value={pickerDate}
                 onChange={(e) => setPickerDate(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
-                style={{ colorScheme: 'dark' }}
+                style={inputStyle}
               />
               <button
                 onClick={handlePickerConfirm}
-                className="mt-1 w-full bg-amber-500 hover:bg-amber-400 text-black text-xs font-medium py-1.5 rounded transition-colors"
+                className="px-press"
+                style={{
+                  marginTop: 4,
+                  width: '100%',
+                  background: '#FFB400', color: '#000',
+                  border: `2px solid ${theme.border}`,
+                  padding: '8px 0',
+                  fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
               >
                 Conferma
               </button>
@@ -412,56 +516,83 @@ function InlineActionDropdown({
 
           {/* Date picker for event */}
           {pickerMode === 'event' && (
-            <div className="w-60 p-3 flex flex-col gap-2">
-              <div className="flex items-center gap-2 mb-1">
-                <IconCalendar className="h-3.5 w-3.5 text-blue-400" />
-                <span className="text-xs font-medium text-blue-400">Evento</span>
+            <div style={{ width: 240, padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <IconCalendar size={13} style={{ color: theme.accent }} />
+                <span
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+                    letterSpacing: '0.08em', color: theme.accent,
+                  }}
+                >
+                  EVENTO
+                </span>
               </div>
-              <label className="text-[11px] text-zinc-500">Data</label>
+              <label style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 8, letterSpacing: '0.08em', color: theme.ink2 }}>
+                DATA
+              </label>
               <input
                 type="date"
                 value={pickerDate}
                 onChange={(e) => setPickerDate(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                style={{ colorScheme: 'dark' }}
+                style={inputStyle}
               />
-              <label className="flex items-center gap-2 cursor-pointer" onClick={(e) => e.stopPropagation()}>
+              <label
+                onClick={(e) => e.stopPropagation()}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+              >
                 <input
                   type="checkbox"
                   checked={pickerAllDay}
                   onChange={(e) => setPickerAllDay(e.target.checked)}
-                  className="accent-blue-500"
+                  style={{ accentColor: theme.accent }}
                 />
-                <span className="text-xs text-zinc-300">Tutto il giorno</span>
+                <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink }}>
+                  Tutto il giorno
+                </span>
               </label>
               {!pickerAllDay && (
-                <div className="flex gap-2">
-                  <div className="flex-1">
-                    <label className="text-[11px] text-zinc-500">Inizio</label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 8, letterSpacing: '0.08em', color: theme.ink2 }}>
+                      INIZIO
+                    </label>
                     <input
                       type="time"
                       value={pickerTime}
                       onChange={(e) => setPickerTime(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      style={inputStyle}
                     />
                   </div>
-                  <div className="flex-1">
-                    <label className="text-[11px] text-zinc-500">Fine</label>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 8, letterSpacing: '0.08em', color: theme.ink2 }}>
+                      FINE
+                    </label>
                     <input
                       type="time"
                       value={pickerEndTime}
                       onChange={(e) => setPickerEndTime(e.target.value)}
                       onClick={(e) => e.stopPropagation()}
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
+                      style={inputStyle}
                     />
                   </div>
                 </div>
               )}
               <button
                 onClick={handlePickerConfirm}
-                className="mt-1 w-full bg-blue-500 hover:bg-blue-400 text-white text-xs font-medium py-1.5 rounded transition-colors"
+                className="px-press"
+                style={{
+                  marginTop: 4,
+                  width: '100%',
+                  background: theme.accent, color: theme.onAccent,
+                  border: `2px solid ${theme.border}`,
+                  padding: '8px 0',
+                  fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+                  letterSpacing: '0.08em', textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
               >
                 Conferma
               </button>
@@ -507,6 +638,7 @@ function TagDropdown({
   onClose: () => void;
   anchorRef: React.RefObject<HTMLElement | null>;
 }) {
+  const theme = usePixelTheme();
   const ref = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
   const { getEmoji: getTypeEmoji, getColor: getTypeColor } = useTagTypes();
@@ -571,31 +703,71 @@ function TagDropdown({
   return createPortal(
     <div
       ref={ref}
-      className="fixed w-48 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1 max-h-64 overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="fixed overflow-y-auto"
+      style={{
+        top: pos.top, left: pos.left, zIndex: 9999,
+        width: 200, maxHeight: 256,
+        background: theme.surface,
+        border: `2px solid ${theme.border}`,
+        boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+      }}
     >
       {isBulk && (
-        <p className="text-xs text-blue-400 px-3 py-1.5 border-b border-zinc-800">
-          {tileIds.length} tile selezionati
+        <p
+          style={{
+            padding: '6px 12px',
+            borderBottom: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+            letterSpacing: '0.08em', color: theme.accent,
+          }}
+        >
+          {tileIds.length} TILE SELEZIONATI
         </p>
       )}
       {visibleTags.length === 0 ? (
-        <p className="text-xs text-zinc-500 px-3 py-2">Nessun tag disponibile</p>
+        <p
+          style={{
+            padding: '8px 12px',
+            fontFamily: 'var(--font-pixel-body)', fontSize: 11,
+            color: theme.ink3,
+          }}
+        >
+          Nessun tag disponibile
+        </p>
       ) : (
         visibleTags.map((tag) => {
           const isAssigned = tag.id === assignedTagId;
           return (
             <button
               key={tag.id}
-              className={cn('flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors', isAssigned && 'bg-zinc-800')}
               onClick={(e) => {
                 e.stopPropagation();
                 tagMutation.mutate({ tagId: tag.id, action: isAssigned ? 'remove' : 'add' });
               }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = theme.surfaceMuted; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = isAssigned ? theme.surfaceMuted : 'transparent'; }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 8,
+                width: '100%', padding: '8px 12px',
+                background: isAssigned ? theme.surfaceMuted : 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+              }}
             >
               <TagTypeIcon emoji={getTypeEmoji(tag.tag_type || 'topic')} size={13} />
-              <span className={cn('flex-1 truncate', isAssigned ? 'text-white font-medium' : 'text-zinc-400')} style={{ color: isAssigned ? getTypeColor(tag.tag_type || 'topic') || '#94A3B8' : undefined }}>{tag.name}</span>
-              {isAssigned && <IconCheck className="h-3 w-3 text-blue-400 shrink-0" />}
+              <span
+                className="flex-1 truncate"
+                style={{
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  fontWeight: isAssigned ? 600 : 400,
+                  color: isAssigned ? getTypeColor(tag.tag_type || 'topic') || theme.ink : theme.ink2,
+                }}
+              >
+                {tag.name}
+              </span>
+              {isAssigned && <IconCheck size={11} style={{ color: theme.accent, flexShrink: 0 }} />}
             </button>
           );
         })
@@ -606,195 +778,142 @@ function TagDropdown({
 }
 
 // ─── Spark thumbnail (loads signed URL for images) ───
-// ─── Status shape SVG for table cells ───
-function CellStatusSvg({ shape, color }: { shape: string; color: string }) {
-  const id = `cell-${shape}-${color.replace('#', '')}`;
-  switch (shape) {
-    case 'diagonal_ltr':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-dltr`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-dltr)`} />
-        </svg>
-      );
-    case 'diagonal_rtl':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-drtl`} patternUnits="userSpaceOnUse" width={12} height={12} patternTransform="rotate(-45)"><line x1={0} y1={0} x2={0} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect x={5} y={5} width={70} height={22} rx={2} fill={`url(#${id}-drtl)`} />
-        </svg>
-      );
-    case 'vertical':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <defs><pattern id={`${id}-vert`} patternUnits="userSpaceOnUse" width={12} height={12}><line x1={6} y1={0} x2={6} y2={12} stroke={color} strokeWidth={6} strokeOpacity={0.8} /></pattern></defs>
-          <rect width={80} height={32} fill={`url(#${id}-vert)`} />
-        </svg>
-      );
-    case 'square':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <rect x={4} y={3} width={72} height={26} fill="none" stroke={color} strokeWidth={3} strokeOpacity={1} rx={3} />
-        </svg>
-      );
-    case 'target':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <circle cx={40} cy={16} r={10} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={40} cy={16} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={40} cy={16} r={2} fill={color} fillOpacity={1} />
-        </svg>
-      );
-    case 'cross':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <line x1={10} y1={10} x2={70} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
-          <line x1={70} y1={10} x2={10} y2={22} stroke={color} strokeWidth={5} strokeOpacity={1} strokeLinecap="round" />
-        </svg>
-      );
-    case 'bubble':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
-          <circle cx={42} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.85} />
-          <circle cx={56} cy={14} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={1} />
-          <circle cx={70} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-          <circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.9} />
-          <circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={0.8} />
-        </svg>
-      );
-    case 'question':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">?</text>
-        </svg>
-      );
-    case 'exclamation':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <text x={40} y={26} textAnchor="middle" fontSize={28} fontWeight="bold" fill={color} fillOpacity={1} fontFamily="sans-serif">!</text>
-        </svg>
-      );
-    case 'arrows':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <line x1={10} y1={11} x2={55} y2={11} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
-          <polyline points="48,5 58,11 48,17" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
-          <line x1={70} y1={21} x2={25} y2={21} stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" />
-          <polyline points="32,15 22,21 32,27" fill="none" stroke={color} strokeWidth={3} strokeOpacity={0.8} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      );
-    case 'hourglass':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <path d="M32,7 L48,7 L40,16 L48,25 L32,25 L40,16 Z" fill="none" stroke={color} strokeWidth={3.5} strokeOpacity={1} strokeLinejoin="round" strokeLinecap="round" />
-        </svg>
-      );
-    case 'pause_bars':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <rect x={34} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
-          <rect x={42} y={6} width={5} height={20} rx={1} fill={color} fillOpacity={1} />
-        </svg>
-      );
-    case 'lock':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="xMidYMid meet">
-          <path d="M34,14 V10 a6,6 0 0 1 12,0 V14" fill="none" stroke={color} strokeWidth={1.8} strokeOpacity={1} strokeLinecap="round" />
-          <rect x={30} y={14} width={20} height={14} rx={2} fill={color} fillOpacity={0.9} />
-        </svg>
-      );
-    case 'shade':
-      return (
-        <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 32" preserveAspectRatio="none">
-          <rect width={80} height={32} fill="#000000" opacity={0.5} />
-        </svg>
-      );
-    default:
-      return null;
-  }
-}
-
 function SparkThumbnail({ path }: { path: string }) {
+  const theme = usePixelTheme();
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     uploadApi.getSignedUrl(path).then((res) => {
       if (res.success && res.data) setUrl(res.data.url);
     }).catch(() => {});
   }, [path]);
-  if (!url) return <div className="h-10 w-10 rounded bg-zinc-700 animate-pulse shrink-0" />;
+  if (!url) {
+    return (
+      <div
+        className="animate-pulse shrink-0"
+        style={{
+          height: 40, width: 40,
+          background: theme.surfaceMuted,
+          border: `2px solid ${theme.border}`,
+        }}
+      />
+    );
+  }
   return (
     <img
       src={url}
       alt=""
-      className="h-10 w-10 rounded object-cover shrink-0"
+      className="shrink-0 object-cover"
+      style={{
+        height: 40, width: 40,
+        border: `2px solid ${theme.border}`,
+      }}
     />
   );
 }
 
 // ─── Spark chip (inline preview per spark) ───
 function SparkChip({ spark }: { spark: { id: string; type: SparkType; content?: string; storage_path?: string; file_name?: string } }) {
+  const theme = usePixelTheme();
   const t = spark.type;
 
-  // Photo / Image → small thumbnail
+  // Tinted square 40×40 wrapper used by all icon variants. Picks the bg
+  // from `theme.tint` (palette pastel) and the icon stroke from `theme.cap`
+  // (palette saturated). 2px hard border = pixel chrome.
+  const iconSquare = (
+    typeKey: 'photo' | 'video' | 'voice' | 'file' | 'gallery' | 'text',
+    Icon: typeof IconPhoto,
+  ) => (
+    <div
+      className="flex items-center justify-center shrink-0"
+      style={{
+        height: 40, width: 40,
+        background: theme.tint[typeKey],
+        border: `2px solid ${theme.cap[typeKey]}`,
+      }}
+    >
+      <Icon size={14} style={{ color: theme.cap[typeKey] }} />
+    </div>
+  );
+
+  // Photo → thumbnail when available, else icon square (theme.cap.photo)
   if (t === 'photo' || t === 'image') {
     const thumbPath = spark.storage_path;
     if (thumbPath) return <SparkThumbnail path={thumbPath} />;
-    return (
-      <div className="h-10 w-10 rounded bg-blue-500/15 border border-blue-500/30 flex items-center justify-center shrink-0">
-        <IconPhoto className="h-3.5 w-3.5 text-blue-400" />
-      </div>
-    );
+    return iconSquare(t === 'image' ? 'gallery' : 'photo', IconPhoto);
   }
 
-  // Video → icon
-  if (t === 'video') {
-    return (
-      <div className="h-10 w-10 rounded bg-orange-500/15 border border-orange-500/30 flex items-center justify-center shrink-0">
-        <IconMovie className="h-3.5 w-3.5 text-orange-400" />
-      </div>
-    );
-  }
+  // Video → cap.video square
+  if (t === 'video') return iconSquare('video', IconMovie);
 
-  // Audio → icon
-  if (t === 'audio_recording') {
-    return (
-      <div className="h-10 w-10 rounded bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-        <IconMicrophone className="h-3.5 w-3.5 text-red-400" />
-      </div>
-    );
-  }
+  // Audio → cap.voice square
+  if (t === 'audio_recording') return iconSquare('voice', IconMicrophone);
 
-  // Text → excerpt
+  // Text → excerpt card (no rounded; pixel border + body font)
   if (t === 'text' && spark.content) {
     return (
-      <div className="px-2 py-1 rounded bg-[#1f1f23]/80 overflow-hidden text-left w-full">
-        <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2 whitespace-normal" style={{ wordBreak: 'break-word' }}>
+      <div
+        className="overflow-hidden text-left w-full"
+        style={{
+          padding: '6px 8px',
+          background: theme.tint.text,
+          border: `2px solid ${theme.cap.text}`,
+        }}
+      >
+        <p
+          className="line-clamp-2 whitespace-normal"
+          style={{
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            lineHeight: 1.4,
+            color: theme.ink,
+            wordBreak: 'break-word',
+          }}
+        >
           {spark.content}
         </p>
       </div>
     );
   }
 
-  // File → attachment icon + name
+  // File → label chip with cap.file color
   if (t === 'file') {
     return (
-      <div className="flex items-center gap-1 px-2 rounded bg-yellow-500/10 border border-yellow-500/20 shrink-0 max-w-[160px] h-10">
-        <IconPaperclip className="h-3 w-3 text-yellow-400 shrink-0" />
-        <span className="text-[11px] text-yellow-300/80 truncate">
+      <div
+        className="flex items-center gap-1 shrink-0"
+        style={{
+          padding: '0 8px',
+          height: 40,
+          maxWidth: 160,
+          background: theme.tint.file,
+          border: `2px solid ${theme.cap.file}`,
+        }}
+      >
+        <IconPaperclip size={11} style={{ color: theme.cap.file, flexShrink: 0 }} />
+        <span
+          className="truncate"
+          style={{
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            color: theme.ink,
+          }}
+        >
           {spark.file_name || 'file'}
         </span>
       </div>
     );
   }
 
-  // Fallback
+  // Fallback: neutral pixel square
   return (
-    <div className="h-8 w-8 rounded bg-zinc-700/50 border border-zinc-600 flex items-center justify-center shrink-0">
-      <IconFileText className="h-3.5 w-3.5 text-zinc-400" />
+    <div
+      className="flex items-center justify-center shrink-0"
+      style={{
+        height: 32, width: 32,
+        background: theme.surfaceMuted,
+        border: `2px solid ${theme.border}`,
+      }}
+    >
+      <IconFileText size={13} style={{ color: theme.ink2 }} />
     </div>
   );
 }
@@ -811,6 +930,7 @@ function ResizableHead({
   onResize: (w: number) => void;
   className?: string;
 }) {
+  const theme = usePixelTheme();
   const startX = useRef(0);
   const startW = useRef(0);
 
@@ -840,12 +960,37 @@ function ResizableHead({
   );
 
   return (
-    <TableHead className={cn('relative', className)} style={{ width, minWidth: width, maxWidth: width }}>
-      <span className="truncate">{children}</span>
+    <TableHead
+      className={cn('relative', className)}
+      style={{
+        width, minWidth: width, maxWidth: width,
+        background: theme.surfaceVariant,
+        borderRight: `2px solid ${theme.border}`,
+        borderBottom: `2px solid ${theme.border}`,
+      }}
+    >
+      <span
+        className="truncate"
+        style={{
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink2,
+        }}
+      >
+        {children}
+      </span>
       <div
         onMouseDown={onMouseDown}
-        className="absolute top-0 bottom-0 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
-        style={{ right: -2, width: 5 }}
+        className="absolute top-0 bottom-0 cursor-col-resize z-10 transition-colors"
+        style={{
+          right: -2,
+          width: 5,
+          background: 'transparent',
+        }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = `${theme.accent}66`; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
       />
     </TableHead>
   );
@@ -855,8 +1000,10 @@ const TYPE_LABELS: Record<string, string> = { none: 'NOTES', anytime: 'TO DO', d
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string; style?: React.CSSProperties }>>;
 
 function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Tile; colWidths: { dataScad: number; type: number; status: number }; onUpdate: (tileId: string, updates: Record<string, unknown>) => void; getColor: (type: string) => string | undefined }) {
+  const theme = usePixelTheme();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const assignIcon = useTypeIcons((s) => s.assignIcon);
   const { statuses } = useStatuses();
 
   const tiId = typeTileIcons[tile.id];
@@ -890,33 +1037,243 @@ function TipoTypeStatusCells({ tile, colWidths, onUpdate, getColor }: { tile: Ti
     }
   };
 
+  // Shared cell border (matches TileRow.cellBorder).
+  const cellBorder = { borderRight: `2px solid ${theme.border}`, borderBottom: `2px solid ${theme.border}` };
+
   return (
     <>
-      {/* Type */}
-      <TableCell className="border-r border-zinc-800" style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type }}>
-        {ti && TiComp ? (
-          <div className="flex items-center gap-2.5">
-            <div className="w-6 h-6 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: ti.color || '#27272A' }}>
-              <TiComp size={16} color={readableOn(ti.color || '#27272A')} />
-            </div>
-            <span className="text-xs text-zinc-400 truncate">{ti.name}</span>
-          </div>
-        ) : (
-          <span className="text-zinc-600 text-xs">—</span>
-        )}
+      {/* Type — inline picker */}
+      <TableCell
+        className="overflow-visible"
+        style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type, ...cellBorder }}
+      >
+        <InlineTypePicker
+          icons={typeIcons}
+          currentIconId={tiId || null}
+          onChange={(id) => assignIcon(tile.id, id)}
+        />
       </TableCell>
-      <TableCell className="border-r border-zinc-800 overflow-hidden" style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
-        {status && status.shape !== 'solid' ? (
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="relative w-6 h-6 rounded overflow-hidden shrink-0" style={{ backgroundColor: '#27272A' }}>
-              <CellStatusSvg shape={status.shape} color="#e4e4e7" />
-            </div>
-            <span className="text-xs text-zinc-400 truncate">{status.name}</span>
-          </div>
-        ) : (
-          <span className="text-zinc-600 text-xs">—</span>
-        )}
+      {/* Status — inline picker */}
+      <TableCell
+        className="overflow-visible"
+        style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status, ...cellBorder }}
+      >
+        <InlineStatusPicker
+          statuses={statuses}
+          currentStatusId={tile.status_id || null}
+          onChange={(id) => onUpdate(tile.id, { status_id: id })}
+        />
       </TableCell>
+    </>
+  );
+}
+
+// Generic shared popup chrome used by both Type and Status pickers — mirrors
+// the look of InlineActionDropdown so all three column selectors feel the same.
+function inlinePickerTrigger(theme: ReturnType<typeof usePixelTheme>): React.CSSProperties {
+  return {
+    width: '100%',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '0 6px',
+    minHeight: 30,
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 11,
+    cursor: 'pointer',
+    textAlign: 'left',
+  };
+}
+
+function inlinePickerPopup(theme: ReturnType<typeof usePixelTheme>): React.CSSProperties {
+  return {
+    background: theme.surface,
+    border: `2px solid ${theme.border}`,
+    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    padding: 4,
+    maxHeight: 240,
+    overflowY: 'auto',
+  };
+}
+
+function inlinePickerItem(theme: ReturnType<typeof usePixelTheme>, active: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  };
+}
+
+function InlineTypePicker({
+  icons,
+  currentIconId,
+  onChange,
+}: {
+  icons: { id: string; name: string; icon: string; color?: string }[];
+  currentIconId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const theme = usePixelTheme();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = icons.find((i) => i.id === currentIconId);
+  const CurrentComp = current?.icon ? AllIcons[current.icon] : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(180, r.width) });
+    }
+    const onDown = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button ref={triggerRef} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={inlinePickerTrigger(theme)}>
+        {current && CurrentComp ? (
+          <>
+            <div style={{ width: 18, height: 18, background: current.color || theme.surfaceVariant, border: `2px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <CurrentComp size={10} color={readableOn(current.color || theme.surfaceVariant)} />
+            </div>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1 }}>—</span>
+        )}
+        <IconChevronDown size={11} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={dropRef} className="fixed" style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999, ...inlinePickerPopup(theme) }}>
+          <button onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }} style={inlinePickerItem(theme, !currentIconId)}>
+            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1 }}>Nessuno</span>
+            {!currentIconId && <IconCheck size={11} style={{ color: theme.accent }} />}
+          </button>
+          {icons.map((icon) => {
+            const Comp = AllIcons[icon.icon];
+            const isSel = icon.id === currentIconId;
+            return (
+              <button key={icon.id} onClick={(e) => { e.stopPropagation(); onChange(icon.id); setOpen(false); }} style={inlinePickerItem(theme, isSel)}>
+                {Comp && (
+                  <div style={{ width: 18, height: 18, background: icon.color || theme.surfaceVariant, border: `2px solid ${theme.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Comp size={10} color={readableOn(icon.color || theme.surfaceVariant)} />
+                  </div>
+                )}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon.name}</span>
+                {isSel && <IconCheck size={11} style={{ color: theme.accent }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+}
+
+function InlineStatusPicker({
+  statuses,
+  currentStatusId,
+  onChange,
+}: {
+  statuses: { id: string; name: string; shape: string }[];
+  currentStatusId: string | null;
+  onChange: (id: string | null) => void;
+}) {
+  const theme = usePixelTheme();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = statuses.find((s) => s.id === currentStatusId);
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: Math.max(180, r.width) });
+    }
+    const onDown = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    const onScroll = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('scroll', onScroll, true);
+    };
+  }, [open]);
+
+  const renderShape = (shape: string) => (
+    <div style={{ width: 18, height: 18, background: theme.surfaceVariant, border: `2px solid ${theme.border}`, position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+      <StatusPattern shape={shape as StatusShape} color={theme.ink} bg={theme.surfaceVariant} />
+    </div>
+  );
+
+  return (
+    <>
+      <button ref={triggerRef} onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }} style={inlinePickerTrigger(theme)}>
+        {current ? (
+          <>
+            {renderShape(current.shape)}
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1 }}>—</span>
+        )}
+        <IconChevronDown size={11} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={dropRef} className="fixed" style={{ top: pos.top, left: pos.left, width: pos.width, zIndex: 9999, ...inlinePickerPopup(theme) }}>
+          <button onClick={(e) => { e.stopPropagation(); onChange(null); setOpen(false); }} style={inlinePickerItem(theme, !currentStatusId)}>
+            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1 }}>Nessuno</span>
+            {!currentStatusId && <IconCheck size={11} style={{ color: theme.accent }} />}
+          </button>
+          {statuses.map((s) => {
+            const isSel = s.id === currentStatusId;
+            return (
+              <button key={s.id} onClick={(e) => { e.stopPropagation(); onChange(s.id); setOpen(false); }} style={inlinePickerItem(theme, isSel)}>
+                {renderShape(s.shape)}
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{s.name}</span>
+                {isSel && <IconCheck size={11} style={{ color: theme.accent }} />}
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
@@ -948,6 +1305,7 @@ function TileRow({
   getEmoji: (slug: string) => string;
   getColor: (slug: string) => string | undefined;
 }) {
+  const theme = usePixelTheme();
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagCellRef = useRef<HTMLTableCellElement>(null);
   const queryClient = useQueryClient();
@@ -965,10 +1323,18 @@ function TileRow({
     onError: () => toast.error("Errore durante l'eliminazione"),
   });
 
+  // Shared cell style — 2px hard bottom + right border (Pixel chrome), zero
+  // border-radius. Applied via inline style so it wins over shadcn classes.
+  const cellBorder = { borderRight: `2px solid ${theme.border}`, borderBottom: `2px solid ${theme.border}` };
+
+  // Title color: unread → red (kept as-is, semantic), done → ink3 (dimmed),
+  // default → ink2.
+  const titleColor = isDone ? theme.ink3 : isUnread ? '#E24B4A' : theme.ink2;
+
   return (
     <Fragment>
       <TableRow
-        className={cn("border-zinc-800 cursor-pointer h-12 group/row", isDone && "[&>td]:opacity-40")}
+        className={cn("cursor-pointer h-12 group/row", isDone && "[&>td]:opacity-40")}
         style={{ height: 48, maxHeight: 48 }}
         onClick={() => {
           if (selectedIds.size > 0) {
@@ -979,30 +1345,53 @@ function TileRow({
           }
         }}
       >
-        <TableCell className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
+        {/* Selection checkbox — square pixel-style, accent when checked */}
+        <TableCell style={{ width: 40, minWidth: 40, maxWidth: 40, ...cellBorder }}>
           <button
             onClick={(e) => { e.stopPropagation(); onSelect(tile.id, !selected); }}
-            className={cn(
-              'h-4 w-4 rounded flex items-center justify-center border transition-colors',
-              selected
-                ? 'bg-blue-500 border-blue-500'
-                : 'bg-transparent border-zinc-600 opacity-0 group-hover/row:opacity-100'
-            )}
+            className={cn('flex items-center justify-center transition-opacity', !selected && 'opacity-0 group-hover/row:opacity-100')}
+            style={{
+              width: 16,
+              height: 16,
+              background: selected ? theme.accent : 'transparent',
+              border: `2px solid ${selected ? theme.accent : theme.border}`,
+            }}
           >
-            {selected && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
+            {selected && <IconCheck className="h-3 w-3" stroke={3} style={{ color: theme.onAccent }} />}
           </button>
         </TableCell>
-        <TableCell className={cn('text-xs border-r border-zinc-800 truncate', isDone ? 'text-zinc-500' : isUnread ? 'text-red-400' : 'text-zinc-400')} style={{ width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title }}>
+
+        {/* Title cell — pixel body font for legibility on long titles */}
+        <TableCell
+          className="truncate"
+          style={{
+            width: colWidths.title, minWidth: colWidths.title, maxWidth: colWidths.title,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            color: titleColor,
+            ...cellBorder,
+          }}
+        >
           {tile.title || `Tile ${tile.id.slice(0, 8)}`}
         </TableCell>
-        <TableCell className="border-r border-zinc-800 overflow-visible" style={{ width: colWidths.actionType, minWidth: colWidths.actionType, maxWidth: colWidths.actionType }}>
+
+        {/* Action type dropdown — InlineActionDropdown retains its internal
+            styling; the cell just provides the 2px border chrome. */}
+        <TableCell
+          className="overflow-visible"
+          style={{ width: colWidths.actionType, minWidth: colWidths.actionType, maxWidth: colWidths.actionType, ...cellBorder }}
+        >
           <InlineActionDropdown
             tile={tile}
             onUpdate={(data) => onActionTypeChange(tile.id, data)}
           />
         </TableCell>
+
         {/* Schedule (Date / Start / End) */}
-        <TableCell className="border-r border-zinc-800 p-0.5" style={{ width: colWidths.dataScad, minWidth: colWidths.dataScad, maxWidth: colWidths.dataScad }}>
+        <TableCell
+          className="p-0.5"
+          style={{ width: colWidths.dataScad, minWidth: colWidths.dataScad, maxWidth: colWidths.dataScad, ...cellBorder }}
+        >
           {(() => {
             const hasDate = tile.action_type === 'deadline' || tile.action_type === 'event';
             const dateRef = tile.action_type === 'deadline' ? tile.end_at : tile.start_at;
@@ -1022,12 +1411,21 @@ function TileRow({
                 onActionTypeChange(tile.id, { action_type: 'event', start_at: new Date(`${newDate}T00:00:00`).toISOString(), end_at: new Date(`${newDate}T23:59:59`).toISOString() } as any);
               }
             };
-            if (!hasDate) return <span className="text-zinc-600 text-xs px-1">—</span>;
+            if (!hasDate) return <span style={{ color: theme.ink3, fontSize: 11, padding: '0 4px' }}>—</span>;
             return (
               <div className="flex flex-col">
-                <input type="date" value={dateVal} onChange={(e) => updateDate(e.target.value)}
-                  className="w-full bg-transparent px-1 text-xs text-zinc-400 focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60"
-                  style={{ colorScheme: 'dark' }} />
+                <input
+                  type="date"
+                  value={dateVal}
+                  onChange={(e) => updateDate(e.target.value)}
+                  className="w-full bg-transparent px-1 focus:outline-none cursor-pointer [&::-webkit-calendar-picker-indicator]:opacity-60"
+                  style={{
+                    colorScheme: 'dark',
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 11,
+                    color: theme.ink2,
+                  }}
+                />
                 {isTimed && (
                   <div className="flex items-center px-1">
                     <TimePicker
@@ -1035,7 +1433,7 @@ function TileRow({
                       onChange={(t) => { if (dateVal) onActionTypeChange(tile.id, { action_type: 'event', start_at: new Date(`${dateVal}T${t}`).toISOString() } as any); }}
                       borderless
                     />
-                    <span className="text-zinc-500 text-[10px] mx-0.5">-</span>
+                    <span style={{ color: theme.ink3, fontSize: 10, margin: '0 2px' }}>-</span>
                     <TimePicker
                       value={`${endH || '10'}:${endM || '00'}`}
                       onChange={(t) => { if (dateVal) onActionTypeChange(tile.id, { action_type: 'event', end_at: new Date(`${dateVal}T${t}`).toISOString() } as any); }}
@@ -1047,10 +1445,17 @@ function TileRow({
             );
           })()}
         </TableCell>
+
+        {/* Tag cell — hover uses theme.surfaceMuted instead of zinc */}
         <TableCell
           ref={tagCellRef}
-          className="border-r border-zinc-800 overflow-visible py-1 cursor-pointer hover:bg-zinc-800/50 transition-colors"
-          style={{ width: colWidths.tags, minWidth: colWidths.tags, maxWidth: colWidths.tags }}
+          className="overflow-visible py-1 cursor-pointer transition-colors"
+          style={{
+            width: colWidths.tags, minWidth: colWidths.tags, maxWidth: colWidths.tags,
+            ...cellBorder,
+          }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLTableCellElement).style.background = theme.surfaceMuted; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLTableCellElement).style.background = 'transparent'; }}
           onClick={(e) => {
             e.stopPropagation();
             setTagDropdownOpen(!tagDropdownOpen);
@@ -1063,14 +1468,23 @@ function TileRow({
               if (displayTag) {
                 return (
                   <div className="flex items-center gap-2.5 flex-1 min-w-0">
-                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={16} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || '#64748B'} />
-                    <span className="text-xs text-zinc-400 truncate flex-1">{displayTag.name}</span>
+                    <TagTypeIcon emoji={getEmoji((displayTag as { tag_type?: string }).tag_type || 'topic')} size={16} color={getColor((displayTag as { tag_type?: string }).tag_type || 'topic') || theme.ink3} />
+                    <span
+                      className="truncate flex-1"
+                      style={{
+                        fontFamily: 'var(--font-pixel-body)',
+                        fontSize: 12,
+                        color: theme.ink2,
+                      }}
+                    >
+                      {displayTag.name}
+                    </span>
                   </div>
                 );
               }
-              return <span className="text-zinc-600 text-xs flex-1">—</span>;
+              return <span style={{ color: theme.ink3, fontSize: 11, flex: 1 }}>—</span>;
             })()}
-            <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />
+            <IconChevronDown size={11} style={{ color: theme.ink3, flexShrink: 0 }} />
           </div>
           <TagDropdown
             tileIds={selected && selectedIds.size > 1 ? Array.from(selectedIds) : [tile.id]}
@@ -1081,40 +1495,69 @@ function TileRow({
             anchorRef={tagCellRef}
           />
         </TableCell>
+
         <TipoTypeStatusCells tile={tile} colWidths={colWidths} onUpdate={(id, updates) => onActionTypeChange(id, updates as any)} getColor={getColor} />
-        <TableCell className="border-r border-zinc-800 overflow-hidden py-1" style={{ width: colWidths.sparks, maxWidth: colWidths.sparks }}>
+
+        {/* Sparks cell */}
+        <TableCell
+          className="overflow-hidden py-1"
+          style={{ width: colWidths.sparks, maxWidth: colWidths.sparks, ...cellBorder }}
+        >
           {tile.sparks && tile.sparks.length > 0 ? (
             <div className="flex gap-1.5 items-center min-w-0 w-full">
               {tile.sparks.map((spark) => (
                 <div
                   key={spark.id}
-                  className={cn(
-                    spark.type === 'text' ? 'flex-1 w-0 overflow-hidden' : 'shrink-0'
-                  )}
+                  className={cn(spark.type === 'text' ? 'flex-1 w-0 overflow-hidden' : 'shrink-0')}
                 >
                   <SparkChip spark={spark} />
                 </div>
               ))}
             </div>
           ) : (
-            <span className="text-zinc-600 text-sm">—</span>
+            <span style={{ color: theme.ink3, fontSize: 12 }}>—</span>
           )}
         </TableCell>
-        <TableCell className="text-zinc-400 text-xs border-r border-zinc-800" style={{ width: 80, minWidth: 80, maxWidth: 80 }}>
+
+        {/* Created date */}
+        <TableCell
+          style={{
+            width: 80, minWidth: 80, maxWidth: 80,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 11,
+            color: theme.ink2,
+            ...cellBorder,
+          }}
+        >
           {new Date(tile.created_at).toLocaleDateString('it-IT')}
         </TableCell>
-        <TableCell className="text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }}>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7 text-zinc-500 hover:text-red-400"
+
+        {/* Delete button — pixel square */}
+        <TableCell
+          className="text-right"
+          style={{ width: 56, minWidth: 56, maxWidth: 56, ...cellBorder }}
+        >
+          <button
+            aria-label="Elimina tile"
+            className="px-press"
             onClick={(e) => {
               e.stopPropagation();
               deleteMutation.mutate(tile.id);
             }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 26,
+              height: 26,
+              background: theme.surface,
+              color: '#E24B4A',
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+            }}
           >
-            <IconTrash className="h-3.5 w-3.5" />
-          </Button>
+            <IconTrash size={13} />
+          </button>
         </TableCell>
       </TableRow>
     </Fragment>
@@ -1122,6 +1565,7 @@ function TileRow({
 }
 
 export default function TilesPage() {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const actionColors = useActionColors();
   const { getEmoji, getColor } = useTagTypes();
@@ -1299,17 +1743,16 @@ export default function TilesPage() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0">
+    <div className="flex flex-col h-full min-h-0" style={{ background: theme.bg1 }}>
       <Header
         title="Tiles"
         actions={selectedIds.size > 0 ? (
           <div className="flex items-center gap-2">
-            <Badge className="bg-blue-500/20 text-blue-400">
-              {selectedIds.size} selezionat{selectedIds.size === 1 ? 'o' : 'i'}
-            </Badge>
-            <Button
-              variant="ghost"
-              size="sm"
+            <PixelBadge bg={theme.accent} color={theme.onAccent}>
+              {selectedIds.size} SEL.
+            </PixelBadge>
+            <button
+              className="px-press"
               onClick={async () => {
                 const ids = Array.from(selectedIds);
                 const results = await Promise.all(ids.map((id) => tilesApi.delete(id)));
@@ -1324,71 +1767,109 @@ export default function TilesPage() {
                   toast.error(`${failed} tile non eliminat${failed === 1 ? 'o' : 'i'}`);
                 }
               }}
-              className="text-red-400 hover:text-red-300 hover:bg-red-950/50 h-8 px-3"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 28, padding: '0 10px',
+                background: theme.surfaceVariant, color: '#E24B4A',
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+                letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
             >
-              <IconTrash className="h-4 w-4 mr-1.5" />
+              <IconTrash size={12} />
               Elimina ({selectedIds.size})
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+            </button>
+            <button
+              className="px-press"
               onClick={() => {
                 const { markRead } = useTileNotificationStore.getState();
                 selectedIds.forEach((id) => markRead(id));
                 setSelectedIds(new Set());
                 toast.success(`${selectedIds.size} tile segnat${selectedIds.size === 1 ? 'o' : 'i'} come lett${selectedIds.size === 1 ? 'o' : 'i'}`);
               }}
-              className="text-blue-400 hover:text-blue-300 hover:bg-blue-950/50 h-8 px-3"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 28, padding: '0 10px',
+                background: theme.surfaceVariant, color: theme.accent,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+                letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
             >
-              <IconChecks className="h-4 w-4 mr-1.5" />
-              Segna come letti
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
+              <IconChecks size={12} />
+              Letti
+            </button>
+            <button
+              aria-label="Deseleziona"
+              className="px-press"
               onClick={() => setSelectedIds(new Set())}
-              className="text-zinc-400 hover:text-zinc-300 h-8 px-2"
+              style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                width: 28, height: 28,
+                background: theme.surfaceVariant, color: theme.ink2,
+                border: `2px solid ${theme.border}`, cursor: 'pointer',
+              }}
             >
-              <IconX className="h-4 w-4" />
-            </Button>
+              <IconX size={13} />
+            </button>
           </div>
         ) : undefined}
       />
 
       <div className="flex flex-1 overflow-hidden">
       <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
-        {/* AI Filter Banner */}
+        {/* AI Filter banner — accent pixel card, identical pattern to Sparks */}
         {aiFilterIds && (
-          <div className="flex items-center justify-between rounded-lg border border-purple-500/30 bg-purple-500/10 px-4 py-2.5">
-            <p className="text-sm text-purple-400">
-              Filtro AI attivo — {tiles.length} tile trovati
+          <PixelCard
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '10px 14px',
+              background: `${theme.accent}22`,
+              border: `2px solid ${theme.accent}`,
+            }}
+          >
+            <p style={{
+              fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+              letterSpacing: '0.06em', color: theme.accent,
+            }}>
+              FILTRO AI ATTIVO — {tiles.length} TILE TROVATI
             </p>
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={clearFilter}
-              className="text-purple-400 hover:text-purple-300 hover:bg-purple-500/20 h-7 px-2"
+              className="px-press"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                height: 28, padding: '0 10px',
+                background: 'transparent', color: theme.accent,
+                border: `2px solid ${theme.accent}`,
+                fontFamily: 'var(--font-pixel-head)', fontSize: 8,
+                letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer',
+              }}
             >
-              <IconX className="h-3.5 w-3.5 mr-1" />
+              <IconX size={11} />
               Rimuovi filtro
-            </Button>
-          </div>
+            </button>
+          </PixelCard>
         )}
 
-        {/* Tile count + active filters */}
+        {/* Toolbar — count, add tile, clear filters */}
         <div className="flex items-center gap-2 flex-wrap">
-          <IconLayoutGrid className="h-5 w-5 text-zinc-400" />
-          <span className="text-sm text-zinc-400">
+          <IconLayoutGrid size={16} style={{ color: theme.ink2 }} />
+          <span style={{
+            fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+            letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.ink2,
+          }}>
             {tiles.length}{totalCount ? ` / ${totalCount}` : ''} tiles
           </span>
-          <Button
-            size="sm"
+          <PixelButton
+            bg={theme.accent}
+            color={theme.onAccent}
+            leading={<IconPlus size={12} />}
             onClick={handleAddTile}
-            className="bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 text-xs h-8"
+            style={{ padding: '6px 10px', fontSize: 9 }}
           >
-            <IconPlus className="h-3.5 w-3.5 mr-1.5" />
             Add Tile
-          </Button>
+          </PixelButton>
           {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo) && (
             <button
               onClick={() => {
@@ -1399,7 +1880,12 @@ export default function TilesPage() {
                 setDateFrom('');
                 setDateTo('');
               }}
-              className="text-xs text-blue-400 hover:text-blue-300 ml-2"
+              style={{
+                fontFamily: 'var(--font-pixel-head)', fontSize: 9,
+                letterSpacing: '0.08em', textTransform: 'uppercase',
+                color: theme.accent, marginLeft: 8,
+                background: 'transparent', border: 'none', cursor: 'pointer',
+              }}
             >
               Rimuovi filtri
             </button>
@@ -1408,33 +1894,62 @@ export default function TilesPage() {
 
         {/* Tiles table */}
         {isLoading ? (
-          <p className="text-center text-zinc-400 py-8">Caricamento...</p>
+          <p style={{
+            textAlign: 'center', padding: '32px 0',
+            fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+            letterSpacing: '0.1em', textTransform: 'uppercase', color: theme.ink2,
+          }}>
+            Caricamento...
+          </p>
         ) : tiles.length === 0 ? (
-          <div className="text-center py-16">
-            <IconLayoutGrid className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
-            <p className="text-zinc-400">Nessun tile trovato</p>
-            <p className="text-sm text-zinc-500 mt-1">
+          <div className="text-center" style={{ padding: '64px 0' }}>
+            <IconLayoutGrid size={48} style={{ color: theme.ink3, margin: '0 auto 16px' }} />
+            <p style={{
+              fontFamily: 'var(--font-pixel-head)', fontSize: 10,
+              letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.ink2,
+            }}>
+              Nessun tile trovato
+            </p>
+            <p style={{
+              fontFamily: 'var(--font-pixel-body)', fontSize: 12,
+              color: theme.ink3, marginTop: 6,
+            }}>
               I tiles vengono creati automaticamente quando invii più memo insieme
             </p>
           </div>
         ) : (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 min-h-0 overflow-hidden">
+          <PixelCard
+            style={{
+              flex: 1,
+              display: 'flex', flexDirection: 'column', minHeight: 0,
+              padding: 0, overflow: 'hidden',
+            }}
+          >
             <div className="flex-1 overflow-auto">
               <Table style={{ tableLayout: 'fixed', width: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56, minWidth: colWidths.title + colWidths.actionType + colWidths.sparks + colWidths.tags + colWidths.dataScad + colWidths.type + colWidths.status + 40 + 60 + 80 + 56 }}>
-                <TableHeader className="sticky top-0 z-10 bg-zinc-900">
-                  <TableRow className="border-zinc-800 hover:bg-transparent">
-                    <TableHead className="border-r border-zinc-800" style={{ width: 40, minWidth: 40, maxWidth: 40 }}>
+                <TableHeader
+                  className="sticky top-0 z-10"
+                  style={{ background: theme.surfaceVariant }}
+                >
+                  <TableRow className="hover:bg-transparent" style={{ borderColor: theme.border }}>
+                    <TableHead
+                      style={{
+                        width: 40, minWidth: 40, maxWidth: 40,
+                        background: theme.surfaceVariant,
+                        borderRight: `2px solid ${theme.border}`,
+                        borderBottom: `2px solid ${theme.border}`,
+                      }}
+                    >
                       <button
                         onClick={() => handleSelectAll(!allSelected)}
-                        className={`h-4 w-4 rounded flex items-center justify-center border transition-colors ${
-                          allSelected
-                            ? 'bg-blue-500 border-blue-500'
-                            : someSelected
-                              ? 'bg-blue-500/50 border-blue-500'
-                              : 'bg-transparent border-zinc-300'
-                        }`}
+                        className="flex items-center justify-center transition-colors"
+                        style={{
+                          width: 16, height: 16,
+                          background: allSelected ? theme.accent : someSelected ? `${theme.accent}99` : 'transparent',
+                          border: `2px solid ${allSelected || someSelected ? theme.accent : theme.border}`,
+                        }}
                       >
-                        {(allSelected || someSelected) && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
+                        {(allSelected || someSelected) && <IconCheck size={11} stroke={3} style={{ color: theme.onAccent }} />}
                       </button>
                     </TableHead>
                     <FilterableHead
@@ -1482,18 +1997,41 @@ export default function TilesPage() {
                     />
                     <TableHead
                       ref={dateHeadRef}
-                      className="text-zinc-400 border-r border-zinc-800 text-xs"
-                      style={{ width: 80, minWidth: 80, maxWidth: 80 }}
+                      style={{
+                        width: 80, minWidth: 80, maxWidth: 80,
+                        background: theme.surfaceVariant,
+                        borderRight: `2px solid ${theme.border}`,
+                        borderBottom: `2px solid ${theme.border}`,
+                      }}
                     >
                       <button
                         onClick={() => setOpenFilter(openFilter === 'date' ? null : 'date')}
                         className="flex items-center gap-1 w-full text-left"
+                        style={{
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          color: theme.ink2,
+                        }}
                       >
-                        <span className="text-xs truncate">Created</span>
-                        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', (dateFrom || dateTo) ? 'text-blue-400' : 'text-zinc-600')} />
+                        <span className="truncate">Created</span>
+                        <IconFilter
+                          size={11}
+                          className="shrink-0"
+                          style={{ color: (dateFrom || dateTo) ? theme.accent : theme.ink3 }}
+                        />
                       </button>
                     </TableHead>
-                    <TableHead className="text-zinc-400 text-right border-r border-zinc-800" style={{ width: 56, minWidth: 56, maxWidth: 56 }} />
+                    <TableHead
+                      className="text-right"
+                      style={{
+                        width: 56, minWidth: 56, maxWidth: 56,
+                        background: theme.surfaceVariant,
+                        borderRight: `2px solid ${theme.border}`,
+                        borderBottom: `2px solid ${theme.border}`,
+                      }}
+                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -1526,7 +2064,7 @@ export default function TilesPage() {
                 </TableBody>
               </Table>
             </div>
-          </div>
+          </PixelCard>
         )}
 
         {/* Infinite scroll sentinel */}
@@ -1541,21 +2079,51 @@ export default function TilesPage() {
 
       {/* Column filter popups */}
       <FilterPopup anchorRef={titleHeadRef} open={openFilter === 'title'} onClose={() => setOpenFilter(null)}>
-        <div className="w-48 flex flex-col gap-2">
-          <label className="text-[11px] text-zinc-500">Cerca nel titolo</label>
-          <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5">
-            <IconSearch className="h-3 w-3 text-zinc-500 shrink-0" />
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Cerca nel titolo
+          </label>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: theme.surfaceVariant,
+              border: `2px solid ${theme.border}`,
+              padding: '6px 8px',
+            }}
+          >
+            <IconSearch size={12} style={{ color: theme.ink3, flexShrink: 0 }} />
             <input
               type="text"
               value={titleFilter}
               onChange={(e) => setTitleFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              className="bg-transparent text-xs text-white w-full focus:outline-none placeholder:text-zinc-600"
+              style={{
+                background: 'transparent',
+                color: theme.ink,
+                width: '100%',
+                outline: 'none',
+                border: 'none',
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 11,
+              }}
             />
             {titleFilter && (
-              <button onClick={() => setTitleFilter('')} className="text-zinc-500 hover:text-zinc-300">
-                <IconX className="h-3 w-3" />
+              <button
+                onClick={() => setTitleFilter('')}
+                style={{ color: theme.ink3, background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex' }}
+              >
+                <IconX size={12} />
               </button>
             )}
           </div>
@@ -1563,8 +2131,19 @@ export default function TilesPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={actionHeadRef} open={openFilter === 'action'} onClose={() => setOpenFilter(null)}>
-        <div className="w-40 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Tipo azione</label>
+        <div style={{ width: 168, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              marginBottom: 4,
+            }}
+          >
+            Tipo azione
+          </label>
           {(['none', 'anytime', 'deadline', 'event'] as ActionType[]).map((at) => {
             const cfg = ACTION_TYPE_BADGE[at];
             const Icon = cfg.icon;
@@ -1572,7 +2151,6 @@ export default function TilesPage() {
             return (
               <button
                 key={at}
-                className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', active ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
                 onClick={() => {
                   setActionFilter((prev) => {
                     const next = new Set(prev);
@@ -1580,10 +2158,24 @@ export default function TilesPage() {
                     return next;
                   });
                 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: active ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${active ? theme.border : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  color: theme.ink2,
+                }}
               >
-                <Icon className="h-3.5 w-3.5" style={{ color: actionColors[at] }} />
-                <span className="text-zinc-300 flex-1">{cfg.label}</span>
-                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
+                <Icon size={14} style={{ color: actionColors[at] }} />
+                <span style={{ flex: 1 }}>{cfg.label}</span>
+                {active && <IconCheck size={12} style={{ color: theme.accent }} />}
               </button>
             );
           })}
@@ -1591,16 +2183,33 @@ export default function TilesPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={sparksHeadRef} open={openFilter === 'sparks'} onClose={() => setOpenFilter(null)}>
-        <div className="w-40 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Tipo spark</label>
+        <div style={{ width: 168, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              marginBottom: 4,
+            }}
+          >
+            Tipo spark
+          </label>
           {SPARK_TYPE_OPTIONS.map((opt) => {
             const active = sparkTypeFilter.has(opt.value);
             const TypeIcon = typeIcons[opt.value];
-            const iconColor = typeIconColors[opt.value];
+            const typeKey: CaptureKey | null =
+              opt.value === 'photo' || opt.value === 'image' ? 'photo'
+              : opt.value === 'video' ? 'video'
+              : opt.value === 'audio_recording' ? 'voice'
+              : opt.value === 'text' ? 'text'
+              : opt.value === 'file' ? 'file'
+              : null;
+            const iconColor = typeKey ? theme.cap[typeKey] : theme.ink2;
             return (
               <button
                 key={opt.value}
-                className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', active ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
                 onClick={() => {
                   setSparkTypeFilter((prev) => {
                     const next = new Set(prev);
@@ -1608,10 +2217,24 @@ export default function TilesPage() {
                     return next;
                   });
                 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: active ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${active ? theme.border : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  color: theme.ink2,
+                }}
               >
-                <TypeIcon className={cn('h-3.5 w-3.5', iconColor)} />
-                <span className="text-zinc-300 flex-1">{opt.label}</span>
-                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
+                <TypeIcon size={14} style={{ color: iconColor }} />
+                <span style={{ flex: 1 }}>{opt.label}</span>
+                {active && <IconCheck size={12} style={{ color: theme.accent }} />}
               </button>
             );
           })}
@@ -1619,17 +2242,29 @@ export default function TilesPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={tagsHeadRef} open={openFilter === 'tags'} onClose={() => setOpenFilter(null)}>
-        <div className="w-48 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Tags</label>
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              marginBottom: 4,
+            }}
+          >
+            Tags
+          </label>
           {allTags.length === 0 ? (
-            <p className="text-xs text-zinc-500 py-1">Nessun tag</p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, padding: '4px 0' }}>
+              Nessun tag
+            </p>
           ) : (
             allTags.map((tag) => {
               const active = tagFilter.has(tag.id);
               return (
                 <button
                   key={tag.id}
-                  className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', active ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
                   onClick={() => {
                     setTagFilter((prev) => {
                       const next = new Set(prev);
@@ -1637,10 +2272,24 @@ export default function TilesPage() {
                       return next;
                     });
                   }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 8px',
+                    textAlign: 'left',
+                    background: active ? theme.surfaceVariant : 'transparent',
+                    border: `2px solid ${active ? theme.border : 'transparent'}`,
+                    cursor: 'pointer',
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 11,
+                    color: theme.ink2,
+                  }}
                 >
-                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: '#94A3B8' }} />
-                  <span className="text-zinc-300 flex-1 truncate">{tag.name}</span>
-                  {active && <IconCheck className="h-3 w-3 text-blue-400" />}
+                  <div style={{ width: 10, height: 10, background: theme.accent, border: `2px solid ${theme.border}`, flexShrink: 0 }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
+                  {active && <IconCheck size={12} style={{ color: theme.accent }} />}
                 </button>
               );
             })
@@ -1649,34 +2298,97 @@ export default function TilesPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={dateHeadRef} open={openFilter === 'date'} onClose={() => setOpenFilter(null)}>
-        <div className="w-52 flex flex-col gap-2">
-          <label className="text-[11px] text-zinc-500">Intervallo date</label>
-          <div className="flex flex-col gap-1.5">
+        <div style={{ width: 216, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Intervallo date
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <div>
-              <label className="text-[11px] text-zinc-500">Da</label>
+              <label
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: theme.ink3,
+                  display: 'block',
+                  marginBottom: 2,
+                }}
+              >
+                Da
+              </label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                style={{ colorScheme: 'dark' }}
+                style={{
+                  width: '100%',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  padding: '6px 8px',
+                  color: theme.ink,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  outline: 'none',
+                  colorScheme: 'dark',
+                }}
               />
             </div>
             <div>
-              <label className="text-[11px] text-zinc-500">A</label>
+              <label
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: theme.ink3,
+                  display: 'block',
+                  marginBottom: 2,
+                }}
+              >
+                A
+              </label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500"
-                style={{ colorScheme: 'dark' }}
+                style={{
+                  width: '100%',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  padding: '6px 8px',
+                  color: theme.ink,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 11,
+                  outline: 'none',
+                  colorScheme: 'dark',
+                }}
               />
             </div>
           </div>
           {(dateFrom || dateTo) && (
             <button
               onClick={() => { setDateFrom(''); setDateTo(''); }}
-              className="text-xs text-blue-400 hover:text-blue-300 text-left"
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: theme.accent,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 0,
+              }}
             >
               Rimuovi
             </button>

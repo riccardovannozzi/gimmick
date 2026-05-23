@@ -7,7 +7,8 @@
  * event can move to a different day.
  */
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, View, StyleSheet } from 'react-native';
+import Svg, { Defs, Pattern, Line, Rect } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -17,7 +18,30 @@ import Animated, {
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { startOfDay, snapMinutes as snapMins } from '@/lib/chrono-utils';
 import type { TileColors } from '@/hooks/useTileColors';
+import { usePixelTheme } from '@/components/pixel';
 import type { Tile } from '@/types';
+
+/** Diagonal-LTR hatching pattern overlay — mirror del web StatusPattern
+ *  shape='diagonal_ltr'. Renderizzato come SVG fullsize sopra il bg del
+ *  tile, sotto il testo. */
+function HatchOverlay({ color }: { color: string }) {
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <Pattern
+          id="hatch"
+          patternUnits="userSpaceOnUse"
+          width={10}
+          height={10}
+          patternTransform="rotate(45)"
+        >
+          <Line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={1.5} strokeOpacity={0.55} />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#hatch)" />
+    </Svg>
+  );
+}
 
 interface Props {
   tile: Tile;
@@ -62,6 +86,7 @@ export function EventBlock({
   onTap,
   onReschedule,
 }: Props) {
+  const theme = usePixelTheme();
   if (!tile.start_at) return null;
   const start = new Date(tile.start_at);
   const end = tile.end_at ? new Date(tile.end_at) : null;
@@ -81,7 +106,7 @@ export function EventBlock({
     : 60;
   const height = Math.max(20, durationMin * pxPerMinute);
 
-  const { bg, border, deadlineBorder, fg } = colors;
+  const { bg, border, deadlineBorder, fg, hatched, hatchColor } = colors;
 
   // ─── Drag state ────────────────────────────────────────────────────────
   // translationX/Y track the live drag offset relative to the block's resting
@@ -178,43 +203,43 @@ export function EventBlock({
             left: laneX,
             height,
             backgroundColor: bg,
-            borderRadius: 6,
-            borderWidth: 1,
+            // Pixel: bordi netti 2px, niente border-radius, niente blur shadow.
+            borderRadius: 0,
+            borderWidth: 2,
             borderColor: border,
-            // RN supports "dashed" but only when there's a non-zero width;
-            // the deadline marker uses the same red shade as the web.
             borderStyle: deadlineBorder ? 'dashed' : 'solid',
             paddingHorizontal: 6,
             paddingVertical: 4,
             overflow: 'hidden',
             zIndex: 4,
-            shadowColor: '#000',
-            shadowOpacity: 0.2,
-            shadowRadius: 2,
-            shadowOffset: { width: 0, height: 1 },
-            elevation: 2,
           },
           sizing,
           animatedStyle,
         ]}
       >
+        {hatched && <HatchOverlay color={hatchColor} />}
+        {/* Title — sans-serif system font (no fontFamily) per coerenza col
+            frontend che usa Inter ereditato dal body. Su mobile Android/iOS
+            il default è Roboto/San Francisco, anch'essi sans proporzionali. */}
         <Text
-          numberOfLines={height < 36 ? 1 : 2}
+          numberOfLines={height < 40 ? 1 : 2}
           style={{
-            fontSize: 11,
-            fontWeight: '600',
+            fontSize: 13,
+            fontWeight: '700',
             color: fg,
+            lineHeight: 16,
           }}
         >
           {tile.title || '(senza titolo)'}
         </Text>
-        {height >= 32 && !allDay && (
+        {height >= 36 && !allDay && (
           <Text
             style={{
-              fontSize: 9,
+              fontSize: 12,
+              fontWeight: '600',
               color: fg,
-              opacity: 0.85,
               marginTop: 2,
+              opacity: 0.85,
             }}
           >
             {fmtTime(start)}

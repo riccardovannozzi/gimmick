@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Spark, SparkType } from '../types/index.js';
 import { processNewSpark, generateEmbedding } from '../services/indexing.js';
+import { getActiveStatusId } from '../services/statuses.js';
 
 export const sparksRouter = Router();
 
@@ -293,9 +294,10 @@ sparksRouter.post(
 
       // Auto-create tile if none provided
       if (!tileId) {
+        const activeId = await getActiveStatusId(req.user!.id);
         const { data: newTile, error: tileError } = await supabaseAdmin
           .from('tiles')
-          .insert({ user_id: req.user!.id })
+          .insert({ user_id: req.user!.id, ...(activeId ? { status_id: activeId } : {}) })
           .select('id')
           .single();
         if (tileError) throw tileError;
@@ -354,9 +356,10 @@ sparksRouter.post(
 
       let batchTileId = tile_id;
       if (!batchTileId) {
+        const activeId = await getActiveStatusId(req.user!.id);
         const { data: newTile, error: tileError } = await supabaseAdmin
           .from('tiles')
-          .insert({ user_id: req.user!.id })
+          .insert({ user_id: req.user!.id, ...(activeId ? { status_id: activeId } : {}) })
           .select('id')
           .single();
         if (tileError) throw tileError;

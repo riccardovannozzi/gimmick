@@ -1,17 +1,25 @@
+/**
+ * Wrapper di PixelIconButton che mantiene l'API legacy (icon/variant/size/
+ * color) usata dagli screen non ancora migrati. Internamente delega al
+ * PixelIconButton del design system Pixel Arcade.
+ */
 import React from 'react';
-import { TouchableOpacity, TouchableOpacityProps } from 'react-native';
+import { ViewStyle } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelIconButton } from '@/components/pixel';
 
 type IconButtonVariant = 'default' | 'filled' | 'ghost';
 type IconButtonSize = 'sm' | 'md' | 'lg';
 
-interface IconButtonProps extends TouchableOpacityProps {
+interface IconButtonProps {
   icon: React.ReactNode;
   variant?: IconButtonVariant;
   size?: IconButtonSize;
   color?: string;
+  disabled?: boolean;
+  onPress?: () => void;
+  style?: ViewStyle;
 }
 
 const sizeMap: Record<IconButtonSize, number> = {
@@ -28,49 +36,36 @@ export function IconButton({
   disabled,
   onPress,
   style,
-  ...props
 }: IconButtonProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
 
-  const handlePress = async (e: any) => {
+  const handlePress = async () => {
     if (hapticFeedback) {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    onPress?.(e);
+    onPress?.();
   };
 
-  const buttonSize = sizeMap[size];
-
-  const getVariantBg = () => {
+  const bg = (() => {
     if (color) return color;
     switch (variant) {
-      case 'filled': return colors.accent;
+      case 'filled': return theme.accent;
       case 'ghost': return 'transparent';
-      default: return colors.surfaceVariant;
+      default: return theme.surfaceVariant;
     }
-  };
+  })();
 
   return (
-    <TouchableOpacity
-      onPress={handlePress}
+    <PixelIconButton
+      theme={theme}
+      onPress={disabled ? undefined : handlePress}
+      bg={bg}
+      size={sizeMap[size]}
       disabled={disabled}
-      activeOpacity={0.7}
-      style={[
-        {
-          width: buttonSize,
-          height: buttonSize,
-          borderRadius: buttonSize / 2,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: getVariantBg(),
-          opacity: disabled ? 0.5 : 1,
-        },
-        style,
-      ]}
-      {...props}
+      style={style}
     >
       {icon}
-    </TouchableOpacity>
+    </PixelIconButton>
   );
 }

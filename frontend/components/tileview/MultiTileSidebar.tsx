@@ -10,10 +10,10 @@ import {
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { tilesApi } from '@/lib/api';
-import { cn } from '@/lib/utils';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { usePixelTheme } from '@/components/pixel';
 import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType, StatusShape } from '@/types';
 
@@ -48,6 +48,7 @@ interface Props {
 }
 
 export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['tiles-calendar'], onClearSelection }: Props) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
@@ -55,11 +56,9 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
   const ids = tiles.map((t) => t.id);
 
-  // Action type (composite)
   const allActionsSame = tiles.length > 0 && tiles.every((t) => actionKey(t) === actionKey(tiles[0]));
   const commonActionKey = allActionsSame ? actionKey(tiles[0]) : null;
 
-  // Date — only shown if all tiles share an action with a date concept
   const showDate = allActionsSame && tiles.length > 0 && (tiles[0].action_type === 'deadline' || tiles[0].action_type === 'event');
   const isDeadline = showDate && tiles[0].action_type === 'deadline';
   const isAllDay = showDate && tiles[0].action_type === 'event' && !!tiles[0].all_day;
@@ -74,16 +73,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   })();
   const dateMixed = showDate && !dateValue;
 
-  // Status
   const allStatusSame = tiles.length > 0 && tiles.every((t) => (t.status_id || null) === (tiles[0].status_id || null));
   const commonStatusId: string | null = allStatusSame ? (tiles[0]?.status_id || null) : null;
 
-
-  // Type icon
   const allIconsSame = tiles.length > 0 && tiles.every((t) => (tileIcons[t.id] || '') === (tileIcons[tiles[0].id] || ''));
   const commonIconId: string | null = allIconsSame ? (tileIcons[tiles[0]?.id] || null) : null;
 
-  // ── Bulk update helpers ──
   const patchCaches = useCallback((updates: Record<string, unknown>) => {
     const idSet = new Set(ids);
     const patch = (t: any) => (t && idSet.has(t.id) ? { ...t, ...updates } : t);
@@ -125,7 +120,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
     }
   }, [ids, patchCaches, invalidateAll]);
 
-  // ── Field handlers ──
   const setAction = (opt: typeof ACTION_OPTS[number]) => {
     bulkUpdate({ action_type: opt.action_type, is_event: opt.is_event, all_day: opt.all_day });
   };
@@ -140,7 +134,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
         end_at: new Date(`${newDate}T23:59:59`).toISOString(),
       });
     } else {
-      // timed event — keep individual times if all tiles already share them, otherwise default 09:00–10:00
       bulkUpdate({
         start_at: new Date(`${newDate}T09:00:00`).toISOString(),
         end_at: new Date(`${newDate}T10:00:00`).toISOString(),
@@ -151,39 +144,78 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const setStatus = (id: string | null) => bulkUpdate({ status_id: id });
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
-  // Action button styling helper (mirrors TileSidebar) — plain solid 1.5px border.
-  const getBorderStyle = (at: string): React.CSSProperties => {
-    const c = (actionColors as Record<string, string>)[at] || '#3F3F46';
-    return { border: `1.5px solid ${c}` };
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
   };
 
-  // ── Render ──
   return (
-    <div className={cn(
-      'border-l border-zinc-800 bg-zinc-900/50 transition-all duration-200 flex flex-col shrink-0',
-      open ? 'w-60' : 'w-8'
-    )}>
+    <div
+      style={{
+        borderLeft: `2px solid ${theme.border}`,
+        background: theme.bg2,
+        transition: 'width 200ms',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        width: open ? 240 : 32,
+      }}
+    >
       <button
         onClick={onToggle}
-        className="h-10 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0"
+        style={{
+          height: 40,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'transparent',
+          border: 'none',
+          borderBottom: `2px solid ${theme.border}`,
+          cursor: 'pointer',
+          flexShrink: 0,
+          color: theme.ink2,
+        }}
       >
         {open
-          ? <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
-          : <IconLayoutSidebarRightExpand className="h-4 w-4 text-zinc-400" />
+          ? <IconLayoutSidebarRightCollapse size={16} />
+          : <IconLayoutSidebarRightExpand size={16} />
         }
       </button>
 
       {open && (
-        <div className="flex-1 overflow-y-auto px-3 pb-4 pt-3 space-y-3">
+        <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <div className="text-[11px] uppercase tracking-wide text-blue-400 font-medium">
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.accent,
+              }}
+            >
               {tiles.length} tile selezionati
             </div>
             {onClearSelection && (
               <button
                 onClick={onClearSelection}
-                className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 8,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: theme.ink3,
+                  padding: 0,
+                }}
               >
                 Annulla
               </button>
@@ -192,8 +224,8 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
           {/* Action type */}
           <div>
-            <label className="text-[11px] text-zinc-500 mb-1 block">
-              Action {!allActionsSame && <span className="text-amber-400 normal-case">— misto</span>}
+            <label style={labelStyle}>
+              Action {!allActionsSame && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
             </label>
             {(() => {
               const row1 = ACTION_OPTS.slice(0, 2);
@@ -202,29 +234,54 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                 const isActive = commonActionKey === opt.key;
                 const OptIcon = opt.icon;
                 const styleKey = opt.action_type === 'event' && opt.all_day ? 'allday' : opt.action_type;
+                const actionColor = (actionColors as Record<string, string>)[styleKey] || theme.ink3;
                 return (
                   <button
                     key={opt.key}
                     onClick={() => setAction(opt)}
                     disabled={saving}
-                    className={cn(
-                      'flex-1 flex items-center justify-center gap-1 py-1.5 rounded text-[9px] font-medium transition-all relative',
-                      isActive
-                        ? 'bg-zinc-800/60 text-zinc-200'
-                        : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-800 opacity-70'
-                    )}
-                    style={getBorderStyle(styleKey)}
+                    style={{
+                      flex: 1,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      height: 30,
+                      background: isActive ? theme.accent : theme.surfaceVariant,
+                      color: isActive ? theme.onAccent : theme.ink2,
+                      border: `2px solid ${theme.border}`,
+                      fontFamily: 'var(--font-pixel-head)',
+                      fontSize: 9,
+                      letterSpacing: '0.06em',
+                      textTransform: 'uppercase',
+                      cursor: saving ? 'not-allowed' : 'pointer',
+                      opacity: saving ? 0.6 : 1,
+                      position: 'relative',
+                      boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                    }}
                   >
-                    {isActive && <span className="absolute top-1 left-1 w-1.5 h-1.5 rounded-full bg-white" />}
-                    <OptIcon size={11} />
+                    <div
+                      style={{
+                        width: 12,
+                        height: 12,
+                        background: actionColor,
+                        border: `2px solid ${isActive ? theme.onAccent : theme.border}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      <OptIcon size={8} color={readableOn(actionColor)} />
+                    </div>
                     {opt.label}
                   </button>
                 );
               };
               return (
-                <div className="flex flex-col" style={{ gap: 12 }}>
-                  <div className="flex gap-1">{row1.map(renderBtn)}</div>
-                  <div className="flex gap-1">{row2.map(renderBtn)}</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ display: 'flex', gap: 4 }}>{row1.map(renderBtn)}</div>
+                  <div style={{ display: 'flex', gap: 4 }}>{row2.map(renderBtn)}</div>
                 </div>
               );
             })()}
@@ -233,8 +290,8 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
           {/* Date — only when action is unified and supports a date */}
           {showDate && (
             <div>
-              <label className="text-[11px] text-zinc-500 mb-0.5 block">
-                Date {dateMixed && <span className="text-amber-400">— misto</span>}
+              <label style={labelStyle}>
+                Date {dateMixed && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
               </label>
               <input
                 type="date"
@@ -242,8 +299,17 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                 onChange={(e) => setDate(e.target.value)}
                 disabled={saving}
                 placeholder={dateMixed ? 'Misto' : ''}
-                className="bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
-                style={{ width: '100%', colorScheme: 'dark' }}
+                style={{
+                  width: '100%',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                  padding: '6px 8px',
+                  color: theme.ink,
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  outline: 'none',
+                  colorScheme: 'dark',
+                }}
               />
             </div>
           )}
@@ -270,7 +336,17 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
             />
           )}
 
-          <div className="text-[10px] text-zinc-600 italic pt-2 border-t border-zinc-800 leading-relaxed">
+          <div
+            style={{
+              fontFamily: 'var(--font-pixel-body)',
+              fontSize: 11,
+              fontStyle: 'italic',
+              color: theme.ink3,
+              paddingTop: 8,
+              borderTop: `2px solid ${theme.border}`,
+              lineHeight: 1.5,
+            }}
+          >
             Title, tag e contenuti sono modificabili solo aprendo un singolo tile.
           </div>
         </div>
@@ -278,8 +354,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
     </div>
   );
 }
-
-// ── Inline pickers (simpler than the single-tile versions; aware of "mixed" state) ──
 
 function MixedTypeIconPicker({
   icons, currentId, mixed, onChange, disabled,
@@ -290,6 +364,7 @@ function MixedTypeIconPicker({
   onChange: (id: string | null) => void;
   disabled?: boolean;
 }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -312,62 +387,123 @@ function MixedTypeIconPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+  const popupItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  });
+
   return (
-    <div className="relative">
-      <label className="text-[11px] text-zinc-500 mb-1 block">
-        Type {mixed && <span className="text-amber-400">— misto</span>}
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>
+        Type {mixed && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
       </label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         disabled={disabled}
-        className="w-full flex items-center gap-2 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
-        style={{ backgroundColor: current?.color ? current.color + '40' : 'rgba(39,39,42,0.6)' }}
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: current?.color ? `${current.color}40` : theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '0 8px',
+          height: 30,
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          textAlign: 'left',
+          opacity: disabled ? 0.6 : 1,
+        }}
       >
         {mixed ? (
-          <span className="text-amber-400 flex-1 text-left text-[11px]">Misto</span>
+          <span style={{ color: '#F5A623', flex: 1, fontSize: 11 }}>Misto</span>
         ) : CurrentComp && current ? (
           <>
-            <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: current.color || '#27272A' }}>
-              <CurrentComp size={12} color={readableOn(current.color || '#27272A')} />
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                background: current.color || theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CurrentComp size={10} color={readableOn(current.color || theme.surfaceVariant)} />
             </div>
-            <span className="truncate flex-1 text-left">{current.name}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Nessuno</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Nessuno</span>
         )}
       </button>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 192,
+            overflowY: 'auto',
+          }}
         >
-          <button
-            onClick={() => { onChange(null); setOpen(false); }}
-            className="flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors"
-          >
-            <span className="w-3.5 h-3.5 flex items-center justify-center text-zinc-500">—</span>
-            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
+          <button onClick={() => { onChange(null); setOpen(false); }} style={popupItem(false)}>
+            <span style={{ width: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Nessuno</span>
           </button>
           {icons.map((icon) => {
             const Comp = AllIcons[icon.icon];
             const selected = !mixed && currentId === icon.id;
             return (
-              <button
-                key={icon.id}
-                onClick={() => { onChange(icon.id); setOpen(false); }}
-                className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                  selected && 'bg-zinc-700/30'
-                )}
-              >
+              <button key={icon.id} onClick={() => { onChange(icon.id); setOpen(false); }} style={popupItem(selected)}>
                 {Comp && (
-                  <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: icon.color || '#27272A' }}>
-                    <Comp size={12} color={readableOn(icon.color || '#27272A')} />
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      background: icon.color || theme.surfaceVariant,
+                      border: `2px solid ${theme.border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Comp size={10} color={readableOn(icon.color || theme.surfaceVariant)} />
                   </div>
                 )}
-                <span className="text-zinc-300 truncate flex-1">{icon.name}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon.name}</span>
               </button>
             );
           })}
@@ -387,6 +523,7 @@ function MixedStatusPicker({
   onChange: (id: string | null) => void;
   disabled?: boolean;
 }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -408,43 +545,88 @@ function MixedStatusPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+  const popupItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  });
+
   return (
     <div>
-      <label className="text-[11px] text-zinc-500 mb-1 block">
-        Status {mixed && <span className="text-amber-400">— misto</span>}
+      <label style={labelStyle}>
+        Status {mixed && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
       </label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         disabled={disabled}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-300 hover:border-zinc-600 transition-colors relative overflow-hidden"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '0 8px',
+          height: 30,
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          textAlign: 'left',
+          opacity: disabled ? 0.6 : 1,
+          position: 'relative',
+          overflow: 'hidden',
+        }}
       >
         {mixed ? (
-          <span className="text-amber-400 flex-1 text-left text-[11px]">Misto</span>
+          <span style={{ color: '#F5A623', flex: 1, fontSize: 11 }}>Misto</span>
         ) : selected ? (
-          <span className="relative z-10 truncate flex-1 text-left">{selected.name}</span>
+          <span style={{ position: 'relative', zIndex: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selected.name}</span>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Nessuno</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Nessuno</span>
         )}
       </button>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 192,
+            overflowY: 'auto',
+          }}
         >
           {statuses.map((p) => {
             const isSel = !mixed && value === p.id;
             return (
-              <button
-                key={p.id}
-                onClick={() => { onChange(p.id); setOpen(false); }}
-                className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                  isSel && 'bg-zinc-700/30'
-                )}
-              >
-                <span className="text-zinc-300 truncate flex-1">{p.name}</span>
+              <button key={p.id} onClick={() => { onChange(p.id); setOpen(false); }} style={popupItem(isSel)}>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
               </button>
             );
           })}

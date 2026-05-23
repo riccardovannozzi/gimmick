@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { subtasksApi } from '@/lib/api';
 import type { Subtask } from '@/types';
-import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 import {
   IconPlus,
   IconTrash,
@@ -18,6 +18,7 @@ interface SubtaskListProps {
 }
 
 export function SubtaskList({ tileId }: SubtaskListProps) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const queryKey = ['subtasks', tileId];
 
@@ -82,13 +83,30 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
   const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   if (isLoading) {
-    return <p className="text-xs text-zinc-500 mt-4">Caricamento...</p>;
+    return (
+      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
+        Caricamento...
+      </p>
+    );
   }
 
   return (
-    <div className="space-y-2">
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
       {subtasks.length === 0 && (
-        <p className="text-[11px] text-zinc-500 text-center py-2">Nessun elemento</p>
+        <p
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 9,
+            letterSpacing: '0.08em',
+            textTransform: 'uppercase',
+            color: theme.ink3,
+            textAlign: 'center',
+            padding: '8px 0',
+            margin: 0,
+          }}
+        >
+          Nessun elemento
+        </p>
       )}
       {subtasks.map((s, i) => (
         <SubtaskRow
@@ -115,9 +133,25 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
       <button
         onClick={() => addMutation.mutate()}
         disabled={addMutation.isPending}
-        className="w-full flex items-center justify-center gap-1 py-1.5 rounded border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-[11px] transition-colors disabled:opacity-40"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          background: 'transparent',
+          color: theme.ink3,
+          border: `2px dashed ${theme.border}`,
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          cursor: addMutation.isPending ? 'not-allowed' : 'pointer',
+          opacity: addMutation.isPending ? 0.4 : 1,
+        }}
       >
-        <IconPlus className="h-3 w-3" />
+        <IconPlus size={11} />
         Aggiungi elemento
       </button>
     </div>
@@ -139,6 +173,7 @@ interface SubtaskRowProps {
 }
 
 function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onDelete, onCopy, onDragStart, onDragOver, onDragEnd }: SubtaskRowProps) {
+  const theme = usePixelTheme();
   const [value, setValue] = useState(subtask.content);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dirty = useRef(false);
@@ -175,28 +210,44 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
       onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; onDragOver(); }}
       onDragEnd={onDragEnd}
       onDrop={(e) => { e.preventDefault(); onDragEnd(); }}
-      className={cn(
-        'rounded border border-zinc-800 bg-zinc-900/40 p-1.5 group relative transition-all',
-        isDragging && 'opacity-40',
-        isDropTarget && 'border-blue-500 border-t-2'
-      )}
+      className="group"
+      style={{
+        background: theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        padding: 8,
+        position: 'relative',
+        opacity: isDragging ? 0.4 : 1,
+        borderTopWidth: isDropTarget ? 4 : 2,
+        borderTopColor: isDropTarget ? theme.accent : theme.border,
+      }}
     >
-      <div className="flex items-start gap-1.5">
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6 }}>
         {/* Drag handle */}
-        <div className="cursor-grab active:cursor-grabbing text-zinc-600 hover:text-zinc-400 mt-0.5 shrink-0" title="Trascina per riordinare">
-          <IconGripVertical className="h-3.5 w-3.5" />
+        <div
+          style={{ cursor: 'grab', color: theme.ink3, marginTop: 2, flexShrink: 0 }}
+          title="Trascina per riordinare"
+        >
+          <IconGripVertical size={14} />
         </div>
 
         {/* Check */}
         <button
           onClick={onToggle}
-          className={cn(
-            'h-4 w-4 rounded shrink-0 flex items-center justify-center border transition-colors mt-0.5',
-            subtask.is_done ? 'bg-blue-500 border-blue-500' : 'border-zinc-600 hover:border-zinc-400'
-          )}
+          style={{
+            width: 16,
+            height: 16,
+            flexShrink: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: subtask.is_done ? theme.accent : 'transparent',
+            border: `2px solid ${subtask.is_done ? theme.border : theme.ink3}`,
+            cursor: 'pointer',
+            marginTop: 2,
+          }}
           title={subtask.is_done ? 'Segna come da fare' : 'Segna come fatto'}
         >
-          {subtask.is_done && <IconCheck className="h-3 w-3 text-white" stroke={3} />}
+          {subtask.is_done && <IconCheck size={10} color={theme.onAccent} stroke={3} />}
         </button>
 
         {/* Auto-resize textarea */}
@@ -207,32 +258,57 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
           onBlur={() => { if (dirty.current) { onChange(value); dirty.current = false; } }}
           rows={1}
           placeholder="Scrivi..."
-          className={cn(
-            'flex-1 bg-transparent text-xs text-zinc-300 resize-none focus:outline-none overflow-hidden leading-snug min-w-0',
-            subtask.is_done && 'line-through text-zinc-500'
-          )}
+          style={{
+            flex: 1,
+            minWidth: 0,
+            background: 'transparent',
+            color: subtask.is_done ? theme.ink3 : theme.ink,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            lineHeight: 1.3,
+            resize: 'none',
+            outline: 'none',
+            border: 'none',
+            overflow: 'hidden',
+            textDecoration: subtask.is_done ? 'line-through' : 'none',
+          }}
         />
       </div>
 
       {/* Actions toolbar */}
-      <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ display: 'flex', alignItems: 'center', gap: 2, marginTop: 4 }}
+      >
         <button
           onClick={onCopy}
-          className="p-0.5 rounded text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800"
+          style={{
+            padding: 2,
+            background: 'transparent',
+            color: theme.ink3,
+            border: 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+          }}
           title="Copia"
         >
-          <IconCopy className="h-3 w-3" />
+          <IconCopy size={11} />
         </button>
-        <div className="flex-1" />
+        <div style={{ flex: 1 }} />
         <button
           onClick={handleDeleteClick}
-          className={cn(
-            'p-0.5 rounded transition-colors',
-            confirmDelete ? 'bg-red-600 text-white' : 'text-zinc-500 hover:text-red-400 hover:bg-zinc-800'
-          )}
+          style={{
+            padding: 2,
+            background: confirmDelete ? '#E24B4A' : 'transparent',
+            color: confirmDelete ? '#FFFFFF' : theme.ink3,
+            border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            ...(confirmDelete ? { opacity: 1 } : {}),
+          }}
           title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
         >
-          <IconTrash className="h-3 w-3" />
+          <IconTrash size={11} />
         </button>
       </div>
     </div>

@@ -8,17 +8,7 @@ import * as TablerIcons from '@tabler/icons-react';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { toast } from 'sonner';
 import { Header } from '@/components/layout/header';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -27,7 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
 import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -40,6 +30,7 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const theme = usePixelTheme();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
@@ -74,8 +65,18 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
   return createPortal(
     <div
       ref={ref}
-      className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl p-3 max-h-72 overflow-y-auto"
-      style={{ top: pos.top, left: pos.left, zIndex: 9999 }}
+      className="fixed"
+      style={{
+        top: pos.top,
+        left: pos.left,
+        zIndex: 9999,
+        background: theme.surface,
+        border: `2px solid ${theme.border}`,
+        boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+        padding: 10,
+        maxHeight: 320,
+        overflowY: 'auto',
+      }}
     >
       {children}
     </div>,
@@ -88,21 +89,19 @@ function FilterableHead({
   label,
   width,
   onResize,
-  className,
   hasActiveFilter,
-  filterOpen,
   onToggleFilter,
   headRef,
 }: {
   label: string;
   width: number;
   onResize: (w: number) => void;
-  className?: string;
   hasActiveFilter: boolean;
   filterOpen: boolean;
   onToggleFilter: () => void;
   headRef: React.RefObject<HTMLTableCellElement | null>;
 }) {
+  const theme = usePixelTheme();
   const startX = useRef(0);
   const startW = useRef(width);
 
@@ -131,25 +130,44 @@ function FilterableHead({
   );
 
   return (
-    <TableHead ref={headRef} className={cn('relative', className)} style={{ width, minWidth: width, maxWidth: width }}>
+    <TableHead
+      ref={headRef}
+      className="relative"
+      style={{
+        width, minWidth: width, maxWidth: width,
+        background: theme.surfaceVariant,
+        borderRight: `2px solid ${theme.border}`,
+        borderBottom: `2px solid ${theme.border}`,
+      }}
+    >
       <button
         onClick={onToggleFilter}
         className="flex items-center gap-1 w-full text-left"
+        style={{
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink2,
+        }}
       >
         <span className="truncate">{label}</span>
-        <IconFilter className={cn('h-3 w-3 shrink-0 transition-colors', hasActiveFilter ? 'text-blue-400' : 'text-zinc-600')} />
+        <IconFilter size={11} className="shrink-0" style={{ color: hasActiveFilter ? theme.accent : theme.ink3 }} />
       </button>
       <div
         onMouseDown={onMouseDown}
-        className="absolute top-0 bottom-0 cursor-col-resize hover:bg-blue-500/40 transition-colors z-10"
+        className="absolute top-0 bottom-0 cursor-col-resize z-10"
         style={{ right: -2, width: 5 }}
+        onMouseEnter={(e) => (e.currentTarget.style.background = `${theme.accent}66`)}
+        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       />
     </TableHead>
   );
 }
 
-// ─── Color Dot Picker (opens Dialog with palette grid) ───────
+// ─── Color Dot Picker ────────────────────────────────────────
 function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
 
   return (
@@ -157,29 +175,63 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-9 h-9 rounded-lg border border-zinc-700 hover:border-zinc-500 transition-colors flex items-center justify-center shrink-0"
-        style={{ backgroundColor: `${value}20` }}
+        style={{
+          width: 36,
+          height: 36,
+          border: `2px solid ${theme.border}`,
+          background: `${value}33`,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          cursor: 'pointer',
+        }}
       >
-        <div className="w-5 h-5 rounded-full" style={{ backgroundColor: value }} />
+        <div style={{ width: 18, height: 18, background: value, border: `2px solid ${theme.border}` }} />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-[220px] p-4">
-          <DialogHeader>
-            <DialogTitle className="text-white text-sm">Scegli colore</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-5 gap-[2px]">
+        <DialogContent
+          showCloseButton={false}
+          style={{
+            maxWidth: 240,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            borderRadius: 0,
+            color: theme.ink,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 0,
+            gap: 0,
+            display: 'block',
+          }}
+        >
+          <div
+            style={{
+              padding: '10px 12px',
+              background: theme.surfaceVariant,
+              borderBottom: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 10,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+            }}
+          >
+            Scegli colore
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, padding: 10 }}>
             {GIMMICK_PALETTE.map((c) => (
               <button
                 key={c.id}
                 type="button"
                 title={c.name}
                 onClick={() => { onChange(c.hex); setOpen(false); }}
-                className="w-9 h-9 rounded-sm transition-transform hover:scale-110"
                 style={{
-                  backgroundColor: c.hex,
-                  outline: value === c.hex ? '2px solid #fff' : 'none',
-                  outlineOffset: '-2px',
+                  width: 36,
+                  height: 36,
+                  background: c.hex,
+                  border: `2px solid ${value === c.hex ? theme.ink : theme.border}`,
+                  cursor: 'pointer',
                 }}
               />
             ))}
@@ -190,13 +242,11 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
   );
 }
 
-// ─── Tag Type Picker (reusable pills) ────────────────────────
+// ─── Tag Type Pills ──────────────────────────────────────────
 function TagTypePills({
   value,
   onChange,
   tagTypes,
-  getEmoji,
-  getName,
 }: {
   value: string;
   onChange: (slug: string) => void;
@@ -204,34 +254,47 @@ function TagTypePills({
   getEmoji: (slug: string) => string;
   getName: (slug: string) => string;
 }) {
+  const theme = usePixelTheme();
   return (
-    <div className="flex gap-1.5 flex-wrap">
-      {tagTypes.map((t) => (
-        <button
-          key={t.slug}
-          type="button"
-          onClick={() => onChange(t.slug)}
-          className={cn(
-            'rounded-full border px-3 py-1 text-xs font-medium transition-all',
-            value === t.slug
-              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-              : 'bg-zinc-800/60 border-zinc-700 text-zinc-500 hover:border-zinc-600'
-          )}
-        >
-          <span className="inline-flex items-center gap-1"><TagTypeIcon emoji={t.emoji} size={14} /> {t.name}</span>
-        </button>
-      ))}
+    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      {tagTypes.map((t) => {
+        const isActive = value === t.slug;
+        return (
+          <button
+            key={t.slug}
+            type="button"
+            onClick={() => onChange(t.slug)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 10px',
+              background: isActive ? theme.accent : theme.surfaceVariant,
+              color: isActive ? theme.onAccent : theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
+          >
+            <TagTypeIcon emoji={t.emoji} size={14} color={isActive ? theme.onAccent : theme.ink2} />
+            {t.name}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
 // Helper: render emoji string or Tabler icon component
-function TagTypeIcon({ emoji, size = 20 }: { emoji: string; size?: number }) {
+function TagTypeIcon({ emoji, size = 20, color }: { emoji: string; size?: number; color?: string }) {
   if (emoji.startsWith('Icon')) {
-    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string }>>)[emoji];
-    if (Comp) return <Comp size={size} className="text-zinc-300" />;
+    const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
+    if (Comp) return <Comp size={size} style={{ color: color || '#D4D4D8' }} />;
   }
-  return <span style={{ fontSize: size * 0.8 }}>{emoji}</span>;
+  return <span style={{ fontSize: size * 0.8, color: color || undefined }}>{emoji}</span>;
 }
 
 // ─── Tag Types Management Modal ──────────────────────────────
@@ -242,6 +305,7 @@ function TagTypesModal({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { tagTypes } = useTagTypes();
   const [newName, setNewName] = useState('');
@@ -301,111 +365,182 @@ function TagTypesModal({
     createMutation.mutate({ name, emoji: newEmoji, color: newColor });
   };
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '6px 8px',
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    outline: 'none',
+    height: 32,
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle className="text-white flex items-center gap-2">
-            <IconSettings className="h-5 w-5 text-zinc-400" />
-            Tipi Tag
-          </DialogTitle>
-        </DialogHeader>
-
-        {/* Create new type */}
-        <div className="flex gap-2 items-end">
-          <div>
-            <Label className="text-zinc-500 text-[11px]">Icona</Label>
-            <IconPicker value={newEmoji} onChange={setNewEmoji} />
-          </div>
-          <div>
-            <Label className="text-zinc-500 text-[11px]">Colore</Label>
-            <ColorDotPicker value={newColor} onChange={setNewColor} />
-          </div>
-          <div className="flex-1">
-            <Label className="text-zinc-500 text-[11px]">Nome</Label>
-            <Input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-              placeholder="Nuovo tipo..."
-              className="h-9 bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-            />
-          </div>
-          <Button
-            onClick={handleCreate}
-            disabled={!newName.trim() || createMutation.isPending}
-            size="icon"
-            className="h-9 w-9 bg-blue-600 hover:bg-blue-700 shrink-0"
+      <DialogContent
+        showCloseButton={false}
+        style={{
+          maxWidth: 480,
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          borderRadius: 0,
+          color: theme.ink,
+          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          padding: 0,
+          gap: 0,
+          display: 'block',
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 12px',
+            background: theme.surfaceVariant,
+            borderBottom: `2px solid ${theme.border}`,
+          }}
+        >
+          <IconSettings size={14} style={{ color: theme.accent }} />
+          <span
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink,
+            }}
           >
-            <IconPlus className="h-4 w-4" />
-          </Button>
+            Tipi Tag
+          </span>
         </div>
 
-        {/* Types list */}
-        <div className="space-y-1 max-h-72 overflow-y-auto mt-2">
-          {tagTypes.map((tt) => (
-            <div key={tt.id || tt.slug} className="px-3 py-2 rounded-lg bg-zinc-800/50 group">
-              {editingId === tt.id ? (
-                <div className="flex items-center gap-2">
-                  <IconPicker value={editEmoji} onChange={setEditEmoji} />
-                  <ColorDotPicker value={editColor} onChange={setEditColor} />
-                  <Input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } });
-                      if (e.key === 'Escape') setEditingId(null);
-                    }}
-                    className="h-7 flex-1 bg-zinc-700 border-zinc-600 text-white text-sm"
-                    autoFocus
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-green-400 hover:text-green-300 shrink-0"
-                    onClick={() => updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } })}
-                  >
-                    <IconCheck className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-zinc-400 hover:text-zinc-300 shrink-0"
-                    onClick={() => setEditingId(null)}
-                  >
-                    <IconX className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <span className="w-8 text-center flex items-center justify-center"><TagTypeIcon emoji={tt.emoji} size={18} /></span>
-                  <div className="w-4 h-4 rounded-full shrink-0" style={{ backgroundColor: tt.color || '#94A3B8' }} />
-                  <span className="text-sm text-white flex-1">{tt.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-zinc-500 hover:text-zinc-300 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => {
-                      setEditingId(tt.id);
-                      setEditName(tt.name);
-                      setEditEmoji(tt.emoji);
-                      setEditColor(tt.color || '#94A3B8');
-                    }}
-                  >
-                    <IconPencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={() => deleteMutation.mutate(tt.id)}
-                  >
-                    <IconTrash className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              )}
+        <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Create new type */}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+            <div>
+              <label style={labelStyle}>Icona</label>
+              <IconPicker value={newEmoji} onChange={setNewEmoji} />
             </div>
-          ))}
+            <div>
+              <label style={labelStyle}>Colore</label>
+              <ColorDotPicker value={newColor} onChange={setNewColor} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={labelStyle}>Nome</label>
+              <input
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                placeholder="Nuovo tipo..."
+                style={inputStyle}
+              />
+            </div>
+            <button
+              onClick={handleCreate}
+              disabled={!newName.trim() || createMutation.isPending}
+              className="px-press"
+              style={{
+                width: 32,
+                height: 32,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: theme.accent,
+                color: theme.onAccent,
+                border: `2px solid ${theme.border}`,
+                cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: !newName.trim() || createMutation.isPending ? 0.5 : 1,
+                flexShrink: 0,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              }}
+            >
+              <IconPlus size={14} />
+            </button>
+          </div>
+
+          {/* Types list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 280, overflowY: 'auto' }}>
+            {tagTypes.map((tt) => (
+              <div
+                key={tt.id || tt.slug}
+                className="group"
+                style={{
+                  padding: '8px 10px',
+                  background: theme.surfaceVariant,
+                  border: `2px solid ${theme.border}`,
+                }}
+              >
+                {editingId === tt.id ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <IconPicker value={editEmoji} onChange={setEditEmoji} />
+                    <ColorDotPicker value={editColor} onChange={setEditColor} />
+                    <input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } });
+                        if (e.key === 'Escape') setEditingId(null);
+                      }}
+                      autoFocus
+                      style={{ ...inputStyle, height: 28, flex: 1 }}
+                    />
+                    <button
+                      onClick={() => updateMutation.mutate({ id: tt.id, updates: { name: editName.trim(), emoji: editEmoji, color: editColor } })}
+                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#1D9E75', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconCheck size={14} />
+                    </button>
+                    <button
+                      onClick={() => setEditingId(null)}
+                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconX size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ width: 24, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <TagTypeIcon emoji={tt.emoji} size={16} color={theme.ink2} />
+                    </span>
+                    <div style={{ width: 14, height: 14, background: tt.color || '#94A3B8', border: `2px solid ${theme.border}`, flexShrink: 0 }} />
+                    <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, flex: 1 }}>{tt.name}</span>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => {
+                        setEditingId(tt.id);
+                        setEditName(tt.name);
+                        setEditEmoji(tt.emoji);
+                        setEditColor(tt.color || '#94A3B8');
+                      }}
+                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconPencil size={14} />
+                    </button>
+                    <button
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => deleteMutation.mutate(tt.id)}
+                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#E24B4A', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <IconTrash size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -414,6 +549,7 @@ function TagTypesModal({
 
 // ─── Main Tags Page ──────────────────────────────────────────
 export default function TagsPage() {
+  const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { tagTypes, getEmoji, getName, getColor } = useTagTypes();
   const [createOpen, setCreateOpen] = useState(false);
@@ -426,7 +562,6 @@ export default function TagsPage() {
   const [editValue, setEditValue] = useState('');
   const [editAliasesList, setEditAliasesList] = useState<string[]>([]);
   const [newAliasInput, setNewAliasInput] = useState('');
-  const editCellRef = useRef<HTMLTableCellElement>(null);
   const aliasPopupRef = useRef<HTMLDivElement>(null);
   const [aliasPopupPos, setAliasPopupPos] = useState({ top: 0, left: 0 });
 
@@ -538,7 +673,6 @@ export default function TagsPage() {
     setEditingCell(null);
   };
 
-  // Close type dropdown on outside click
   useEffect(() => {
     if (!editingCell || editingCell.field !== 'type') return;
     const handleClick = (e: MouseEvent) => {
@@ -583,7 +717,6 @@ export default function TagsPage() {
     updateMutation.mutate({ id: editingCell.id, updates: { aliases: next } });
   };
 
-  // Close alias popup on outside click
   useEffect(() => {
     if (!editingCell || editingCell.field !== 'alias') return;
     const handleClick = (e: MouseEvent) => {
@@ -601,16 +734,52 @@ export default function TagsPage() {
     setOpenFilter((prev) => (prev === col ? null : col));
   }, []);
 
+  const cellBorder: React.CSSProperties = {
+    borderRight: `2px solid ${theme.border}`,
+    borderBottom: `2px solid ${theme.border}`,
+  };
+
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 6,
+  };
+
+  const modalInputStyle: React.CSSProperties = {
+    width: '100%',
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    padding: '8px 10px',
+    color: theme.ink,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    outline: 'none',
+  };
+
   return (
-    <div className="flex flex-col h-full">
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1 }}>
       <Header title="Tags" />
 
-      <div className="flex-1 p-6 flex flex-col gap-4 overflow-hidden">
-        {/* Tags info + buttons + filter */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 text-zinc-400">
-            <IconTag className="h-5 w-5" />
-            <span className="text-sm">{allTags.length} tags</span>
+      <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
+        {/* Toolbar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <IconTag size={18} style={{ color: theme.accent }} />
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+              }}
+            >
+              {allTags.length} tags
+            </span>
           </div>
           {hasAnyFilter && (
             <button
@@ -619,70 +788,165 @@ export default function TagsPage() {
                 setTypeFilter(new Set());
                 setAliasFilter('');
               }}
-              className="text-xs text-blue-400 hover:text-blue-300 ml-2"
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: theme.accent,
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               Rimuovi filtri
             </button>
           )}
-          <Button
-            size="sm"
+          <button
             onClick={() => setCreateOpen(true)}
-            className="bg-blue-600/10 text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 text-xs h-8"
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              padding: '0 10px',
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
           >
-            <IconPlus className="h-3.5 w-3.5 mr-1.5" />
+            <IconPlus size={12} />
             Add Tag
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
+          </button>
+          <button
             onClick={() => setTypesOpen(true)}
-            className="border-zinc-700 text-zinc-400 hover:text-zinc-300 text-xs h-8"
+            className="px-press"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              height: 28,
+              padding: '0 10px',
+              background: theme.surfaceVariant,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              cursor: 'pointer',
+            }}
           >
-            <IconPencil className="h-3.5 w-3.5 mr-1.5" />
+            <IconPencil size={12} />
             Edit Tags
-          </Button>
-          <div className="flex-1" />
+          </button>
         </div>
 
-        {/* Tags table */}
+        {/* Table */}
         {isLoading ? (
-          <p className="text-center text-zinc-400 py-8">Caricamento...</p>
+          <p
+            style={{
+              textAlign: 'center',
+              padding: '32px 0',
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 10,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Caricamento...
+          </p>
         ) : tags.length === 0 ? (
-          <div className="text-center py-16">
-            <IconTag className="h-12 w-12 text-zinc-600 mx-auto mb-4" />
-            <p className="text-zinc-400">
+          <div style={{ textAlign: 'center', padding: '64px 0' }}>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 48,
+                height: 48,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                color: theme.ink3,
+                marginBottom: 12,
+              }}
+            >
+              <IconTag size={28} />
+            </div>
+            <p
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink2,
+              }}
+            >
               {hasAnyFilter ? 'Nessun tag corrisponde ai filtri' : 'Nessun tag creato'}
             </p>
             {!hasAnyFilter && (
-              <p className="text-sm text-zinc-500 mt-1">
+              <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, marginTop: 6 }}>
                 Crea il primo tag per organizzare le tue tiles
               </p>
             )}
           </div>
         ) : (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-900 flex flex-col flex-1 overflow-hidden">
-            <div className="flex-1 overflow-auto">
+          <div
+            style={{
+              background: theme.surface,
+              border: `2px solid ${theme.border}`,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              display: 'flex',
+              flexDirection: 'column',
+              flex: 1,
+              overflow: 'hidden',
+            }}
+          >
+            <div style={{ flex: 1, overflow: 'auto' }}>
               <Table style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.type + colWidths.alias + 96, minWidth: colWidths.name + colWidths.type + colWidths.alias + 96 }}>
-                <TableHeader className="sticky top-0 z-10 bg-zinc-900">
-                  <TableRow className="border-zinc-800 hover:bg-transparent">
-                    <FilterableHead label="Name" width={colWidths.name} onResize={(w) => setColWidth('name', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={!!nameFilter} filterOpen={openFilter === 'name'} onToggleFilter={() => toggleFilter('name')} headRef={nameHeadRef} />
-                    <FilterableHead label="Type" width={colWidths.type} onResize={(w) => setColWidth('type', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={typeFilter.size > 0} filterOpen={openFilter === 'type'} onToggleFilter={() => toggleFilter('type')} headRef={typeHeadRef} />
-                    <FilterableHead label="Alias" width={colWidths.alias} onResize={(w) => setColWidth('alias', w)} className="text-zinc-400 border-r border-zinc-800" hasActiveFilter={!!aliasFilter} filterOpen={openFilter === 'alias'} onToggleFilter={() => toggleFilter('alias')} headRef={aliasHeadRef} />
-
-                    <TableHead className="border-r border-zinc-800" style={{ width: 96, minWidth: 96, maxWidth: 96 }} />
+                <TableHeader className="sticky top-0 z-10" style={{ background: theme.surfaceVariant }}>
+                  <TableRow style={{ background: 'transparent', borderBottom: 'none' }}>
+                    <FilterableHead label="Name" width={colWidths.name} onResize={(w) => setColWidth('name', w)} hasActiveFilter={!!nameFilter} filterOpen={openFilter === 'name'} onToggleFilter={() => toggleFilter('name')} headRef={nameHeadRef} />
+                    <FilterableHead label="Type" width={colWidths.type} onResize={(w) => setColWidth('type', w)} hasActiveFilter={typeFilter.size > 0} filterOpen={openFilter === 'type'} onToggleFilter={() => toggleFilter('type')} headRef={typeHeadRef} />
+                    <FilterableHead label="Alias" width={colWidths.alias} onResize={(w) => setColWidth('alias', w)} hasActiveFilter={!!aliasFilter} filterOpen={openFilter === 'alias'} onToggleFilter={() => toggleFilter('alias')} headRef={aliasHeadRef} />
+                    <TableHead
+                      style={{
+                        width: 96,
+                        minWidth: 96,
+                        maxWidth: 96,
+                        background: theme.surfaceVariant,
+                        borderRight: `2px solid ${theme.border}`,
+                        borderBottom: `2px solid ${theme.border}`,
+                      }}
+                    />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {tags.map((tag) => (
-                    <TableRow key={tag.id} className="border-zinc-800 h-12 overflow-hidden" style={{ height: 48, maxHeight: 48 }}>
-                      {/* Nome — click to edit inline */}
+                    <TableRow key={tag.id} style={{ height: 44, maxHeight: 44, background: 'transparent' }}>
+                      {/* Name */}
                       <TableCell
-                        className="border-r border-zinc-800 overflow-hidden cursor-pointer hover:bg-zinc-800/40 transition-colors"
-                        style={{ width: colWidths.name, minWidth: colWidths.name, maxWidth: colWidths.name }}
+                        style={{
+                          ...cellBorder,
+                          width: colWidths.name,
+                          minWidth: colWidths.name,
+                          maxWidth: colWidths.name,
+                          overflow: 'hidden',
+                          cursor: tag.is_root ? 'default' : 'pointer',
+                          padding: '0 12px',
+                        }}
                         onClick={() => !tag.is_root && editingCell?.id !== tag.id && startEditName(tag)}
                       >
                         {editingCell?.id === tag.id && editingCell.field === 'name' ? (
-                          <Input
+                          <input
                             value={editValue}
                             onChange={(e) => setEditValue(e.target.value)}
                             onKeyDown={(e) => {
@@ -690,37 +954,84 @@ export default function TagsPage() {
                               if (e.key === 'Escape') setEditingCell(null);
                             }}
                             onBlur={() => commitName(tag.id)}
-                            className="h-7 bg-zinc-800 border-zinc-700 text-white text-xs"
                             autoFocus
                             onClick={(e) => e.stopPropagation()}
+                            style={{
+                              height: 28,
+                              width: '100%',
+                              background: theme.surfaceVariant,
+                              border: `2px solid ${theme.border}`,
+                              padding: '0 6px',
+                              color: theme.ink,
+                              fontFamily: 'var(--font-pixel-body)',
+                              fontSize: 12,
+                              outline: 'none',
+                            }}
                           />
                         ) : (
-                          <span className="text-xs text-zinc-300 truncate block">{tag.name}</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-pixel-body)',
+                              fontSize: 12,
+                              color: theme.ink,
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {tag.name}
+                          </span>
                         )}
                       </TableCell>
 
-                      {/* Tipo — click to show portal dropdown */}
+                      {/* Type */}
                       <TableCell
-                        className="border-r border-zinc-800 overflow-visible cursor-pointer hover:bg-zinc-800/40 transition-colors"
-                        style={{ width: colWidths.type, minWidth: colWidths.type, maxWidth: colWidths.type }}
+                        style={{
+                          ...cellBorder,
+                          width: colWidths.type,
+                          minWidth: colWidths.type,
+                          maxWidth: colWidths.type,
+                          overflow: 'visible',
+                          cursor: tag.is_root ? 'default' : 'pointer',
+                          padding: '0 12px',
+                        }}
                         onClick={(e) => {
                           if (tag.is_root) return;
                           if (editingCell?.id === tag.id && editingCell.field === 'type') { setEditingCell(null); return; }
                           startEditType(tag, e.currentTarget);
                         }}
                       >
-                        <div className="flex items-center gap-1.5">
-                          <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: getColor(tag.tag_type || 'topic') || '#94A3B8' }} />
-                          <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} />
-                          <span className="text-xs text-zinc-400 truncate flex-1">{getName(tag.tag_type || 'topic')}</span>
-                          {!tag.is_root && <IconChevronDown className="h-3 w-3 text-zinc-600 shrink-0" />}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} color={getColor(tag.tag_type || 'topic') || '#94A3B8'} />
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-pixel-body)',
+                              fontSize: 12,
+                              color: theme.ink2,
+                              flex: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {getName(tag.tag_type || 'topic')}
+                          </span>
+                          {!tag.is_root && <IconChevronDown size={12} style={{ color: theme.ink3, flexShrink: 0 }} />}
                         </div>
                       </TableCell>
 
-                      {/* Alias — click to open popup */}
+                      {/* Alias */}
                       <TableCell
-                        className="border-r border-zinc-800 overflow-hidden cursor-pointer hover:bg-zinc-800/40 transition-colors"
-                        style={{ width: colWidths.alias, minWidth: colWidths.alias, maxWidth: colWidths.alias }}
+                        style={{
+                          ...cellBorder,
+                          width: colWidths.alias,
+                          minWidth: colWidths.alias,
+                          maxWidth: colWidths.alias,
+                          overflow: 'hidden',
+                          cursor: tag.is_root ? 'default' : 'pointer',
+                          padding: '0 12px',
+                        }}
                         onClick={(e) => {
                           if (tag.is_root) return;
                           if (editingCell?.id === tag.id && editingCell.field === 'alias') return;
@@ -728,24 +1039,58 @@ export default function TagsPage() {
                         }}
                       >
                         {tag.aliases && tag.aliases.length > 0 ? (
-                          <span className="text-xs text-zinc-400 truncate block">{tag.aliases.join(', ')}</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-pixel-body)',
+                              fontSize: 12,
+                              color: theme.ink2,
+                              display: 'block',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {tag.aliases.join(', ')}
+                          </span>
                         ) : (
-                          <span className="text-zinc-500 text-xs">&mdash;</span>
+                          <span style={{ color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 12 }}>—</span>
                         )}
                       </TableCell>
 
-
-
-                      {/* Azioni — solo delete */}
-                      <TableCell className="text-right border-r border-zinc-800">
+                      {/* Actions */}
+                      <TableCell style={{ ...cellBorder, textAlign: 'right', padding: '0 8px' }}>
                         {tag.is_root ? (
-                          <span className="text-xs text-zinc-500 italic">Root</span>
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-pixel-head)',
+                              fontSize: 9,
+                              letterSpacing: '0.08em',
+                              textTransform: 'uppercase',
+                              color: theme.ink3,
+                              fontStyle: 'italic',
+                            }}
+                          >
+                            Root
+                          </span>
                         ) : (
-                          <div className="flex justify-end">
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-zinc-500 hover:text-red-400" onClick={() => deleteMutation.mutate(tag.id)}>
-                              <IconTrash className="h-3.5 w-3.5" />
-                            </Button>
-                          </div>
+                          <button
+                            onClick={() => deleteMutation.mutate(tag.id)}
+                            style={{
+                              width: 28,
+                              height: 28,
+                              background: 'transparent',
+                              border: 'none',
+                              color: theme.ink3,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
+                          >
+                            <IconTrash size={14} />
+                          </button>
                         )}
                       </TableCell>
                     </TableRow>
@@ -759,49 +1104,126 @@ export default function TagsPage() {
 
       {/* Create Tag Modal */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="bg-zinc-900 border-zinc-800 sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-white flex items-center gap-2">
-              <IconTag className="h-5 w-5 text-blue-400" />
+        <DialogContent
+          showCloseButton={false}
+          style={{
+            maxWidth: 480,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            borderRadius: 0,
+            color: theme.ink,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 0,
+            gap: 0,
+            display: 'block',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '10px 12px',
+              background: theme.surfaceVariant,
+              borderBottom: `2px solid ${theme.border}`,
+            }}
+          >
+            <IconTag size={14} style={{ color: theme.accent }} />
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+              }}
+            >
               Nuovo Tag
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs">Nome</Label>
-              <Input
+            </span>
+          </div>
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div>
+              <label style={labelStyle}>Nome</label>
+              <input
                 placeholder="Nome del tag..."
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
                 autoFocus
+                style={modalInputStyle}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs">Alias</Label>
-              <Input
+            <div>
+              <label style={labelStyle}>Alias</label>
+              <input
                 placeholder="Alias separati da virgola..."
                 value={newTagAliases}
                 onChange={(e) => setNewTagAliases(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
-                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+                style={modalInputStyle}
               />
             </div>
-            <div className="space-y-2">
-              <Label className="text-zinc-400 text-xs">Tipo</Label>
+            <div>
+              <label style={labelStyle}>Tipo</label>
               <TagTypePills value={newTagType} onChange={setNewTagType} tagTypes={tagTypes} getEmoji={getEmoji} getName={getName} />
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)} className="border-zinc-700 text-zinc-300">
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: 8,
+              padding: 12,
+              borderTop: `2px solid ${theme.border}`,
+              background: theme.surfaceVariant,
+            }}
+          >
+            <button
+              onClick={() => setCreateOpen(false)}
+              className="px-press"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                height: 28,
+                padding: '0 12px',
+                background: theme.surface,
+                color: theme.ink2,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
               Annulla
-            </Button>
-            <Button onClick={handleCreate} disabled={!newTagName.trim() || createMutation.isPending} className="bg-blue-600 hover:bg-blue-700 text-white">
-              <IconPlus className="h-4 w-4 mr-1.5" />
+            </button>
+            <button
+              onClick={handleCreate}
+              disabled={!newTagName.trim() || createMutation.isPending}
+              className="px-press"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                height: 28,
+                padding: '0 12px',
+                background: theme.accent,
+                color: theme.onAccent,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
+                opacity: !newTagName.trim() || createMutation.isPending ? 0.5 : 1,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              }}
+            >
+              <IconPlus size={12} />
               Crea
-            </Button>
-          </DialogFooter>
+            </button>
+          </div>
         </DialogContent>
       </Dialog>
 
@@ -809,24 +1231,43 @@ export default function TagsPage() {
       {editingCell?.field === 'type' && createPortal(
         <div
           id="tag-type-dropdown"
-          className="fixed w-40 rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl py-1"
-          style={{ top: typeDropdownPos.top, left: typeDropdownPos.left, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: typeDropdownPos.top,
+            left: typeDropdownPos.left,
+            zIndex: 9999,
+            width: 180,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+          }}
         >
           {tagTypes.map((t) => {
             const isActive = (tags.find((tg) => tg.id === editingCell.id)?.tag_type || 'topic') === t.slug;
             return (
               <button
                 key={t.slug}
-                className={cn(
-                  'flex items-center gap-2 w-full px-3 py-1.5 text-left text-xs hover:bg-zinc-800 transition-colors',
-                  isActive && 'bg-zinc-800'
-                )}
                 onClick={() => commitType(editingCell.id, t.slug)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: isActive ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${isActive ? theme.border : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  color: theme.ink2,
+                }}
               >
-                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: t.color || '#94A3B8' }} />
-                <TagTypeIcon emoji={t.emoji} size={14} />
-                <span className="text-zinc-300 flex-1">{t.name}</span>
-                {isActive && <IconCheck className="h-3 w-3 text-blue-400" />}
+                <div style={{ width: 12, height: 12, background: t.color || '#94A3B8', border: `2px solid ${theme.border}`, flexShrink: 0 }} />
+                <TagTypeIcon emoji={t.emoji} size={14} color={theme.ink2} />
+                <span style={{ flex: 1 }}>{t.name}</span>
+                {isActive && <IconCheck size={12} style={{ color: theme.accent }} />}
               </button>
             );
           })}
@@ -838,25 +1279,65 @@ export default function TagsPage() {
       {editingCell?.field === 'alias' && createPortal(
         <div
           ref={aliasPopupRef}
-          className="fixed rounded-lg border border-zinc-700 bg-zinc-900 shadow-xl p-3 w-56"
-          style={{ top: aliasPopupPos.top, left: aliasPopupPos.left, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: aliasPopupPos.top,
+            left: aliasPopupPos.left,
+            zIndex: 9999,
+            width: 240,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 10,
+          }}
         >
-          <label className="text-[11px] text-zinc-500 mb-2 block">Alias</label>
-          <div className="flex flex-col gap-1.5 max-h-32 overflow-y-auto mb-2">
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              display: 'block',
+              marginBottom: 6,
+            }}
+          >
+            Alias
+          </label>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 132, overflowY: 'auto', marginBottom: 8 }}>
             {editAliasesList.length === 0 ? (
-              <span className="text-xs text-zinc-500">Nessun alias</span>
+              <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
+                Nessun alias
+              </span>
             ) : (
               editAliasesList.map((alias, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <span className="text-xs text-zinc-300 flex-1 truncate">{alias}</span>
-                  <button onClick={() => removeAlias(i)} className="text-zinc-500 hover:text-red-400 shrink-0">
-                    <IconX className="h-3 w-3" />
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span
+                    style={{
+                      fontFamily: 'var(--font-pixel-body)',
+                      fontSize: 12,
+                      color: theme.ink2,
+                      flex: 1,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {alias}
+                  </span>
+                  <button
+                    onClick={() => removeAlias(i)}
+                    style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+                    onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
+                  >
+                    <IconX size={12} />
                   </button>
                 </div>
               ))
             )}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <input
               type="text"
               value={newAliasInput}
@@ -864,14 +1345,33 @@ export default function TagsPage() {
               onKeyDown={(e) => { if (e.key === 'Enter') addAlias(); }}
               placeholder="Nuovo alias..."
               autoFocus
-              className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-blue-500 placeholder:text-zinc-600"
+              style={{
+                flex: 1,
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                padding: '6px 8px',
+                color: theme.ink,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 12,
+                outline: 'none',
+              }}
             />
             <button
               onClick={addAlias}
               disabled={!newAliasInput.trim()}
-              className="text-blue-400 hover:text-blue-300 disabled:text-zinc-600"
+              style={{
+                width: 28,
+                height: 28,
+                background: newAliasInput.trim() ? theme.accent : theme.surfaceVariant,
+                color: newAliasInput.trim() ? theme.onAccent : theme.ink3,
+                border: `2px solid ${theme.border}`,
+                cursor: newAliasInput.trim() ? 'pointer' : 'not-allowed',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
             >
-              <IconPlus className="h-3.5 w-3.5" />
+              <IconPlus size={14} />
             </button>
           </div>
         </div>,
@@ -883,14 +1383,24 @@ export default function TagsPage() {
 
       {/* Column filter popups */}
       <FilterPopup anchorRef={typeHeadRef} open={openFilter === 'type'} onClose={() => setOpenFilter(null)}>
-        <div className="w-40 flex flex-col gap-1">
-          <label className="text-[11px] text-zinc-500 mb-1">Tipo tag</label>
+        <div style={{ width: 168, display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              marginBottom: 4,
+            }}
+          >
+            Tipo tag
+          </label>
           {tagTypes.map((tt) => {
             const active = typeFilter.has(tt.slug);
             return (
               <button
                 key={tt.slug}
-                className={cn('flex items-center gap-2 w-full px-2 py-1.5 text-left text-xs rounded transition-colors', active ? 'bg-zinc-800' : 'hover:bg-zinc-800/50')}
                 onClick={() => {
                   setTypeFilter((prev) => {
                     const next = new Set(prev);
@@ -898,10 +1408,26 @@ export default function TagsPage() {
                     return next;
                   });
                 }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  width: '100%',
+                  padding: '6px 8px',
+                  textAlign: 'left',
+                  background: active ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${active ? theme.border : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontFamily: 'var(--font-pixel-body)',
+                  fontSize: 12,
+                  color: theme.ink2,
+                }}
               >
-                <span className="w-5 text-center"><TagTypeIcon emoji={tt.emoji} size={14} /></span>
-                <span className="text-zinc-300 flex-1">{tt.name}</span>
-                {active && <IconCheck className="h-3 w-3 text-blue-400" />}
+                <span style={{ width: 20, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <TagTypeIcon emoji={tt.emoji} size={14} color={theme.ink2} />
+                </span>
+                <span style={{ flex: 1 }}>{tt.name}</span>
+                {active && <IconCheck size={12} style={{ color: theme.accent }} />}
               </button>
             );
           })}
@@ -909,21 +1435,31 @@ export default function TagsPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={nameHeadRef} open={openFilter === 'name'} onClose={() => setOpenFilter(null)}>
-        <div className="w-48 flex flex-col gap-2">
-          <label className="text-[11px] text-zinc-500">Cerca nel nome</label>
-          <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5">
-            <IconSearch className="h-3 w-3 text-zinc-500 shrink-0" />
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Cerca nel nome
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `2px solid ${theme.border}`, padding: '6px 8px' }}>
+            <IconSearch size={12} style={{ color: theme.ink3, flexShrink: 0 }} />
             <input
               type="text"
               value={nameFilter}
               onChange={(e) => setNameFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              className="bg-transparent text-xs text-white w-full focus:outline-none placeholder:text-zinc-600"
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: 'var(--font-pixel-body)', fontSize: 11 }}
             />
             {nameFilter && (
-              <button onClick={() => setNameFilter('')} className="text-zinc-500 hover:text-zinc-300">
-                <IconX className="h-3 w-3" />
+              <button onClick={() => setNameFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>
+                <IconX size={12} />
               </button>
             )}
           </div>
@@ -931,27 +1467,36 @@ export default function TagsPage() {
       </FilterPopup>
 
       <FilterPopup anchorRef={aliasHeadRef} open={openFilter === 'alias'} onClose={() => setOpenFilter(null)}>
-        <div className="w-48 flex flex-col gap-2">
-          <label className="text-[11px] text-zinc-500">Cerca negli alias</label>
-          <div className="flex items-center gap-1.5 bg-zinc-800 border border-zinc-700 rounded px-2 py-1.5">
-            <IconSearch className="h-3 w-3 text-zinc-500 shrink-0" />
+        <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <label
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Cerca negli alias
+          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `2px solid ${theme.border}`, padding: '6px 8px' }}>
+            <IconSearch size={12} style={{ color: theme.ink3, flexShrink: 0 }} />
             <input
               type="text"
               value={aliasFilter}
               onChange={(e) => setAliasFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              className="bg-transparent text-xs text-white w-full focus:outline-none placeholder:text-zinc-600"
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: 'var(--font-pixel-body)', fontSize: 11 }}
             />
             {aliasFilter && (
-              <button onClick={() => setAliasFilter('')} className="text-zinc-500 hover:text-zinc-300">
-                <IconX className="h-3 w-3" />
+              <button onClick={() => setAliasFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>
+                <IconX size={12} />
               </button>
             )}
           </div>
         </div>
       </FilterPopup>
-
     </div>
   );
 }

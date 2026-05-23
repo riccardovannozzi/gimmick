@@ -62,6 +62,19 @@ export default {
         {
           photosPermission: "Allow Gimmick to access your photos to select images."
         }
+      ],
+      // Pixel Arcade design system fonts. Files must be downloaded manually
+      // from Google Fonts and dropped in mobile/assets/fonts/ before the
+      // next prebuild — the build will fail otherwise.
+      [
+        "expo-font",
+        {
+          fonts: [
+            "./assets/fonts/PressStart2P-Regular.ttf",
+            "./assets/fonts/JetBrainsMono-Regular.ttf",
+            "./assets/fonts/JetBrainsMono-Bold.ttf"
+          ]
+        }
       ]
     ],
     experiments: {

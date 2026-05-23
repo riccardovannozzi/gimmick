@@ -4,17 +4,12 @@
  *
  * Four lifecycle-state filters (done / wait / undo / stop) drive the same
  * backend endpoint as the web. Default selection is "wait" — matches the web.
- * Tab labels and glyphs mirror the status decorators used inside the flow
- * nodes themselves, so the Hub is visually consistent with the inspector.
- *
- * Tapping a card opens the parent tile's FLOW view (deep-link to a specific
- * node selection isn't supported on mobile yet — see TODO at handleOpen).
  */
 import React, { useState } from 'react';
 import {
   View,
   Text,
-  TouchableOpacity,
+  Pressable,
   ScrollView,
   FlatList,
   ActivityIndicator,
@@ -25,7 +20,8 @@ import Svg, { Rect, Circle, Path } from 'react-native-svg';
 import { IconRoute, IconClock } from '@tabler/icons-react-native';
 import { useFlowHub } from '@/hooks/useFlowHub';
 import { FLOW_STATE_COLORS } from '@/lib/flow-colors';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
+import type { PixelTheme } from '@/constants/pixel-theme';
 import type { FlowHubItem, FlowHubFilter, FlowNodeState } from '@/types';
 
 const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
@@ -67,7 +63,7 @@ function formatDate(iso: string | null): string | null {
 
 export default function FlowsScreen() {
   const router = useRouter();
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const [filter, setFilter] = useState<FlowHubFilter>('wait');
   const { items, isLoading, isError, refetch } = useFlowHub(filter);
 
@@ -76,38 +72,47 @@ export default function FlowsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-      {/* Filter tabs — 4 lifecycle decorators. Each tab uses the same status
-          glyph that decorates a flow node in that state. */}
-      <View style={{ borderBottomWidth: 1, borderBottomColor: colors.border }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
+      {/* Filter tabs — pixel pill row, bordo inferiore 2px */}
+      <View style={{ borderBottomWidth: 2, borderBottomColor: theme.border }}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 8, gap: 6 }}
+          contentContainerStyle={{ paddingHorizontal: 12, paddingVertical: 10, gap: 8 }}
         >
           {TABS.map((tab) => {
             const isActive = filter === tab.key;
-            const tabColor = isActive ? tab.tint : colors.tertiary;
             return (
-              <TouchableOpacity
+              <Pressable
                 key={tab.key}
                 onPress={() => setFilter(tab.key)}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 6,
-                  paddingHorizontal: 12,
-                  height: 32,
-                  borderRadius: 6,
-                  backgroundColor: isActive ? colors.surfaceVariant : 'transparent',
-                }}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
               >
-                <StateGlyph state={tab.key} color={tabColor} size={13} />
-                <Text style={{ fontSize: 12, fontWeight: '500', color: tabColor }}>
-                  {tab.label}
-                </Text>
-              </TouchableOpacity>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    height: 30,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: isActive ? tab.tint : theme.surface,
+                  }}
+                >
+                  <StateGlyph state={tab.key} color={isActive ? '#FFFFFF' : tab.tint} size={12} />
+                  <Text
+                    style={{
+                      fontFamily: theme.fontHead,
+                      fontSize: 9,
+                      color: isActive ? '#FFFFFF' : theme.ink,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </View>
+              </Pressable>
             );
           })}
         </ScrollView>
@@ -116,23 +121,26 @@ export default function FlowsScreen() {
       {/* List */}
       {isLoading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="small" color={colors.tertiary} />
+          <ActivityIndicator size="small" color={theme.accent as string} />
         </View>
       ) : isError ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 }}>
-          <Text style={{ fontSize: 13, color: '#EF4444' }}>Errore nel caricamento</Text>
-          <TouchableOpacity
-            onPress={() => refetch()}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24, gap: 12 }}>
+          <Text
             style={{
-              marginTop: 12,
-              paddingHorizontal: 14,
-              paddingVertical: 8,
-              borderRadius: 8,
-              backgroundColor: colors.background2,
+              fontFamily: theme.fontHead,
+              fontSize: 10,
+              color: theme.cap.voice,
+              letterSpacing: 1,
             }}
           >
-            <Text style={{ fontSize: 12, color: colors.primary }}>Riprova</Text>
-          </TouchableOpacity>
+            ERRORE NEL CARICAMENTO
+          </Text>
+          <PixelButton
+            theme={theme}
+            label="RIPROVA"
+            onPress={() => refetch()}
+            bg={theme.surface}
+          />
         </View>
       ) : items.length === 0 ? (
         <View
@@ -141,24 +149,38 @@ export default function FlowsScreen() {
             alignItems: 'center',
             justifyContent: 'center',
             paddingHorizontal: 32,
+            gap: 12,
           }}
         >
-          <IconRoute size={32} color={colors.tertiary} />
-          <Text
+          <View
             style={{
-              fontSize: 13,
-              color: colors.tertiary,
-              marginTop: 12,
-              textAlign: 'center',
+              width: 64,
+              height: 64,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: theme.surface,
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
-            Nessun flusso in questa categoria
+            <IconRoute size={28} color={theme.ink2} strokeWidth={1.6} />
+          </View>
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 10,
+              color: theme.ink,
+              textAlign: 'center',
+              letterSpacing: 1,
+            }}
+          >
+            NESSUN FLUSSO
           </Text>
           <Text
             style={{
-              fontSize: 11,
-              color: colors.tertiary,
-              marginTop: 4,
+              fontFamily: theme.fontBody,
+              fontSize: 12,
+              color: theme.ink2,
               textAlign: 'center',
               lineHeight: 16,
             }}
@@ -170,27 +192,29 @@ export default function FlowsScreen() {
         <FlatList
           data={items}
           keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 12, gap: 8, paddingBottom: 32 }}
+          contentContainerStyle={{ padding: 12, gap: 10, paddingBottom: 32 }}
           renderItem={({ item }) => (
-            <FlowItemCard item={item} colors={colors} onPress={() => handleOpen(item)} />
+            <FlowItemCard item={item} theme={theme} onPress={() => handleOpen(item)} />
           )}
           ListFooterComponent={
             <Text
               style={{
-                fontSize: 11,
-                color: colors.tertiary,
+                fontFamily: theme.fontHead,
+                fontSize: 9,
+                color: theme.ink2,
                 textAlign: 'center',
                 marginTop: 16,
+                letterSpacing: 1,
               }}
             >
-              {items.length} {items.length === 1 ? 'flusso' : 'flussi'}
+              {items.length} {items.length === 1 ? 'FLUSSO' : 'FLUSSI'}
             </Text>
           }
           refreshControl={
             <RefreshControl
               refreshing={false}
               onRefresh={() => refetch()}
-              tintColor={colors.tertiary}
+              tintColor={theme.ink2}
             />
           }
         />
@@ -200,18 +224,15 @@ export default function FlowsScreen() {
 }
 
 /**
- * 3-column layout matching the frontend FlowItemCard:
- *   col 1 — tag (top, caps) + tile title (bottom)
- *   col 2 — node label (top) + contact pill (bottom)
- *   col 3 — mini badge (spans both rows)
+ * 3-column card — pixel styled: border 2px ink, no border-radius, bg surface.
  */
 function FlowItemCard({
   item,
-  colors,
+  theme,
   onPress,
 }: {
   item: FlowHubItem;
-  colors: any;
+  theme: PixelTheme;
   onPress: () => void;
 }) {
   const isSelf = isItemSelf(item);
@@ -221,148 +242,167 @@ function FlowItemCard({
   const occurred = formatDate(item.occurred_at);
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.7}
-      style={{
-        backgroundColor: colors.background2,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: colors.border,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-      }}
-    >
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        {/* Column 1 — tag (top) + tile title (bottom) */}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: 10,
-              letterSpacing: 1.2,
-              color: colors.tertiary,
-              textTransform: 'uppercase',
-            }}
-          >
-            {item.tile.tag?.name || ' '}
-          </Text>
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: 12,
-              fontWeight: '600',
-              color: colors.primary,
-              marginTop: 2,
-            }}
-          >
-            {item.tile.title || '(senza titolo)'}
-          </Text>
-        </View>
-
-        {/* Column 2 — node label (top) + contact pill (bottom) */}
-        <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-start', gap: 4 }}>
-          <Text
-            numberOfLines={1}
-            style={{
-              fontSize: 12,
-              color: item.label?.trim() ? colors.secondary : colors.tertiary,
-              fontStyle: item.label?.trim() ? 'normal' : 'italic',
-            }}
-          >
-            {item.label?.trim() || '(senza etichetta)'}
-          </Text>
-          {item.contact ? (
-            <View
+    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+      <View
+        style={{
+          backgroundColor: theme.surface,
+          borderWidth: 2,
+          borderColor: theme.border,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+        }}
+      >
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          {/* Column 1 — tag (caps) + tile title */}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text
+              numberOfLines={1}
               style={{
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderRadius: 4,
-                borderWidth: 1,
-                borderColor: '#52525B',
-                maxWidth: '100%',
+                fontFamily: theme.fontHead,
+                fontSize: 8,
+                letterSpacing: 1.2,
+                color: theme.ink2,
               }}
             >
-              <Text
-                numberOfLines={1}
+              {item.tile.tag?.name?.toUpperCase() || ' '}
+            </Text>
+            <Text
+              numberOfLines={1}
+              style={{
+                fontFamily: theme.fontBody,
+                fontSize: 13,
+                fontWeight: '700',
+                color: theme.ink,
+                marginTop: 4,
+              }}
+            >
+              {item.tile.title || '(senza titolo)'}
+            </Text>
+          </View>
+
+          {/* Column 2 — node label + contact pill */}
+          <View style={{ flex: 1, minWidth: 0, alignItems: 'flex-start', gap: 4 }}>
+            <Text
+              numberOfLines={1}
+              style={{
+                fontFamily: theme.fontBody,
+                fontSize: 12,
+                color: item.label?.trim() ? theme.ink : theme.ink3,
+                fontStyle: item.label?.trim() ? 'normal' : 'italic',
+              }}
+            >
+              {item.label?.trim() || '(senza etichetta)'}
+            </Text>
+            {item.contact ? (
+              <View
                 style={{
-                  fontSize: 11,
-                  color: item.contact.color || '#D4D4D8',
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderWidth: 2,
+                  borderColor: theme.border,
+                  maxWidth: '100%',
                 }}
               >
-                {item.contact.is_self
-                  ? `[ ${item.contact.name} ]`
-                  : item.contact.name}
-              </Text>
-            </View>
-          ) : (
-            // Invisible placeholder keeps row height stable across cards.
-            <View
-              style={{
-                paddingHorizontal: 8,
-                paddingVertical: 3,
-                borderRadius: 4,
-                borderWidth: 1,
-                borderColor: 'transparent',
-              }}
-            >
-              <Text style={{ fontSize: 11, color: 'transparent' }}>—</Text>
-            </View>
-          )}
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 8,
+                    color: item.contact.color || theme.ink,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {item.contact.is_self
+                    ? `[ ${item.contact.name.toUpperCase()} ]`
+                    : item.contact.name.toUpperCase()}
+                </Text>
+              </View>
+            ) : (
+              <View
+                style={{
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  borderWidth: 2,
+                  borderColor: 'transparent',
+                }}
+              >
+                <Text style={{ fontSize: 8, color: 'transparent' }}>—</Text>
+              </View>
+            )}
+          </View>
+
+          {/* Column 3 — mini badge */}
+          <FlowMiniBadge isSelf={isSelf} state={item.state} />
         </View>
 
-        {/* Column 3 — mini badge (square = self, circle = other) */}
-        <FlowMiniBadge isSelf={isSelf} state={item.state} />
+        {(scheduled || (!scheduled && item.days_since_activity > 0) || occurred) && (
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 12,
+              marginTop: 8,
+            }}
+          >
+            {scheduled && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <IconClock size={11} color={isDue ? theme.cap.voice : theme.ink2} />
+                <Text
+                  style={{
+                    fontFamily: theme.fontBody,
+                    fontSize: 11,
+                    color: isDue ? theme.cap.voice : theme.ink2,
+                  }}
+                >
+                  {scheduled}
+                </Text>
+              </View>
+            )}
+            {!scheduled && item.days_since_activity > 0 && (
+              <Text
+                style={{
+                  fontFamily: theme.fontBody,
+                  fontSize: 11,
+                  color: theme.ink2,
+                }}
+              >
+                {item.days_since_activity}g fa
+              </Text>
+            )}
+            {occurred && (
+              <Text
+                style={{
+                  fontFamily: theme.fontBody,
+                  fontSize: 11,
+                  color: theme.ink2,
+                  marginLeft: 'auto',
+                }}
+              >
+                {occurred}
+              </Text>
+            )}
+          </View>
+        )}
+
+        {!!item.notes && (
+          <Text
+            numberOfLines={2}
+            style={{
+              fontFamily: theme.fontBody,
+              fontSize: 12,
+              color: theme.ink,
+              marginTop: 8,
+              lineHeight: 17,
+            }}
+          >
+            {item.notes}
+          </Text>
+        )}
       </View>
-
-      {/* Secondary metadata — schedule date / age / occurred_at — only when
-          something is present. Matches the frontend's bottom row. */}
-      {(scheduled || (!scheduled && item.days_since_activity > 0) || occurred) && (
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 12,
-            marginTop: 8,
-          }}
-        >
-          {scheduled && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <IconClock size={11} color={isDue ? '#EF4444' : colors.tertiary} />
-              <Text style={{ fontSize: 11, color: isDue ? '#EF4444' : colors.tertiary }}>
-                {scheduled}
-              </Text>
-            </View>
-          )}
-          {!scheduled && item.days_since_activity > 0 && (
-            <Text style={{ fontSize: 11, color: colors.tertiary }}>
-              {item.days_since_activity}g fa
-            </Text>
-          )}
-          {occurred && (
-            <Text style={{ fontSize: 11, color: colors.tertiary, marginLeft: 'auto' }}>
-              {occurred}
-            </Text>
-          )}
-        </View>
-      )}
-
-      {!!item.notes && (
-        <Text
-          numberOfLines={2}
-          style={{ fontSize: 12, color: colors.secondary, marginTop: 8 }}
-        >
-          {item.notes}
-        </Text>
-      )}
-    </TouchableOpacity>
+    </Pressable>
   );
 }
 
-/**
- * Square (self) or circle (other) node body with the inline status glyph.
- * Mirrors the web FlowMiniBadge exactly (radius 16, same body fill/stroke).
- */
 function FlowMiniBadge({
   isSelf,
   state,
@@ -386,7 +426,7 @@ function FlowMiniBadge({
           y={half - r}
           width={r * 2}
           height={r * 2}
-          rx={4}
+          rx={0}
           fill={bodyFill}
           stroke={bodyStroke}
           strokeWidth={1}
@@ -407,8 +447,6 @@ function FlowMiniBadge({
   );
 }
 
-/** Compact status glyph used inside the filter tabs — same proportions as
- *  the inspector's status icons, sized to 13px by default for inline use. */
 function StateGlyph({
   state,
   color,
@@ -426,8 +464,6 @@ function StateGlyph({
   );
 }
 
-/** Inline status glyph paths — port of frontend StatusIcon. Re-implemented
- *  here so the Hub doesn't pull the entire graph layout module. */
 function StatusGlyph({
   state,
   color,

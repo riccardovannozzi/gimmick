@@ -3,16 +3,18 @@
  *   [TILES (square)] [ EDIT ] [ LIST ] [ FLOW ]
  *
  * The square TILES button always navigates back to the tiles list. The EDIT,
- * LIST and FLOW buttons switch between the three views of the same tile. The
- * button matching the current screen renders in the "active" style (filled
- * bg, white border) to match the existing Action segmented control on EDIT.
+ * LIST and FLOW buttons switch between the three views of the same tile.
+ * Pixel design: bordo inferiore 2px ink, active = bg accent + label onAccent
+ * (mirror del TopNav active pill).
  */
 import React from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { IconLayoutGrid } from '@tabler/icons-react-native';
+import { usePixelTheme } from '@/components/pixel';
 
 interface Props {
-  colors: any;
+  /** Unused — kept for backward-compat with legacy call sites. */
+  colors?: any;
   active: 'edit' | 'list' | 'flow';
   onTiles: () => void;
   onEdit: () => void;
@@ -20,7 +22,8 @@ interface Props {
   onFlow: () => void;
 }
 
-export function TileHeaderNav({ colors, active, onTiles, onEdit, onList, onFlow }: Props) {
+export function TileHeaderNav({ active, onTiles, onEdit, onList, onFlow }: Props) {
+  const theme = usePixelTheme();
   return (
     <View
       style={{
@@ -29,43 +32,33 @@ export function TileHeaderNav({ colors, active, onTiles, onEdit, onList, onFlow 
         gap: 6,
         paddingHorizontal: 12,
         paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: colors.border,
+        borderBottomWidth: 2,
+        borderBottomColor: theme.border,
       }}
     >
-      <TouchableOpacity
+      {/* TILES square — torna alla lista tile */}
+      <Pressable
         onPress={onTiles}
-        activeOpacity={0.7}
-        style={{
-          width: 44,
-          height: 44,
-          borderRadius: 8,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.background2,
-        }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
-        <IconLayoutGrid size={20} color={colors.primary} />
-      </TouchableOpacity>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderWidth: 2,
+            borderColor: theme.border,
+            backgroundColor: theme.surface,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <IconLayoutGrid size={20} color={theme.ink} strokeWidth={2} />
+        </View>
+      </Pressable>
 
-      <SegmentedButton
-        label="EDIT"
-        active={active === 'edit'}
-        onPress={onEdit}
-        colors={colors}
-      />
-      <SegmentedButton
-        label="LIST"
-        active={active === 'list'}
-        onPress={onList}
-        colors={colors}
-      />
-      <SegmentedButton
-        label="FLOW"
-        active={active === 'flow'}
-        onPress={onFlow}
-        colors={colors}
-      />
+      <SegmentedButton label="EDIT" active={active === 'edit'} onPress={onEdit} />
+      <SegmentedButton label="LIST" active={active === 'list'} onPress={onList} />
+      <SegmentedButton label="FLOW" active={active === 'flow'} onPress={onFlow} />
     </View>
   );
 }
@@ -74,38 +67,38 @@ function SegmentedButton({
   label,
   active,
   onPress,
-  colors,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
-  colors: any;
 }) {
-  // Active style mirrors the web sidebar tabs (frontend TileSidebar):
-  // bg-blue-600/20 + text-blue-400, no border.
+  const theme = usePixelTheme();
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      activeOpacity={0.7}
-      style={{
-        flex: 1,
-        height: 44,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: 8,
-        backgroundColor: active ? 'rgba(37, 99, 235, 0.2)' : colors.background2,
-      }}
+      style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
     >
-      <Text
+      <View
         style={{
-          fontSize: 13,
-          fontWeight: '700',
-          letterSpacing: 1,
-          color: active ? '#60A5FA' : colors.tertiary,
+          height: 38,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 2,
+          borderColor: theme.border,
+          backgroundColor: active ? theme.accent : theme.surface,
         }}
       >
-        {label}
-      </Text>
-    </TouchableOpacity>
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 9,
+            color: active ? (theme.onAccent as string) : theme.ink,
+            letterSpacing: 1,
+          }}
+        >
+          {label}
+        </Text>
+      </View>
+    </Pressable>
   );
 }

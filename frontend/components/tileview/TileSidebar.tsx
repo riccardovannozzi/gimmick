@@ -10,6 +10,8 @@ import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
+import { usePixelTheme, usePixelSettings } from '@/components/pixel';
+import { resolveCaptureStyle } from '@/lib/pixel-theme';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -17,8 +19,10 @@ import { readableOn } from '@/lib/palette';
 import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
-import { FlowInspector } from '@/components/flow/FlowInspector';
+import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
+import { MarkdownPreview } from '@/components/markdown/markdown-preview';
+import { MarkdownEditorModal } from '@/components/markdown/markdown-editor-modal';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -40,6 +44,7 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
 function TypeIconPicker({ tileId }: { tileId: string }) {
+  const theme = usePixelTheme();
   const { icons, tileIcons, assignIcon } = useTypeIcons();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -66,43 +71,96 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 
   if (icons.length === 0) return null;
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+  const popupItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  });
+
   return (
-    <div className="relative">
-      <label className="text-[11px] text-zinc-500 mb-1 block">Type</label>
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>Type</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
-        style={{ backgroundColor: current?.color ? current.color + '40' : 'rgba(39,39,42,0.6)' }}
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: current?.color ? `${current.color}40` : theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '0 8px',
+          height: 30,
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
       >
         {CurrentComp ? (
           <>
-            <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: current?.color || '#27272A' }}>
-              <CurrentComp size={12} color={readableOn(current?.color || '#27272A')} />
+            <div
+              style={{
+                width: 18,
+                height: 18,
+                background: current?.color || theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <CurrentComp size={10} color={readableOn(current?.color || theme.surfaceVariant)} />
             </div>
-            <span className="truncate flex-1 text-left">{current!.name}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona tipo...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona tipo...</span>
         )}
       </button>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 192,
+            overflowY: 'auto',
+          }}
         >
-          <button
-            onClick={() => { assignIcon(tileId, null); setOpen(false); }}
-            className={cn(
-              'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-              !currentIconId && 'bg-zinc-700/30'
-            )}
-          >
-            <span className="w-3.5 h-3.5 flex items-center justify-center text-zinc-500">—</span>
-            <span className="text-zinc-400 truncate flex-1">Nessuno</span>
+          <button onClick={() => { assignIcon(tileId, null); setOpen(false); }} style={popupItem(!currentIconId)}>
+            <span style={{ width: 14, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Nessuno</span>
             {!currentIconId && (
-              <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+              <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
             )}
           </button>
           {icons.map((icon) => {
@@ -112,19 +170,27 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
               <button
                 key={icon.id}
                 onClick={() => { assignIcon(tileId, icon.id); setOpen(false); }}
-                className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                  selected && 'bg-zinc-700/30'
-                )}
+                style={popupItem(selected)}
               >
                 {Comp && (
-                  <div className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ backgroundColor: icon.color || '#27272A' }}>
-                    <Comp size={12} color={readableOn(icon.color || '#27272A')} />
+                  <div
+                    style={{
+                      width: 18,
+                      height: 18,
+                      background: icon.color || theme.surfaceVariant,
+                      border: `2px solid ${theme.border}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Comp size={10} color={readableOn(icon.color || theme.surfaceVariant)} />
                   </div>
                 )}
-                <span className="text-zinc-300 truncate flex-1">{icon.name}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{icon.name}</span>
                 {selected && (
-                  <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
             );
@@ -158,6 +224,7 @@ function StatusPickerField({ statuses, value, onChange }: {
   value: string | null;
   onChange: (id: string | null) => void;
 }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -180,48 +247,99 @@ function StatusPickerField({ statuses, value, onChange }: {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+  const swatch: React.CSSProperties = {
+    width: 18,
+    height: 18,
+    overflow: 'hidden',
+    flexShrink: 0,
+    position: 'relative',
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+  };
+  const popupItem = (active: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  });
+
   return (
     <div>
-      <label className="text-[11px] text-zinc-500 mb-1 block">Status</label>
+      <label style={labelStyle}>Status</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-xs text-zinc-300 hover:border-zinc-600 transition-colors"
+        style={{
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '0 8px',
+          height: 30,
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
       >
         {selected ? (
           <>
-            <div className="w-5 h-5 rounded overflow-hidden shrink-0 relative" style={{ backgroundColor: '#27272A' }}>
-              <InlineStatusSvg shape={selected.shape as StatusShape} color="#a1a1aa" />
+            <div style={swatch}>
+              <InlineStatusSvg shape={selected.shape as StatusShape} color={theme.ink2} />
             </div>
-            <span className="truncate flex-1 text-left">{selected.name}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selected.name}</span>
           </>
         ) : (
-          <span className="text-zinc-500 flex-1 text-left text-[11px]">Seleziona status...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona status...</span>
         )}
       </button>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl py-1 max-h-48 overflow-y-auto"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 192,
+            overflowY: 'auto',
+          }}
         >
           {statuses.map((p) => {
             const isSelected = value === p.id;
             return (
-              <button
-                key={p.id}
-                onClick={() => { onChange(p.id); setOpen(false); }}
-                className={cn(
-                  'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                  isSelected && 'bg-zinc-700/30'
-                )}
-              >
-                <div className="w-5 h-5 rounded overflow-hidden shrink-0 relative" style={{ backgroundColor: '#27272A' }}>
-                  <InlineStatusSvg shape={p.shape as StatusShape} color="#a1a1aa" />
+              <button key={p.id} onClick={() => { onChange(p.id); setOpen(false); }} style={popupItem(isSelected)}>
+                <div style={swatch}>
+                  <InlineStatusSvg shape={p.shape as StatusShape} color={theme.ink2} />
                 </div>
-                <span className="text-zinc-300 truncate flex-1">{p.name}</span>
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
                 {isSelected && (
-                  <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
               </button>
             );
@@ -243,6 +361,7 @@ function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; si
 }
 
 function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = [] }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient>; invalidateKeys?: string[] }) {
+  const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
@@ -329,56 +448,100 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
     }
   };
 
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+  const popupItem = (active: boolean, busy: boolean): React.CSSProperties => ({
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `2px solid ${active ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: busy ? 'not-allowed' : 'pointer',
+    opacity: busy ? 0.5 : 1,
+  });
+
   return (
-    <div className="relative">
-      <label className="text-[11px] text-zinc-500 mb-1 block">Tag</label>
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>Tag</label>
       <div
         ref={triggerRef}
-        className="flex items-center gap-2 h-8 bg-zinc-800/60 border border-white/[0.08] rounded px-2 cursor-pointer hover:border-zinc-600 transition-colors"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: 30,
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '0 8px',
+          cursor: 'pointer',
+          color: theme.ink,
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+        }}
         onClick={() => setOpen(!open)}
       >
         {selectedTag ? (
           <>
             <TagIcon
               emoji={getTypeEmoji(selectedTag.tag_type || 'topic')}
-              color={getTypeColor(selectedTag.tag_type || 'topic') || '#64748B'}
+              color={getTypeColor(selectedTag.tag_type || 'topic') || theme.ink3}
               size={14}
             />
-            <span className="text-xs text-zinc-200 truncate">{selectedTag.name}</span>
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedTag.name}</span>
           </>
         ) : (
-          <span className="text-[11px] text-zinc-500">Seleziona tag...</span>
+          <span style={{ color: theme.ink3, fontSize: 11 }}>Seleziona tag...</span>
         )}
       </div>
       {open && dropPos && createPortal(
         <div
           ref={dropRef}
-          className="fixed bg-zinc-800 border border-white/[0.08] rounded-lg shadow-xl max-h-64 overflow-y-auto py-1"
-          style={{ top: dropPos.top, left: dropPos.left, width: dropPos.width, zIndex: 9999 }}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `2px solid ${theme.border}`,
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            padding: 4,
+            maxHeight: 256,
+            overflowY: 'auto',
+          }}
         >
           {allTags.length === 0 ? (
-            <p className="text-xs text-zinc-500 text-center py-3">Nessun tag</p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
           ) : (
             allTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
               const busy = toggling === tag.id;
-              const c = getTypeColor(tag.tag_type || 'topic') || '#64748B';
+              const c = getTypeColor(tag.tag_type || 'topic') || theme.ink3;
               const emoji = getTypeEmoji(tag.tag_type || 'topic');
               return (
                 <button
                   key={tag.id}
                   disabled={busy}
                   onClick={() => handleSelect(tag)}
-                  className={cn(
-                    'flex items-center gap-2 w-full px-2.5 py-1.5 text-left text-xs hover:bg-zinc-700/50 transition-colors',
-                    assigned && 'bg-zinc-700/30',
-                    busy && 'opacity-50'
-                  )}
+                  style={popupItem(assigned, busy)}
                 >
                   <TagIcon emoji={emoji} color={c} size={14} />
-                  <span className={cn('truncate flex-1', assigned ? 'text-zinc-200' : 'text-zinc-400')}>{tag.name}</span>
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
                   {assigned && (
-                    <svg className="w-3 h-3 text-blue-400 shrink-0" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                   )}
                 </button>
               );
@@ -400,12 +563,15 @@ function SparkEditor({
   onDelete: () => void;
   onUpdateText: (content: string) => void;
 }) {
+  const theme = usePixelTheme();
   const SparkIcon = SPARK_ICONS[spark.type] || IconFile;
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [editText, setEditText] = useState(spark.content || '');
   const textDirty = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
+  // Markdown editor modal for the inline text spark.
+  const [textModalOpen, setTextModalOpen] = useState(false);
 
   // Close PDF modal on Escape
   useEffect(() => {
@@ -428,49 +594,125 @@ function SparkEditor({
     else setConfirmDelete(true);
   };
 
+  const mediaWrap: React.CSSProperties = {
+    overflow: 'hidden',
+    background: theme.surfaceVariant,
+    border: `2px solid ${theme.border}`,
+    position: 'relative',
+  };
+  const overlayBtn = (danger: boolean): React.CSSProperties => ({
+    padding: 4,
+    background: danger ? '#E24B4A' : theme.surface,
+    color: danger ? '#FFFFFF' : theme.ink2,
+    border: `2px solid ${theme.border}`,
+    cursor: 'pointer',
+    display: 'inline-flex',
+  });
+
   if (spark.type === 'text') {
     return (
-      <div className="rounded border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 group relative h-32 flex flex-col">
-        <div className="flex items-center gap-1 mb-1 shrink-0">
-          <IconFileText className="h-3 w-3 text-zinc-500" />
-          <span className="text-[10px] text-zinc-500 uppercase">Testo</span>
+      <div
+        className="group"
+        style={{
+          background: theme.surfaceVariant,
+          border: `2px solid ${theme.border}`,
+          padding: '10px 12px',
+          position: 'relative',
+          height: 128,
+          display: 'flex',
+          flexDirection: 'column',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexShrink: 0 }}>
+          <IconFileText size={11} style={{ color: theme.ink3 }} />
+          <span
+            style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+            }}
+          >
+            Testo
+          </span>
         </div>
-        <textarea
-          value={editText}
-          onChange={(e) => {
-            setEditText(e.target.value);
-            textDirty.current = true;
+        <div
+          onClick={() => setTextModalOpen(true)}
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            cursor: 'pointer',
+            paddingRight: 4,
           }}
-          onBlur={() => { if (textDirty.current) { onUpdateText(editText); textDirty.current = false; } }}
-          className="w-full flex-1 bg-transparent text-xs text-zinc-300 leading-relaxed resize-none focus:outline-none overflow-y-auto"
-        />
-        <button
-          onClick={handleDeleteClick}
-          className={cn(
-            'absolute top-1 right-1 p-0.5 rounded transition-all',
-            confirmDelete ? 'bg-red-600 text-white' : 'text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100'
-          )}
-          title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
+          title="Apri editor"
         >
-          <IconTrash className="h-3 w-3" />
-        </button>
+          {editText.trim() ? (
+            <MarkdownPreview markdown={editText} />
+          ) : (
+            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12 }}>Vuoto — clicca per scrivere…</span>
+          )}
+        </div>
+        {/* Action chips (edit + delete) appear on hover, top-right corner. */}
+        <div
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 4 }}
+        >
+          <button
+            onClick={() => setTextModalOpen(true)}
+            style={{
+              padding: 2,
+              background: theme.surface,
+              color: theme.ink2,
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+              display: 'inline-flex',
+            }}
+            title="Modifica"
+          >
+            <IconMaximize size={11} />
+          </button>
+          <button
+            onClick={handleDeleteClick}
+            style={{
+              padding: 2,
+              background: confirmDelete ? '#E24B4A' : theme.surface,
+              color: confirmDelete ? '#FFFFFF' : theme.ink2,
+              border: `2px solid ${theme.border}`,
+              cursor: 'pointer',
+              display: 'inline-flex',
+            }}
+            title={confirmDelete ? 'Conferma eliminazione' : 'Elimina'}
+          >
+            <IconTrash size={11} />
+          </button>
+        </div>
+        <MarkdownEditorModal
+          open={textModalOpen}
+          initialValue={editText}
+          onSave={(md) => {
+            setEditText(md);
+            textDirty.current = false;
+            onUpdateText(md);
+            setTextModalOpen(false);
+          }}
+          onCancel={() => setTextModalOpen(false)}
+          title="Modifica testo"
+        />
       </div>
     );
   }
 
   if ((spark.type === 'photo' || spark.type === 'image') && signedUrl) {
     return (
-      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
-        <img src={signedUrl} alt="" className="w-full h-32 object-cover" />
-        <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="p-1 bg-zinc-900/80 rounded text-zinc-300 hover:text-white">
-            <IconExternalLink className="h-3 w-3" />
+      <div className="group" style={mediaWrap}>
+        <img src={signedUrl} alt="" style={{ width: '100%', height: 128, objectFit: 'cover', display: 'block' }} />
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ position: 'absolute', top: 4, right: 4, display: 'flex', gap: 4 }}>
+          <a href={signedUrl} target="_blank" rel="noopener noreferrer" style={overlayBtn(false)}>
+            <IconExternalLink size={11} />
           </a>
-          <button
-            onClick={handleDeleteClick}
-            className={cn('p-1 rounded', confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400')}
-          >
-            <IconTrash className="h-3 w-3" />
+          <button onClick={handleDeleteClick} style={overlayBtn(confirmDelete)}>
+            <IconTrash size={11} />
           </button>
         </div>
       </div>
@@ -479,21 +721,31 @@ function SparkEditor({
 
   if (spark.type === 'video' && signedUrl) {
     return (
-      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
-        <video src={signedUrl} className="w-full h-32 object-cover" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="p-2 bg-zinc-900/70 rounded-full text-white hover:bg-zinc-900/90">
-            <IconPlayerPlay className="h-5 w-5" />
+      <div className="group" style={mediaWrap}>
+        <video src={signedUrl} style={{ width: '100%', height: 128, objectFit: 'cover', display: 'block' }} />
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <a
+            href={signedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              padding: 8,
+              background: theme.accent,
+              color: theme.onAccent,
+              border: `2px solid ${theme.border}`,
+              display: 'inline-flex',
+              cursor: 'pointer',
+            }}
+          >
+            <IconPlayerPlay size={18} />
           </a>
         </div>
         <button
           onClick={handleDeleteClick}
-          className={cn(
-            'absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-            confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400'
-          )}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ position: 'absolute', top: 4, right: 4, ...overlayBtn(confirmDelete) }}
         >
-          <IconTrash className="h-3 w-3" />
+          <IconTrash size={11} />
         </button>
       </div>
     );
@@ -503,21 +755,30 @@ function SparkEditor({
   const isImageFile = spark.mime_type?.startsWith('image/');
   if (isImageFile && signedUrl) {
     return (
-      <div className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative">
-        <a href={signedUrl} target="_blank" rel="noopener noreferrer" className="block">
-          <img src={signedUrl} alt={spark.file_name || ''} className="w-full h-32 object-cover" />
+      <div className="group" style={mediaWrap}>
+        <a href={signedUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
+          <img src={signedUrl} alt={spark.file_name || ''} style={{ width: '100%', height: 128, objectFit: 'cover', display: 'block' }} />
         </a>
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-900/90 to-transparent px-2 py-1">
-          <span className="text-[10px] text-zinc-300 truncate block">{spark.file_name}</span>
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            background: `linear-gradient(to top, ${theme.surface}EE, transparent)`,
+            padding: '4px 8px',
+          }}
+        >
+          <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {spark.file_name}
+          </span>
         </div>
         <button
           onClick={handleDeleteClick}
-          className={cn(
-            'absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-            confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400'
-          )}
+          className="opacity-0 group-hover:opacity-100 transition-opacity"
+          style={{ position: 'absolute', top: 4, right: 4, ...overlayBtn(confirmDelete) }}
         >
-          <IconTrash className="h-3 w-3" />
+          <IconTrash size={11} />
         </button>
       </div>
     );
@@ -530,75 +791,137 @@ function SparkEditor({
       <>
         <div
           onClick={() => setPdfModalOpen(true)}
-          className="rounded border border-white/[0.08] overflow-hidden bg-zinc-800/40 group relative cursor-zoom-in hover:border-zinc-600 transition-colors"
+          className="group"
+          style={{
+            background: theme.surfaceVariant,
+            border: `2px solid ${theme.border}`,
+            overflow: 'hidden',
+            position: 'relative',
+            cursor: 'zoom-in',
+          }}
         >
           {/* Thumbnail — first page, interaction blocked so click falls through to wrapper */}
-          <div className="relative h-24 bg-zinc-900 overflow-hidden pointer-events-none">
+          <div style={{ position: 'relative', height: 96, background: theme.bg1, overflow: 'hidden', pointerEvents: 'none' }}>
             <iframe
               src={`${signedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`}
               title={spark.file_name || 'PDF'}
-              className="w-full h-full border-0"
+              style={{ width: '100%', height: '100%', border: 0 }}
             />
-            <div className="absolute inset-0" /> {/* overlay to block iframe events */}
+            <div style={{ position: 'absolute', inset: 0 }} />
           </div>
-          <div className="flex items-center gap-2 px-2 py-1 border-t border-zinc-700/60 bg-zinc-900/70">
-            <IconFileText className="h-3 w-3 text-zinc-400 shrink-0" />
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '4px 8px',
+              borderTop: `2px solid ${theme.border}`,
+              background: theme.surface,
+            }}
+          >
+            <IconFileText size={11} style={{ color: theme.ink2, flexShrink: 0 }} />
             <span
-              className="text-[10px] text-zinc-300 truncate flex-1"
+              style={{
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 10,
+                color: theme.ink2,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                flex: 1,
+              }}
               title={spark.file_name || ''}
             >
               {spark.file_name}
             </span>
-            <IconMaximize className="h-3 w-3 text-zinc-500 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <IconMaximize size={11} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: theme.ink3, flexShrink: 0 }} />
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); handleDeleteClick(); }}
-            className={cn(
-              'absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity',
-              confirmDelete ? 'bg-red-600 text-white' : 'bg-zinc-900/80 text-zinc-300 hover:text-red-400'
-            )}
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ position: 'absolute', top: 4, right: 4, ...overlayBtn(confirmDelete) }}
           >
-            <IconTrash className="h-3 w-3" />
+            <IconTrash size={11} />
           </button>
         </div>
 
         {/* Expand modal */}
         {pdfModalOpen && createPortal(
           <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 p-4"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 9999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'rgba(0,0,0,0.8)',
+              padding: 16,
+            }}
             onClick={() => setPdfModalOpen(false)}
           >
             <div
-              className="bg-zinc-900 border border-white/[0.08] rounded-xl shadow-2xl flex flex-col overflow-hidden"
-              style={{ width: 'min(95vw, 1100px)', height: 'min(95vh, 900px)' }}
+              style={{
+                background: theme.surface,
+                border: `2px solid ${theme.border}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                width: 'min(95vw, 1100px)',
+                height: 'min(95vh, 900px)',
+              }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center gap-2 px-4 py-2 border-b border-zinc-800 shrink-0">
-                <IconFileText className="h-4 w-4 text-zinc-400 shrink-0" />
-                <span className="text-sm font-medium text-white truncate flex-1" title={spark.file_name || ''}>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '10px 14px',
+                  borderBottom: `2px solid ${theme.border}`,
+                  background: theme.surfaceVariant,
+                  flexShrink: 0,
+                }}
+              >
+                <IconFileText size={14} style={{ color: theme.ink2, flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 11,
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    color: theme.ink,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                  }}
+                  title={spark.file_name || ''}
+                >
                   {spark.file_name || 'PDF'}
                 </span>
                 <a
                   href={signedUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  style={{ padding: 4, color: theme.ink2, background: 'transparent', display: 'inline-flex' }}
                   title="Apri in nuovo tab"
                 >
-                  <IconExternalLink className="h-4 w-4" />
+                  <IconExternalLink size={14} />
                 </a>
                 <button
                   onClick={() => setPdfModalOpen(false)}
-                  className="p-1 rounded hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200"
+                  style={{ padding: 4, color: theme.ink2, background: 'transparent', border: 'none', cursor: 'pointer', display: 'inline-flex' }}
                   title="Chiudi"
                 >
-                  <IconX className="h-4 w-4" />
+                  <IconX size={14} />
                 </button>
               </div>
               <iframe
                 src={signedUrl}
                 title={spark.file_name || 'PDF'}
-                className="flex-1 w-full bg-zinc-900 border-0"
+                style={{ flex: 1, width: '100%', background: theme.bg1, border: 0 }}
               />
             </div>
           </div>,
@@ -614,117 +937,72 @@ function SparkEditor({
       target="_blank"
       rel="noopener noreferrer"
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
-      className="rounded border border-white/[0.08] bg-zinc-800/40 px-2.5 py-2 flex items-center gap-2 group relative hover:bg-zinc-800/70 transition-colors cursor-pointer"
+      className="group"
+      style={{
+        background: theme.surfaceVariant,
+        border: `2px solid ${theme.border}`,
+        padding: '8px 10px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 8,
+        position: 'relative',
+        cursor: 'pointer',
+        textDecoration: 'none',
+      }}
     >
-      <div className="w-10 h-10 rounded bg-zinc-700/50 flex items-center justify-center shrink-0">
-        <SparkIcon className="h-5 w-5 text-zinc-400" />
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span className="text-xs text-zinc-300 truncate flex-1">{spark.file_name || spark.type}</span>
+      <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+        {spark.file_name || spark.type}
+      </span>
       {signedUrl && (
-        <IconExternalLink className="h-3 w-3 text-zinc-500 opacity-0 group-hover:opacity-100 shrink-0" />
+        <IconExternalLink size={11} className="opacity-0 group-hover:opacity-100" style={{ color: theme.ink3, flexShrink: 0 }} />
       )}
       <button
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleDeleteClick(); }}
-        className={cn(
-          'p-0.5 rounded transition-all shrink-0',
-          confirmDelete ? 'bg-red-600 text-white' : 'text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100'
-        )}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{
+          padding: 2,
+          background: confirmDelete ? '#E24B4A' : 'transparent',
+          color: confirmDelete ? '#FFFFFF' : theme.ink3,
+          border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+          cursor: 'pointer',
+          display: 'inline-flex',
+          flexShrink: 0,
+          ...(confirmDelete ? { opacity: 1 } : {}),
+        }}
       >
-        <IconTrash className="h-3 w-3" />
+        <IconTrash size={11} />
       </button>
     </a>
   );
 }
 
 /**
- * Body of the "Flow" tab. Renders FlowInspector for a node belonging to the
- * tile, choosing it in priority order:
- *   1. external `externalFlowNodeId` (e.g. canvas click) — when it still exists
- *   2. the first node in the graph (topological order)
+ * Body of the "Flow" tab. Linear card list — one card per node, drag to
+ * reorder, inline-editable status/contatto/data chips.
  *
- * If the tile has no flow yet, shows a CTA that creates the first node and
- * selects it. The Notes field is hidden in this context.
+ * (Previously this was a DAG inspector with a vertical track + per-node
+ * inspector — replaced by FlowCardList after migration 030 linearised the
+ * data model.)
  */
-function FlowTab({
-  tileId,
-  externalFlowNodeId,
-  onSelectFlowNode,
-}: {
-  tileId: string;
-  externalFlowNodeId: string | null;
-  onSelectFlowNode: (id: string | null) => void;
-}) {
-  const { graph, isLoading, addNode } = useFlow(tileId);
-
-  // Internal selection: clicks inside the embedded VerticalFlowTrack update
-  // this directly, so navigation works even when the parent doesn't track
-  // `flowNodeId` in state. The external prop only seeds the initial pick.
-  const [internalNodeId, setInternalNodeId] = useState<string | null>(null);
-
-  // Adopt a new external selection (e.g. canvas click) by clearing the
-  // internal override — the next render will derive `targetNodeId` from
-  // `externalFlowNodeId`.
-  useEffect(() => {
-    if (externalFlowNodeId) setInternalNodeId(null);
-  }, [externalFlowNodeId]);
-
-  const targetNodeId: string | null = (() => {
-    if (internalNodeId && graph.nodes.some((n) => n.id === internalNodeId)) {
-      return internalNodeId;
-    }
-    if (externalFlowNodeId && graph.nodes.some((n) => n.id === externalFlowNodeId)) {
-      return externalFlowNodeId;
-    }
-    return graph.nodes[0]?.id ?? null;
-  })();
-
-  const handleSelect = (id: string | null) => {
-    setInternalNodeId(id);
-    onSelectFlowNode(id);
-  };
-
-  if (isLoading) {
-    return <p className="text-xs text-zinc-500 p-3">Caricamento flow...</p>;
-  }
-
-  if (graph.nodes.length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center px-4 gap-3 text-center">
-        <p className="text-xs text-zinc-500 leading-relaxed">
-          Nessun nodo nel flow di questo tile.
-        </p>
-        <button
-          type="button"
-          onClick={async () => {
-            const res = await addNode.mutateAsync({
-              label: 'Nuovo nodo',
-              state: 'active',
-            });
-            if (res?.node) handleSelect(res.node.id);
-          }}
-          disabled={addNode.isPending}
-          className="px-3 h-8 rounded bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-50"
-        >
-          Crea primo nodo
-        </button>
-      </div>
-    );
-  }
-
-  if (!targetNodeId) {
-    return <p className="text-xs text-zinc-500 p-3">Nessun nodo selezionabile.</p>;
-  }
-
+function FlowTab({ tileId }: { tileId: string }) {
   return (
-    <FlowInspector
-      nodeId={targetNodeId}
-      tileId={tileId}
-      onClose={() => handleSelect(null)}
-      onSelectNode={(id) => handleSelect(id)}
-      hideNote
-      hideHeader
-      showVerticalFlow
-    />
+    <div className="px-3 pb-4 pt-3 overflow-y-auto h-full">
+      <FlowCardList tileId={tileId} />
+    </div>
   );
 }
 
@@ -753,6 +1031,8 @@ export function TileSidebar({
    *  tab — useful because clicking the same badge twice still has to react. */
   forceFlowTab?: number;
 }) {
+  const theme = usePixelTheme();
+  const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
@@ -884,11 +1164,18 @@ export function TileSidebar({
 
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
+  // Toggles the centered markdown editor modal for the in-progress new-text spark.
+  const [newTextModalOpen, setNewTextModalOpen] = useState(false);
   const [dropTargetIcon, setDropTargetIcon] = useState<string | null>(null);
   const addTextMutation = useMutation({
-    mutationFn: async () => {
+    // Accept the content as a parameter so the modal can fire-and-save in one
+    // gesture — otherwise we'd be reading a stale `newTextContent` from the
+    // closure right after calling `setNewTextContent(md)`.
+    mutationFn: async (contentOverride?: string) => {
       if (!tileId) throw new Error('Nessun tile selezionato');
-      const res = await sparksApi.create({ tile_id: tileId, type: 'text', content: newTextContent.trim() });
+      const content = (contentOverride ?? newTextContent).trim();
+      if (!content) throw new Error('Testo vuoto');
+      const res = await sparksApi.create({ tile_id: tileId, type: 'text', content });
       if (!res.success) throw new Error(res.error || 'Errore creazione spark');
       return res;
     },
@@ -896,6 +1183,7 @@ export function TileSidebar({
       invalidateAll();
       setNewTextContent('');
       setShowNewText(false);
+      setNewTextModalOpen(false);
       toast.success('Testo aggiunto');
     },
     onError: (err: Error) => {
@@ -904,96 +1192,143 @@ export function TileSidebar({
     },
   });
 
+  const tabBtn = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 10px',
+    height: 28,
+    background: active ? theme.accent : theme.surfaceVariant,
+    color: active ? theme.onAccent : theme.ink2,
+    border: `2px solid ${theme.border}`,
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    cursor: 'pointer',
+    boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+  });
+  const labelStyle: React.CSSProperties = {
+    fontFamily: 'var(--font-pixel-head)',
+    fontSize: 9,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 4,
+  };
+
   return (
-    <div className={cn(
-      'border-l border-zinc-800 bg-zinc-900/50 transition-all duration-200 flex flex-col shrink-0',
-      open ? 'w-[280px]' : 'w-8'
-    )}>
+    <div
+      style={{
+        borderLeft: `2px solid ${theme.border}`,
+        background: theme.bg2,
+        transition: 'width 200ms',
+        display: 'flex',
+        flexDirection: 'column',
+        flexShrink: 0,
+        width: open ? 280 : 32,
+      }}
+    >
       {/* Header: collapse button — alone if no tile, inlined with tabs if tile selected */}
       {(!open || !tileId) && (
         <button
           onClick={onToggle}
-          className="h-12 flex items-center justify-center hover:bg-zinc-800 transition-colors shrink-0 border-b border-zinc-800"
+          style={{
+            height: 48,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: `2px solid ${theme.border}`,
+            cursor: 'pointer',
+            flexShrink: 0,
+            color: theme.ink2,
+          }}
         >
           {open
-            ? <IconLayoutSidebarRightCollapse className="h-4 w-4 text-zinc-400" />
-            : <IconLayoutSidebarRightExpand className="h-4 w-4 text-zinc-400" />
+            ? <IconLayoutSidebarRightCollapse size={16} />
+            : <IconLayoutSidebarRightExpand size={16} />
           }
         </button>
       )}
 
       {open && (<>
-        {/* Header bar (48px) — collapse button + Edit/List tabs (32px), Canvas Topbar styling */}
+        {/* Header bar — collapse button + Edit/List/Flow tabs */}
         {tileId && (
-          <div className="h-12 px-2 flex items-center gap-1 border-b border-zinc-800 shrink-0">
+          <div
+            style={{
+              height: 48,
+              padding: '0 8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              borderBottom: `2px solid ${theme.border}`,
+              background: theme.surfaceVariant,
+              flexShrink: 0,
+            }}
+          >
             <button
               onClick={onToggle}
-              className="flex items-center justify-center w-8 h-8 rounded bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 transition-colors shrink-0"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                background: theme.surface,
+                color: theme.ink2,
+                border: `2px solid ${theme.border}`,
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
               title="Collassa sidebar"
             >
-              <IconLayoutSidebarRightCollapse className="h-4 w-4" />
+              <IconLayoutSidebarRightCollapse size={14} />
             </button>
-            <button
-              onClick={() => setActiveTab('edit')}
-              className={cn(
-                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
-                activeTab === 'edit'
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-              )}
-            >
-              Edit
-            </button>
-            <button
-              onClick={() => setActiveTab('list')}
-              className={cn(
-                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
-                activeTab === 'list'
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-              )}
-            >
-              List
-            </button>
-            <button
-              onClick={() => setActiveTab('flow')}
-              className={cn(
-                'flex-1 flex items-center justify-center px-2.5 h-8 rounded text-xs leading-none font-medium transition-colors',
-                activeTab === 'flow'
-                  ? 'bg-blue-600/20 text-blue-400'
-                  : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-              )}
-            >
-              Flow
-            </button>
+            <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}>Edit</button>
+            <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}>List</button>
+            <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}>Flow</button>
           </div>
         )}
-        <div className={cn('flex-1 overflow-hidden flex flex-col', activeTab !== 'flow' && 'overflow-y-auto px-3 pb-4 pt-3')}>
+        <div
+          className={cn('flex-1 overflow-hidden flex flex-col', activeTab !== 'flow' && 'overflow-y-auto')}
+          style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
+        >
           {!tileId ? (
-            <p className="text-xs text-zinc-500 mt-4">Seleziona un tile</p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p className="text-xs text-zinc-500 mt-4">Caricamento...</p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p className="text-xs text-zinc-500 mt-4">Tile non trovato</p>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
-            <FlowTab
-              tileId={tileId}
-              externalFlowNodeId={flowNodeId ?? null}
-              onSelectFlowNode={(id) => onSelectFlowNode?.(id)}
-            />
+            <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
             <SubtaskList tileId={tileId} />
           ) : (
-            <div className="space-y-3">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label className="text-[11px] text-zinc-500">Title</label>
+                <label style={labelStyle}>Title</label>
                 <textarea
                   value={editTitle}
                   onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
                   onBlur={saveTitle}
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
                   rows={2}
-                  className="w-full bg-zinc-800/60 border border-white/[0.08] rounded px-2 py-1.5 text-xs leading-6 text-zinc-200 focus:outline-none focus:border-blue-500 mt-0.5 resize-none"
+                  style={{
+                    width: '100%',
+                    background: theme.surfaceVariant,
+                    border: `2px solid ${theme.border}`,
+                    padding: '6px 8px',
+                    color: theme.ink,
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 12,
+                    lineHeight: '20px',
+                    outline: 'none',
+                    resize: 'none',
+                  }}
                   placeholder="Title..."
                 />
               </div>
@@ -1001,7 +1336,7 @@ export function TileSidebar({
 
               {/* Type selector */}
               <div>
-                <label className="text-[11px] text-zinc-500 mb-1 block">Action</label>
+                <label style={labelStyle}>Action</label>
                 {(() => {
                   const ac = actionColors;
                   // Same icon mapping used in tile renderers (kanban/calendar/canvas).
@@ -1027,7 +1362,7 @@ export function TileSidebar({
                       ? tile.action_type === 'event' && ((opt as any).extra?.all_day ? !!tile.all_day : !tile.all_day)
                       : tile.action_type === opt.value;
                     const actionKey = opt.value === 'event' && (opt as any).extra?.all_day ? 'allday' : opt.value;
-                    const actionColor = (ac as Record<string, string>)[actionKey] || '#3F3F46';
+                    const actionColor = (ac as Record<string, string>)[actionKey] || theme.ink3;
                     const Icon = TILE_ACTION_ICON[actionKey];
                     return (
                       <button
@@ -1043,16 +1378,38 @@ export function TileSidebar({
                           }
                           updateTileMutation.mutate(updates);
                         }}
-                        className={cn(
-                          'flex-1 flex items-center justify-center gap-1.5 h-8 rounded border text-[9px] font-medium transition-colors',
-                          isActive
-                            ? 'bg-zinc-800/60 text-zinc-200 border-zinc-500'
-                            : 'bg-zinc-800/60 text-zinc-500 border-white/[0.08] hover:bg-zinc-800 hover:border-white/20'
-                        )}
+                        style={{
+                          flex: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          height: 30,
+                          background: isActive ? theme.accent : theme.surfaceVariant,
+                          color: isActive ? theme.onAccent : theme.ink2,
+                          border: `2px solid ${theme.border}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.06em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                          boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                        }}
                       >
                         {Icon && (
-                          <div className="w-4 h-4 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: actionColor }}>
-                            <Icon size={10} color={readableOn(actionColor)} />
+                          <div
+                            style={{
+                              width: 14,
+                              height: 14,
+                              background: actionColor,
+                              border: `2px solid ${isActive ? theme.onAccent : theme.border}`,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <Icon size={8} color={readableOn(actionColor)} />
                           </div>
                         )}
                         {opt.label}
@@ -1060,9 +1417,9 @@ export function TileSidebar({
                     );
                   };
                   return (
-                    <div className="flex flex-col" style={{ gap: 6 }}>
-                      <div className="flex gap-1">{row1.map(renderBtn)}</div>
-                      <div className="flex gap-1">{row2.map(renderBtn)}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <div style={{ display: 'flex', gap: 4 }}>{row1.map(renderBtn)}</div>
+                      <div style={{ display: 'flex', gap: 4 }}>{row2.map(renderBtn)}</div>
                     </div>
                   );
                 })()}
@@ -1103,31 +1460,42 @@ export function TileSidebar({
 
                 return (
                   <div>
-                    <div className="flex items-end justify-between">
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                       {/* Date */}
-                      <div className="shrink-0">
-                        <label className="text-[11px] text-zinc-500 mb-0.5 block">Date</label>
+                      <div style={{ flexShrink: 0 }}>
+                        <label style={labelStyle}>Date</label>
                         <input
                           type="date"
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
-                          className="bg-zinc-800/60 border border-white/[0.08] rounded px-2 h-8 text-[11px] text-zinc-300 focus:outline-none focus:border-blue-500"
-                          style={{ width: 'auto', maxWidth: 110, colorScheme: 'dark' }}
+                          style={{
+                            background: theme.surfaceVariant,
+                            border: `2px solid ${theme.border}`,
+                            padding: '0 8px',
+                            height: 30,
+                            color: theme.ink,
+                            fontFamily: 'var(--font-pixel-body)',
+                            fontSize: 12,
+                            outline: 'none',
+                            width: 'auto',
+                            maxWidth: 110,
+                            colorScheme: 'dark',
+                          }}
                         />
                       </div>
                       {/* Start/End time — only for timed */}
                       {isTimed && (
                         <>
-                          <div className="shrink-0">
-                            <label className="text-[11px] text-zinc-500 mb-0.5 block">Start</label>
+                          <div style={{ flexShrink: 0 }}>
+                            <label style={labelStyle}>Start</label>
                             <TimePicker
                               value={startTime || '09:00'}
                               onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
                               compact
                             />
                           </div>
-                          <div className="shrink-0">
-                            <label className="text-[11px] text-zinc-500 mb-0.5 block">End</label>
+                          <div style={{ flexShrink: 0 }}>
+                            <label style={labelStyle}>End</label>
                             <TimePicker
                               value={endTime || '10:00'}
                               onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
@@ -1156,22 +1524,37 @@ export function TileSidebar({
                 />
               )}
 
-              <div className="border-t border-zinc-800" />
+              <div style={{ borderTop: `2px solid ${theme.border}` }} />
 
               <div>
-                <div className="text-[11px] text-zinc-500 mb-2">Sparks ({sparks.length})</div>
-                <div className="flex justify-between mb-3">
+                <div
+                  style={{
+                    fontFamily: 'var(--font-pixel-head)',
+                    fontSize: 9,
+                    letterSpacing: '0.08em',
+                    textTransform: 'uppercase',
+                    color: theme.ink3,
+                    marginBottom: 8,
+                  }}
+                >
+                  Sparks ({sparks.length})
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   {[
-                    { id: 'photo', icon: IconCamera, color: '#5B8DEF', bg: '#1A2540', accept: 'image/*' },
-                    { id: 'video', icon: IconVideo, color: '#E87DA0', bg: '#2D1A22', accept: 'video/*' },
-                    { id: 'gallery', icon: IconPhoto, color: '#AB9FF2', bg: '#241E35', accept: 'image/*' },
-                    { id: 'text', icon: IconEdit, color: '#6FCF97', bg: '#1A2D1E', accept: null },
-                    { id: 'voice', icon: IconMicrophone, color: '#EF4444', bg: '#2D1A1A', accept: 'audio/*' },
-                    { id: 'file', icon: IconPaperclip, color: '#F2C94C', bg: '#2D2A1A', accept: '*/*' },
+                    { id: 'photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
+                    { id: 'video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
+                    { id: 'gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    { id: 'text', icon: IconEdit, capKey: 'text' as const, accept: null },
+                    { id: 'voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
+                    { id: 'file', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
                   ].map((opt) => {
                     const BtnIcon = opt.icon;
                     const isDropTarget = dropTargetIcon === opt.id;
                     const acceptsDrop = opt.id !== 'text';
+                    const cap = theme.cap[opt.capKey];
+                    const tint = theme.tint[opt.capKey];
+                    const treatment = pixelSettings.captureTreatment ?? 'tinted';
+                    const cstyle = resolveCaptureStyle(treatment, cap, tint, theme.surface, theme.border, theme.ink2);
                     return (
                       <button
                         key={opt.id}
@@ -1195,24 +1578,39 @@ export function TileSidebar({
                           setDropTargetIcon(null);
                           if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
                         } : undefined}
-                        className={cn(
-                          'w-8 h-8 rounded flex items-center justify-center transition-all',
-                          isDropTarget && 'ring-2 ring-offset-1 ring-offset-zinc-900/50 scale-110',
-                        )}
+                        className="px-press"
                         style={{
-                          backgroundColor: opt.bg,
-                          borderWidth: 1,
-                          borderColor: isDropTarget ? opt.color : `${opt.color}40`,
-                          ...(isDropTarget ? { boxShadow: `0 0 0 2px ${opt.color}` } : {}),
+                          position: 'relative',
+                          width: 32,
+                          height: 32,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: cstyle.background,
+                          border: `2px solid ${cstyle.border}`,
+                          cursor: 'pointer',
+                          ...(isDropTarget ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
                         }}
                         title={opt.id}
                       >
-                        <BtnIcon style={{ color: opt.color }} className="h-3.5 w-3.5" />
+                        <BtnIcon size={14} style={{ color: cstyle.iconColor }} />
+                        {cstyle.dot && (
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: 2,
+                              right: 2,
+                              width: 4,
+                              height: 4,
+                              background: cstyle.dot,
+                            }}
+                          />
+                        )}
                       </button>
                     );
                   })}
                 </div>
-                <div className="space-y-2">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sparks.map((spark) => (
                     <SparkEditor
                       key={spark.id}
@@ -1224,19 +1622,108 @@ export function TileSidebar({
                 </div>
 
                 {showNewText && (
-                  <div className="mt-2 space-y-1">
-                    <textarea
-                      value={newTextContent}
-                      onChange={(e) => setNewTextContent(e.target.value)}
-                      rows={3}
-                      autoFocus
-                      className="w-full bg-zinc-800 border border-white/[0.08] rounded px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-blue-500 resize-y"
-                      placeholder="Scrivi testo..."
-                    />
-                    <div className="flex gap-1">
-                      <button onClick={() => newTextContent.trim() && addTextMutation.mutate()} disabled={!newTextContent.trim()} className="text-[11px] bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded disabled:opacity-40">Salva</button>
-                      <button onClick={() => { setShowNewText(false); setNewTextContent(''); }} className="text-[11px] text-zinc-400 hover:text-zinc-300 px-2 py-1">Annulla</button>
+                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {/* Read-only markdown preview. Click anywhere on it (or on
+                        the corner expand icon) to open the centered editor. */}
+                    <button
+                      type="button"
+                      onClick={() => setNewTextModalOpen(true)}
+                      style={{
+                        position: 'relative',
+                        width: '100%',
+                        minHeight: 80,
+                        textAlign: 'left',
+                        background: theme.surfaceVariant,
+                        border: `2px solid ${theme.border}`,
+                        padding: '8px 10px',
+                        color: theme.ink,
+                        fontFamily: 'var(--font-pixel-body)',
+                        fontSize: 12,
+                        cursor: 'pointer',
+                      }}
+                      title="Apri editor"
+                    >
+                      {newTextContent.trim() ? (
+                        <MarkdownPreview markdown={newTextContent} />
+                      ) : (
+                        <span style={{ color: theme.ink3, fontStyle: 'italic' }}>Clicca per scrivere…</span>
+                      )}
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 4,
+                          right: 4,
+                          width: 22,
+                          height: 22,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          background: theme.surface,
+                          border: `2px solid ${theme.border}`,
+                          color: theme.ink2,
+                        }}
+                      >
+                        <IconMaximize size={12} />
+                      </span>
+                    </button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button
+                        onClick={() => newTextContent.trim() && addTextMutation.mutate()}
+                        disabled={!newTextContent.trim()}
+                        className="px-press"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '0 10px',
+                          height: 26,
+                          background: theme.accent,
+                          color: theme.onAccent,
+                          border: `2px solid ${theme.border}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          cursor: !newTextContent.trim() ? 'not-allowed' : 'pointer',
+                          opacity: !newTextContent.trim() ? 0.4 : 1,
+                          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                        }}
+                      >
+                        Salva
+                      </button>
+                      <button
+                        onClick={() => { setShowNewText(false); setNewTextContent(''); }}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          padding: '0 10px',
+                          height: 26,
+                          background: theme.surfaceVariant,
+                          color: theme.ink2,
+                          border: `2px solid ${theme.border}`,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Annulla
+                      </button>
                     </div>
+                    <MarkdownEditorModal
+                      open={newTextModalOpen}
+                      initialValue={newTextContent}
+                      onSave={(md) => {
+                        // Persist the draft locally first (in case the API
+                        // call fails we still show what the user wrote), then
+                        // commit it as a spark in one shot — no second click.
+                        setNewTextContent(md);
+                        if (md.trim()) addTextMutation.mutate(md);
+                        else setNewTextModalOpen(false);
+                      }}
+                      onCancel={() => setNewTextModalOpen(false)}
+                      title="Nuovo testo"
+                    />
                   </div>
                 )}
               </div>
@@ -1246,8 +1733,18 @@ export function TileSidebar({
         </div>
 
         {tileId && tile && (
-          <div className="px-3 py-2 shrink-0 text-right">
-            <span className="text-[11px] text-zinc-500">Created: {new Date(tile.created_at).toLocaleDateString('it-IT')}</span>
+          <div style={{ padding: '8px 12px', flexShrink: 0, textAlign: 'right', borderTop: `2px solid ${theme.border}`, background: theme.surfaceVariant }}>
+            <span
+              style={{
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 8,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink3,
+              }}
+            >
+              Created: {new Date(tile.created_at).toLocaleDateString('it-IT')}
+            </span>
           </div>
         )}
       </>)}

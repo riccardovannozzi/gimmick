@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   IconBell,
-  IconRobot,
   IconSettings,
   IconSparkles,
   IconLayoutGrid,
@@ -15,54 +14,91 @@ import {
   IconColumns,
   IconRoute,
 } from '@tabler/icons-react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { usePixelTheme } from '@/components/pixel';
 import { useAuthStore } from '@/store/auth-store';
 import { useChatStore } from '@/store/chat-store';
-import { cn } from '@/lib/utils';
 
 const TAB_GROUP_DATA = [
   { name: 'Sparks', href: '/sparks', icon: IconSparkles },
   { name: 'Tiles', href: '/tiles', icon: IconLayoutGrid },
   { name: 'Tags', href: '/tags', icon: IconTag },
   { name: 'Flows', href: '/flows', icon: IconRoute },
-];
+] as const;
 
 const TAB_GROUP_VIEWS = [
   { name: 'Chrono', href: '/calendar', icon: IconCalendar },
   { name: 'Canvas', href: '/canvas', icon: IconLayoutBoard },
   { name: 'Kanban', href: '/kanban', icon: IconColumns },
   { name: 'Panopticon', href: '/graph', icon: IconShare },
-];
+] as const;
 
-function TabGroup({ items }: { items: typeof TAB_GROUP_DATA }) {
+/**
+ * Pixel-styled tab pill. Active = filled with accent, inactive = bordered
+ * surfaceVariant. Pure hard borders, no border-radius.
+ */
+function PixelTabLink({
+  href,
+  name,
+  icon: Icon,
+  active,
+}: {
+  href: string;
+  name: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+  active: boolean;
+}) {
+  const theme = usePixelTheme();
+  return (
+    <Link
+      href={href}
+      className="px-press"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        height: 28,
+        padding: '0 10px',
+        background: active ? theme.accent : theme.surfaceVariant,
+        color: active ? theme.onAccent : theme.ink2,
+        border: `2px solid ${theme.border}`,
+        fontFamily: 'var(--font-pixel-head)',
+        fontSize: 9,
+        letterSpacing: '0.06em',
+        textTransform: 'uppercase',
+        boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+      }}
+    >
+      <Icon size={11} />
+      {name}
+    </Link>
+  );
+}
+
+type TabItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string; size?: number }>;
+};
+
+function PixelTabGroup({ items }: { items: readonly TabItem[] }) {
   const pathname = usePathname();
   return (
-    <div className="flex items-center gap-1">
-      {items.map((item) => {
-        const isActive = pathname === item.href;
-        return (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={cn(
-              'h-8 flex items-center gap-1.5 px-3 rounded text-xs leading-none font-medium transition-colors',
-              isActive
-                ? 'bg-blue-600/20 text-blue-400'
-                : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-            )}
-          >
-            <item.icon className="h-3.5 w-3.5" />
-            {item.name}
-          </Link>
-        );
-      })}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+      {items.map((item) => (
+        <PixelTabLink
+          key={item.href}
+          href={item.href}
+          name={item.name}
+          icon={item.icon}
+          active={pathname === item.href}
+        />
+      ))}
     </div>
   );
 }
@@ -73,65 +109,152 @@ interface HeaderProps {
 }
 
 export function Header({ actions }: HeaderProps) {
+  const theme = usePixelTheme();
   const { user, signOut } = useAuthStore();
   const setChatOpen = useChatStore((s) => s.setOpen);
 
-  const initials = user?.email
-    ? user.email.substring(0, 2).toUpperCase()
-    : 'U';
+  const initials = user?.email ? user.email.substring(0, 2).toUpperCase() : 'U';
 
   return (
-    <header className="flex h-12 items-center border-b border-zinc-800 bg-zinc-950 px-4">
-      {/* Left — primary nav */}
-      <TabGroup items={TAB_GROUP_DATA} />
-      <div className="flex-1" />
-      {/* Center — view tabs */}
-      <TabGroup items={TAB_GROUP_VIEWS} />
-      <div className="flex-1" />
+    <header
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        height: 48,
+        padding: '0 12px',
+        background: theme.bg2,
+        borderBottom: `2px solid ${theme.border}`,
+        gap: 12,
+      }}
+    >
+      {/* Primary nav */}
+      <PixelTabGroup items={TAB_GROUP_DATA} />
+      <div style={{ flex: 1 }} />
+      {/* Center view tabs */}
+      <PixelTabGroup items={TAB_GROUP_VIEWS} />
+      <div style={{ flex: 1 }} />
 
-      {/* Right side */}
-      <div className="flex items-center gap-2 shrink-0">
+      {/* Right cluster */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
         {actions}
-        {/* Ask Gimmick */}
-        <Button
+
+        {/* Ask Gimmick — accent button, the only "primary" action in the header */}
+        <button
           onClick={() => setChatOpen(true)}
-          variant="ghost"
-          className="h-8 px-3 gap-1.5 text-xs text-blue-400 hover:bg-blue-600/20 hover:text-blue-300 border border-blue-500/20 rounded-lg"
+          className="px-press"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            height: 28,
+            padding: '0 10px',
+            background: theme.accent,
+            color: theme.onAccent,
+            border: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 9,
+            letterSpacing: '0.06em',
+            cursor: 'pointer',
+            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          }}
         >
-          <IconRobot className="h-4 w-4" />
-          Ask Gimmick
-        </Button>
+          ASK GIMMICK
+        </button>
 
         {/* Settings */}
-        <Link href="/settings">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
-            <IconSettings className="h-4 w-4" />
-          </Button>
+        <Link
+          href="/settings"
+          className="px-press"
+          aria-label="Settings"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            background: theme.surfaceVariant,
+            color: theme.ink2,
+            border: `2px solid ${theme.border}`,
+          }}
+        >
+          <IconSettings size={14} />
         </Link>
 
         {/* Notifications */}
-        <Button variant="ghost" size="icon" className="h-8 w-8 text-zinc-400 hover:text-white">
-          <IconBell className="h-4 w-4" />
-        </Button>
+        <button
+          aria-label="Notifications"
+          className="px-press"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 28,
+            height: 28,
+            background: theme.surfaceVariant,
+            color: theme.ink2,
+            border: `2px solid ${theme.border}`,
+            cursor: 'pointer',
+          }}
+        >
+          <IconBell size={14} />
+        </button>
 
-        {/* User menu */}
+        {/* Avatar with logout dropdown — keep shadcn DropdownMenu, just
+            restyle the trigger so it matches the surrounding pixel chrome. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-7 w-7 rounded-full">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-blue-600 text-white text-xs">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-            </Button>
+            <button
+              className="px-press"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: 28,
+                background: theme.accent,
+                color: theme.onAccent,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.04em',
+                cursor: 'pointer',
+              }}
+            >
+              {initials}
+            </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 bg-zinc-900 border-zinc-800">
-            <DropdownMenuItem className="text-zinc-400">
+          <DropdownMenuContent
+            align="end"
+            style={{
+              minWidth: 200,
+              background: theme.surface,
+              border: `2px solid ${theme.border}`,
+              borderRadius: 0,
+              padding: 0,
+              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            }}
+          >
+            <DropdownMenuItem
+              style={{
+                color: theme.ink3,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 11,
+                borderRadius: 0,
+              }}
+            >
               {user?.email}
             </DropdownMenuItem>
             <DropdownMenuItem
-              className="text-red-400 cursor-pointer"
               onClick={() => signOut()}
+              style={{
+                color: '#E24B4A',
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 9,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                borderRadius: 0,
+                cursor: 'pointer',
+              }}
             >
               Logout
             </DropdownMenuItem>

@@ -21,6 +21,9 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
+import { usePixelTheme } from '@/components/pixel';
+import { MascotSprite } from '@/components/cards/mascot-sprite';
+import { MASCOTS } from '@/lib/mascots';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -94,6 +97,7 @@ function TagSidebarGroup({
   pinnedIds: Set<string>;
   onTogglePin: (tagId: string) => void;
 }) {
+  const theme = usePixelTheme();
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
   const [dragIdx, setDragIdx] = useState<number | null>(null);
@@ -123,10 +127,19 @@ function TagSidebarGroup({
 
   return (
     <div className="mb-0.5">
-      {/* Group header */}
+      {/* Group header — pixel font, hard surface, no rounded corners */}
       <button
         onClick={onToggleGroup}
-        className="w-full h-8 flex items-center justify-between px-2 text-[10px] font-medium uppercase tracking-wider text-zinc-400 bg-zinc-800/50 hover:bg-zinc-800 rounded transition-colors duration-150"
+        className="w-full h-8 flex items-center justify-between px-2 transition-colors"
+        style={{
+          background: theme.surfaceVariant,
+          color: theme.ink2,
+          border: `2px solid ${theme.border}`,
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 9,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+        }}
       >
         <span className="flex items-center gap-1.5">
           {resolveIcon()}
@@ -146,6 +159,7 @@ function TagSidebarGroup({
       >
         {tags.map((tag, idx) => {
           const isSelected = selectedTagIds.has(tag.id);
+          const isPinned = pinnedIds.has(tag.id);
           return (
             <div
               key={tag.id}
@@ -162,43 +176,83 @@ function TagSidebarGroup({
                 setOverIdx(null);
               }}
               onDragEnd={() => { setDragIdx(null); setOverIdx(null); }}
-              className={cn(
-                'cursor-grab',
-                overIdx === idx && dragIdx !== null && dragIdx !== idx && 'border-t border-blue-500',
-              )}
+              style={{
+                cursor: 'grab',
+                borderTop: overIdx === idx && dragIdx !== null && dragIdx !== idx ? `2px solid ${theme.accent}` : '2px solid transparent',
+              }}
             >
-              <div className={cn(
-                'group flex items-center h-8 rounded transition-colors duration-150',
-                isSelected
-                  ? 'bg-zinc-800'
-                  : 'hover:bg-zinc-900',
-                dragIdx === idx && 'opacity-40',
-              )}>
+              <div
+                className="group"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  height: 30,
+                  background: isSelected ? theme.surfaceVariant : 'transparent',
+                  border: `2px solid ${isSelected ? theme.border : 'transparent'}`,
+                  opacity: dragIdx === idx ? 0.4 : 1,
+                }}
+              >
                 <button
                   onClick={(e) => { e.stopPropagation(); onTogglePin(tag.id); }}
-                  className={cn(
-                    'w-3.5 h-full flex items-center justify-center shrink-0 transition-opacity ml-2',
-                    pinnedIds.has(tag.id) ? 'opacity-100 text-amber-500' : 'opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-amber-400'
-                  )}
-                  title={pinnedIds.has(tag.id) ? 'Rimuovi pin' : 'Aggiungi pin'}
+                  className={isPinned ? '' : 'opacity-0 group-hover:opacity-100'}
+                  style={{
+                    width: 14,
+                    height: '100%',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    marginLeft: 6,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: isPinned ? '#F5A623' : theme.ink3,
+                  }}
+                  title={isPinned ? 'Rimuovi pin' : 'Aggiungi pin'}
                 >
-                  {pinnedIds.has(tag.id) ? <IconPinFilled size={9} /> : <IconPin size={9} />}
+                  {isPinned ? <IconPinFilled size={10} /> : <IconPin size={10} />}
                 </button>
                 <button
                   onClick={() => onToggle(tag.id)}
-                  className={cn(
-                    'flex-1 h-full text-left pl-1.5 text-xs truncate min-w-0',
-                    isSelected ? 'text-white font-medium' : 'text-zinc-400 hover:text-zinc-300',
-                  )}
+                  style={{
+                    flex: 1,
+                    height: '100%',
+                    textAlign: 'left',
+                    paddingLeft: 8,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    minWidth: 0,
+                    fontFamily: 'var(--font-pixel-body)',
+                    fontSize: 12,
+                    color: isSelected ? theme.ink : theme.ink2,
+                    fontWeight: isSelected ? 600 : 400,
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
                 >
                   {tag.name}
                 </button>
                 <button
                   onClick={(e) => { e.stopPropagation(); onOpenCanvas(tag.id); }}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity w-4 h-4 flex items-center justify-center rounded border border-zinc-700 hover:bg-zinc-700 mr-1 shrink-0"
+                  className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{
+                    width: 18,
+                    height: 18,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: theme.surface,
+                    border: `2px solid ${theme.border}`,
+                    marginRight: 6,
+                    flexShrink: 0,
+                    cursor: 'pointer',
+                    color: theme.ink2,
+                  }}
                   title="Apri in Canvas"
                 >
-                  <IconLayoutBoard size={9} className="text-zinc-400" />
+                  <IconLayoutBoard size={10} />
                 </button>
               </div>
             </div>
@@ -212,6 +266,7 @@ function TagSidebarGroup({
 // ─── Main Sidebar ───
 
 export function Sidebar() {
+  const theme = usePixelTheme();
   const router = useRouter();
   const pathname = usePathname();
   const { selectedTagIds, toggle, clear } = useTagFilterStore();
@@ -433,51 +488,107 @@ export function Sidebar() {
   }, [sidebarWidth]);
 
   return (
-    <div className="flex h-full flex-col border-r border-zinc-800 relative" style={{ width: sidebarWidth, minWidth: SIDEBAR_MIN_W, maxWidth: SIDEBAR_MAX_W, backgroundColor: 'rgba(24, 24, 27, 0.5)' }}>
+    <div
+      className="flex h-full flex-col relative"
+      style={{
+        width: sidebarWidth,
+        minWidth: SIDEBAR_MIN_W,
+        maxWidth: SIDEBAR_MAX_W,
+        background: theme.bg2,
+        borderRight: `2px solid ${theme.border}`,
+      }}
+    >
       {/* Resize handle */}
       <div
         className="absolute top-0 right-0 w-1 h-full cursor-ew-resize hover:bg-blue-500/30 transition-colors z-10"
         onMouseDown={onResizeStart}
       />
-      {/* Logo + notification */}
+      {/* Wordmark + new-tiles notification */}
       <div className="flex h-12 items-center px-3 gap-2 shrink-0">
-        <span className="text-lg font-bold text-white">Gimmick</span>
+        {/* Gimmick mascot — 24×24 sprite next to the wordmark, brand logo. */}
+        {(() => {
+          const gimmick = MASCOTS.find((m) => m.id === 'gimmick');
+          return gimmick ? <MascotSprite mascot={gimmick} cell={2} /> : null;
+        })()}
+        <span
+          style={{
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 14,
+            color: theme.ink,
+            letterSpacing: '0.04em',
+          }}
+        >
+          GIMMICK
+        </span>
         {newCount > 0 && (
           <Link
             href="/tiles"
             onClick={dismissAll}
-            className="flex items-center justify-center w-5 h-5 rounded-full bg-red-500 text-white text-[10px] font-bold animate-pulse"
+            className="flex items-center justify-center w-5 h-5 animate-pulse"
+            style={{
+              background: theme.accent,
+              color: theme.onAccent,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              border: `2px solid ${theme.border}`,
+            }}
           >
             {newCount}
           </Link>
         )}
       </div>
 
-      <Separator className="bg-zinc-800" />
-
-      {/* Tags header — All Tags / Pinned occupy all available width (48px) */}
-      <div className="h-12 flex items-center gap-1 px-2 border-b border-zinc-800">
+      {/* Tags header — All Tags / Pinned, pixel-style tabs */}
+      <div
+        className="h-12 flex items-center gap-1 px-2"
+        style={{ borderTop: `2px solid ${theme.border}`, borderBottom: `2px solid ${theme.border}` }}
+      >
         <button
           onClick={() => setViewMode('all')}
-          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center',
-            viewMode === 'all' ? 'bg-blue-600/20 text-blue-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-          )}
-        >All Tags</button>
+          className="flex-1 h-8 px-2.5 transition-colors flex items-center justify-center px-press"
+          style={{
+            background: viewMode === 'all' ? theme.accent : theme.surfaceVariant,
+            color: viewMode === 'all' ? theme.onAccent : theme.ink2,
+            border: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 8,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
+        >
+          All Tags
+        </button>
         <button
           onClick={() => setViewMode('pin')}
-          className={cn('flex-1 h-8 px-2.5 rounded text-xs leading-none font-medium transition-colors flex items-center justify-center gap-1',
-            viewMode === 'pin' ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800/60 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
-          )}
+          className="flex-1 h-8 px-2.5 transition-colors flex items-center justify-center gap-1 px-press"
+          style={{
+            background: viewMode === 'pin' ? '#F5A623' : theme.surfaceVariant,
+            color: viewMode === 'pin' ? theme.onAccent : theme.ink2,
+            border: `2px solid ${theme.border}`,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 8,
+            letterSpacing: '0.1em',
+            textTransform: 'uppercase',
+          }}
         >
-          <IconPinFilled size={11} />
+          <IconPinFilled size={10} />
           Pinned
-          {pinnedIds.size > 0 && <span className="text-[9px] opacity-70">({pinnedIds.size})</span>}
+          {pinnedIds.size > 0 && <span style={{ fontSize: 8, opacity: 0.7 }}>({pinnedIds.size})</span>}
         </button>
         {hasFilter && (
           <button
             onClick={clear}
-            className="shrink-0 h-8 px-2 rounded text-xs leading-none font-medium bg-zinc-800/60 text-blue-400 hover:bg-zinc-800 hover:text-blue-300 transition-colors flex items-center gap-1"
             title="Pulisci filtro"
+            className="shrink-0 h-8 px-2 transition-colors flex items-center gap-1 px-press"
+            style={{
+              background: theme.surfaceVariant,
+              color: theme.accent,
+              border: `2px solid ${theme.border}`,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 8,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+            }}
           >
             <IconX className="h-3 w-3" />
             Clear
@@ -487,15 +598,29 @@ export function Sidebar() {
 
       {/* Expand/Collapse all groups — own row, only in ALL view */}
       {viewMode === 'all' && (
-        <div className="px-2 py-1.5 flex justify-end">
+        <div style={{ padding: '6px 8px', display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={allExpanded ? collapseAll : expandAll}
-            className="h-7 px-1 flex items-center gap-1.5 text-[11px] leading-none font-medium text-zinc-500 hover:text-zinc-200 transition-colors"
+            style={{
+              height: 24,
+              padding: '0 6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+            }}
             title={allExpanded ? 'Collapse all' : 'Expand all'}
           >
             {allExpanded
-              ? <><IconArrowsMinimize className="h-3 w-3" /> Collapse all</>
-              : <><IconArrowsMaximize className="h-3 w-3" /> Expand all</>
+              ? <><IconArrowsMinimize size={11} /> Collapse all</>
+              : <><IconArrowsMaximize size={11} /> Expand all</>
             }
           </button>
         </div>

@@ -1,5 +1,5 @@
 import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
-import type { Contact, ContactKind, FlowGraph, FlowNode, FlowEdge, FlowNodeState, FlowHubItem } from '@/types/flow';
+import type { Contact, ContactKind, FlowGraph, FlowNode, FlowNodeState, FlowHubItem } from '@/types/flow';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -714,16 +714,19 @@ export const flowApi = {
     occurred_at?: string | null;
     scheduled_at?: string | null;
     notes?: string | null;
-    parent_node_id?: string;
-    x?: number | null;
-    y?: number | null;
   }) {
-    return apiRequest<{ node: FlowNode; edge: FlowEdge | null }>(
+    // Server appends the new node at the end; response keeps the legacy
+    // `{ node, edge }` shape (edge: null) so older clients don't crash on
+    // missing properties during rollout.
+    return apiRequest<{ node: FlowNode; edge: null }>(
       `/api/tiles/${tileId}/flow/nodes`,
       { method: 'POST', body: JSON.stringify(body) },
     );
   },
-  async updateNode(id: string, updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'x' | 'y'>>) {
+  async updateNode(
+    id: string,
+    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'sort_order'>>,
+  ) {
     return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -732,14 +735,12 @@ export const flowApi = {
   async deleteNode(id: string) {
     return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
   },
-  async createEdge(body: { parent_id: string; child_id: string }) {
-    return apiRequest<FlowEdge>('/api/flow/edges', {
-      method: 'POST',
-      body: JSON.stringify(body),
+  /** Bulk reorder — send the full list with new sort_order values. */
+  async reorderNodes(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/flow/nodes/reorder', {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
     });
-  },
-  async deleteEdge(id: string) {
-    return apiRequest(`/api/flow/edges/${id}`, { method: 'DELETE' });
   },
   async tilesWithFlows() {
     return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');

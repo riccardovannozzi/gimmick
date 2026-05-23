@@ -2,19 +2,20 @@ import React from 'react';
 import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { TopNav } from '@/components/layout/TopNav';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 
 export default function TabsLayout() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background1 }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
       <TopNav />
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle: { display: 'none' },
           tabBarShowLabel: false,
+          sceneStyle: { backgroundColor: theme.bg1 },
         }}
       >
         <Tabs.Screen name="index" />

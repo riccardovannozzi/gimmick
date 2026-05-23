@@ -3,15 +3,11 @@
  *
  * Three view modes:
  *   Daily   — vertical 06:00-22:00 timeline with draggable event blocks
- *   Week    — 7-column day grid, drag works across columns to switch day too
+ *   Week    — 7-column day grid
  *   Month   — 6×7 grid with event dots; tap a day → switch to Daily on it
- *
- * Header: prev/today/next + view switcher. The fetch range adapts to the
- * active view so we don't pull unnecessary tiles. Tap an event opens the
- * tile detail; tap an empty slot creates a new event at that time.
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   IconChevronLeft,
@@ -19,7 +15,7 @@ import {
   IconRefresh,
 } from '@tabler/icons-react-native';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import {
   startOfDay,
   endOfDay,
@@ -39,14 +35,10 @@ type ChronoView = 'daily' | 'week' | 'month';
 
 export default function ChronoScreen() {
   const router = useRouter();
-  const colors = useThemeColors();
-  // Default to DAILY on today — quickest entry point on mobile. The anchor
-  // is seeded with `new Date()` so we always land on "oggi".
+  const theme = usePixelTheme();
   const [view, setView] = useState<ChronoView>('daily');
   const [anchor, setAnchor] = useState<Date>(() => new Date());
 
-  // Range fetched from the backend — overshoot a few days so dragging an event
-  // close to a boundary doesn't yield "event vanished" until the next refetch.
   const { start, end } = useMemo(() => {
     if (view === 'daily') {
       return { start: startOfDay(anchor), end: endOfDay(anchor) };
@@ -54,7 +46,6 @@ export default function ChronoScreen() {
     if (view === 'week') {
       return { start: startOfWeek(anchor), end: endOfWeek(anchor) };
     }
-    // month: pad with a leading/trailing week to cover the 6×7 grid
     const s = startOfWeek(startOfMonth(anchor));
     const e = endOfWeek(endOfMonth(anchor));
     return { start: s, end: e };
@@ -108,92 +99,76 @@ export default function ChronoScreen() {
     setView('daily');
   };
 
+  const NavBtn = ({
+    onPress, children, wide,
+  }: { onPress: () => void; children: React.ReactNode; wide?: boolean }) => (
+    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+      <View
+        style={{
+          width: wide ? undefined : 32,
+          height: 32,
+          paddingHorizontal: wide ? 10 : 0,
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderWidth: 2,
+          borderColor: theme.border,
+          backgroundColor: theme.surface,
+        }}
+      >
+        {children}
+      </View>
+    </Pressable>
+  );
+
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-      {/* Top toolbar — title + prev/today/next + refresh */}
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
+      {/* Top toolbar */}
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
           gap: 6,
           paddingHorizontal: 12,
-          paddingTop: 10,
-          paddingBottom: 8,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
+          paddingVertical: 10,
+          borderBottomWidth: 2,
+          borderBottomColor: theme.border,
         }}
       >
-        <TouchableOpacity
-          onPress={stepPrev}
-          activeOpacity={0.7}
-          style={{
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 6,
-            backgroundColor: colors.background2,
-          }}
-        >
-          <IconChevronLeft size={16} color={colors.primary} />
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setAnchor(new Date())}
-          activeOpacity={0.7}
-          style={{
-            paddingHorizontal: 10,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 6,
-            backgroundColor: colors.background2,
-          }}
-        >
-          <Text style={{ fontSize: 11, fontWeight: '500', color: colors.tertiary }}>
-            Oggi
+        <NavBtn onPress={stepPrev}>
+          <IconChevronLeft size={16} color={theme.ink} strokeWidth={2.4} />
+        </NavBtn>
+        <NavBtn onPress={() => setAnchor(new Date())} wide>
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink,
+              letterSpacing: 1,
+            }}
+          >
+            OGGI
           </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={stepNext}
-          activeOpacity={0.7}
-          style={{
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 6,
-            backgroundColor: colors.background2,
-          }}
-        >
-          <IconChevronRight size={16} color={colors.primary} />
-        </TouchableOpacity>
+        </NavBtn>
+        <NavBtn onPress={stepNext}>
+          <IconChevronRight size={16} color={theme.ink} strokeWidth={2.4} />
+        </NavBtn>
         <Text
           numberOfLines={1}
           style={{
             flex: 1,
+            fontFamily: theme.fontBody,
             fontSize: 13,
-            fontWeight: '600',
-            color: colors.primary,
+            fontWeight: '700',
+            color: theme.ink,
             marginLeft: 4,
             textTransform: 'capitalize',
           }}
         >
           {title}
         </Text>
-        <TouchableOpacity
-          onPress={() => refetch()}
-          activeOpacity={0.7}
-          style={{
-            width: 32,
-            height: 32,
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderRadius: 6,
-            backgroundColor: colors.background2,
-          }}
-        >
-          <IconRefresh size={14} color={colors.tertiary} />
-        </TouchableOpacity>
+        <NavBtn onPress={() => refetch()}>
+          <IconRefresh size={14} color={theme.ink2} strokeWidth={2.2} />
+        </NavBtn>
       </View>
 
       {/* View switcher — DAILY / WEEK / MONTH */}
@@ -202,38 +177,41 @@ export default function ChronoScreen() {
           flexDirection: 'row',
           gap: 6,
           paddingHorizontal: 12,
-          paddingVertical: 8,
-          borderBottomWidth: 1,
-          borderBottomColor: colors.border,
+          paddingVertical: 10,
+          borderBottomWidth: 2,
+          borderBottomColor: theme.border,
         }}
       >
         {(['daily', 'week', 'month'] as const).map((v) => {
           const isActive = view === v;
           return (
-            <TouchableOpacity
+            <Pressable
               key={v}
               onPress={() => setView(v)}
-              activeOpacity={0.7}
-              style={{
-                flex: 1,
-                height: 32,
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 6,
-                backgroundColor: isActive ? 'rgba(37, 99, 235, 0.2)' : colors.background2,
-              }}
+              style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
             >
-              <Text
+              <View
                 style={{
-                  fontSize: 12,
-                  fontWeight: '700',
-                  letterSpacing: 1,
-                  color: isActive ? '#60A5FA' : colors.tertiary,
+                  height: 30,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderWidth: 2,
+                  borderColor: theme.border,
+                  backgroundColor: isActive ? theme.accent : theme.surface,
                 }}
               >
-                {v.toUpperCase()}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 9,
+                    color: isActive ? (theme.onAccent as string) : theme.ink,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {v.toUpperCase()}
+                </Text>
+              </View>
+            </Pressable>
           );
         })}
       </View>
