@@ -960,8 +960,8 @@ export default function KanbanPage() {
                         border: 'none',
                         borderBottom: `2px solid ${theme.accent}`,
                         fontFamily: 'var(--font-pixel-head)',
-                        fontSize: 10,
-                        letterSpacing: '0.08em',
+                        fontSize: 8,
+                        letterSpacing: '0.06em',
                         textTransform: 'uppercase',
                       }}
                       value={titleDraft}
@@ -989,8 +989,8 @@ export default function KanbanPage() {
                         color: theme.ink,
                         cursor: 'pointer',
                         fontFamily: 'var(--font-pixel-head)',
-                        fontSize: 10,
-                        letterSpacing: '0.08em',
+                        fontSize: 8,
+                        letterSpacing: '0.06em',
                         textTransform: 'uppercase',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
@@ -1263,14 +1263,15 @@ export default function KanbanPage() {
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
-                              padding: '2px 8px',
+                              padding: '2px 6px',
                               background: theme.accent,
                               color: theme.onAccent,
                               border: `2px solid ${theme.border}`,
                               fontFamily: 'var(--font-pixel-head)',
-                              fontSize: 9,
-                              letterSpacing: '0.1em',
+                              fontSize: 7,
+                              letterSpacing: '0.04em',
                               textTransform: 'uppercase',
+                              whiteSpace: 'nowrap',
                             }}
                           >
                             {formatDay(new Date().toISOString())}
@@ -1301,14 +1302,15 @@ export default function KanbanPage() {
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                padding: '2px 8px',
+                                padding: '2px 6px',
                                 background: isToday ? theme.accent : theme.surfaceVariant,
                                 color: isToday ? theme.onAccent : theme.ink2,
                                 border: `2px solid ${theme.border}`,
                                 fontFamily: 'var(--font-pixel-head)',
-                                fontSize: 9,
-                                letterSpacing: '0.1em',
+                                fontSize: 7,
+                                letterSpacing: '0.04em',
                                 textTransform: 'uppercase',
+                                whiteSpace: 'nowrap',
                               }}
                             >
                               {iso ? formatDay(iso) : 'Senza data'}

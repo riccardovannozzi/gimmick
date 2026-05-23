@@ -224,6 +224,22 @@ export const PIXEL_FONTS = {
   bodyBold: 'JetBrainsMono-Bold',
 };
 
+// ─── Semantic color aliases ────────────────────────────────────────────────
+// Capture colors do double duty as semantic role colors — the palette designer
+// already chose hex values that match these intents:
+//   voice (red)  → danger
+//   file  (yellow) → warning
+//   text  (green) → success
+//   photo (blue)  → info
+// Derived runtime in buildPixelTheme so palette overrides automatically
+// propagate. Use `theme.semantic.danger` for close/destructive actions etc.
+export interface SemanticColors {
+  danger: string;
+  warning: string;
+  success: string;
+  info: string;
+}
+
 // ─── Theme builder ──────────────────────────────────────────────────────────
 export interface PixelTheme extends PalettePerMode {
   paletteId: PaletteId;
@@ -239,6 +255,7 @@ export interface PixelTheme extends PalettePerMode {
   fontHead: string;
   fontBody: string;
   fontNum: string;
+  semantic: SemanticColors;
 }
 
 export interface BuildPixelThemeInput {
@@ -279,5 +296,11 @@ export function buildPixelTheme({
     fontHead: PIXEL_FONTS.head,
     fontBody: PIXEL_FONTS.body,
     fontNum:  PIXEL_FONTS.body,
+    semantic: {
+      danger:  p.cap.voice,
+      warning: p.cap.file,
+      success: p.cap.text,
+      info:    p.cap.photo,
+    },
   };
 }

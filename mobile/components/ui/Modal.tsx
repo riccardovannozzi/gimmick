@@ -1,16 +1,13 @@
+/**
+ * Wrapper di PixelModal che mantiene l'API legacy (title/onClose/visible/
+ * showCloseButton/closeOnBackdrop) usata dagli screen non ancora migrati.
+ * Internamente delega al PixelModal del design system Pixel Arcade.
+ */
 import React from 'react';
-import {
-  Modal as RNModal,
-  View,
-  Text,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  ModalProps as RNModalProps,
-} from 'react-native';
-import { IconX } from '@tabler/icons-react-native';
-import { useThemeColors } from '@/lib/theme';
+import { ModalProps as RNModalProps } from 'react-native';
+import { usePixelTheme, PixelModal } from '@/components/pixel';
 
-interface ModalProps extends RNModalProps {
+interface ModalProps extends Omit<RNModalProps, 'children'> {
   title?: string;
   onClose: () => void;
   children: React.ReactNode;
@@ -25,46 +22,20 @@ export function Modal({
   showCloseButton = true,
   closeOnBackdrop = true,
   visible,
-  ...props
+  ...rest
 }: ModalProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   return (
-    <RNModal
+    <PixelModal
+      theme={theme}
       visible={visible}
-      transparent
-      animationType="fade"
-      statusBarTranslucent
-      onRequestClose={onClose}
-      {...props}
+      onClose={onClose}
+      title={title}
+      showCloseButton={showCloseButton}
+      closeOnBackdrop={closeOnBackdrop}
+      {...rest}
     >
-      <TouchableWithoutFeedback onPress={closeOnBackdrop ? onClose : undefined}>
-        <View className="flex-1 bg-black/70 justify-center items-center px-4">
-          <TouchableWithoutFeedback>
-            <View className="bg-background-2 rounded-2xl w-full max-w-md overflow-hidden">
-              {/* Header */}
-              {(title || showCloseButton) && (
-                <View className="flex-row items-center justify-between px-4 py-3 border-b border-border">
-                  <Text className="text-primary text-lg font-semibold flex-1">
-                    {title ?? ''}
-                  </Text>
-                  {showCloseButton && (
-                    <TouchableOpacity
-                      onPress={onClose}
-                      className="p-1"
-                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                    >
-                      <IconX size={24} color={colors.secondary} />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              )}
-
-              {/* Content */}
-              <View className="p-4">{children}</View>
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </RNModal>
+      {children}
+    </PixelModal>
   );
 }

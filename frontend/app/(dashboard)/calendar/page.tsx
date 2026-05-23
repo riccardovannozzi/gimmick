@@ -211,7 +211,7 @@ const ACTION_OPTIONS = [
 
 
 const START_HOUR = 6;
-const END_HOUR = 22;
+const END_HOUR = 24;
 
 export default function CalendarPage() {
   const theme = usePixelTheme();
@@ -1706,7 +1706,7 @@ export default function CalendarPage() {
             firstDay={1}
             headerToolbar={false}
             slotMinTime="06:00:00"
-            slotMaxTime="22:00:00"
+            slotMaxTime="24:00:00"
             slotDuration="00:30:00"
             slotLabelInterval="01:00:00"
             slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}

@@ -26,7 +26,7 @@ import {
 } from '@tabler/icons-react-native';
 import { tagsApi, tagTypesApi, type TagTypeEntity } from '@/lib/api';
 import { useAuthStore } from '@/store';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
 import type { Tag as TagInterface } from '@/types';
 
 // Tag-type metadata mirrors frontend/components/layout/sidebar.tsx.
@@ -95,7 +95,18 @@ export function TagFilterModal({
   onChange,
   title = 'Filtra per tag',
 }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  // Adapter — mantiene la compatibilità del corpo originale che usa `colors.*`
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const insets = useSafeAreaInsets();
   const [availableTags, setAvailableTags] = useState<TagInterface[]>([]);
   const [tagTypes, setTagTypes] = useState<TagTypeEntity[]>([]);
@@ -201,7 +212,7 @@ export function TagFilterModal({
             justifyContent: 'space-between',
             paddingHorizontal: 20,
             paddingVertical: 16,
-            borderBottomWidth: 1,
+            borderBottomWidth: 2,
             borderBottomColor: colors.border,
           }}
         >
@@ -362,25 +373,20 @@ export function TagFilterModal({
             paddingHorizontal: 20,
             paddingTop: 12,
             paddingBottom: insets.bottom + 16,
-            borderTopWidth: 1,
+            borderTopWidth: 2,
             borderTopColor: colors.border,
             backgroundColor: colors.background1,
           }}
         >
-          <TouchableOpacity
+          <PixelButton
+            theme={theme}
+            big
+            full
+            bg={theme.accent}
+            color={theme.onAccent}
+            label={selectedTagIds.size > 0 ? `APPLICA (${selectedTagIds.size})` : 'APPLICA'}
             onPress={onClose}
-            activeOpacity={0.7}
-            style={{
-              backgroundColor: '#2196F3',
-              borderRadius: 12,
-              paddingVertical: 14,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-              {selectedTagIds.size > 0 ? `Applica (${selectedTagIds.size})` : 'Applica'}
-            </Text>
-          </TouchableOpacity>
+          />
         </View>
       </View>
     </Modal>

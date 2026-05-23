@@ -1,18 +1,12 @@
 /**
- * Full-screen multi-select modal used by the Tiles filter row. Mirrors
- * TagFilterModal's UX (full-screen native Modal + footer Apply/Close button)
- * so all four filter pills feel identical.
- *
- * Generic over an item type — the caller supplies the list, an identity
- * function (`getId`), and an optional `leading` renderer for the row icon.
- * Selection state is owned by the parent (Set<string>); this component is
- * purely presentational.
+ * Full-screen multi-select modal used by the Tiles filter row. Pixel design:
+ * border 2px ink, font Press Start 2P, no border-radius.
  */
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, ScrollView, Pressable, Modal } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { IconX, IconCheck } from '@tabler/icons-react-native';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
 
 export interface FilterPickerModalProps<T> {
   visible: boolean;
@@ -21,7 +15,6 @@ export interface FilterPickerModalProps<T> {
   selected: Set<string>;
   getId: (item: T) => string;
   getLabel: (item: T) => string;
-  /** Optional leading element (icon/badge) rendered before the label. */
   leading?: (item: T) => React.ReactNode;
   onChange: (next: Set<string>) => void;
   onClose: () => void;
@@ -38,7 +31,7 @@ export function FilterPickerModal<T>({
   onChange,
   onClose,
 }: FilterPickerModalProps<T>) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const insets = useSafeAreaInsets();
 
   const toggle = (id: string) => {
@@ -50,43 +43,79 @@ export function FilterPickerModal<T>({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={{ flex: 1, backgroundColor: colors.background1, paddingTop: insets.top }}>
+      <View style={{ flex: 1, backgroundColor: theme.bg1, paddingTop: insets.top }}>
         {/* Header */}
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingVertical: 16,
-            borderBottomWidth: 1,
-            borderBottomColor: colors.border,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
+            borderBottomWidth: 2,
+            borderBottomColor: theme.border,
           }}
         >
-          <Text style={{ fontSize: 19, fontWeight: '700', color: colors.primary }}>
-            {title}
+          <Text
+            numberOfLines={1}
+            style={{
+              flex: 1,
+              fontFamily: theme.fontHead,
+              fontSize: 12,
+              color: theme.ink,
+              letterSpacing: 1.2,
+            }}
+          >
+            {title.toUpperCase()}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {selected.size > 0 && (
-              <TouchableOpacity onPress={() => onChange(new Set())} hitSlop={6}>
-                <Text style={{ fontSize: 13, color: colors.accent }}>Pulisci</Text>
-              </TouchableOpacity>
+              <Pressable
+                onPress={() => onChange(new Set())}
+                hitSlop={6}
+                style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+              >
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 9,
+                    color: theme.accent,
+                    letterSpacing: 1,
+                  }}
+                >
+                  PULISCI
+                </Text>
+              </Pressable>
             )}
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <IconX size={24} color={colors.secondary} />
-            </TouchableOpacity>
+            <Pressable
+              onPress={onClose}
+              hitSlop={10}
+              style={({ pressed }) => ({
+                width: 32,
+                height: 32,
+                borderWidth: 2,
+                borderColor: theme.border,
+                backgroundColor: theme.surfaceVariant,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              })}
+            >
+              <IconX size={16} color={theme.ink} strokeWidth={2.4} />
+            </Pressable>
           </View>
         </View>
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 20 }}
           keyboardShouldPersistTaps="handled"
         >
           {items.length === 0 ? (
             <Text
               style={{
-                color: colors.tertiary,
+                fontFamily: theme.fontBody,
+                color: theme.ink2,
                 fontSize: 14,
                 textAlign: 'center',
                 paddingVertical: 40,
@@ -99,60 +128,73 @@ export function FilterPickerModal<T>({
               const id = getId(item);
               const isSelected = selected.has(id);
               return (
-                <TouchableOpacity
+                <Pressable
                   key={id}
                   onPress={() => toggle(id)}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 12,
-                    paddingHorizontal: 12,
-                    borderRadius: 10,
-                    marginBottom: 2,
-                    backgroundColor: isSelected ? `${colors.accent}1F` : colors.surfaceVariant,
-                  }}
+                  style={({ pressed }) => ({
+                    marginBottom: 6,
+                    opacity: pressed ? 0.85 : 1,
+                  })}
                 >
-                  {leading ? (
-                    <View style={{ marginRight: 12 }}>{leading(item)}</View>
-                  ) : null}
-                  <Text style={{ flex: 1, fontSize: 15, color: colors.primary }}>
-                    {getLabel(item)}
-                  </Text>
-                  {isSelected && (
-                    <IconCheck size={18} color={colors.accent} strokeWidth={2.5} />
-                  )}
-                </TouchableOpacity>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 12,
+                      borderWidth: 2,
+                      borderColor: theme.border,
+                      backgroundColor: isSelected ? theme.accent : theme.surface,
+                    }}
+                  >
+                    {leading ? (
+                      <View style={{ marginRight: 12 }}>{leading(item)}</View>
+                    ) : null}
+                    <Text
+                      style={{
+                        flex: 1,
+                        fontFamily: theme.fontBody,
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: isSelected ? (theme.onAccent as string) : theme.ink,
+                      }}
+                    >
+                      {getLabel(item)}
+                    </Text>
+                    {isSelected && (
+                      <IconCheck
+                        size={16}
+                        color={theme.onAccent as string}
+                        strokeWidth={2.6}
+                      />
+                    )}
+                  </View>
+                </Pressable>
               );
             })
           )}
         </ScrollView>
 
-        {/* Footer — Apply/Close button, same UX as TagFilterModal. */}
+        {/* Footer */}
         <View
           style={{
-            paddingHorizontal: 20,
+            paddingHorizontal: 16,
             paddingTop: 12,
-            paddingBottom: insets.bottom + 16,
-            borderTopWidth: 1,
-            borderTopColor: colors.border,
-            backgroundColor: colors.background1,
+            paddingBottom: insets.bottom + 12,
+            borderTopWidth: 2,
+            borderTopColor: theme.border,
+            backgroundColor: theme.bg1,
           }}
         >
-          <TouchableOpacity
+          <PixelButton
+            theme={theme}
+            big
+            full
+            bg={theme.accent}
+            color={theme.onAccent}
+            label={selected.size > 0 ? `APPLICA (${selected.size})` : 'APPLICA'}
             onPress={onClose}
-            activeOpacity={0.7}
-            style={{
-              backgroundColor: '#2196F3',
-              borderRadius: 12,
-              paddingVertical: 14,
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: '#FFFFFF', fontSize: 16, fontWeight: '600' }}>
-              {selected.size > 0 ? `Applica (${selected.size})` : 'Applica'}
-            </Text>
-          </TouchableOpacity>
+          />
         </View>
       </View>
     </Modal>

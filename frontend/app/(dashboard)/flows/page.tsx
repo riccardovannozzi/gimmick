@@ -14,14 +14,16 @@
  */
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { IconRoute, IconClock, IconRefresh } from '@tabler/icons-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { IconRoute, IconClock, IconArrowsSort, IconCheck } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme } from '@/components/pixel';
 import { useFlowHub, type FlowHubFilter } from '@/lib/hooks/useFlowHub';
 import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { StatusIcon } from '@/components/flow/FlowNodeView';
+import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { useActionColors } from '@/store/action-colors-store';
+import { readableOn } from '@/lib/palette';
 import type { FlowHubItem } from '@/types/flow';
 
 function isItemSelf(item: FlowHubItem): boolean {
@@ -34,6 +36,21 @@ const TABS: Array<{ key: FlowHubFilter; label: string; tint: string }> = [
   { key: 'undo', label: 'UNDO', tint: FLOW_STATE_COLORS.undo },
   { key: 'stop', label: 'STOP', tint: FLOW_STATE_COLORS.stop },
 ];
+
+type FlowSort = 'days_desc' | 'days_asc' | 'tag' | 'contact';
+const SORT_OPTIONS: Array<{ key: FlowSort; label: string }> = [
+  { key: 'days_desc', label: 'Giorni ↓' },
+  { key: 'days_asc',  label: 'Giorni ↑' },
+  { key: 'tag',       label: 'Tag' },
+  { key: 'contact',   label: 'Contatto' },
+];
+
+/** Days passed from the date set on the card (scheduled_at) or, if absent,
+ *  from creation. Negative = future. Shared with the days badge. */
+function daysOf(item: FlowHubItem): number {
+  const ref = item.scheduled_at || item.created_at;
+  return Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
+}
 
 function StateGlyph({ state, color, size = 13 }: { state: FlowHubFilter; color: string; size?: number }) {
   return (
@@ -59,14 +76,26 @@ function formatScheduled(iso: string | null): string | null {
   return d.toLocaleString('it-IT', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void }) {
+function FlowItemCard({ item, onOpen, isActive }: { item: FlowHubItem; onOpen: () => void; isActive?: boolean }) {
   const theme = usePixelTheme();
+  const actionColors = useActionColors();
+  // The "scadenza" color the user picked in Settings → Style of actions
+  // drives the days badge so all urgency cues across the app stay in sync.
+  const urgentColor = actionColors.deadline;
   const [hover, setHover] = useState(false);
   const isSelf = isItemSelf(item);
   const ownerLabel = isSelf ? 'Palla mia' : item.contact?.name ?? 'Palla loro';
   const stateLabel = FLOW_STATE_LABELS[item.state];
   const pillLabel = item.state !== 'active' ? stateLabel : ownerLabel;
   const isDue = item.scheduled_at && new Date(item.scheduled_at).getTime() < Date.now();
+  // Compact meta hint (right-side): scheduled time wins, else "Ng fa", else occurred date.
+  const metaHint = item.scheduled_at
+    ? formatScheduled(item.scheduled_at)
+    : item.days_since_activity > 0
+      ? `${item.days_since_activity}g fa`
+      : item.occurred_at
+        ? formatDate(item.occurred_at)
+        : null;
 
   return (
     <button
@@ -74,154 +103,177 @@ function FlowItemCard({ item, onOpen }: { item: FlowHubItem; onOpen: () => void 
       onClick={onOpen}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
+      title={item.notes || undefined}
       className="px-press"
       style={{
         width: '100%',
         textAlign: 'left',
-        background: hover ? theme.surface : theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
-        padding: '12px 14px',
+        // Inverted: base = surface (raised look + shadow), hover = surfaceVariant (pressed-in).
+        // Active (currently shown in the sidebar) gets an accent ring so the
+        // user always knows which row drove the sidebar contents.
+        background: hover ? theme.surfaceVariant : theme.surface,
+        border: `2px solid ${isActive ? theme.accent : theme.border}`,
+        outline: isActive ? `2px solid ${theme.accent}` : 'none',
+        outlineOffset: -4,
+        padding: '8px 12px',
         cursor: 'pointer',
-        boxShadow: hover ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+        boxShadow: hover ? 'none' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
         transition: 'background 100ms',
+        // CSS grid (not flex) so columns line up across rows regardless of
+        // which optional fields each card has. Last 3 tracks (meta / state /
+        // days) are auto-sized but each card always renders a slot — empty
+        // when missing — so the right edge stays aligned too.
+        display: 'grid',
+        gridTemplateColumns: '110px minmax(0,2fr) minmax(0,1fr) 130px 70px 28px 60px',
+        alignItems: 'center',
+        gap: 12,
+        minHeight: 36,
       }}
     >
-      <div
+      {/* Col 1 — tag chip */}
+      <span
         style={{
-          display: 'grid',
-          gridTemplateColumns: 'minmax(0,1fr) minmax(0,1fr) auto',
-          gap: 16,
-          alignItems: 'center',
+          fontFamily: 'var(--font-pixel-head)',
+          fontSize: 8,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: theme.ink3,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
-        {/* Column 1 — tag (top) + tile title (bottom) */}
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.12em',
-              textTransform: 'uppercase',
-              color: theme.ink3,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {item.tile.tag?.name || ' '}
-          </div>
-          <div
-            style={{
-              fontFamily: 'var(--font-pixel-body)',
-              fontSize: 13,
-              fontWeight: 600,
-              color: theme.ink,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              marginTop: 2,
-            }}
-          >
-            {item.tile.title || '(senza titolo)'}
-          </div>
-        </div>
+        {item.tile.tag?.name || '—'}
+      </span>
 
-        {/* Column 2 — node label (top) + contact pill (bottom) */}
-        <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4, paddingLeft: 24 }}>
-          <span
-            style={{
-              fontFamily: 'var(--font-pixel-body)',
-              fontSize: 12,
-              color: theme.ink2,
-              maxWidth: '100%',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {item.label || <span style={{ fontStyle: 'italic', color: theme.ink3 }}>(senza etichetta)</span>}
-          </span>
-          {item.contact ? (
-            <span
-              style={{
-                padding: '3px 6px',
-                lineHeight: 1,
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 9,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: item.contact.color || theme.ink2,
-                border: `2px solid ${theme.border}`,
-                background: theme.surfaceVariant,
-                maxWidth: '100%',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-              }}
-            >
-              {item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name}
-            </span>
-          ) : (
-            <span style={{ height: 18 }} />
-          )}
-        </div>
+      {/* Col 2 — tile title (primary) */}
+      <span
+        style={{
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 12,
+          fontWeight: 600,
+          color: theme.ink,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {item.tile.title || '(senza titolo)'}
+      </span>
 
-        {/* Column 3 — mini badge */}
-        <span style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }} title={pillLabel}>
-          <FlowMiniBadge isSelf={isSelf} state={item.state} />
-        </span>
-      </div>
+      {/* Col 3 — node label */}
+      <span
+        style={{
+          fontFamily: 'var(--font-pixel-body)',
+          fontSize: 11,
+          color: theme.ink2,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      >
+        {item.label || <span style={{ fontStyle: 'italic', color: theme.ink3 }}>(senza etichetta)</span>}
+      </span>
 
-      {(item.scheduled_at || (!item.scheduled_at && item.days_since_activity > 0) || item.notes) && (
-        <div
+      {/* Col 4 — contact pill (slot always rendered to keep right cols aligned) */}
+      {item.contact ? (
+        <span
           style={{
-            marginTop: 8,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            fontFamily: 'var(--font-pixel-body)',
-            fontSize: 11,
-            color: theme.ink3,
-          }}
-        >
-          {item.scheduled_at && (
-            <span
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                color: isDue ? '#E24B4A' : theme.ink3,
-              }}
-            >
-              <IconClock size={11} />
-              {formatScheduled(item.scheduled_at)}
-            </span>
-          )}
-          {!item.scheduled_at && item.days_since_activity > 0 && (
-            <span>{item.days_since_activity}g fa</span>
-          )}
-          {item.occurred_at && (
-            <span style={{ marginLeft: 'auto' }}>{formatDate(item.occurred_at)}</span>
-          )}
-        </div>
-      )}
-      {item.notes && (
-        <div
-          style={{
-            marginTop: 8,
-            fontFamily: 'var(--font-pixel-body)',
-            fontSize: 11,
-            color: theme.ink2,
-            whiteSpace: 'pre-wrap',
-            display: '-webkit-box',
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: 'vertical',
+            padding: '2px 6px',
+            lineHeight: 1,
+            fontFamily: 'var(--font-pixel-head)',
+            fontSize: 8,
+            letterSpacing: '0.06em',
+            textTransform: 'uppercase',
+            color: item.contact.color || theme.ink2,
+            border: `2px solid ${theme.border}`,
+            background: theme.surfaceVariant,
+            whiteSpace: 'nowrap',
             overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            justifySelf: 'start',
+            maxWidth: '100%',
           }}
         >
-          {item.notes}
-        </div>
+          {item.contact.is_self ? `[ ${item.contact.name} ]` : item.contact.name}
+        </span>
+      ) : (
+        <span />
       )}
+
+      {/* Col 5 — meta hint */}
+      {metaHint ? (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 3,
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 10,
+            color: isDue ? '#E24B4A' : theme.ink3,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {item.scheduled_at && <IconClock size={10} />}
+          {metaHint}
+        </span>
+      ) : (
+        <span />
+      )}
+
+      {/* Col 6 — state badge */}
+      <span style={{ display: 'inline-flex', alignItems: 'center', justifySelf: 'center' }} title={pillLabel}>
+        <FlowMiniBadge isSelf={isSelf} state={item.state} />
+      </span>
+
+      {/* Days badge — counts from scheduled_at (the date set on the card) if
+          present, otherwise from created_at. Default tier uses theme.ink as
+          background to stand out from the surrounding surfaceVariant chips. */}
+      {(() => {
+        const ref = item.scheduled_at || item.created_at;
+        if (!ref) return null;
+        const days = Math.floor((Date.now() - new Date(ref).getTime()) / 86400000);
+        const label = days === 0 ? 'oggi' : days < 0 ? `tra ${Math.abs(days)}` : `${days}`;
+        const tooltip = item.scheduled_at
+          ? `${days < 0 ? 'Mancano' : 'Sono passati'} ${Math.abs(days)} giorni dalla data fissata`
+          : `Creato ${days} giorni fa`;
+        // Uniform style across all tiers: light text on the user's deadline
+        // color (from Settings → Style of actions). No more yellow/accent
+        // escalation — the days number itself communicates the age.
+        const bg = urgentColor;
+        const color = readableOn(urgentColor);
+        return (
+          <span
+            title={tooltip}
+            style={{
+              flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              // Doubled vertical footprint vs. the rest of the row: padding +
+              // font scaled together so the badge becomes the clear focal
+              // point of each card.
+              padding: '6px 8px',
+              minHeight: 30,
+              lineHeight: 1,
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 16,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              background: bg,
+              color,
+              border: `2px solid ${theme.border}`,
+              whiteSpace: 'nowrap',
+              minWidth: 44,
+              textAlign: 'center',
+            }}
+          >
+            {label}
+          </span>
+        );
+      })()}
     </button>
   );
 }
@@ -266,22 +318,76 @@ function FlowMiniBadge({
 
 export default function FlowsPage() {
   const theme = usePixelTheme();
-  const router = useRouter();
   const [filter, setFilter] = useState<FlowHubFilter>('wait');
-  const [refreshHover, setRefreshHover] = useState(false);
+  const [sortBy, setSortBy] = useState<FlowSort>('days_desc');
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
+  const sortBtnRef = useRef<HTMLButtonElement>(null);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
-  const { items, isLoading, isError, refetch } = useFlowHub(filter);
+  // Close sort menu on outside click.
+  useEffect(() => {
+    if (!sortMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (sortBtnRef.current?.contains(e.target as Node)) return;
+      if (sortMenuRef.current?.contains(e.target as Node)) return;
+      setSortMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [sortMenuOpen]);
+  // TileSidebar state — opening a flow item shows the related tile in the
+  // sidebar without leaving the FlowHub page. The flowNodeId is passed
+  // through so the sidebar's Flow tab auto-selects that node.
+  const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [forceFlowTab, setForceFlowTab] = useState(0);
+
+  const { items, isLoading, isError } = useFlowHub(filter);
+
+  // Sorted view of the hub items — the badge tier, auto-select, list render
+  // and counter all read this instead of the raw query data.
+  const sortedItems = useMemo(() => {
+    const arr = [...items];
+    switch (sortBy) {
+      case 'days_desc': return arr.sort((a, b) => daysOf(b) - daysOf(a));
+      case 'days_asc':  return arr.sort((a, b) => daysOf(a) - daysOf(b));
+      case 'tag':       return arr.sort((a, b) => (a.tile.tag?.name || '').localeCompare(b.tile.tag?.name || ''));
+      case 'contact':   return arr.sort((a, b) => (a.contact?.name || '').localeCompare(b.contact?.name || ''));
+      default: return arr;
+    }
+  }, [items, sortBy]);
 
   const handleOpen = (item: FlowHubItem) => {
-    router.push(`/canvas?tile=${item.tile_id}&flow=${item.id}`);
+    setSelectedTileId(item.tile_id);
+    setSelectedFlowNodeId(item.id);
+    setSidebarOpen(true);
+    // Bump the counter to force TileSidebar's Flow tab to (re-)activate
+    // every time we open a flow item, even if it's the same tile as before.
+    setForceFlowTab((n) => n + 1);
   };
 
+  // Auto-select the first item: on initial page load AND whenever the user
+  // switches the filter tab. Without the filter dep the sidebar would keep
+  // showing a tile that no longer appears in the visible list.
+  const autoSelectedFilter = useRef<FlowHubFilter | null>(null);
+  useEffect(() => {
+    if (isLoading || sortedItems.length === 0) return;
+    if (autoSelectedFilter.current === filter) return;
+    autoSelectedFilter.current = filter;
+    handleOpen(sortedItems[0]);
+    // handleOpen is referentially stable enough here — it only reads setters.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedItems, isLoading, filter]);
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1 }}>
+    <div style={{ display: 'flex', flexDirection: 'row', height: '100%', background: theme.bg1 }}>
+     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, overflow: 'hidden' }}>
       <Header />
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <div style={{ maxWidth: 768, margin: '0 auto', padding: '24px' }}>
+      {/* Pinned toolbar — title + tabs. NOT inside the scrolling container so
+          the scrollbar lives on the list area only, not on the whole page. */}
+      <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 24px 8px', width: '100%' }}>
           {/* Page title */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -324,31 +430,6 @@ export default function FlowsPage() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => refetch()}
-              onMouseEnter={() => setRefreshHover(true)}
-              onMouseLeave={() => setRefreshHover(false)}
-              className="px-press"
-              title="Aggiorna"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                height: 28,
-                padding: '0 10px',
-                background: refreshHover ? theme.surface : theme.surfaceVariant,
-                color: theme.ink2,
-                border: `2px solid ${theme.border}`,
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 9,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
-            >
-              <IconRefresh size={12} />
-              Aggiorna
-            </button>
           </div>
 
           {/* Filter tabs */}
@@ -393,8 +474,85 @@ export default function FlowsPage() {
                 </button>
               );
             })}
+            {/* Sort dropdown — pushed to the opposite end of the tabs row */}
+            <div style={{ position: 'relative', display: 'inline-block', marginLeft: 'auto', flexShrink: 0 }}>
+              <button
+                ref={sortBtnRef}
+                onClick={() => setSortMenuOpen((v) => !v)}
+                className="px-press"
+                title="Ordina"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  height: 28,
+                  padding: '0 10px',
+                  background: sortMenuOpen ? theme.surface : theme.surfaceVariant,
+                  color: theme.ink2,
+                  border: `2px solid ${theme.border}`,
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 9,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  cursor: 'pointer',
+                }}
+              >
+                <IconArrowsSort size={12} />
+                {SORT_OPTIONS.find((o) => o.key === sortBy)?.label ?? 'Ordina'}
+              </button>
+              {sortMenuOpen && (
+                <div
+                  ref={sortMenuRef}
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    marginTop: 4,
+                    minWidth: 140,
+                    zIndex: 50,
+                    background: theme.surface,
+                    border: `2px solid ${theme.border}`,
+                    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    padding: 4,
+                  }}
+                >
+                  {SORT_OPTIONS.map((opt) => {
+                    const active = sortBy === opt.key;
+                    return (
+                      <button
+                        key={opt.key}
+                        onClick={() => { setSortBy(opt.key); setSortMenuOpen(false); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          width: '100%',
+                          padding: '6px 8px',
+                          textAlign: 'left',
+                          background: active ? theme.surfaceVariant : 'transparent',
+                          border: 'none',
+                          color: active ? theme.ink : theme.ink2,
+                          fontFamily: 'var(--font-pixel-head)',
+                          fontSize: 9,
+                          letterSpacing: '0.08em',
+                          textTransform: 'uppercase',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <IconCheck size={11} style={{ opacity: active ? 1 : 0, flexShrink: 0, color: theme.accent }} />
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
+      </div>{/* /pinned toolbar */}
 
+      {/* Scrollable list area — owns the scrollbar */}
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px 24px', width: '100%' }}>
           {/* List */}
           {isLoading ? (
             <div
@@ -469,8 +627,8 @@ export default function FlowsPage() {
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {items.map((item) => (
-                <FlowItemCard key={item.id} item={item} onOpen={() => handleOpen(item)} />
+              {sortedItems.map((item) => (
+                <FlowItemCard key={item.id} item={item} onOpen={() => handleOpen(item)} isActive={item.id === selectedFlowNodeId} />
               ))}
             </div>
           )}
@@ -492,6 +650,16 @@ export default function FlowsPage() {
           )}
         </div>
       </div>
+     </div>
+      <TileSidebar
+        tileId={selectedTileId}
+        open={sidebarOpen}
+        onToggle={() => setSidebarOpen(!sidebarOpen)}
+        invalidateKeys={['flow-hub']}
+        flowNodeId={selectedFlowNodeId}
+        onSelectFlowNode={setSelectedFlowNodeId}
+        forceFlowTab={forceFlowTab}
+      />
     </div>
   );
 }

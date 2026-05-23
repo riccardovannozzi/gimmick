@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2 } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme, PixelToggle } from '@/components/pixel';
-import { PixelSettingsPanel } from '@/components/pixel/PixelSettingsPanel';
+import { PixelArcadeModal } from '@/components/pixel/PixelArcadeModal';
 import { useAuthStore } from '@/store/auth-store';
 import { ActionsModal } from '@/components/actions/actions-modal';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
@@ -160,6 +160,7 @@ export default function SettingsPage() {
   const [actionsOpen, setActionsOpen] = useState(false);
   const [statusesOpen, setStatusesOpen] = useState(false);
   const [typeIconsOpen, setTypeIconsOpen] = useState(false);
+  const [pixelArcadeOpen, setPixelArcadeOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -214,7 +215,7 @@ export default function SettingsPage() {
 
           {/* Pixel Arcade theme */}
           <PixelSection icon={IconDeviceGamepad2} title="Pixel Arcade" description="Palette, modalità, ombre e sfondo del design system 16-bit">
-            <PixelSettingsPanel />
+            <PixelManageButton onClick={() => setPixelArcadeOpen(true)}>Gestisci Pixel Arcade</PixelManageButton>
           </PixelSection>
 
           {/* Action Colors */}
@@ -280,6 +281,7 @@ export default function SettingsPage() {
       <ActionsModal open={actionsOpen} onOpenChange={setActionsOpen} />
       <StatusesModal open={statusesOpen} onOpenChange={setStatusesOpen} />
       <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
+      <PixelArcadeModal open={pixelArcadeOpen} onOpenChange={setPixelArcadeOpen} />
     </div>
   );
 }

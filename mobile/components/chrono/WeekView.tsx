@@ -23,7 +23,7 @@ import {
   startOfWeek,
   fmtWeekday,
 } from '@/lib/chrono-utils';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { useTileColors } from '@/hooks/useTileColors';
 import { EventBlock } from './EventBlock';
 import { AllDayChip } from './AllDayChip';
@@ -54,7 +54,19 @@ export function WeekView({
   onReschedule,
   onSelectDay,
 }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surfaceVariant,
+  } as const;
   const { resolve: resolveTileColors } = useTileColors();
   const { width: screenWidth } = useWindowDimensions();
 

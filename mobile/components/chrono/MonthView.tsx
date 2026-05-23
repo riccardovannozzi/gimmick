@@ -14,7 +14,7 @@ import {
   fmtWeekday,
 } from '@/lib/chrono-utils';
 import { useTileColors } from '@/hooks/useTileColors';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import type { Tile } from '@/types';
 
 interface Props {
@@ -27,7 +27,19 @@ interface Props {
 const MAX_DOTS = 3;
 
 export function MonthView({ monthAnchor, events, isLoading, onSelectDay }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surfaceVariant,
+  } as const;
   const { resolve: resolveTileColors } = useTileColors();
   const days = useMemo(() => monthGridDays(monthAnchor), [monthAnchor]);
 

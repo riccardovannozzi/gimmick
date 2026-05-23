@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { View, Text, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, FlatList, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as TablerIcons from '@tabler/icons-react-native';
 import {
@@ -14,8 +14,8 @@ import {
 } from '@tabler/icons-react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tilesApi, typeIconsApi, statusesApi, type TypeIconEntity, type StatusEntity } from '@/lib/api';
-import { captureColors } from '@/constants/colors';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
+import { hexWithAlpha, type PixelTheme } from '@/constants/pixel-theme';
 import { ActionTypePicker } from '@/components/ActionTypePicker';
 import { TagFilterModal } from '@/components/TagFilterModal';
 import { FilterPickerModal } from '@/components/FilterPickerModal';
@@ -24,18 +24,19 @@ import type { Tile, ActionType } from '@/types';
 // Spark management is desktop-only — this screen lists Tiles exclusively.
 
 // ============ Action filter vocabulary ============
-//
-// Same 5-key vocabulary used in the SetOptionsAccordion. Each tile resolves
-// to exactly one key via `resolveActionKey()`. Multi-select.
 type ActionKey = 'none' | 'anytime' | 'deadline' | 'allday' | 'timed';
 
-const ACTION_FILTER_OPTIONS: { id: ActionKey; label: string; color: string; icon?: typeof IconBolt }[] = [
-  { id: 'none', label: 'Notes', color: '#71717A' },
-  { id: 'anytime', label: 'ToDo', color: captureColors.text, icon: IconArrowUp },
-  { id: 'deadline', label: 'Due', color: '#EF4444', icon: IconBolt },
-  { id: 'allday', label: 'All Day', color: captureColors.gallery, icon: IconCalendar },
-  { id: 'timed', label: 'Timed', color: captureColors.photo, icon: IconClock },
-];
+function actionColor(theme: PixelTheme, key: string): string {
+  switch (key) {
+    case 'none': return theme.ink3;
+    case 'anytime': return theme.cap.text;
+    case 'deadline': return theme.cap.voice;
+    case 'allday': return theme.cap.gallery;
+    case 'timed':
+    case 'event': return theme.cap.photo;
+    default: return theme.ink3;
+  }
+}
 
 function resolveActionKey(tile: Tile): ActionKey {
   const at = tile.action_type ?? 'none';
@@ -45,7 +46,6 @@ function resolveActionKey(tile: Tile): ActionKey {
   return 'none';
 }
 
-/** Pick a readable foreground (white/black) for a given background hex. */
 function readableOn(bg: string): string {
   const hex = bg.replace('#', '').slice(0, 6);
   if (hex.length < 6) return '#FFFFFF';
@@ -95,11 +95,13 @@ function groupByDate<T extends { created_at: string }>(items: T[]): { title: str
     const date = new Date(item.created_at);
     let key: string;
     if (date.toDateString() === today.toDateString()) {
-      key = 'Oggi';
+      key = 'OGGI';
     } else if (date.toDateString() === yesterday.toDateString()) {
-      key = 'Ieri';
+      key = 'IERI';
     } else {
-      key = date.toLocaleDateString('it-IT', { month: 'long', day: 'numeric' });
+      key = date
+        .toLocaleDateString('it-IT', { month: 'long', day: 'numeric' })
+        .toUpperCase();
     }
     if (!groups[key]) groups[key] = [];
     groups[key].push(item);
@@ -108,13 +110,7 @@ function groupByDate<T extends { created_at: string }>(items: T[]): { title: str
   return Object.entries(groups).map(([title, data]) => ({ title, data }));
 }
 
-// ============ TileItem ============
-//
-// Card-style rendering that mirrors the web Kanban/Canvas tile look:
-//   - Background tinted from the tile's action_type color
-//   - Dashed red border for deadlines
-//   - Title (2-line clamp) + scheduled-date subtitle
-//   - Bottom row: action badge (tap → action picker) + spark count + delete
+// ============ TileItem (PixelCard) ============
 
 const ACTION_BADGE_ICON: Record<string, typeof IconBolt | null> = {
   none: null,
@@ -124,150 +120,167 @@ const ACTION_BADGE_ICON: Record<string, typeof IconBolt | null> = {
   allday: IconCalendar,
 };
 
-const ACTION_BADGE_COLOR: Record<string, string> = {
-  none: '#71717A',
-  anytime: captureColors.text,        // green
-  deadline: '#EF4444',                // red
-  event: captureColors.photo,         // blue
-  allday: captureColors.gallery,      // purple
-};
-
 function TileItem({
   tile,
-  colors,
   onOpen,
   onActionTypeChange,
   onDelete,
 }: {
   tile: Tile;
-  colors: any;
-  /** Body tap → opens the full-page tile detail. */
   onOpen: (tileId: string) => void;
-  /** Action badge tap → opens the action-type picker. */
   onActionTypeChange: (tileId: string, actionType: ActionType) => void;
   onDelete: (id: string) => void;
 }) {
+  const theme = usePixelTheme();
   const sparkCount = tile.spark_count ?? tile.sparks?.length ?? 0;
   const actionKey: string = tile.all_day && tile.action_type === 'event'
     ? 'allday'
     : (tile.action_type || 'none');
-  const actionColor = ACTION_BADGE_COLOR[actionKey] || colors.secondary;
+  const aColor = actionColor(theme, actionKey);
   const ActionIcon = ACTION_BADGE_ICON[actionKey];
-  // bg ≈ 15% alpha tint of the action color (≈ "26" in hex). For 'none'
-  // (notes) fall back to the neutral surface so it doesn't bleed grey.
+  // bg = 15% alpha tint dell'action color sopra surface; 'none' → surface plain
   const tileBg = actionKey === 'none'
-    ? colors.background2
-    : `${actionColor}26`;
+    ? theme.surface
+    : hexWithAlpha(aColor, 0.15);
   const subtitle = formatActionSubtitle(tile);
   const isDeadline = actionKey === 'deadline';
 
   return (
     <View style={{ paddingHorizontal: 16, paddingVertical: 4 }}>
-      <TouchableOpacity
-        activeOpacity={0.85}
+      <Pressable
         onPress={() => onOpen(tile.id)}
-        // Tap the body opens the full-page tile detail. Action picker lives
-        // on the action badge below (tap target ≈ 32×32) — see web Kanban tile.
-        style={{
-          backgroundColor: tileBg,
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: isDeadline ? '#EF4444' : 'rgba(255,255,255,0.08)',
-          borderStyle: isDeadline ? 'dashed' : 'solid',
-          padding: 10,
-          minHeight: 84,
-        }}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
-        {/* Top row: title + delete */}
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
-          <View style={{ flex: 1 }}>
-            <Text
-              style={{ fontSize: 14, fontWeight: '600', color: colors.primary, lineHeight: 18 }}
-              numberOfLines={2}
-            >
-              {tile.title || 'Senza titolo'}
-            </Text>
-            {subtitle && (
-              <Text style={{ fontSize: 12, color: colors.tertiary, marginTop: 2 }}>
-                {subtitle}
-              </Text>
-            )}
-          </View>
-          <TouchableOpacity
-            onPress={(e) => { e.stopPropagation?.(); onDelete(tile.id); }}
-            hitSlop={10}
-            style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center', marginTop: -4, marginRight: -4 }}
-          >
-            <IconTrash size={16} color={colors.tertiary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Bottom row: action badge (tap → picker) + spark count chip. */}
         <View
           style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginTop: 8,
+            backgroundColor: tileBg,
+            borderWidth: 2,
+            borderColor: isDeadline ? theme.cap.voice : theme.border,
+            borderStyle: isDeadline ? 'dashed' : 'solid',
+            padding: 10,
+            minHeight: 84,
           }}
         >
-          <TouchableOpacity
-            onPress={(e) => {
-              e.stopPropagation?.();
-              onActionTypeChange(tile.id, tile.action_type || 'none');
-            }}
-            hitSlop={8}
-            // Slightly larger touch area than the visual to keep tap-success
-            // high on small badges.
+          {/* Top row: title + delete */}
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
+            <View style={{ flex: 1 }}>
+              <Text
+                style={{
+                  fontFamily: theme.fontBody,
+                  fontSize: 14,
+                  fontWeight: '700',
+                  color: theme.ink,
+                  lineHeight: 18,
+                }}
+                numberOfLines={2}
+              >
+                {tile.title || 'Senza titolo'}
+              </Text>
+              {subtitle && (
+                <Text
+                  style={{
+                    fontFamily: theme.fontBody,
+                    fontSize: 12,
+                    color: theme.ink2,
+                    marginTop: 2,
+                  }}
+                >
+                  {subtitle}
+                </Text>
+              )}
+            </View>
+            <Pressable
+              onPress={(e) => { e.stopPropagation?.(); onDelete(tile.id); }}
+              hitSlop={10}
+              style={({ pressed }) => ({
+                width: 28,
+                height: 28,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: -4,
+                marginRight: -4,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              <IconTrash size={16} color={theme.ink2} />
+            </Pressable>
+          </View>
+
+          {/* Bottom row: action badge + spark count */}
+          <View
             style={{
-              width: 32,
-              height: 32,
+              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'center',
-              marginLeft: -5,
+              justifyContent: 'space-between',
+              marginTop: 8,
             }}
           >
-            {ActionIcon ? (
+            <Pressable
+              onPress={(e) => {
+                e.stopPropagation?.();
+                onActionTypeChange(tile.id, tile.action_type || 'none');
+              }}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                width: 32,
+                height: 32,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginLeft: -5,
+                opacity: pressed ? 0.6 : 1,
+              })}
+            >
+              {ActionIcon ? (
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: aColor,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <ActionIcon size={11} color={readableOn(aColor)} strokeWidth={2.4} />
+                </View>
+              ) : (
+                <View
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: theme.bg1,
+                  }}
+                />
+              )}
+            </Pressable>
+            {sparkCount > 0 && (
               <View
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  backgroundColor: actionColor,
-                  alignItems: 'center',
-                  justifyContent: 'center',
+                  paddingHorizontal: 6,
+                  paddingVertical: 2,
+                  backgroundColor: theme.ink,
+                  borderWidth: 2,
+                  borderColor: theme.border,
                 }}
               >
-                <ActionIcon size={12} color="#FFFFFF" />
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 8,
+                    color: theme.bg1,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {sparkCount} SPARK
+                </Text>
               </View>
-            ) : (
-              <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 11,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                }}
-              />
             )}
-          </TouchableOpacity>
-          {sparkCount > 0 && (
-            <View
-              style={{
-                paddingHorizontal: 8,
-                paddingVertical: 2,
-                backgroundColor: colors.surfaceVariant,
-                borderRadius: 10,
-              }}
-            >
-              <Text style={{ fontSize: 11, color: colors.secondary, fontWeight: '600' }}>
-                {sparkCount} spark
-              </Text>
-            </View>
-          )}
+          </View>
         </View>
-      </TouchableOpacity>
+      </Pressable>
     </View>
   );
 }
@@ -275,36 +288,29 @@ function TileItem({
 // ============ Main screen ============
 
 export default function HistoryScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  // Multi-select filters (empty = no constraint for that axis).
   const [selectedActionKeys, setSelectedActionKeys] = useState<Set<string>>(new Set());
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [selectedTypeIconIds, setSelectedTypeIconIds] = useState<Set<string>>(new Set());
   const [selectedStatusIds, setSelectedStatusIds] = useState<Set<string>>(new Set());
 
-  // Filter modal visibility.
   const [actionFilterOpen, setActionFilterOpen] = useState(false);
   const [tagFilterOpen, setTagFilterOpen] = useState(false);
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [statusFilterOpen, setStatusFilterOpen] = useState(false);
 
-  // Picker state (used by the per-tile action-badge tap, not the filter row)
   const [pickerVisible, setPickerVisible] = useState(false);
   const [pickerMode, setPickerMode] = useState<'deadline' | 'event'>('deadline');
   const [pendingTileId, setPendingTileId] = useState<string | null>(null);
 
-  // ---- Tiles data ----
-  // Background polling every 30s while the tab is active — pairs with the
-  // focus-refetch below to keep the list fresh without manual reload.
   const { data: tilesData, isLoading: tilesLoading, refetch: refetchTiles } = useQuery({
     queryKey: ['tiles', { page: 1, limit: 50 }],
     queryFn: () => tilesApi.list({ page: 1, limit: 50 }),
     refetchInterval: 30_000,
   });
 
-  // Type icons + assignments — needed for the Type filter and labels.
   const typeIconsQuery = useQuery({
     queryKey: ['type-icons'],
     queryFn: () => typeIconsApi.list(),
@@ -318,14 +324,12 @@ export default function HistoryScreen() {
     staleTime: 5 * 60 * 1000,
   });
   const typeAssignments = typeAssignmentsQuery.data?.data ?? [];
-  // Build tile_id → type_icon_id index once per assignments change.
   const typeIconByTile = useMemo(() => {
     const map = new Map<string, string>();
     for (const row of typeAssignments) map.set(row.tile_id, row.type_icon_id);
     return map;
   }, [typeAssignments]);
 
-  // Statuses — needed for the Status filter labels.
   const statusesQuery = useQuery({
     queryKey: ['statuses'],
     queryFn: () => statusesApi.list(),
@@ -333,9 +337,6 @@ export default function HistoryScreen() {
   });
   const statuses: StatusEntity[] = statusesQuery.data?.data ?? [];
 
-  // Refetch every time this tab gains focus so newly-created tiles appear
-  // immediately. The shared QueryClient has a 5-min staleTime, which would
-  // otherwise serve stale data when re-entering the tab.
   useFocusEffect(
     useCallback(() => {
       refetchTiles();
@@ -353,7 +354,6 @@ export default function HistoryScreen() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['tiles'] }),
   });
 
-  // ---- Action type change handler ----
   const handleActionTypeChange = useCallback(
     (tileId: string, actionType: ActionType) => {
       if (actionType === 'deadline' || actionType === 'event') {
@@ -361,7 +361,6 @@ export default function HistoryScreen() {
         setPickerMode(actionType === 'deadline' ? 'deadline' : 'event');
         setPickerVisible(true);
       } else {
-        // none or anytime — clear dates
         updateTileMutation.mutate({
           id: tileId,
           updates: {
@@ -397,8 +396,6 @@ export default function HistoryScreen() {
     [pendingTileId, updateTileMutation]
   );
 
-  // ---- Filter logic ----
-  // OR within each axis (any-of), AND across axes (each axis must match).
   const allTiles: Tile[] = tilesData?.data || [];
   const filteredTiles = useMemo(() => {
     return allTiles.filter((t: Tile) => {
@@ -421,7 +418,6 @@ export default function HistoryScreen() {
     });
   }, [allTiles, selectedActionKeys, selectedTagIds, selectedTypeIconIds, selectedStatusIds, typeIconByTile]);
 
-  // ---- Grouped data ----
   const groupedTiles = useMemo(() => groupByDate(filteredTiles), [filteredTiles]);
 
   const flatTiles = useMemo(() => {
@@ -437,85 +433,115 @@ export default function HistoryScreen() {
   const isEmpty = filteredTiles.length === 0;
   const onRefresh = refetchTiles;
 
+  // 5 action options for the picker — define after `theme` is available.
+  const ACTION_FILTER_OPTIONS: { id: ActionKey; label: string; color: string; icon?: typeof IconBolt }[] = [
+    { id: 'none', label: 'Notes', color: theme.ink3 },
+    { id: 'anytime', label: 'ToDo', color: theme.cap.text, icon: IconArrowUp },
+    { id: 'deadline', label: 'Due', color: theme.cap.voice, icon: IconBolt },
+    { id: 'allday', label: 'All Day', color: theme.cap.gallery, icon: IconCalendar },
+    { id: 'timed', label: 'Timed', color: theme.cap.photo, icon: IconClock },
+  ];
+
   return (
-    <View className="flex-1" style={{ backgroundColor: colors.background1 }}>
-      <View className="flex-1">
-        {/* Filter row — 4 pills (Action / Tag / Type / Status). Each opens a
-            multi-select bottom-sheet picker. Fixed-row layout (NOT a flex
-            ScrollView) — a horizontal ScrollView inside a flex column would
-            stretch vertically and balloon the pills. */}
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
+      <View style={{ flex: 1 }}>
+        {/* Filter row — 4 pixel pill */}
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             paddingHorizontal: 16,
-            paddingTop: 8,
-            paddingBottom: 8,
+            paddingTop: 10,
+            paddingBottom: 10,
             gap: 6,
           }}
         >
           <FilterPill
             icon={IconBolt}
-            label="Action"
+            label="ACTION"
             count={selectedActionKeys.size}
             onPress={() => setActionFilterOpen(true)}
-            colors={colors}
           />
           <FilterPill
             icon={IconTag}
-            label="Tag"
+            label="TAG"
             count={selectedTagIds.size}
             onPress={() => setTagFilterOpen(true)}
-            colors={colors}
           />
           <FilterPill
             icon={IconBoxMultiple}
-            label="Type"
+            label="TYPE"
             count={selectedTypeIconIds.size}
             onPress={() => setTypeFilterOpen(true)}
-            colors={colors}
           />
           <FilterPill
             icon={IconCircleDot}
-            label="Status"
+            label="STATUS"
             count={selectedStatusIds.size}
             onPress={() => setStatusFilterOpen(true)}
-            colors={colors}
           />
         </View>
 
         {/* Content */}
         {isLoading ? (
-          <View className="flex-1 items-center justify-center">
-            <ActivityIndicator size="large" color={colors.accent} />
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+            <ActivityIndicator size="large" color={theme.accent as string} />
           </View>
         ) : isEmpty ? (
-          <View className="flex-1 items-center justify-center px-8">
+          <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32 }}>
             <View
               style={{
-                width: 80, height: 80, borderRadius: 40,
-                backgroundColor: colors.surfaceVariant,
-                alignItems: 'center', justifyContent: 'center', marginBottom: 16,
+                width: 80,
+                height: 80,
+                borderWidth: 2,
+                borderColor: theme.border,
+                backgroundColor: theme.surface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 16,
               }}
             >
-              <IconClock size={36} color={colors.tertiary} />
+              <IconClock size={36} color={theme.ink2} strokeWidth={1.6} />
             </View>
-            <Text style={{ fontSize: 18, fontWeight: '600', color: colors.primary, textAlign: 'center', marginBottom: 8 }}>
-              Nessun tile
+            <Text
+              style={{
+                fontFamily: theme.fontHead,
+                fontSize: 12,
+                color: theme.ink,
+                textAlign: 'center',
+                marginBottom: 8,
+                letterSpacing: 1,
+              }}
+            >
+              NESSUN TILE
             </Text>
-            <Text style={{ fontSize: 14, color: colors.tertiary, textAlign: 'center' }}>
+            <Text
+              style={{
+                fontFamily: theme.fontBody,
+                fontSize: 13,
+                color: theme.ink2,
+                textAlign: 'center',
+              }}
+            >
               I tuoi tile appariranno qui
             </Text>
           </View>
         ) : (
           <FlatList
             data={flatTiles}
-            keyExtractor={(item, index) => (item.type === 'header' ? `h-${item.title}` : `t-${item.tile.id}`)}
+            keyExtractor={(item) => (item.type === 'header' ? `h-${item.title}` : `t-${item.tile.id}`)}
             renderItem={({ item }) => {
               if (item.type === 'header') {
                 return (
                   <View style={{ paddingHorizontal: 20, paddingTop: 20, paddingBottom: 8 }}>
-                    <Text style={{ fontSize: 14, fontWeight: '600', color: colors.tertiary, letterSpacing: 0.5 }}>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 10,
+                        color: theme.ink2,
+                        letterSpacing: 1.2,
+                      }}
+                    >
                       {item.title}
                     </Text>
                   </View>
@@ -524,7 +550,6 @@ export default function HistoryScreen() {
               return (
                 <TileItem
                   tile={item.tile}
-                  colors={colors}
                   onOpen={(tileId) => router.push(`/tile/${tileId}` as any)}
                   onActionTypeChange={handleActionTypeChange}
                   onDelete={(id) => deleteTileMutation.mutate(id)}
@@ -537,7 +562,6 @@ export default function HistoryScreen() {
         )}
       </View>
 
-      {/* Action type picker bottom sheet */}
       <ActionTypePicker
         visible={pickerVisible}
         mode={pickerMode}
@@ -548,7 +572,6 @@ export default function HistoryScreen() {
         }}
       />
 
-      {/* Tag filter — full-screen modal grouped by tag_type */}
       <TagFilterModal
         visible={tagFilterOpen}
         selectedTagIds={selectedTagIds}
@@ -556,7 +579,6 @@ export default function HistoryScreen() {
         onClose={() => setTagFilterOpen(false)}
       />
 
-      {/* Action filter — multi-select over the 5 action keys. */}
       <FilterPickerModal
         visible={actionFilterOpen}
         title="Filtra per Action"
@@ -571,21 +593,21 @@ export default function HistoryScreen() {
               style={{
                 width: 22,
                 height: 22,
-                borderRadius: 11,
+                borderWidth: 2,
+                borderColor: theme.border,
                 backgroundColor: o.color,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}
             >
-              <Icon size={12} color="#FFFFFF" />
+              <Icon size={11} color={readableOn(o.color)} strokeWidth={2.4} />
             </View>
           ) : (
             <View
               style={{
                 width: 22,
                 height: 22,
-                borderRadius: 11,
-                borderWidth: 1.5,
+                borderWidth: 2,
                 borderColor: o.color,
               }}
             />
@@ -595,7 +617,6 @@ export default function HistoryScreen() {
         onClose={() => setActionFilterOpen(false)}
       />
 
-      {/* Type filter — multi-select over the user's type icons. */}
       <FilterPickerModal
         visible={typeFilterOpen}
         title="Filtra per Type"
@@ -603,12 +624,11 @@ export default function HistoryScreen() {
         selected={selectedTypeIconIds}
         getId={(t) => t.id}
         getLabel={(t) => t.name}
-        leading={(t) => <TypeIconBadge icon={t.icon} color={t.color} />}
+        leading={(t) => <TypeIconBadge icon={t.icon} color={t.color} theme={theme} />}
         onChange={setSelectedTypeIconIds}
         onClose={() => setTypeFilterOpen(false)}
       />
 
-      {/* Status filter — multi-select over the user's statuses. */}
       <FilterPickerModal
         visible={statusFilterOpen}
         title="Filtra per Status"
@@ -621,8 +641,9 @@ export default function HistoryScreen() {
             style={{
               width: 14,
               height: 14,
-              borderRadius: 3,
-              backgroundColor: '#A1A1AA',
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: theme.ink2,
             }}
           />
         )}
@@ -633,67 +654,73 @@ export default function HistoryScreen() {
   );
 }
 
-// ============ Filter pill (header row) ============
+// ============ Filter pill (Pixel style) ============
 
 function FilterPill({
   icon: Icon,
   label,
   count,
   onPress,
-  colors,
 }: {
   icon: typeof IconTag;
   label: string;
   count: number;
   onPress: () => void;
-  colors: any;
 }) {
+  const theme = usePixelTheme();
   const active = count > 0;
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      activeOpacity={0.7}
-      style={{
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        paddingHorizontal: 8,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: active ? `${colors.accent}26` : colors.surfaceVariant,
-        borderWidth: 1,
-        borderColor: active ? colors.accent : 'transparent',
-      }}
+      style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.8 : 1 })}
     >
-      <Icon size={14} color={active ? colors.accent : colors.secondary} />
-      <Text
-        numberOfLines={1}
+      <View
         style={{
-          fontSize: 12,
-          fontWeight: '600',
-          color: active ? colors.accent : colors.secondary,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 4,
+          paddingHorizontal: 6,
+          paddingVertical: 8,
+          borderWidth: 2,
+          borderColor: theme.border,
+          backgroundColor: active ? theme.accent : theme.surface,
         }}
       >
-        {label}{active ? ` (${count})` : ''}
-      </Text>
-    </TouchableOpacity>
+        <Icon
+          size={12}
+          color={active ? (theme.onAccent as string) : theme.ink2}
+          strokeWidth={2.2}
+        />
+        <Text
+          numberOfLines={1}
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 8,
+            color: active ? (theme.onAccent as string) : theme.ink2,
+            letterSpacing: 1,
+          }}
+        >
+          {label}{active ? ` (${count})` : ''}
+        </Text>
+      </View>
+    </Pressable>
   );
 }
 
-// ============ Type icon badge (used in the Type filter rows) ============
+// ============ Type icon badge ============
 
-function TypeIconBadge({ icon, color }: { icon: string; color?: string }) {
+function TypeIconBadge({ icon, color, theme }: { icon: string; color?: string; theme: PixelTheme }) {
   const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[icon];
   if (!Comp) return null;
-  const bg = color || '#27272A';
+  const bg = color || theme.ink2;
   return (
     <View
       style={{
         width: 22,
         height: 22,
-        borderRadius: 4,
+        borderWidth: 2,
+        borderColor: theme.border,
         backgroundColor: bg,
         alignItems: 'center',
         justifyContent: 'center',

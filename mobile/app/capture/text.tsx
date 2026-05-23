@@ -5,11 +5,22 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IconX, IconCheck } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { sparksApi } from '@/lib/api';
 
 export default function TextCaptureScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const router = useRouter();
   const queryClient = useQueryClient();
   // When reached from the tile detail (Sparks → text), `?tile=<id>` is set and

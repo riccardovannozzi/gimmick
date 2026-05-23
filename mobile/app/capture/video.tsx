@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TouchableOpacity } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -9,9 +9,12 @@ import { File } from 'expo-file-system/next';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
+import { usePixelTheme, PixelButton } from '@/components/pixel';
+
 const MAX_DURATION = 30; // 30 seconds
 
 export default function VideoCaptureScreen() {
+  const theme = usePixelTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -164,11 +167,55 @@ export default function VideoCaptureScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // Pixel overlay icon button: square con border 2px bianco + bg colorato +
+  // offset shadow bianco. Mirror del CameraIconBtn in photo.tsx — pattern
+  // Android-safe.
+  const CameraIconBtn = ({
+    onPress, children, size = 44, bg, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => {
+    const sh = theme.shadowOffset;
+    return (
+      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.5 : 1 }}>
+        {sh > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: sh, top: sh, right: 0, bottom: 0,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+        )}
+        <Pressable
+          onPress={onPress}
+          disabled={disabled}
+          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+        >
+          <View
+            style={{
+              width: size,
+              height: size,
+              borderWidth: 2,
+              borderColor: '#FFFFFF',
+              backgroundColor: bg ?? 'rgba(0,0,0,0.6)',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {children}
+          </View>
+        </Pressable>
+      </View>
+    );
+  };
+
   // Check permissions
   if (!cameraPermission || !micPermission) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center">
-        <Text className="text-primary">Loading...</Text>
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink, letterSpacing: 1 }}>
+          LOADING…
+        </Text>
       </View>
     );
   }
@@ -176,31 +223,52 @@ export default function VideoCaptureScreen() {
   // Permissions denied
   if (!cameraPermission.granted || !micPermission.granted) {
     return (
-      <View className="flex-1 bg-background-1 items-center justify-center px-8">
-        <Text className="text-primary text-lg font-medium text-center mb-4">
-          Permissions required
+      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 }}>
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 12,
+            color: theme.ink,
+            textAlign: 'center',
+            letterSpacing: 1,
+          }}
+        >
+          PERMISSIONS REQUIRED
         </Text>
-        <Text className="text-secondary text-center mb-6">
+        <Text
+          style={{
+            fontFamily: theme.fontBody,
+            fontSize: 13,
+            color: theme.ink2,
+            textAlign: 'center',
+          }}
+        >
           Gimmick needs camera and microphone access to record video
         </Text>
-        <TouchableOpacity
+        <PixelButton
+          theme={theme}
+          big
+          label="GRANT ACCESS"
+          bg={theme.accent}
+          color={theme.onAccent}
           onPress={async () => {
             await requestCameraPermission();
             await requestMicPermission();
           }}
-          className="bg-accent px-6 py-3 rounded-lg"
-        >
-          <Text className="text-white font-medium">Grant access</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={handleClose} className="mt-4">
-          <Text className="text-secondary">Go back</Text>
-        </TouchableOpacity>
+        />
+        <PixelButton
+          theme={theme}
+          label="GO BACK"
+          bg={theme.surface}
+          color={theme.ink}
+          onPress={handleClose}
+        />
       </View>
     );
   }
 
   return (
-    <View className="flex-1 bg-black">
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Camera */}
       <CameraView
         ref={cameraRef}
@@ -209,78 +277,121 @@ export default function VideoCaptureScreen() {
         mode="video"
       >
         {/* Top controls */}
-        <View className="flex-row justify-between items-center px-4 pt-12">
-          <TouchableOpacity
-            onPress={handleClose}
-            className="w-10 h-10 rounded-full bg-black/50 items-center justify-center"
-            disabled={isRecording}
-          >
-            <IconX size={24} color="#fff" />
-          </TouchableOpacity>
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            paddingHorizontal: 16,
+            paddingTop: 48,
+          }}
+        >
+          <CameraIconBtn onPress={handleClose} bg={theme.semantic.danger} disabled={isRecording}>
+            <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
+          </CameraIconBtn>
 
-          {/* Recording indicator & timer */}
+          {/* Recording indicator & timer — pill PressStart2P con dot danger */}
           {isRecording && (
-            <View className="flex-row items-center bg-black/50 px-3 py-2 rounded-full">
-              <View className="w-3 h-3 rounded-full bg-error mr-2" />
-              <Text className="text-white font-mono">
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 8,
+                paddingHorizontal: 10,
+                paddingVertical: 6,
+                borderWidth: 2,
+                borderColor: '#FFFFFF',
+                backgroundColor: 'rgba(0,0,0,0.7)',
+              }}
+            >
+              <View style={{ width: 10, height: 10, backgroundColor: theme.semantic.danger }} />
+              <Text
+                style={{
+                  fontFamily: theme.fontHead,
+                  fontSize: 10,
+                  color: '#FFFFFF',
+                  letterSpacing: 1,
+                }}
+              >
                 {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
               </Text>
             </View>
           )}
 
-          {/* Placeholder for alignment */}
-          <View className="w-10" />
+          {/* Placeholder per allineamento (stesso width approx del danger btn) */}
+          <View style={{ width: 48 }} />
         </View>
 
         {/* Progress bar during recording */}
         {isRecording && (
-          <View className="absolute top-28 left-4 right-4">
-            <View className="h-1 bg-white/30 rounded-full overflow-hidden">
+          <View style={{ position: 'absolute', top: 116, left: 16, right: 16 }}>
+            <View
+              style={{
+                height: 8,
+                borderWidth: 2,
+                borderColor: '#FFFFFF',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+              }}
+            >
               <View
-                className="h-full bg-error rounded-full"
-                style={{ width: `${(recordingTime / MAX_DURATION) * 100}%` }}
+                style={{
+                  height: '100%',
+                  backgroundColor: theme.semantic.danger,
+                  width: `${(recordingTime / MAX_DURATION) * 100}%`,
+                }}
               />
             </View>
           </View>
         )}
 
         {/* Bottom controls */}
-        <View className="absolute bottom-12 left-0 right-0 flex-row justify-center items-center">
-          {/* Spacer */}
-          <View className="w-16" />
+        <View
+          style={{
+            position: 'absolute',
+            bottom: 48,
+            left: 0,
+            right: 0,
+            flexDirection: 'row',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: 28,
+          }}
+        >
+          {/* Spacer simmetria con flip */}
+          <View style={{ width: 56 }} />
 
-          {/* Record button */}
-          <TouchableOpacity
+          {/* Record/Stop — verde (success) per avviare, rosso (danger) per
+              fermare. Stesso pattern del capture button di photo.tsx. */}
+          <CameraIconBtn
             onPress={handleRecordPress}
-            className="mx-8"
+            size={78}
+            bg={isRecording ? theme.semantic.danger : theme.semantic.success}
           >
-            <View className="w-20 h-20 rounded-full border-4 border-white items-center justify-center">
-              {isRecording ? (
-                // Stop icon (square)
-                <View className="w-8 h-8 rounded bg-error" />
-              ) : (
-                // Record icon (red circle)
-                <View className="w-16 h-16 rounded-full bg-error" />
-              )}
-            </View>
-          </TouchableOpacity>
+            {isRecording ? (
+              <IconSquare size={32} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.2} />
+            ) : (
+              <IconCircle size={36} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.2} />
+            )}
+          </CameraIconBtn>
 
-          {/* Flip camera button */}
-          <TouchableOpacity
-            onPress={toggleFacing}
-            className="w-16 h-16 rounded-full bg-black/50 items-center justify-center"
-            disabled={isRecording}
-            style={{ opacity: isRecording ? 0.5 : 1 }}
-          >
-            <IconRefresh size={28} color="#fff" />
-          </TouchableOpacity>
+          {/* Flip camera — neutro come in photo.tsx */}
+          <CameraIconBtn onPress={toggleFacing} size={56} disabled={isRecording}>
+            <IconRefresh size={26} color="#FFFFFF" strokeWidth={2.2} />
+          </CameraIconBtn>
         </View>
 
         {/* Recording hint */}
         {!isRecording && !capturedUri && (
-          <View className="absolute bottom-36 left-0 right-0 items-center">
-            <Text className="text-white/70 text-sm">
-              Press to record (max {MAX_DURATION}s)
+          <View style={{ position: 'absolute', bottom: 144, left: 0, right: 0, alignItems: 'center' }}>
+            <Text
+              style={{
+                fontFamily: theme.fontHead,
+                fontSize: 9,
+                color: 'rgba(255,255,255,0.7)',
+                letterSpacing: 1,
+              }}
+            >
+              PRESS TO RECORD (MAX {MAX_DURATION}S)
             </Text>
           </View>
         )}

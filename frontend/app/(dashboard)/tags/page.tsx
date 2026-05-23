@@ -1003,8 +1003,7 @@ export default function TagsPage() {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <div style={{ width: 12, height: 12, background: getColor(tag.tag_type || 'topic') || '#94A3B8', border: `2px solid ${theme.border}`, flexShrink: 0 }} />
-                          <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} color={theme.ink2} />
+                          <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} color={getColor(tag.tag_type || 'topic') || '#94A3B8'} />
                           <span
                             style={{
                               fontFamily: 'var(--font-pixel-body)',

@@ -11,11 +11,11 @@ import {
   LayoutAnimation,
   KeyboardAvoidingView,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   IconX,
-  IconSend,
   IconCamera,
   IconVideo,
   IconPhoto,
@@ -24,7 +24,6 @@ import {
   IconPaperclip,
   IconSparkles,
   IconCheck,
-  IconBatteryFilled,
 } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
@@ -38,7 +37,6 @@ import {
   PixelButton,
   PixelBadge,
   PixelIconButton,
-  PixelWordmark,
   PixelBackground,
   ShadowLayer,
 } from '@/components/pixel';
@@ -196,6 +194,14 @@ export default function HomeScreen() {
   const theme = usePixelTheme();
   const colors = useThemeColors(); // ancora usato dai sub-component legacy
   const router = useRouter();
+  const { width: screenWidth } = useWindowDimensions();
+  // Layout calcolato per evitare bug Android di aspectRatio+flex.
+  // 3 tile per riga: ognuno occupa (T + offset) di spazio per ospitare l'ombra
+  // pixel sporgente in basso-destra. Margine 16 + 2 gap da 10.
+  const shadowOffset = theme.shadowOffset;
+  const tileSize = Math.floor(
+    (screenWidth - 16 * 2 - 10 * 2 - 3 * shadowOffset) / 3,
+  );
   const items = useBufferStore((state) => state.items);
   const clearBuffer = useBufferStore((state) => state.clearBuffer);
   const removeItem = useBufferStore((state) => state.removeItem);
@@ -450,23 +456,6 @@ export default function HomeScreen() {
           /* ====== NORMAL MODE ====== */
           <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             <View style={{ marginHorizontal: 16, marginTop: 16, gap: 10 }}>
-              {/* Header — wordmark a sinistra, battery/level badge a destra */}
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  paddingHorizontal: 2,
-                  marginBottom: 2,
-                }}
-              >
-                <PixelWordmark theme={theme} size={22} />
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <PixelBadge theme={theme} label="L. 1" bg={theme.bg1} color={theme.ink} />
-                  <IconBatteryFilled size={20} color={theme.accent as string} />
-                </View>
-              </View>
-
               {/* ASK / SEND GIMMICK — top action button. When the buffer is
                   empty the button opens the chat (ASK GIMMICK); as soon as
                   the user captures something, the same button switches to
@@ -477,25 +466,19 @@ export default function HomeScreen() {
                 full
                 bg={bufferCount > 0 ? theme.accent : theme.ink}
                 color={bufferCount > 0 ? theme.onAccent : theme.bg1}
-                label={bufferCount > 0 ? 'SEND TO GIMMICK' : 'ASK GIMMICK'}
+                label="ASK GIMMICK"
                 leading={
-                  bufferCount > 0 ? (
-                    <IconSend
-                      size={18}
-                      color={theme.onAccent as string}
-                      strokeWidth={2.2}
-                    />
-                  ) : (
-                    <Text
-                      style={{
-                        fontFamily: theme.fontHead,
-                        fontSize: 12,
-                        color: theme.bg1 as string,
-                      }}
-                    >
-                      ▶
-                    </Text>
-                  )
+                  <Text
+                    style={{
+                      fontFamily: theme.fontHead,
+                      fontSize: 12,
+                      color: (bufferCount > 0
+                        ? theme.onAccent
+                        : theme.bg1) as string,
+                    }}
+                  >
+                    ▶
+                  </Text>
                 }
                 onPress={bufferCount > 0 ? handleSend : toggleChatMode}
                 style={
@@ -516,27 +499,54 @@ export default function HomeScreen() {
                     const accent = theme.cap[option.id];
                     const Icon = option.Icon;
                     return (
-                      <View key={option.id} style={{ flex: 1, aspectRatio: 1 }}>
-                        <ShadowLayer theme={theme} style={{ flex: 1 }}>
-                          <Pressable
-                            onPress={() => handleCapture(option.route)}
-                            disabled={isUploading}
-                            android_ripple={null}
-                            style={({ pressed }) => ({
-                              flex: 1,
+                      <View
+                        key={option.id}
+                        style={{
+                          position: 'relative',
+                          paddingRight: shadowOffset,
+                          paddingBottom: shadowOffset,
+                        }}
+                      >
+                        {/* Offset shadow Android-safe — stesso pattern della HOME
+                            pill: padding sul container, shadow absolute dietro,
+                            Pressable static (non absolute) wrappa il View
+                            stilizzato. Z-order garantito da JSX. */}
+                        {shadowOffset > 0 && (
+                          <View
+                            style={{
+                              position: 'absolute',
+                              left: shadowOffset,
+                              top: shadowOffset,
+                              right: 0,
+                              bottom: 0,
+                              backgroundColor: theme.shadowColor,
+                            }}
+                          />
+                        )}
+                        <Pressable
+                          onPress={() => handleCapture(option.route)}
+                          disabled={isUploading}
+                          android_ripple={null}
+                          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+                        >
+                          <View
+                            style={{
+                              width: tileSize,
+                              height: tileSize,
                               borderWidth: 2,
                               borderColor: theme.border,
                               backgroundColor: tintBg,
                               alignItems: 'center',
                               justifyContent: 'center',
-                              opacity: pressed ? 0.85 : 1,
-                            })}
+                            }}
                           >
                             <Icon size={42} color={accent} strokeWidth={1.6} />
                             <Text
+                              numberOfLines={1}
                               style={{
                                 fontFamily: theme.fontHead,
                                 fontSize: 9,
+                                lineHeight: 12,
                                 color: theme.ink,
                                 marginTop: 14,
                                 letterSpacing: 1,
@@ -554,8 +564,8 @@ export default function HomeScreen() {
                                 />
                               </View>
                             )}
-                          </Pressable>
-                        </ShadowLayer>
+                          </View>
+                        </Pressable>
                       </View>
                     );
                   })}

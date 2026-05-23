@@ -73,39 +73,67 @@ export function TopNav({ activePath }: TopNavProps) {
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <Icon size={18} color={theme.ink2} strokeWidth={1.8} />
+                <Icon size={22} color={theme.ink} strokeWidth={2} />
               </Pressable>
             );
           }
+          // Active tab — pill bg accent + border 2px + offset shadow.
+          // Pattern Android-safe: bg/border sul View wrapper esterno (Pressable
+          // su Android ignora il backgroundColor); offset shadow tramite un
+          // container relative + due View absolute fratelli, z-order garantito
+          // dall'ordine JSX. Mirror del PixelTabLink di
+          // frontend/components/layout/header.tsx.
+          const sh = theme.shadowOffset;
           return (
-            <Pressable
+            <View
               key={tab.name}
-              onPress={() => router.replace(tab.path as any)}
-              android_ripple={null}
-              style={({ pressed }) => ({
-                flexDirection: 'row',
-                alignItems: 'center',
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderWidth: 2,
-                borderColor: theme.border,
-                backgroundColor: theme.accent,
-                gap: 6,
-                opacity: pressed ? 0.85 : 1,
-              })}
+              style={{ position: 'relative', paddingRight: sh, paddingBottom: sh }}
             >
-              <Icon size={16} color={theme.onAccent as string} strokeWidth={2.2} />
-              <Text
-                style={{
-                  fontFamily: theme.fontHead,
-                  fontSize: 9,
-                  color: theme.onAccent as string,
-                  letterSpacing: 1,
-                }}
+              {sh > 0 && (
+                <View
+                  style={{
+                    position: 'absolute',
+                    left: sh,
+                    top: sh,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: theme.shadowColor,
+                  }}
+                />
+              )}
+              <Pressable
+                onPress={() => router.replace(tab.path as any)}
+                android_ripple={null}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
               >
-                {tab.label}
-              </Text>
-            </Pressable>
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    height: 28,
+                    paddingHorizontal: 10,
+                    gap: 6,
+                    backgroundColor: theme.accent,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                  }}
+                >
+                  <Icon size={12} color={theme.onAccent as string} strokeWidth={2.4} />
+                  <Text
+                    numberOfLines={1}
+                    style={{
+                      fontFamily: theme.fontHead,
+                      fontSize: 9,
+                      lineHeight: 12,
+                      color: theme.onAccent as string,
+                      letterSpacing: 1,
+                    }}
+                  >
+                    {tab.label}
+                  </Text>
+                </View>
+              </Pressable>
+            </View>
           );
         })}
       </ScrollView>

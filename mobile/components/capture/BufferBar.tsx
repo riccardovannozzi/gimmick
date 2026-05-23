@@ -16,7 +16,7 @@ import * as Haptics from 'expo-haptics';
 import { useBufferStore, useSettingsStore } from '@/store';
 import { config } from '@/constants';
 import { captureColors } from '@/constants/colors';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import type { BufferItem, SparkType } from '@/types';
 
 interface BufferBarProps {
@@ -84,7 +84,20 @@ function BufferThumbnail({
   onPress?: () => void;
   onRemove: () => void;
 }) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+  } as const;
   const isImage = item.type === 'photo' || item.type === 'image' || item.type === 'video';
   const isText = item.type === 'text';
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
@@ -256,7 +269,20 @@ function BufferThumbnail({
 }
 
 export function BufferBar({ onSend, onItemPress, large = false }: BufferBarProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+  } as const;
   const items = useBufferStore((state) => state.items);
   const removeItem = useBufferStore((state) => state.removeItem);
   const isUploading = useBufferStore((state) => state.isUploading);

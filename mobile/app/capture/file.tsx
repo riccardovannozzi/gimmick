@@ -3,10 +3,13 @@ import { View, Text } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
+import { IconPaperclip } from '@tabler/icons-react-native';
 import { useBufferStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
+import { usePixelTheme } from '@/components/pixel';
 
 export default function FileCaptureScreen() {
+  const theme = usePixelTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -70,10 +73,68 @@ export default function FileCaptureScreen() {
     }
   };
 
+  // Loading overlay con cornice/shadow Pixel (stesso linguaggio di gallery).
+  const sh = theme.shadowOffset;
+  const accent = theme.cap.file;
+
   return (
-    <View className="flex-1 bg-black/50 items-center justify-center">
-      <View className="bg-background-2 rounded-2xl p-6">
-        <Text className="text-primary text-lg">Select a file...</Text>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+      }}
+    >
+      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh }}>
+        {sh > 0 && (
+          <View
+            style={{
+              position: 'absolute',
+              left: sh,
+              top: sh,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#FFFFFF',
+            }}
+          />
+        )}
+        <View
+          style={{
+            paddingHorizontal: 20,
+            paddingVertical: 18,
+            borderWidth: 2,
+            borderColor: '#FFFFFF',
+            backgroundColor: theme.surface,
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <View
+            style={{
+              width: 44,
+              height: 44,
+              borderWidth: 2,
+              borderColor: theme.border,
+              backgroundColor: accent,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <IconPaperclip size={22} color="#FFFFFF" strokeWidth={2} />
+          </View>
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 10,
+              color: theme.ink,
+              letterSpacing: 1,
+            }}
+          >
+            SELECT A FILE…
+          </Text>
+        </View>
       </View>
     </View>
   );

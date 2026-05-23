@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { IconChevronDown, IconPlus, IconX } from '@tabler/icons-react-native';
 import { useContacts } from '@/hooks/useContacts';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import type { Contact } from '@/types';
 
 interface Props {
@@ -34,7 +34,18 @@ interface Props {
 }
 
 export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger = false, onClose }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const { contacts, create } = useContacts();
   const [open, setOpen] = useState(autoOpen);
   const [query, setQuery] = useState('');

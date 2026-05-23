@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, TextInput, Pressable, Text, ActivityIndicator } from 'react-native';
+import { View, Pressable, Text, ActivityIndicator } from 'react-native';
 import { IconMicrophone, IconSend, IconSquare } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useVoiceRecorder } from '@/hooks/useVoiceRecorder';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme, PixelTextInput } from '@/components/pixel';
 
 interface ChatInputProps {
   onSubmitText: (text: string) => void;
@@ -19,7 +19,7 @@ export function ChatInput({
   isProcessing = false,
   placeholder = 'Type a message...',
 }: ChatInputProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const [text, setText] = useState('');
   const hapticFeedback = useSettingsStore((state) => state.hapticFeedback);
   const { isRecording, startRecording, stopRecording } = useVoiceRecorder();
@@ -67,16 +67,26 @@ export function ChatInput({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          height: 56,
-          borderRadius: 16,
-          paddingHorizontal: 20,
-          backgroundColor: colors.surfaceVariant,
-          opacity: 0.7,
+          height: 48,
+          paddingHorizontal: 14,
+          borderWidth: 2,
+          borderColor: theme.border,
+          backgroundColor: theme.surface,
+          opacity: 0.8,
         }}
       >
-        <ActivityIndicator size="small" color={colors.accent} />
-        <Text style={{ flex: 1, marginLeft: 12, color: colors.tertiary }}>
-          Processing...
+        <ActivityIndicator size="small" color={theme.accent as string} />
+        <Text
+          style={{
+            flex: 1,
+            marginLeft: 10,
+            fontFamily: theme.fontHead,
+            fontSize: 9,
+            color: theme.ink2,
+            letterSpacing: 1,
+          }}
+        >
+          PROCESSING...
         </Text>
       </View>
     );
@@ -88,81 +98,91 @@ export function ChatInput({
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          height: 56,
-          borderRadius: 16,
-          paddingHorizontal: 20,
-          backgroundColor: colors.surfaceVariant,
+          height: 48,
+          paddingHorizontal: 14,
           borderWidth: 2,
-          borderColor: colors.error,
+          borderColor: theme.cap.voice,
+          backgroundColor: theme.surface,
         }}
       >
         <View
           style={{
             width: 10,
             height: 10,
-            backgroundColor: colors.error,
-            borderRadius: 5,
+            backgroundColor: theme.cap.voice,
           }}
         />
-        <Text style={{ flex: 1, marginLeft: 12, color: colors.secondary }}>
-          Listening...
+        <Text
+          style={{
+            flex: 1,
+            marginLeft: 10,
+            fontFamily: theme.fontHead,
+            fontSize: 9,
+            color: theme.cap.voice,
+            letterSpacing: 1,
+          }}
+        >
+          LISTENING...
         </Text>
         <Pressable
           onPress={handleStopRecording}
-          style={{ width: 36, height: 36, alignItems: 'center', justifyContent: 'center' }}
+          style={({ pressed }) => ({
+            width: 32,
+            height: 32,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.7 : 1,
+          })}
         >
-          <IconSquare size={18} color={colors.error} fill={colors.error} />
+          <IconSquare size={16} color={theme.cap.voice} fill={theme.cap.voice} />
         </Pressable>
       </View>
     );
   }
 
   return (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        height: 56,
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        backgroundColor: colors.surfaceVariant,
-      }}
-    >
-      <TextInput
-        style={{
-          flex: 1,
-          fontSize: 16,
-          color: colors.primary,
-          marginHorizontal: 8,
-        }}
-        placeholder={placeholder}
-        placeholderTextColor={colors.tertiary}
-        value={text}
-        onChangeText={setText}
-        onSubmitEditing={handleSubmit}
-        returnKeyType="send"
-      />
-
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+      <View style={{ flex: 1 }}>
+        <PixelTextInput
+          theme={theme}
+          placeholder={placeholder}
+          value={text}
+          onChangeText={setText}
+          onSubmitEditing={handleSubmit}
+          returnKeyType="send"
+        />
+      </View>
       {hasText ? (
         <Pressable
           onPress={handleSubmit}
-          style={{
+          style={({ pressed }) => ({
             width: 40,
             height: 40,
-            borderRadius: 20,
-            backgroundColor: colors.accent,
+            borderWidth: 2,
+            borderColor: theme.border,
+            backgroundColor: theme.accent,
             alignItems: 'center',
             justifyContent: 'center',
-          }}
+            opacity: pressed ? 0.85 : 1,
+          })}
         >
-          <IconSend size={18} color={colors.onAccent} />
+          <IconSend size={16} color={theme.onAccent as string} strokeWidth={2.2} />
         </Pressable>
       ) : (
         <Pressable
           onPress={handleStartRecording}
-          style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+          style={({ pressed }) => ({
+            width: 40,
+            height: 40,
+            borderWidth: 2,
+            borderColor: theme.border,
+            backgroundColor: theme.surface,
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: pressed ? 0.85 : 1,
+          })}
         >
-          <IconMicrophone size={22} color={colors.secondary} />
+          <IconMicrophone size={18} color={theme.ink} strokeWidth={2} />
         </Pressable>
       )}
     </View>

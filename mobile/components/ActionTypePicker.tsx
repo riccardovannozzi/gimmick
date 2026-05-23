@@ -27,7 +27,7 @@ import {
   IconChevronRight,
   IconX,
 } from '@tabler/icons-react-native';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import {
   fmtMonthYear,
   isSameDay,
@@ -77,7 +77,17 @@ export function ActionTypePicker({
   onConfirm,
   onCancel,
 }: ActionTypePickerProps) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const insets = useSafeAreaInsets();
   const bottomSheetRef = useRef<BottomSheetModal>(null);
 

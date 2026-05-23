@@ -8,6 +8,8 @@
 import React, { createContext, useContext, useMemo, useState } from 'react';
 import {
   View, Text, Pressable, StyleSheet, ViewStyle, TextStyle, ColorValue,
+  TextInput, TextInputProps,
+  Modal as RNModal, ModalProps as RNModalProps,
 } from 'react-native';
 import Svg, {
   Defs, Pattern, Rect, Circle, Line, LinearGradient, Stop, Polygon,
@@ -153,6 +155,9 @@ export function PixelCard({
 }
 
 // ─── Atom: PixelButton ──────────────────────────────────────────────────────
+// Android-safe pattern: bg/border/layout su un View interno, Pressable solo
+// per touch + opacity. Offset shadow via container relative + View absolute
+// fratello (z-order garantito dall'ordine JSX).
 export function PixelButton({
   theme, label, big = false, full = false, onPress,
   bg, color, leading, style,
@@ -165,32 +170,59 @@ export function PixelButton({
   onPress?: () => void;
   style?: ViewStyle;
 }) {
+  const sh = theme.shadowOffset;
   return (
-    <ShadowLayer theme={theme} style={full ? { alignSelf: 'stretch' } : undefined}>
+    <View
+      style={[
+        { position: 'relative', paddingRight: sh, paddingBottom: sh },
+        full ? { alignSelf: 'stretch' } : undefined,
+      ]}
+    >
+      {sh > 0 && (
+        <View
+          style={{
+            position: 'absolute',
+            left: sh, top: sh, right: 0, bottom: 0,
+            backgroundColor: theme.shadowColor,
+          }}
+        />
+      )}
       <Pressable
         onPress={onPress}
         android_ripple={null}
-        style={({ pressed }) => [
-          {
-            backgroundColor: (bg as string) || theme.surfaceVariant,
-            borderWidth: 2, borderColor: theme.border,
-            paddingHorizontal: big ? 16 : 14,
-            paddingVertical: big ? 16 : 10,
-            flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-            opacity: pressed ? 0.85 : 1,
-          },
-          style,
-        ]}
+        style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
       >
-        {leading}
-        <Text style={{
-          fontFamily: theme.fontHead,
-          fontSize: big ? 12 : 10,
-          letterSpacing: 1,
-          color: (color as string) || theme.ink,
-        }}>{label}</Text>
+        <View
+          style={[
+            {
+              backgroundColor: (bg as string) || theme.surfaceVariant,
+              borderWidth: 2, borderColor: theme.border,
+              paddingHorizontal: big ? 18 : 14,
+              paddingVertical: big ? 20 : 12,
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 10,
+            },
+            style,
+          ]}
+        >
+          {leading}
+          <Text
+            numberOfLines={1}
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: big ? 12 : 10,
+              lineHeight: big ? 16 : 13,
+              letterSpacing: 1,
+              color: (color as string) || theme.ink,
+            }}
+          >
+            {label}
+          </Text>
+        </View>
       </Pressable>
-    </ShadowLayer>
+    </View>
   );
 }
 
@@ -274,6 +306,175 @@ export function PixelToggle({
         borderWidth: 2, borderColor: theme.border,
       }} />
     </Pressable>
+  );
+}
+
+// ─── Atom: PixelTextInput ───────────────────────────────────────────────────
+// TextInput stilizzato Pixel: border 2px ink, bg surface, font JetBrainsMono.
+// Supporta tutti i prop standard di TextInput. Per multiline aumenta minHeight.
+export function PixelTextInput({
+  theme, multiline, style, placeholderTextColor, ...rest
+}: TextInputProps & { theme: PixelTheme }) {
+  return (
+    <View
+      style={{
+        borderWidth: 2,
+        borderColor: theme.border,
+        backgroundColor: theme.surface,
+        paddingHorizontal: 10,
+        paddingVertical: multiline ? 10 : 6,
+        minHeight: multiline ? 96 : 40,
+      }}
+    >
+      <TextInput
+        multiline={multiline}
+        placeholderTextColor={placeholderTextColor ?? hexWithAlpha(theme.ink2, 0.6)}
+        style={[
+          {
+            color: theme.ink,
+            fontFamily: theme.fontBody,
+            fontSize: 14,
+            lineHeight: 20,
+            textAlignVertical: multiline ? 'top' : 'center',
+            padding: 0, // reset RN default
+          },
+          style,
+        ]}
+        {...rest}
+      />
+    </View>
+  );
+}
+
+// ─── Atom: PixelSwitch ──────────────────────────────────────────────────────
+// Alias di PixelToggle con un'API più "Switch-like" (value/onValueChange) per
+// drop-in replacement del Switch RN nei settings legacy.
+export function PixelSwitch({
+  theme, value, onValueChange, disabled,
+}: {
+  theme: PixelTheme;
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <View style={{ opacity: disabled ? 0.5 : 1 }}>
+      <PixelToggle theme={theme} on={value} onChange={disabled ? () => {} : onValueChange} />
+    </View>
+  );
+}
+
+// ─── Atom: PixelModal ───────────────────────────────────────────────────────
+// Modal full-screen con overlay scuro e card centrata in stile Pixel
+// (border 2px, offset shadow, niente border-radius). API drop-in compatibile
+// con components/ui/Modal.tsx: title, onClose, showCloseButton, closeOnBackdrop.
+export function PixelModal({
+  theme, visible, onClose, title,
+  showCloseButton = true, closeOnBackdrop = true,
+  children, ...rest
+}: Omit<RNModalProps, 'children'> & {
+  theme: PixelTheme;
+  onClose: () => void;
+  title?: string;
+  showCloseButton?: boolean;
+  closeOnBackdrop?: boolean;
+  children: React.ReactNode;
+}) {
+  const sh = theme.shadowOffset;
+  return (
+    <RNModal
+      visible={visible}
+      transparent
+      animationType="fade"
+      statusBarTranslucent
+      onRequestClose={onClose}
+      {...rest}
+    >
+      <Pressable
+        onPress={closeOnBackdrop ? onClose : undefined}
+        style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingHorizontal: 16,
+        }}
+      >
+        {/* Stop propagation: tap dentro la card non chiude */}
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={{
+            width: '100%',
+            maxWidth: 480,
+            position: 'relative',
+            paddingRight: sh,
+            paddingBottom: sh,
+          }}
+        >
+          {sh > 0 && (
+            <View
+              style={{
+                position: 'absolute',
+                left: sh, top: sh, right: 0, bottom: 0,
+                backgroundColor: theme.shadowColor,
+              }}
+            />
+          )}
+          <View
+            style={{
+              backgroundColor: theme.surface,
+              borderWidth: 2,
+              borderColor: theme.border,
+            }}
+          >
+            {(title || showCloseButton) && (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  paddingHorizontal: 14,
+                  paddingVertical: 10,
+                  borderBottomWidth: 2,
+                  borderBottomColor: theme.border,
+                  gap: 10,
+                }}
+              >
+                <Text
+                  numberOfLines={1}
+                  style={{
+                    flex: 1,
+                    fontFamily: theme.fontHead,
+                    fontSize: 11,
+                    color: theme.ink,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {title?.toUpperCase() ?? ''}
+                </Text>
+                {showCloseButton && (
+                  <Pressable
+                    onPress={onClose}
+                    hitSlop={10}
+                    style={({ pressed }) => ({
+                      width: 28, height: 28,
+                      borderWidth: 2, borderColor: theme.border,
+                      backgroundColor: theme.surfaceVariant,
+                      alignItems: 'center', justifyContent: 'center',
+                      opacity: pressed ? 0.8 : 1,
+                    })}
+                  >
+                    <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink }}>
+                      ✕
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            )}
+            <View style={{ padding: 14 }}>{children}</View>
+          </View>
+        </Pressable>
+      </Pressable>
+    </RNModal>
   );
 }
 

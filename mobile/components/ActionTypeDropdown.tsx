@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal as RNModal, TouchableWithoutFeedback } from 'react-native';
 import { IconCircle, IconBolt, IconClock, IconCalendar, IconCheck } from '@tabler/icons-react-native';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import type { ActionType } from '@/types';
 
 const OPTIONS: { value: ActionType; label: string; icon: typeof IconCircle; color: string }[] = [
@@ -19,7 +19,18 @@ interface ActionTypeDropdownProps {
 
 export function ActionTypeDropdown({ value, onSelect, subtitle }: ActionTypeDropdownProps) {
   const [open, setOpen] = useState(false);
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    surfaceVariant: theme.surface,
+  } as const;
   const current = OPTIONS.find((o) => o.value === value) || OPTIONS[0];
   const Icon = current.icon;
 

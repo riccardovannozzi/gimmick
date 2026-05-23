@@ -29,7 +29,7 @@ import {
 import { useFlow } from '@/hooks/useFlow';
 import { useContacts } from '@/hooks/useContacts';
 import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
-import { useThemeColors } from '@/lib/theme';
+import { usePixelTheme } from '@/components/pixel';
 import { ContactPicker } from './ContactPicker';
 import type { FlowNode, FlowNodeState } from '@/types';
 
@@ -52,7 +52,20 @@ interface Props {
 }
 
 export function FlowCardList({ tileId }: Props) {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.bg2,
+    background3: theme.bg3,
+    surfaceVariant: theme.surface,
+    error: theme.cap.voice,
+  } as const;
   const { graph, isLoading, addNode, updateNode, deleteNode, reorderNodes } = useFlow(tileId);
   const nodes = graph.nodes;
 
