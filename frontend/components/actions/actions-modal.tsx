@@ -8,6 +8,7 @@ import { ColorPickerGrid } from '@/components/ui/color-picker-grid';
 import { usePixelTheme } from '@/components/pixel';
 import { useActionColorsQuery } from '@/store/action-colors-store';
 import { ActionBadge } from '@/components/actions/action-badge';
+import { readableOn } from '@/lib/palette';
 import type { ActionType } from '@/types';
 
 type ActionDef = { type: ActionType; label: string; icon: typeof IconArrowUp | null };
