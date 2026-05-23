@@ -120,8 +120,8 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
           alignItems: 'center',
           gap: 8,
           backgroundColor: colors.background2,
-          borderRadius: 8,
-          borderWidth: 1,
+          borderRadius: 0,
+          borderWidth: 2,
           borderColor: colors.border,
           paddingHorizontal: 12,
           height: 40,
@@ -132,7 +132,7 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
             style={{
               width: 8,
               height: 8,
-              borderRadius: 4,
+              borderRadius: 0,
               backgroundColor: selected.color,
             }}
           />
@@ -182,8 +182,8 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
           <View
             style={{
               backgroundColor: colors.background2,
-              borderTopLeftRadius: 20,
-              borderTopRightRadius: 20,
+              borderTopLeftRadius: 0,
+              borderTopRightRadius: 0,
               paddingBottom: 16,
               maxHeight: '85%',
             }}
@@ -195,7 +195,7 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
                 justifyContent: 'space-between',
                 paddingHorizontal: 20,
                 paddingVertical: 16,
-                borderBottomWidth: 1,
+                borderBottomWidth: 2,
                 borderBottomColor: colors.border,
               }}
             >
@@ -216,8 +216,8 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
                 placeholderTextColor={colors.tertiary}
                 style={{
                   backgroundColor: colors.background1,
-                  borderRadius: 8,
-                  borderWidth: 1,
+                  borderRadius: 0,
+                  borderWidth: 2,
                   borderColor: colors.border,
                   paddingHorizontal: 12,
                   height: 40,
@@ -257,9 +257,9 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
                       gap: 10,
                       paddingHorizontal: 12,
                       paddingVertical: 12,
-                      borderRadius: 8,
+                      borderRadius: 0,
                       backgroundColor: isActive ? `${colors.accent}1F` : 'transparent',
-                      borderWidth: 1,
+                      borderWidth: 2,
                       borderColor: isActive ? colors.accent : 'transparent',
                       marginBottom: 4,
                     }}
@@ -269,7 +269,7 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
                         style={{
                           width: 8,
                           height: 8,
-                          borderRadius: 4,
+                          borderRadius: 0,
                           backgroundColor: c.color,
                         }}
                       />
@@ -302,8 +302,8 @@ export function ContactPicker({ value, onChange, autoOpen = false, hideTrigger =
                     gap: 8,
                     paddingHorizontal: 12,
                     paddingVertical: 12,
-                    borderRadius: 8,
-                    borderTopWidth: 1,
+                    borderRadius: 0,
+                    borderTopWidth: 2,
                     borderTopColor: colors.border,
                     opacity: creating ? 0.5 : 1,
                   }}

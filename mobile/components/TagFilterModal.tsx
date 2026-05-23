@@ -203,25 +203,32 @@ export function TagFilterModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <View style={{ flex: 1, backgroundColor: colors.background1, paddingTop: insets.top }}>
-        {/* Header */}
+      <View style={{ flex: 1, backgroundColor: theme.bg1, paddingTop: insets.top }}>
+        {/* Header — Pixel style */}
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
-            paddingHorizontal: 20,
-            paddingVertical: 16,
+            paddingHorizontal: 16,
+            paddingVertical: 14,
             borderBottomWidth: 2,
-            borderBottomColor: colors.border,
+            borderBottomColor: theme.border,
           }}
         >
-          <Text style={{ fontSize: 19, fontWeight: '700', color: colors.primary }}>
-            {title}
+          <Text
+            numberOfLines={1}
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 12,
+              color: theme.ink,
+              letterSpacing: 1.2,
+              flex: 1,
+            }}
+          >
+            {title.toUpperCase()}
           </Text>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {/* Expand/Collapse all — visible whenever there's at least one
-                section to act on. Toggles based on current state. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             {visibleTypeSlugs.size > 0 && (
               <TouchableOpacity
                 onPress={onToggleAll}
@@ -229,22 +236,47 @@ export function TagFilterModal({
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
               >
                 {hasClosedSection ? (
-                  <IconArrowsMaximize size={14} color={colors.secondary} />
+                  <IconArrowsMaximize size={12} color={theme.ink2} />
                 ) : (
-                  <IconArrowsMinimize size={14} color={colors.secondary} />
+                  <IconArrowsMinimize size={12} color={theme.ink2} />
                 )}
-                <Text style={{ fontSize: 13, color: colors.secondary }}>
-                  {hasClosedSection ? 'Expand all' : 'Collapse all'}
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 8,
+                    color: theme.ink2,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {hasClosedSection ? 'EXPAND' : 'COLLAPSE'}
                 </Text>
               </TouchableOpacity>
             )}
             {selectedTagIds.size > 0 && (
               <TouchableOpacity onPress={() => onChange(new Set())} hitSlop={6}>
-                <Text style={{ fontSize: 13, color: colors.accent }}>Pulisci</Text>
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    fontSize: 9,
+                    color: theme.accent,
+                    letterSpacing: 1,
+                  }}
+                >
+                  PULISCI
+                </Text>
               </TouchableOpacity>
             )}
-            <TouchableOpacity onPress={onClose} hitSlop={10}>
-              <IconX size={24} color={colors.secondary} />
+            <TouchableOpacity
+              onPress={onClose}
+              hitSlop={10}
+              style={{
+                width: 32, height: 32,
+                borderWidth: 2, borderColor: theme.border,
+                backgroundColor: theme.surfaceVariant,
+                alignItems: 'center', justifyContent: 'center',
+              }}
+            >
+              <IconX size={16} color={theme.ink} strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
         </View>
@@ -258,8 +290,17 @@ export function TagFilterModal({
             const nonRoot = availableTags.filter((t) => !t.is_root);
             if (nonRoot.length === 0) {
               return (
-                <Text style={{ color: colors.tertiary, fontSize: 14, textAlign: 'center', paddingVertical: 40 }}>
-                  {availableTags.length === 0 ? 'Caricamento tag...' : 'Nessun tag personalizzato'}
+                <Text
+                  style={{
+                    fontFamily: theme.fontHead,
+                    color: theme.ink2,
+                    fontSize: 10,
+                    textAlign: 'center',
+                    paddingVertical: 40,
+                    letterSpacing: 1,
+                  }}
+                >
+                  {availableTags.length === 0 ? 'CARICAMENTO TAG…' : 'NESSUN TAG PERSONALIZZATO'}
                 </Text>
               );
             }
@@ -279,22 +320,17 @@ export function TagFilterModal({
               if (groupTags.length === 0) return null;
               const customType = tagTypeBySlug.get(tp);
               const typeColor =
-                customType?.color ?? TAG_TYPE_FALLBACK_COLORS[tp] ?? colors.tertiary;
-              // Custom-type name wins over the canonical label (so the
-              // section header reads "Ortano Mare", not "Topic"). Title-case
-              // preserved — matches the casing used in Action filter rows.
+                customType?.color ?? TAG_TYPE_FALLBACK_COLORS[tp] ?? theme.ink2;
               const label = tp === '__untyped__'
-                ? 'Altro'
+                ? 'ALTRO'
                 : (customType?.name
                     ?? TAG_TYPE_LABELS[tp]
-                    ?? tp);
+                    ?? tp).toUpperCase();
               const isOpen = !closedTypes.has(tp);
               return (
-                <View key={tp} style={{ marginBottom: 6 }}>
-                  {/* Section header — collapsible button with grey bg + chevron.
-                      Mirrors the web sidebar pattern. Font/weight/height/color
-                      match the Action filter rows for visual consistency
-                      across modals. */}
+                <View key={tp} style={{ marginBottom: 10 }}>
+                  {/* Section header — Pixel style: border 2px, bg surface,
+                      icona quadrata col color del tipo + label PressStart2P */}
                   <TouchableOpacity
                     onPress={() => toggleType(tp)}
                     activeOpacity={0.7}
@@ -302,65 +338,94 @@ export function TagFilterModal({
                       flexDirection: 'row',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      paddingHorizontal: 12,
-                      paddingVertical: 12,
-                      borderRadius: 10,
-                      backgroundColor: colors.surfaceVariant,
-                      marginBottom: 2,
+                      paddingHorizontal: 10,
+                      paddingVertical: 10,
+                      borderWidth: 2,
+                      borderColor: theme.border,
+                      backgroundColor: theme.surface,
                     }}
                   >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                      <TagTypeIcon
-                        emoji={customType?.emoji}
-                        fallbackSlug={tp}
-                        color={typeColor}
-                        size={18}
-                      />
-                      <Text style={{ fontSize: 15, color: colors.primary }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                      <View
+                        style={{
+                          width: 26, height: 26,
+                          borderWidth: 2, borderColor: theme.border,
+                          backgroundColor: typeColor,
+                          alignItems: 'center', justifyContent: 'center',
+                        }}
+                      >
+                        <TagTypeIcon
+                          emoji={customType?.emoji}
+                          fallbackSlug={tp}
+                          color="#FFFFFF"
+                          size={14}
+                        />
+                      </View>
+                      <Text
+                        style={{
+                          fontFamily: theme.fontHead,
+                          fontSize: 10,
+                          color: theme.ink,
+                          letterSpacing: 1,
+                        }}
+                      >
                         {label}
                       </Text>
                     </View>
                     <IconChevronDown
                       size={16}
-                      color={colors.tertiary}
+                      color={theme.ink2}
+                      strokeWidth={2.2}
                       style={{ transform: [{ rotate: isOpen ? '180deg' : '0deg' }] }}
                     />
                   </TouchableOpacity>
 
-                  {/* Tag rows — no background, selected = subtle accent tint.
-                      Hidden when the section is collapsed. */}
-                  {isOpen && groupTags.map((tag) => {
-                    const isSelected = selectedTagIds.has(tag.id);
-                    return (
-                      <TouchableOpacity
-                        key={tag.id}
-                        onPress={() => toggle(tag.id)}
-                        activeOpacity={0.6}
-                        style={{
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          paddingVertical: 10,
-                          paddingHorizontal: 12,
-                          borderRadius: 6,
-                          backgroundColor: isSelected ? `${colors.accent}1F` : 'transparent',
-                        }}
-                      >
-                        <Text
-                          style={{
-                            flex: 1,
-                            fontSize: 14,
-                            color: isSelected ? colors.primary : colors.secondary,
-                            fontWeight: isSelected ? '600' : '400',
-                          }}
-                        >
-                          {tag.name}
-                        </Text>
-                        {isSelected && (
-                          <IconCheck size={16} color={colors.accent} strokeWidth={2.5} />
-                        )}
-                      </TouchableOpacity>
-                    );
-                  })}
+                  {/* Tag rows */}
+                  {isOpen && (
+                    <View style={{ marginTop: 6, gap: 4, paddingLeft: 8 }}>
+                      {groupTags.map((tag) => {
+                        const isSelected = selectedTagIds.has(tag.id);
+                        return (
+                          <TouchableOpacity
+                            key={tag.id}
+                            onPress={() => toggle(tag.id)}
+                            activeOpacity={0.7}
+                          >
+                            <View
+                              style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 10,
+                                borderWidth: 2,
+                                borderColor: theme.border,
+                                backgroundColor: isSelected ? theme.accent : theme.surface,
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  flex: 1,
+                                  fontFamily: theme.fontBody,
+                                  fontSize: 13,
+                                  fontWeight: '700',
+                                  color: isSelected ? (theme.onAccent as string) : theme.ink,
+                                }}
+                              >
+                                {tag.name}
+                              </Text>
+                              {isSelected && (
+                                <IconCheck
+                                  size={16}
+                                  color={theme.onAccent as string}
+                                  strokeWidth={2.6}
+                                />
+                              )}
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
               );
             });

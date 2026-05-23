@@ -22,6 +22,8 @@ import * as TablerIcons from '@tabler/icons-react';
 import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 import { usePixelTheme } from '@/components/pixel';
+import { MascotSprite } from '@/components/cards/mascot-sprite';
+import { MASCOTS } from '@/lib/mascots';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -503,6 +505,11 @@ export function Sidebar() {
       />
       {/* Wordmark + new-tiles notification */}
       <div className="flex h-12 items-center px-3 gap-2 shrink-0">
+        {/* Gimmick mascot — 24×24 sprite next to the wordmark, brand logo. */}
+        {(() => {
+          const gimmick = MASCOTS.find((m) => m.id === 'gimmick');
+          return gimmick ? <MascotSprite mascot={gimmick} cell={2} /> : null;
+        })()}
         <span
           style={{
             fontFamily: 'var(--font-pixel-head)',

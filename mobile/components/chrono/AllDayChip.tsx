@@ -1,12 +1,14 @@
 /**
  * Flat colored chip for an all-day event. Used in the "all-day" row above
- * the time grid in both DayView and WeekView. Tap → open the tile detail.
+ * the time grid in both DayView and WeekView.
  *
- * Colors come from the parent view (type-icon based) so the chip matches the
- * timed event blocks for the same tile.
+ * Pixel design: border 2px, no border-radius, font JetBrainsMono bold.
+ * When `colors.hatched` is true, overlay a diagonal hatching pattern
+ * (mirror del web StatusPattern diagonal_ltr).
  */
 import React from 'react';
-import { Text, TouchableOpacity, ViewStyle } from 'react-native';
+import { Text, Pressable, View, StyleSheet, ViewStyle } from 'react-native';
+import Svg, { Defs, Pattern, Line, Rect } from 'react-native-svg';
 import type { TileColors } from '@/hooks/useTileColors';
 import type { Tile } from '@/types';
 
@@ -17,28 +19,56 @@ interface Props {
   style?: ViewStyle;
 }
 
+function HatchOverlay({ color }: { color: string }) {
+  return (
+    <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+      <Defs>
+        <Pattern
+          id="hatch-chip"
+          patternUnits="userSpaceOnUse"
+          width={10}
+          height={10}
+          patternTransform="rotate(45)"
+        >
+          <Line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={1.5} strokeOpacity={0.55} />
+        </Pattern>
+      </Defs>
+      <Rect width="100%" height="100%" fill="url(#hatch-chip)" />
+    </Svg>
+  );
+}
+
 export function AllDayChip({ tile, colors, onPress, style }: Props) {
   return (
-    <TouchableOpacity
+    <Pressable
       onPress={onPress}
-      activeOpacity={0.7}
-      style={[
+      style={({ pressed }) => [
         {
           backgroundColor: colors.bg,
-          borderRadius: 4,
-          borderWidth: 1,
+          borderWidth: 2,
           borderColor: colors.border,
           borderStyle: colors.deadlineBorder ? 'dashed' : 'solid',
-          paddingHorizontal: 6,
-          paddingVertical: 3,
-          marginBottom: 2,
+          paddingHorizontal: 8,
+          paddingVertical: 4,
+          marginBottom: 4,
+          overflow: 'hidden',
+          opacity: pressed ? 0.85 : 1,
         },
         style,
       ]}
     >
-      <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '600', color: colors.fg }}>
+      {colors.hatched && <HatchOverlay color={colors.hatchColor} />}
+      {/* Title — sans-serif system per coerenza con FullCalendar/Inter del web */}
+      <Text
+        numberOfLines={1}
+        style={{
+          fontSize: 13,
+          fontWeight: '700',
+          color: colors.fg,
+        }}
+      >
         {tile.title || '(senza titolo)'}
       </Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 }

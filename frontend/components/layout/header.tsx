@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   IconBell,
-  IconRobot,
   IconSettings,
   IconSparkles,
   IconLayoutGrid,
@@ -159,7 +158,6 @@ export function Header({ actions }: HeaderProps) {
             boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
           }}
         >
-          <IconRobot size={12} />
           ASK GIMMICK
         </button>
 

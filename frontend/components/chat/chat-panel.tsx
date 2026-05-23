@@ -2,7 +2,9 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { IconX, IconSend, IconLoader2, IconRobot, IconUser, IconFilter, IconLayoutGrid, IconMicrophone, IconMicrophoneOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
+import { IconX, IconSend, IconLoader2, IconUser, IconFilter, IconLayoutGrid, IconMicrophone, IconMicrophoneOff, IconVolume, IconVolumeOff } from '@tabler/icons-react';
+import { MascotSprite } from '@/components/cards/mascot-sprite';
+import { MASCOTS } from '@/lib/mascots';
 
 // Web Speech API types
 interface SpeechRecognitionEvent extends Event {
@@ -42,6 +44,9 @@ interface ChatPanelProps {
   open: boolean;
   onClose: () => void;
 }
+
+// Gimmick mascot — the brand mascot lives in the chat avatar + empty state.
+const GIMMICK = MASCOTS.find((m) => m.id === 'gimmick')!;
 
 export function ChatPanel({ open, onClose }: ChatPanelProps) {
   const theme = usePixelTheme();
@@ -261,7 +266,6 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <IconRobot size={14} style={{ color: theme.accent }} />
           <span
             style={{
               fontFamily: 'var(--font-pixel-head)',
@@ -298,18 +302,17 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', padding: '64px 0' }}>
             <div
               style={{
-                width: 48,
-                height: 48,
+                width: 64,
+                height: 64,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: theme.surfaceVariant,
                 border: `2px solid ${theme.border}`,
-                color: theme.ink3,
                 marginBottom: 12,
               }}
             >
-              <IconRobot size={24} />
+              <MascotSprite mascot={GIMMICK} cell={3} />
             </div>
             <p
               style={{
@@ -341,8 +344,8 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                   {msg.role === 'assistant' && (
                     <div
                       style={{
-                        width: 24,
-                        height: 24,
+                        width: 36,
+                        height: 36,
                         background: theme.surface,
                         border: `2px solid ${theme.border}`,
                         display: 'inline-flex',
@@ -350,10 +353,9 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
                         justifyContent: 'center',
                         flexShrink: 0,
                         marginTop: 2,
-                        color: theme.accent,
                       }}
                     >
-                      <IconRobot size={12} />
+                      <MascotSprite mascot={GIMMICK} cell={2} />
                     </div>
                   )}
                   <div
@@ -487,18 +489,17 @@ export function ChatPanel({ open, onClose }: ChatPanelProps) {
               <div style={{ display: 'flex', gap: 8 }}>
                 <div
                   style={{
-                    width: 24,
-                    height: 24,
+                    width: 36,
+                    height: 36,
                     background: theme.surface,
                     border: `2px solid ${theme.border}`,
                     display: 'inline-flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     flexShrink: 0,
-                    color: theme.accent,
                   }}
                 >
-                  <IconRobot size={12} />
+                  <MascotSprite mascot={GIMMICK} cell={2} />
                 </div>
                 <div style={{ background: theme.surface, border: `2px solid ${theme.border}`, padding: '8px 10px' }}>
                   <IconLoader2 size={14} className="animate-spin" style={{ color: theme.ink2 }} />

@@ -185,10 +185,10 @@ export default function TileListScreen() {
               gap: 6,
               paddingVertical: 10,
               marginTop: 8,
-              borderWidth: 1,
+              borderWidth: 2,
               borderStyle: 'dashed',
               borderColor: colors.border,
-              borderRadius: 8,
+              borderRadius: 0,
               opacity: addMutation.isPending ? 0.4 : 1,
             }}
           >
@@ -252,8 +252,8 @@ function SubtaskRow({
     <View
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 8,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: isReordering ? colors.accent : colors.border,
         padding: 10,
         marginBottom: 8,
@@ -268,7 +268,7 @@ function SubtaskRow({
           style={{
             width: 22,
             height: 22,
-            borderRadius: 5,
+            borderRadius: 0,
             borderWidth: 1.5,
             borderColor: subtask.is_done ? colors.accent : colors.tertiary,
             backgroundColor: subtask.is_done ? colors.accent : 'transparent',
@@ -327,7 +327,7 @@ function SubtaskRow({
           style={{
             paddingHorizontal: 6,
             paddingVertical: 4,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: isReordering ? `${colors.accent}33` : 'transparent',
           }}
         >
@@ -364,7 +364,7 @@ function SubtaskRow({
           hitSlop={6}
           style={{
             padding: 4,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: confirmDelete ? '#EF4444' : 'transparent',
           }}
         >

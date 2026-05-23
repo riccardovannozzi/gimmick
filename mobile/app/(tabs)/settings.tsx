@@ -1,18 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Switch, TouchableOpacity, ScrollView, Pressable, Modal, LayoutAnimation } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
-import { IconChevronRight, IconLogout, IconCheck, IconSun, IconMoon, IconDeviceMobile, IconUser, IconChevronDown, IconPin, IconBolt, IconClock, IconCalendar } from '@tabler/icons-react-native';
-import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
-import { useSettingsStore, useAuthStore, toast } from '@/store';
-import { useThemeColors } from '@/lib/theme';
-import { settingsApi } from '@/lib/api';
-import { ColorPickerGrid } from '@/components/ColorPickerGrid';
-import { DEFAULT_ACTION_COLORS, getColorName } from '@/constants/palette';
-import type { ActionType } from '@/types';
+import {
+  IconChevronRight,
+  IconLogout,
+  IconCheck,
+  IconSun,
+  IconMoon,
+  IconDeviceMobile,
+  IconUser,
+} from '@tabler/icons-react-native';
+import { useSettingsStore, useAuthStore } from '@/store';
 import {
   usePixelTheme,
   usePixelSettings,
   PixelCard,
+  PixelButton,
+  PixelModal,
+  PixelSwitch,
   Segmented,
   ChipGrid,
   PixelToggle,
@@ -32,111 +37,119 @@ import {
   type CaptureTreatment,
 } from '@/constants/pixel-theme';
 
-interface SettingRowProps {
-  label: string;
-  description?: string;
-  value?: boolean;
-  onValueChange?: (value: boolean) => void;
-  onPress?: () => void;
-  showArrow?: boolean;
-  icon?: React.ReactNode;
+// ─── Pixel building blocks ──────────────────────────────────────────────────
+
+/** Section header — small PressStart2P caps label sopra una PixelCard. */
+function PixelSection({
+  title,
+  children,
+  noCard,
+}: {
+  title?: string;
+  children: React.ReactNode;
+  noCard?: boolean;
+}) {
+  const theme = usePixelTheme();
+  return (
+    <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+      {title && (
+        <Text
+          style={{
+            fontFamily: theme.fontHead,
+            fontSize: 10,
+            color: theme.ink2,
+            letterSpacing: 1.2,
+            marginBottom: 8,
+            paddingHorizontal: 4,
+          }}
+        >
+          {title}
+        </Text>
+      )}
+      {noCard ? children : <PixelCard theme={theme} style={{ gap: 0 }}>{children}</PixelCard>}
+    </View>
+  );
 }
 
-function SettingRow({
+/** Single row inside a PixelCard. Optional toggle switch or chevron. */
+function PixelRow({
   label,
   description,
   value,
   onValueChange,
   onPress,
   showArrow,
-  icon,
-}: SettingRowProps) {
-  const colors = useThemeColors();
+  divider,
+}: {
+  label: string;
+  description?: string;
+  value?: boolean;
+  onValueChange?: (v: boolean) => void;
+  onPress?: () => void;
+  showArrow?: boolean;
+  divider?: boolean;
+}) {
+  const theme = usePixelTheme();
   const content = (
-    <View
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 16,
-        paddingHorizontal: 20,
-      }}
-    >
-      {icon && (
-        <View style={{ marginRight: 16 }}>{icon}</View>
+    <View>
+      {divider && (
+        <View style={{ height: 2, backgroundColor: theme.border, marginHorizontal: -12 }} />
       )}
-      <View style={{ flex: 1, marginRight: 12 }}>
-        <Text style={{ fontSize: 16, color: colors.primary }}>{label}</Text>
-        {description && (
-          <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{description}</Text>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          paddingVertical: 14,
+          gap: 12,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text
+            style={{
+              fontFamily: theme.fontBody,
+              fontSize: 14,
+              fontWeight: '700',
+              color: theme.ink,
+            }}
+          >
+            {label}
+          </Text>
+          {description && (
+            <Text
+              style={{
+                fontFamily: theme.fontBody,
+                fontSize: 12,
+                color: theme.ink2,
+                marginTop: 2,
+              }}
+            >
+              {description}
+            </Text>
+          )}
+        </View>
+        {onValueChange !== undefined && (
+          <PixelSwitch theme={theme} value={!!value} onValueChange={onValueChange} />
         )}
+        {showArrow && <IconChevronRight size={18} color={theme.ink2} strokeWidth={2.2} />}
       </View>
-
-      {onValueChange !== undefined && (
-        <Switch
-          value={value}
-          onValueChange={onValueChange}
-          trackColor={{ false: colors.outline, true: colors.accent }}
-          thumbColor="#fff"
-        />
-      )}
-
-      {showArrow && <IconChevronRight size={20} color={colors.tertiary} />}
     </View>
   );
 
   if (onPress) {
     return (
-      <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
+      <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
         {content}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
-
   return content;
 }
 
-function SettingSection({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  const colors = useThemeColors();
-  return (
-    <View style={{ marginBottom: 24 }}>
-      <Text
-        style={{
-          fontSize: 12,
-          fontWeight: '600',
-          color: colors.tertiary,
-          letterSpacing: 0.5,
-          textTransform: 'uppercase',
-          paddingHorizontal: 20,
-          marginBottom: 8,
-        }}
-      >
-        {title}
-      </Text>
-      <View
-        style={{
-          marginHorizontal: 16,
-          borderRadius: 20,
-          backgroundColor: colors.background2,
-          overflow: 'hidden',
-        }}
-      >
-        {children}
-      </View>
-    </View>
-  );
-}
-
 // ─── Pixel Arcade settings block ────────────────────────────────────────────
-function PixelSection({ title, children }: { title: string; children: React.ReactNode }) {
+function PixelSubSection({ title, children }: { title: string; children: React.ReactNode }) {
   const theme = usePixelTheme();
   return (
-    <View style={{ marginBottom: 16 }}>
+    <View style={{ marginBottom: 14 }}>
       <Text
         style={{
           fontFamily: theme.fontHead,
@@ -156,7 +169,7 @@ function PixelSection({ title, children }: { title: string; children: React.Reac
   );
 }
 
-function PixelRow({
+function PixelMoodRow({
   label,
   stack,
   children,
@@ -238,9 +251,9 @@ function PixelSettingsBlock() {
   });
 
   return (
-    <View style={{ marginHorizontal: 16, marginBottom: 24 }}>
-      <PixelSection title="16-BIT MOOD">
-        <PixelRow label="MODE">
+    <View style={{ marginHorizontal: 16, marginBottom: 16 }}>
+      <PixelSubSection title="16-BIT MOOD">
+        <PixelMoodRow label="MODE">
           <Segmented<PaletteMode>
             theme={theme}
             options={[
@@ -250,8 +263,8 @@ function PixelSettingsBlock() {
             value={settings.mode}
             onChange={(v) => setSetting('mode', v)}
           />
-        </PixelRow>
-        <PixelRow label="PALETTE" stack>
+        </PixelMoodRow>
+        <PixelMoodRow label="PALETTE" stack>
           <ChipGrid<PaletteId>
             theme={theme}
             options={paletteOptions}
@@ -259,27 +272,27 @@ function PixelSettingsBlock() {
             value={settings.paletteId}
             onChange={(v) => setSetting('paletteId', v)}
           />
-        </PixelRow>
-      </PixelSection>
+        </PixelMoodRow>
+      </PixelSubSection>
 
-      <PixelSection title="APPEARANCE">
-        <PixelRow label="SHADOWS">
+      <PixelSubSection title="APPEARANCE">
+        <PixelMoodRow label="SHADOWS">
           <Segmented<ShadowSize>
             theme={theme}
             options={shadowOptions}
             value={settings.shadowSize}
             onChange={(v) => setSetting('shadowSize', v)}
           />
-        </PixelRow>
-        <PixelRow label="BACKGROUND" stack>
+        </PixelMoodRow>
+        <PixelMoodRow label="BACKGROUND" stack>
           <ChipGrid<BackgroundId>
             theme={theme}
             options={bgOptions}
             value={settings.backgroundId ?? 'none'}
             onChange={(v) => setSetting('backgroundId', v)}
           />
-        </PixelRow>
-        <PixelRow label="BG COLOR" stack>
+        </PixelMoodRow>
+        <PixelMoodRow label="BG COLOR" stack>
           <ChipGrid<BgColorId>
             theme={theme}
             options={bgColorOptions}
@@ -287,8 +300,8 @@ function PixelSettingsBlock() {
             value={settings.bgColorId ?? 'paletteDefault'}
             onChange={(v) => setSetting('bgColorId', v)}
           />
-        </PixelRow>
-        <PixelRow label="CAPTURE">
+        </PixelMoodRow>
+        <PixelMoodRow label="CAPTURE">
           <Segmented<CaptureTreatment>
             theme={theme}
             options={treatments}
@@ -296,14 +309,14 @@ function PixelSettingsBlock() {
             value={settings.captureTreatment ?? 'tinted'}
             onChange={(v) => setSetting('captureTreatment', v)}
           />
-        </PixelRow>
-        <PixelRow label="SCANLINES">
+        </PixelMoodRow>
+        <PixelMoodRow label="SCANLINES">
           <PixelToggle
             theme={theme}
             on={!!settings.scanlines}
             onChange={(v) => setSetting('scanlines', v)}
           />
-        </PixelRow>
+        </PixelMoodRow>
         <View>
           <Text
             style={{
@@ -331,13 +344,15 @@ function PixelSettingsBlock() {
             </PixelBackground>
           </View>
         </View>
-      </PixelSection>
+      </PixelSubSection>
     </View>
   );
 }
 
+// ─── Main screen ────────────────────────────────────────────────────────────
+
 export default function SettingsScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const {
     hapticFeedback,
     setHapticFeedback,
@@ -349,7 +364,7 @@ export default function SettingsScreen() {
     setUploadOnWifiOnly,
     aiModel,
     setAiModel,
-    theme,
+    theme: themeMode,
     setTheme,
   } = useSettingsStore();
 
@@ -357,376 +372,366 @@ export default function SettingsScreen() {
   const router = useRouter();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
   const [themePickerOpen, setThemePickerOpen] = useState(false);
-  const [actionColors, setActionColors] = useState<Record<ActionType, string>>(DEFAULT_ACTION_COLORS as Record<ActionType, string>);
-  const [expandedAction, setExpandedAction] = useState<ActionType | null>(null);
-
-  useEffect(() => {
-    settingsApi.get<Record<ActionType, string>>('action_colors').then((res) => {
-      if (res.data) setActionColors(res.data);
-    }).catch(() => {});
-  }, []);
-
-  const handleColorChange = useCallback((type: ActionType, hex: string) => {
-    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const next = { ...actionColors, [type]: hex };
-    setActionColors(next);
-    setExpandedAction(null);
-    settingsApi.set('action_colors', next).then(() => {
-      toast.show({ message: 'Colore aggiornato', type: 'success' });
-    }).catch(() => {});
-  }, [actionColors]);
-
-  const ACTION_ITEMS: { type: ActionType; label: string; Icon: typeof IconPin }[] = [
-    { type: 'none', label: 'Appunto', Icon: IconPin },
-    { type: 'anytime', label: 'Da fare', Icon: IconBolt },
-    { type: 'deadline', label: 'Scadenza', Icon: IconClock },
-    { type: 'event', label: 'Evento', Icon: IconCalendar },
-  ];
 
   const themeOptions = [
-    { id: 'light' as const, label: 'Light', description: 'Light theme', icon: IconSun },
-    { id: 'dark' as const, label: 'Dark', description: 'Dark theme', icon: IconMoon },
-    { id: 'system' as const, label: 'System', description: 'Match device setting', icon: IconDeviceMobile },
+    { id: 'light' as const, label: 'LIGHT', description: 'Light theme', icon: IconSun },
+    { id: 'dark' as const, label: 'DARK', description: 'Dark theme', icon: IconMoon },
+    { id: 'system' as const, label: 'SYSTEM', description: 'Match device setting', icon: IconDeviceMobile },
   ];
-
-  const currentTheme = themeOptions.find((t) => t.id === theme) || themeOptions[1];
+  const currentTheme = themeOptions.find((t) => t.id === themeMode) || themeOptions[1];
 
   const aiModels = [
-    { id: 'claude-haiku-4-5-20251001', label: 'Claude Haiku', description: 'Fast & economical' },
-    { id: 'claude-sonnet-4-6', label: 'Claude Sonnet', description: 'Balanced' },
-    { id: 'claude-opus-4-6', label: 'Claude Opus', description: 'Most capable' },
+    { id: 'claude-haiku-4-5-20251001', label: 'CLAUDE HAIKU', description: 'Fast & economical' },
+    { id: 'claude-sonnet-4-6', label: 'CLAUDE SONNET', description: 'Balanced' },
+    { id: 'claude-opus-4-6', label: 'CLAUDE OPUS', description: 'Most capable' },
   ];
-
   const currentModel = aiModels.find((m) => m.id === aiModel) || aiModels[0];
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-      <ScrollView className="flex-1">
+    <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}>
         {/* Account card */}
-        <View
-          style={{
-            marginHorizontal: 16,
-            marginBottom: 24,
-            borderRadius: 20,
-            backgroundColor: colors.background2,
-            overflow: 'hidden',
-          }}
-        >
-          {user ? (
-            <View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}>
-                <View
-                  style={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: 24,
-                    backgroundColor: colors.accentContainer,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 16,
-                  }}
+        <PixelSection noCard>
+          <PixelCard theme={theme} style={{ padding: 0 }}>
+            {user ? (
+              <View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 }}>
+                  <View
+                    style={{
+                      width: 44, height: 44,
+                      borderWidth: 2, borderColor: theme.border,
+                      backgroundColor: theme.accent,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <IconUser size={22} color={theme.onAccent as string} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      numberOfLines={1}
+                      style={{
+                        fontFamily: theme.fontBody,
+                        fontSize: 14,
+                        fontWeight: '700',
+                        color: theme.ink,
+                      }}
+                    >
+                      {user.email ?? 'User'}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 8,
+                        color: theme.ink2,
+                        letterSpacing: 1,
+                        marginTop: 4,
+                      }}
+                    >
+                      CONNECTED
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ height: 2, backgroundColor: theme.border }} />
+                <Pressable
+                  onPress={signOut}
+                  style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
                 >
-                  <IconUser size={22} color={colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
-                    {user.email ?? 'User'}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
-                    Connected account
-                  </Text>
-                </View>
+                  <View
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      padding: 14,
+                      gap: 12,
+                    }}
+                  >
+                    <IconLogout size={18} color={theme.semantic.danger} strokeWidth={2.2} />
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 10,
+                        color: theme.semantic.danger,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      SIGN OUT
+                    </Text>
+                  </View>
+                </Pressable>
               </View>
-              <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-              <TouchableOpacity
-                onPress={signOut}
-                style={{ flexDirection: 'row', alignItems: 'center', padding: 20, gap: 16 }}
+            ) : (
+              <Pressable
+                onPress={() => router.push('/auth/login')}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
               >
-                <IconLogout size={20} color={colors.error} />
-                <Text style={{ fontSize: 16, color: colors.error }}>Sign out</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              onPress={() => router.push('/auth/login')}
-              style={{ flexDirection: 'row', alignItems: 'center', padding: 20 }}
-            >
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 24,
-                  backgroundColor: colors.accentContainer,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginRight: 16,
-                }}
-              >
-                <IconUser size={22} color={colors.accent} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 16, fontWeight: '600', color: colors.primary }}>
-                  Not connected
-                </Text>
-                <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>
-                  Sign in to sync your sparks
-                </Text>
-              </View>
-              <IconChevronRight size={20} color={colors.tertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
+                <View style={{ flexDirection: 'row', alignItems: 'center', padding: 14, gap: 14 }}>
+                  <View
+                    style={{
+                      width: 44, height: 44,
+                      borderWidth: 2, borderColor: theme.border,
+                      backgroundColor: theme.surface,
+                      alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >
+                    <IconUser size={22} color={theme.ink} strokeWidth={2} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 11,
+                        color: theme.ink,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      SIGN IN
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontBody,
+                        fontSize: 12,
+                        color: theme.ink2,
+                        marginTop: 4,
+                      }}
+                    >
+                      Sign in to sync your sparks
+                    </Text>
+                  </View>
+                  <IconChevronRight size={20} color={theme.ink2} strokeWidth={2.2} />
+                </View>
+              </Pressable>
+            )}
+          </PixelCard>
+        </PixelSection>
 
         {/* General section */}
-        <SettingSection title="General">
-          <SettingRow
+        <PixelSection title="GENERAL">
+          <PixelRow
             label="Theme"
             description={currentTheme.label}
             onPress={() => setThemePickerOpen(true)}
             showArrow
           />
-          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-          <SettingRow
+          <PixelRow
+            divider
             label="Haptic feedback"
             value={hapticFeedback}
             onValueChange={setHapticFeedback}
           />
-          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-          <SettingRow
+          <PixelRow
+            divider
             label="Confirm delete"
             value={confirmDelete}
             onValueChange={setConfirmDelete}
           />
-        </SettingSection>
+        </PixelSection>
 
         {/* Pixel Arcade design system sections */}
         <PixelSettingsBlock />
 
-        {/* Action Colors section */}
-        <SettingSection title="Colori delle azioni">
-          {ACTION_ITEMS.map(({ type, label, Icon }, index) => {
-            const color = actionColors[type];
-            const isExpanded = expandedAction === type;
-            return (
-              <View key={type}>
-                {index > 0 && (
-                  <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-                )}
-                <TouchableOpacity
-                  onPress={() => {
-                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                    setExpandedAction(isExpanded ? null : type);
-                  }}
-                  activeOpacity={0.7}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 14,
-                    paddingHorizontal: 20,
-                    gap: 12,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 22,
-                      height: 22,
-                      borderRadius: 11,
-                      backgroundColor: color,
-                      borderWidth: 1,
-                      borderColor: 'rgba(255,255,255,0.15)',
-                    }}
-                  />
-                  <Icon size={18} color={colors.secondary} />
-                  <Text style={{ flex: 1, fontSize: 16, color: colors.primary }}>{label}</Text>
-                  <Text style={{ fontSize: 13, color: colors.tertiary }}>{getColorName(color)}</Text>
-                  <IconChevronDown
-                    size={18}
-                    color={colors.tertiary}
-                    style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
-                  />
-                </TouchableOpacity>
-                {isExpanded && (
-                  <View style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
-                    <ColorPickerGrid
-                      selectedColor={color}
-                      onSelect={(hex) => handleColorChange(type, hex)}
-                      size={34}
-                    />
-                  </View>
-                )}
-              </View>
-            );
-          })}
-        </SettingSection>
-
         {/* Upload section */}
-        <SettingSection title="Upload">
-          <SettingRow
+        <PixelSection title="UPLOAD">
+          <PixelRow
             label="Auto upload"
             description="Upload items automatically"
             value={autoUpload}
             onValueChange={setAutoUpload}
           />
-          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-          <SettingRow
+          <PixelRow
+            divider
             label="Wi-Fi only"
             description="Only upload on Wi-Fi"
             value={uploadOnWifiOnly}
             onValueChange={setUploadOnWifiOnly}
           />
-        </SettingSection>
+        </PixelSection>
 
         {/* AI section */}
-        <SettingSection title="AI Assistant">
-          <SettingRow
-            label="Provider"
-            description="Claude (Anthropic)"
-          />
-          <View style={{ height: 1, backgroundColor: colors.border, marginHorizontal: 20 }} />
-          <SettingRow
+        <PixelSection title="AI ASSISTANT">
+          <PixelRow label="Provider" description="Claude (Anthropic)" />
+          <PixelRow
+            divider
             label="Model"
             description={currentModel.label}
             onPress={() => setModelPickerOpen(true)}
             showArrow
           />
-        </SettingSection>
+        </PixelSection>
 
         {/* App info */}
-        <View style={{ alignItems: 'center', paddingVertical: 32 }}>
-          <Text style={{ fontSize: 13, color: colors.tertiary }}>Gimmick v1.0.0</Text>
-          <Text style={{ fontSize: 12, color: colors.tertiary, marginTop: 4, opacity: 0.7 }}>
+        <View style={{ alignItems: 'center', paddingVertical: 24, gap: 4 }}>
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 10,
+              color: theme.ink2,
+              letterSpacing: 1.2,
+            }}
+          >
+            GIMMICK V1.0.0
+          </Text>
+          <Text
+            style={{
+              fontFamily: theme.fontBody,
+              fontSize: 11,
+              color: theme.ink2,
+              opacity: 0.8,
+            }}
+          >
             Capture everything, organize anything
           </Text>
         </View>
       </ScrollView>
 
-      {/* Model Picker Modal */}
-      <Modal
+      {/* Model Picker Modal — Pixel */}
+      <PixelModal
+        theme={theme}
         visible={modelPickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModelPickerOpen(false)}
+        onClose={() => setModelPickerOpen(false)}
+        title="SELECT MODEL"
       >
-        <Pressable
-          onPress={() => setModelPickerOpen(false)}
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.overlay,
-          }}
-        >
-          <View
-            style={{
-              width: '85%',
-              borderRadius: 20,
-              backgroundColor: colors.background2,
-              overflow: 'hidden',
-            }}
-          >
-            <Text style={{ fontSize: 22, fontWeight: '600', color: colors.primary, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
-              Select Model
-            </Text>
-            {aiModels.map((model) => (
-              <TouchableOpacity
+        <View style={{ gap: 6 }}>
+          {aiModels.map((model) => {
+            const isSel = aiModel === model.id;
+            return (
+              <Pressable
                 key={model.id}
                 onPress={() => {
                   setAiModel(model.id);
                   setModelPickerOpen(false);
                 }}
-                activeOpacity={0.7}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  paddingHorizontal: 24,
-                  paddingVertical: 16,
-                }}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
               >
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, color: colors.primary }}>{model.label}</Text>
-                  <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{model.description}</Text>
-                </View>
-                {aiModel === model.id && (
-                  <IconCheck size={22} color={colors.accent} />
-                )}
-              </TouchableOpacity>
-            ))}
-            <View style={{ height: 16 }} />
-          </View>
-        </Pressable>
-      </Modal>
-
-      {/* Theme Picker Modal */}
-      <Modal
-        visible={themePickerOpen}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setThemePickerOpen(false)}
-      >
-        <Pressable
-          onPress={() => setThemePickerOpen(false)}
-          style={{
-            flex: 1,
-            alignItems: 'center',
-            justifyContent: 'center',
-            backgroundColor: colors.overlay,
-          }}
-        >
-          <View
-            style={{
-              width: '85%',
-              borderRadius: 20,
-              backgroundColor: colors.background2,
-              overflow: 'hidden',
-            }}
-          >
-            <Text style={{ fontSize: 22, fontWeight: '600', color: colors.primary, paddingHorizontal: 24, paddingTop: 24, paddingBottom: 16 }}>
-              Theme
-            </Text>
-            {themeOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <TouchableOpacity
-                  key={option.id}
-                  onPress={() => {
-                    setTheme(option.id);
-                    setThemePickerOpen(false);
-                  }}
-                  activeOpacity={0.7}
+                <View
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    paddingHorizontal: 24,
-                    paddingVertical: 16,
+                    paddingHorizontal: 12,
+                    paddingVertical: 12,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: isSel ? theme.accent : theme.surface,
+                    gap: 12,
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 10,
+                        color: isSel ? (theme.onAccent as string) : theme.ink,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {model.label}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontBody,
+                        fontSize: 12,
+                        color: isSel ? (theme.onAccent as string) : theme.ink2,
+                        marginTop: 4,
+                        opacity: isSel ? 0.85 : 1,
+                      }}
+                    >
+                      {model.description}
+                    </Text>
+                  </View>
+                  {isSel && (
+                    <IconCheck
+                      size={18}
+                      color={theme.onAccent as string}
+                      strokeWidth={2.6}
+                    />
+                  )}
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </PixelModal>
+
+      {/* Theme Picker Modal — Pixel */}
+      <PixelModal
+        theme={theme}
+        visible={themePickerOpen}
+        onClose={() => setThemePickerOpen(false)}
+        title="THEME"
+      >
+        <View style={{ gap: 6 }}>
+          {themeOptions.map((option) => {
+            const Icon = option.icon;
+            const isSel = themeMode === option.id;
+            return (
+              <Pressable
+                key={option.id}
+                onPress={() => {
+                  setTheme(option.id);
+                  setThemePickerOpen(false);
+                }}
+                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+              >
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 12,
+                    paddingVertical: 12,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: isSel ? theme.accent : theme.surface,
+                    gap: 12,
                   }}
                 >
                   <View
                     style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor: colors.surfaceVariant,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      marginRight: 16,
+                      width: 36, height: 36,
+                      borderWidth: 2, borderColor: theme.border,
+                      backgroundColor: isSel ? theme.surface : theme.bg2,
+                      alignItems: 'center', justifyContent: 'center',
                     }}
                   >
-                    <Icon size={20} color={colors.secondary} />
+                    <Icon
+                      size={18}
+                      color={isSel ? theme.ink : theme.ink2}
+                      strokeWidth={2}
+                    />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 16, color: colors.primary }}>{option.label}</Text>
-                    <Text style={{ fontSize: 13, color: colors.tertiary, marginTop: 2 }}>{option.description}</Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 10,
+                        color: isSel ? (theme.onAccent as string) : theme.ink,
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                    <Text
+                      style={{
+                        fontFamily: theme.fontBody,
+                        fontSize: 12,
+                        color: isSel ? (theme.onAccent as string) : theme.ink2,
+                        marginTop: 4,
+                        opacity: isSel ? 0.85 : 1,
+                      }}
+                    >
+                      {option.description}
+                    </Text>
                   </View>
-                  {theme === option.id && (
-                    <IconCheck size={22} color={colors.accent} />
+                  {isSel && (
+                    <IconCheck
+                      size={18}
+                      color={theme.onAccent as string}
+                      strokeWidth={2.6}
+                    />
                   )}
-                </TouchableOpacity>
-              );
-            })}
-            <View style={{ height: 16 }} />
-          </View>
-        </Pressable>
-      </Modal>
+                </View>
+              </Pressable>
+            );
+          })}
+        </View>
+      </PixelModal>
     </View>
   );
 }

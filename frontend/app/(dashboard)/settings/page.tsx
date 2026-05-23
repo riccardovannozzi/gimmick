@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2 } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2, IconUsersGroup } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme, PixelToggle } from '@/components/pixel';
 import { PixelArcadeModal } from '@/components/pixel/PixelArcadeModal';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { ActionsModal } from '@/components/actions/actions-modal';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
 import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
+import { CardRosterModal } from '@/components/cards/card-roster-modal';
 
 type IconComp = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
@@ -161,6 +162,7 @@ export default function SettingsPage() {
   const [statusesOpen, setStatusesOpen] = useState(false);
   const [typeIconsOpen, setTypeIconsOpen] = useState(false);
   const [pixelArcadeOpen, setPixelArcadeOpen] = useState(false);
+  const [cardRosterOpen, setCardRosterOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -233,6 +235,11 @@ export default function SettingsPage() {
             <PixelManageButton onClick={() => setTypeIconsOpen(true)}>Gestisci type icons</PixelManageButton>
           </PixelSection>
 
+          {/* Card Roster */}
+          <PixelSection icon={IconUsersGroup} title="Card Roster" description="I 10 personaggi pixel-art di Gimmick e le aree dell'app in cui appaiono">
+            <PixelManageButton onClick={() => setCardRosterOpen(true)}>Gestisci Card Roster</PixelManageButton>
+          </PixelSection>
+
           {/* Notifications */}
           <PixelSection icon={IconBell} title="Notifiche" description="Configura le preferenze di notifica">
             <PixelRow title="Notifiche push" description="Ricevi notifiche per nuovi memo">
@@ -282,6 +289,7 @@ export default function SettingsPage() {
       <StatusesModal open={statusesOpen} onOpenChange={setStatusesOpen} />
       <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
       <PixelArcadeModal open={pixelArcadeOpen} onOpenChange={setPixelArcadeOpen} />
+      <CardRosterModal open={cardRosterOpen} onOpenChange={setCardRosterOpen} />
     </div>
   );
 }

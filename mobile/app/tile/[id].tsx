@@ -49,6 +49,7 @@ import { useHorizontalSwipe } from '@/hooks/useHorizontalSwipe';
 import { usePixelTheme } from '@/components/pixel';
 import { tilesApi, sparksApi, statusesApi, typeIconsApi, uploadApi, tagsApi, tagTypesApi, type StatusEntity, type TypeIconEntity, type TagTypeEntity } from '@/lib/api';
 import { captureColors, captureColorsBg } from '@/constants/colors';
+import type { CaptureKey } from '@/constants/pixel-theme';
 import type { ActionType, Spark } from '@/types';
 
 // Tag-type metadata — mirrors web sidebar grouping (PROGETTO/PERSONA/CONTESTO/LUOGO/TOPIC).
@@ -466,8 +467,8 @@ export default function TileDetailScreen() {
             multiline
             style={{
               backgroundColor: colors.background2,
-              borderRadius: 10,
-              borderWidth: 1,
+              borderRadius: 0,
+              borderWidth: 2,
               borderColor: colors.border,
               padding: 12,
               fontSize: 16,
@@ -496,7 +497,7 @@ export default function TileDetailScreen() {
                     justifyContent: 'center',
                     gap: 6,
                     paddingVertical: 14,
-                    borderRadius: 8,
+                    borderRadius: 0,
                     backgroundColor: isActive ? colors.surfaceVariant : colors.background2,
                     borderWidth: 1.5,
                     borderColor: isActive ? colors.primary : 'transparent',
@@ -507,7 +508,7 @@ export default function TileDetailScreen() {
                       style={{
                         width: 18,
                         height: 18,
-                        borderRadius: 9,
+                        borderRadius: 0,
                         backgroundColor: '#71717A',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -540,7 +541,7 @@ export default function TileDetailScreen() {
                     justifyContent: 'center',
                     gap: 6,
                     paddingVertical: 14,
-                    borderRadius: 8,
+                    borderRadius: 0,
                     backgroundColor: colors.background2,
                     borderWidth: 1.5,
                     borderColor: isActive ? opt.color : 'transparent',
@@ -550,7 +551,7 @@ export default function TileDetailScreen() {
                     style={{
                       width: 18,
                       height: 18,
-                      borderRadius: 9,
+                      borderRadius: 0,
                       backgroundColor: opt.color,
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -617,8 +618,8 @@ export default function TileDetailScreen() {
               alignItems: 'center',
               gap: 8,
               backgroundColor: colors.background2,
-              borderRadius: 10,
-              borderWidth: 1,
+              borderRadius: 0,
+              borderWidth: 2,
               borderColor: colors.border,
               paddingHorizontal: 12,
               paddingVertical: 12,
@@ -651,8 +652,8 @@ export default function TileDetailScreen() {
               alignItems: 'center',
               gap: 10,
               backgroundColor: colors.background2,
-              borderRadius: 10,
-              borderWidth: 1,
+              borderRadius: 0,
+              borderWidth: 2,
               borderColor: colors.border,
               paddingHorizontal: 12,
               paddingVertical: 12,
@@ -683,8 +684,8 @@ export default function TileDetailScreen() {
               alignItems: 'center',
               gap: 10,
               backgroundColor: colors.background2,
-              borderRadius: 10,
-              borderWidth: 1,
+              borderRadius: 0,
+              borderWidth: 2,
               borderColor: colors.border,
               paddingHorizontal: 12,
               paddingVertical: 12,
@@ -696,7 +697,7 @@ export default function TileDetailScreen() {
                   style={{
                     width: 14,
                     height: 14,
-                    borderRadius: 3,
+                    borderRadius: 0,
                     backgroundColor: '#A1A1AA',
                   }}
                 />
@@ -725,6 +726,9 @@ export default function TileDetailScreen() {
           <View style={{ flexDirection: 'row', gap: 6 }}>
             {QUICK_CAPTURE.map((qc) => {
               const Icon = qc.icon;
+              const key = qc.key as CaptureKey;
+              const tintBg = theme.tint[key];
+              const accent = theme.cap[key];
               return (
                 <TouchableOpacity
                   key={qc.key}
@@ -732,14 +736,16 @@ export default function TileDetailScreen() {
                   activeOpacity={0.7}
                   style={{
                     flex: 1,
-                    height: 40,
+                    height: 48,
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: qc.bg,
-                    borderRadius: 8,
+                    borderWidth: 2,
+                    borderColor: theme.border,
+                    backgroundColor: tintBg,
+                    borderRadius: 0,
                   }}
                 >
-                  <Icon size={18} color={qc.color} />
+                  <Icon size={20} color={accent} strokeWidth={2} />
                 </TouchableOpacity>
               );
             })}
@@ -822,7 +828,7 @@ export default function TileDetailScreen() {
                   style={{
                     width: 14,
                     height: 14,
-                    borderRadius: 3,
+                    borderRadius: 0,
                     backgroundColor: '#A1A1AA',
                   }}
                 />
@@ -984,8 +990,8 @@ export default function TileDetailScreen() {
                   placeholderTextColor={colors.tertiary}
                   style={{
                     backgroundColor: colors.background1,
-                    borderRadius: 10,
-                    borderWidth: 1,
+                    borderRadius: 0,
+                    borderWidth: 2,
                     borderColor: colors.border,
                     padding: 12,
                     fontSize: 16,
@@ -1026,7 +1032,7 @@ function TypeIconBadge({ icon, color }: { icon: string; color?: string }) {
       style={{
         width: 18,
         height: 18,
-        borderRadius: 4,
+        borderRadius: 0,
         backgroundColor: bg,
         alignItems: 'center',
         justifyContent: 'center',
@@ -1144,10 +1150,10 @@ function PickerRow({
         gap: 12,
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 10,
+        borderRadius: 0,
         marginBottom: 4,
         backgroundColor: isActive ? `${colors.accent}1F` : 'transparent',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: isActive ? colors.accent : 'transparent',
       }}
     >
@@ -1171,15 +1177,15 @@ function SectionLabel({
   return (
     <Text
       style={{
-        fontSize: small ? 10 : 11,
-        fontWeight: '600',
+        fontFamily: 'PressStart2P-Regular',
+        fontSize: small ? 8 : 9,
         color: colors.tertiary,
-        letterSpacing: 0.5,
+        letterSpacing: 1.2,
         marginTop: top ?? 0,
-        marginBottom: 6,
+        marginBottom: 8,
       }}
     >
-      {text}
+      {text.toUpperCase()}
     </Text>
   );
 }
@@ -1199,8 +1205,8 @@ function PickerField({
       activeOpacity={0.7}
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 8,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: colors.border,
         paddingHorizontal: 10,
         paddingVertical: 12,
@@ -1290,8 +1296,8 @@ function SparkPreview({
     <View
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 10,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: colors.border,
         paddingHorizontal: 12,
         paddingVertical: 10,
@@ -1345,7 +1351,7 @@ function SparkPreview({
               style={{
                 width: '100%',
                 height: 200,
-                borderRadius: 8,
+                borderRadius: 0,
                 backgroundColor: colors.background1,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1360,7 +1366,7 @@ function SparkPreview({
                 style={{
                   width: '100%',
                   height: 200,
-                  borderRadius: 8,
+                  borderRadius: 0,
                   backgroundColor: colors.background1,
                 }}
                 resizeMode="cover"
@@ -1389,7 +1395,7 @@ function SparkPreview({
               style={{
                 width: '100%',
                 height: 280,
-                borderRadius: 8,
+                borderRadius: 0,
                 backgroundColor: colors.background1,
               }}
               resizeMode="contain"
@@ -1399,7 +1405,7 @@ function SparkPreview({
               style={{
                 width: '100%',
                 height: 280,
-                borderRadius: 8,
+                borderRadius: 0,
                 backgroundColor: colors.background1,
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -1415,7 +1421,7 @@ function SparkPreview({
               style={{
                 width: '100%',
                 height: 120,
-                borderRadius: 8,
+                borderRadius: 0,
                 backgroundColor: colors.background1,
                 alignItems: 'center',
                 justifyContent: 'center',

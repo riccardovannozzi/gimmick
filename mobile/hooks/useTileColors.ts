@@ -1,36 +1,41 @@
 /**
  * Resolves a calendar event's visual color from its assigned type-icon —
- * matches the rendering convention used by the frontend calendar:
+ * matches the Pixel calendar rendering of the web:
  *
- *   background = `${typeIcon.color}80`   // 50% alpha
- *   fallback   = '#1C1C1E'                // dark zinc (no icon assigned)
+ *   - If a type-icon is assigned → tinted bg (icon color at 30% alpha) with
+ *     ink-readable foreground.
+ *   - Otherwise → light surface bg + diagonal hatch pattern (the EventBlock
+ *     reads `hatched: true` and overlays an SVG pattern).
  *
- * Plus an action-aware border:
- *   deadline → dashed red
- *   anything else → subtle white at 8%
+ * Plus a Pixel border:
+ *   - deadline → dashed semantic.danger
+ *   - default  → solid border (ink)
  */
 import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { typeIconsApi, type TypeIconEntity } from '@/lib/api';
+import { usePixelTheme } from '@/components/pixel';
+import { hexWithAlpha } from '@/constants/pixel-theme';
 import type { Tile } from '@/types';
 
 export interface TileColors {
-  /** Background fill — type-icon color at 50% alpha or dark zinc fallback. */
+  /** Background fill — type-icon color at 30% alpha, or theme.surface fallback. */
   bg: string;
   /** Solid border color. Dashed deadline border is signalled separately. */
   border: string;
-  /** True when the tile uses the deadline dashed-red border. */
+  /** True when the tile uses the deadline dashed-danger border. */
   deadlineBorder: boolean;
-  /** Foreground text/icon color (light gray for parity with the web). */
+  /** Foreground text/icon color. */
   fg: string;
+  /** True when the tile has no type-icon → EventBlock renders an SVG
+   *  hatching pattern on top of `bg` (mirror del diagonal_ltr web). */
+  hatched: boolean;
+  /** Color delle linee del pattern hatching (usato solo se `hatched`). */
+  hatchColor: string;
 }
 
-const DARK_BG = '#1C1C1E';
-const SUBTLE_BORDER = 'rgba(255,255,255,0.08)';
-const DEADLINE_BORDER = '#ef4444';
-const FG = '#D4D4D8'; // zinc-300
-
 export function useTileColors() {
+  const theme = usePixelTheme();
   const iconsQuery = useQuery({
     queryKey: ['type-icons'],
     queryFn: () => typeIconsApi.list(),
@@ -61,13 +66,28 @@ export function useTileColors() {
     const iconId = assignmentByTile.get(tile.id);
     const icon = iconId ? iconsById.get(iconId) : undefined;
     const baseColor = icon?.color;
-    const bg = baseColor ? `${baseColor}80` : DARK_BG;
     const isDeadline = tile.action_type === 'deadline';
+
+    if (baseColor) {
+      // Tile with type-icon: tinted bg (30% alpha), ink readable on light.
+      return {
+        bg: hexWithAlpha(baseColor, 0.3),
+        border: isDeadline ? theme.semantic.danger : theme.border,
+        deadlineBorder: isDeadline,
+        fg: theme.ink,
+        hatched: false,
+        hatchColor: theme.ink,
+      };
+    }
+
+    // Default: bg surface (cream/bianco) con hatching diagonale ink.
     return {
-      bg,
-      border: isDeadline ? DEADLINE_BORDER : SUBTLE_BORDER,
+      bg: theme.surface,
+      border: isDeadline ? theme.semantic.danger : theme.border,
       deadlineBorder: isDeadline,
-      fg: FG,
+      fg: theme.ink,
+      hatched: true,
+      hatchColor: theme.ink,
     };
   };
 

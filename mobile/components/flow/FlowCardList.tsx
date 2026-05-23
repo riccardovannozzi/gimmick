@@ -125,10 +125,10 @@ export function FlowCardList({ tileId }: Props) {
           gap: 6,
           paddingVertical: 10,
           marginTop: 8,
-          borderWidth: 1,
+          borderWidth: 2,
           borderStyle: 'dashed',
           borderColor: colors.border,
-          borderRadius: 8,
+          borderRadius: 0,
           opacity: addNode.isPending ? 0.5 : 1,
         }}
       >
@@ -185,8 +185,8 @@ function FlowCard({
     <View
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 8,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: isReordering ? colors.accent : colors.border,
         padding: 10,
         marginBottom: 8,
@@ -290,7 +290,7 @@ function FlowCard({
           gap: 4,
           marginTop: 10,
           paddingTop: 6,
-          borderTopWidth: 1,
+          borderTopWidth: 2,
           borderTopColor: colors.border,
         }}
       >
@@ -300,7 +300,7 @@ function FlowCard({
           style={{
             paddingHorizontal: 6,
             paddingVertical: 4,
-            borderRadius: 4,
+            borderRadius: 0,
             backgroundColor: isReordering ? `${colors.accent}33` : 'transparent',
           }}
         >
@@ -327,8 +327,8 @@ function FlowCard({
           hitSlop={6}
           style={{
             padding: 4,
-            borderRadius: 4,
-            backgroundColor: confirmDelete ? '#EF4444' : 'transparent',
+            borderRadius: 0,
+            backgroundColor: confirmDelete ? 'colors.error' : 'transparent',
           }}
         >
           <IconTrash size={14} color={confirmDelete ? '#fff' : colors.tertiary} />
@@ -363,8 +363,8 @@ function StatusChip({
         justifyContent: 'center',
         width: 30,
         height: 26,
-        borderRadius: 4,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: active ? colors.accent : colors.border,
         backgroundColor: active ? `${colors.accent}22` : colors.background1,
       }}
@@ -407,8 +407,8 @@ function ContactChip({
         gap: 4,
         paddingHorizontal: 8,
         height: 26,
-        borderRadius: 4,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: active ? colors.accent : colors.border,
         backgroundColor: active ? `${colors.accent}22` : colors.background1,
         maxWidth: 160,
@@ -446,8 +446,8 @@ function DateChip({
         gap: 4,
         paddingHorizontal: 8,
         height: 26,
-        borderRadius: 4,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: active ? colors.accent : colors.border,
         backgroundColor: active ? `${colors.accent}22` : colors.background1,
       }}
@@ -490,10 +490,10 @@ function StatusEditor({
               gap: 8,
               paddingHorizontal: 10,
               height: 34,
-              borderRadius: 4,
+              borderRadius: 0,
               borderWidth: isActive ? 1.5 : 1,
               borderColor: isActive ? color : colors.border,
-              backgroundColor: isActive ? '#000' : colors.background1,
+              backgroundColor: isActive ? colors.surfaceVariant : colors.background1,
             }}
           >
             <Icon size={14} color={isActive ? color : colors.tertiary} strokeWidth={2.5} />
@@ -574,9 +574,9 @@ function DateEditor({
           style={{
             flex: 1,
             backgroundColor: colors.background1,
-            borderRadius: 6,
-            borderWidth: 1,
-            borderColor: error ? '#EF4444' : colors.border,
+            borderRadius: 0,
+            borderWidth: 2,
+            borderColor: error ? 'colors.error' : colors.border,
             paddingHorizontal: 10,
             height: 36,
             fontSize: 13,
@@ -594,8 +594,8 @@ function DateEditor({
               height: 36,
               alignItems: 'center',
               justifyContent: 'center',
-              borderRadius: 6,
-              borderWidth: 1,
+              borderRadius: 0,
+              borderWidth: 2,
               borderColor: colors.border,
             }}
           >
@@ -603,7 +603,7 @@ function DateEditor({
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={{ fontSize: 11, color: '#EF4444' }}>{error}</Text>}
+      {error && <Text style={{ fontSize: 11, color: 'colors.error' }}>{error}</Text>}
 
       {/* Row 2: inline mini-calendar */}
       <MiniCalendar
@@ -642,8 +642,8 @@ function MiniCalendar({
     <View
       style={{
         backgroundColor: colors.background1,
-        borderRadius: 6,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: colors.border,
         padding: 8,
       }}
@@ -709,12 +709,12 @@ function MiniCalendar({
                   flex: 1,
                   height: 28,
                   margin: 1,
-                  borderRadius: 4,
+                  borderRadius: 0,
                   alignItems: 'center',
                   justifyContent: 'center',
-                  backgroundColor: isSel ? '#60A5FA' : 'transparent',
+                  backgroundColor: isSel ? 'colors.accent' : 'transparent',
                   borderWidth: isTd && !isSel ? 1 : 0,
-                  borderColor: '#60A5FA',
+                  borderColor: 'colors.accent',
                 }}
               >
                 <Text

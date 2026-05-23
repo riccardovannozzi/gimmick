@@ -636,17 +636,7 @@ export default function HistoryScreen() {
         selected={selectedStatusIds}
         getId={(s) => s.id}
         getLabel={(s) => s.name}
-        leading={() => (
-          <View
-            style={{
-              width: 14,
-              height: 14,
-              borderWidth: 2,
-              borderColor: theme.border,
-              backgroundColor: theme.ink2,
-            }}
-          />
-        )}
+        leading={(s) => <StatusShapeBadge shape={s.shape} theme={theme} />}
         onChange={setSelectedStatusIds}
         onClose={() => setStatusFilterOpen(false)}
       />
@@ -727,6 +717,45 @@ function TypeIconBadge({ icon, color, theme }: { icon: string; color?: string; t
       }}
     >
       <Comp size={12} color={readableOn(bg)} />
+    </View>
+  );
+}
+
+// ============ Status shape badge ============
+// Mini renderer Pixel per il `shape` di una StatusEntity. Quadrato 22×22
+// border 2px ink con un glyph unicode dentro che corrisponde alla forma.
+
+const STATUS_SHAPE_GLYPH: Record<string, string> = {
+  circle:    '●',
+  ring:      '○',
+  square:    '■',
+  triangle:  '▲',
+  diamond:   '◆',
+  star:      '★',
+  check:     '✓',
+  x:         '✕',
+  dot:       '•',
+  solid:     '■',
+  empty:     '·',
+};
+
+function StatusShapeBadge({ shape, theme }: { shape: string; theme: PixelTheme }) {
+  const glyph = STATUS_SHAPE_GLYPH[shape?.toLowerCase()] ?? '■';
+  return (
+    <View
+      style={{
+        width: 22,
+        height: 22,
+        borderWidth: 2,
+        borderColor: theme.border,
+        backgroundColor: theme.surface,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink }}>
+        {glyph}
+      </Text>
     </View>
   );
 }

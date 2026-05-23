@@ -474,3 +474,22 @@
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
   50%      { opacity: 0.85; box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
 }
+
+/* Mascot sprite animations — see /MASCOT.md "Animations" section.
+   Pulse = 4-step vertical bob, energetic.
+   Bob   = soft ease-in-out, floaty.
+   Wobble= ±2° rotation, sleepy / chill. */
+@keyframes mascot-pulse {
+  0%, 100% { transform: translateY(0); }
+  25%      { transform: translateY(-1px); }
+  50%      { transform: translateY(-3px); }
+  75%      { transform: translateY(-1px); }
+}
+@keyframes mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-3px); }
+}
+@keyframes mascot-wobble {
+  0%, 100% { transform: rotate(-1deg); }
+  50%      { transform: rotate(2deg); }
+}
