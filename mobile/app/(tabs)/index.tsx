@@ -16,6 +16,7 @@ import {
 import { useRouter } from 'expo-router';
 import {
   IconX,
+  IconSend,
   IconCamera,
   IconVideo,
   IconPhoto,
@@ -464,21 +465,31 @@ export default function HomeScreen() {
                 theme={theme}
                 big
                 full
-                bg={bufferCount > 0 ? theme.accent : theme.ink}
+                bg={bufferCount > 0 ? theme.semantic.success : theme.ink}
                 color={bufferCount > 0 ? theme.onAccent : theme.bg1}
-                label="ASK GIMMICK"
+                label={
+                  bufferCount > 0
+                    ? `SEND TO GIMMICK (${bufferCount})`
+                    : 'ASK GIMMICK'
+                }
                 leading={
-                  <Text
-                    style={{
-                      fontFamily: theme.fontHead,
-                      fontSize: 12,
-                      color: (bufferCount > 0
-                        ? theme.onAccent
-                        : theme.bg1) as string,
-                    }}
-                  >
-                    ▶
-                  </Text>
+                  bufferCount > 0 ? (
+                    <IconSend
+                      size={18}
+                      color={theme.onAccent as string}
+                      strokeWidth={2.4}
+                    />
+                  ) : (
+                    <Text
+                      style={{
+                        fontFamily: theme.fontHead,
+                        fontSize: 12,
+                        color: theme.bg1 as string,
+                      }}
+                    >
+                      ▶
+                    </Text>
+                  )
                 }
                 onPress={bufferCount > 0 ? handleSend : toggleChatMode}
                 style={

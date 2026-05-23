@@ -27,7 +27,7 @@ export default {
     android: {
       adaptiveIcon: {
         foregroundImage: IS_DEV ? "./assets/adaptive-icon-dev.png" : "./assets/adaptive-icon.png",
-        backgroundColor: IS_DEV ? "#FF8C00" : "#1E1E1E"
+        backgroundColor: IS_DEV ? "#ffffff" : "#1E1E1E"
       },
       package: IS_DEV ? "com.gimmick.dev" : "com.gimmick.app",
       permissions: [
