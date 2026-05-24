@@ -8,8 +8,11 @@ interface AuthState {
   isInitialized: boolean;
 
   initialize: () => Promise<void>;
-  signIn: (email: string, password: string) => Promise<{ error?: string }>;
-  signUp: (email: string, password: string) => Promise<{ error?: string }>;
+  signIn: (email: string, password: string) => Promise<{ error?: string; code?: string }>;
+  signUp: (
+    email: string,
+    password: string,
+  ) => Promise<{ error?: string; requiresEmailVerification?: boolean }>;
   signOut: () => Promise<void>;
 }
 
@@ -47,7 +50,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       if (!result.success || !result.data) {
         set({ isLoading: false });
-        return { error: result.error || 'Login fallito' };
+        return { error: result.error || 'Login fallito', code: result.code };
       }
 
       set({ user: result.data.user, isLoading: false });
@@ -64,20 +67,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const result = await authApi.signUp(email, password);
 
-      if (!result.success) {
+      if (!result.success || !result.data) {
         set({ isLoading: false });
         return { error: result.error || 'Registrazione fallita' };
       }
 
-      // Auto-login dopo registrazione
-      const loginResult = await authApi.signIn(email, password);
-      if (loginResult.success && loginResult.data) {
-        set({ user: loginResult.data.user, isLoading: false });
-        return {};
+      // Con email verification attiva (production), Supabase non ritorna una
+      // session: l'utente deve cliccare il link nell'email. Il backend ci
+      // segnala questo via `requiresEmailVerification`. Se invece la session
+      // arriva subito (dev / auto-confirm), facciamo set diretto del user.
+      if (result.data.requiresEmailVerification) {
+        set({ isLoading: false });
+        return { requiresEmailVerification: true };
       }
 
-      set({ isLoading: false });
-      return {};
+      set({ user: result.data.user, isLoading: false });
+      return { requiresEmailVerification: false };
     } catch (error) {
       set({ isLoading: false });
       return { error: 'Errore durante la registrazione' };

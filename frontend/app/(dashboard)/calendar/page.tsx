@@ -14,6 +14,7 @@ import { IconLoader2, IconPlus, IconX, IconTrash, IconChecklist, IconNote, IconC
 import * as TablerIcons from '@tabler/icons-react';
 import { Button } from '@/components/ui/button';
 import { usePixelTheme } from '@/components/pixel';
+import { pixelToolbarBtn, pixelSegmentedBtn, pixelSegmentedContainer } from '@/lib/pixel-toolbar';
 import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -1525,7 +1526,7 @@ export default function CalendarPage() {
       {/* Column header */}
       <div
         style={{
-          height: 32,
+          height: 38,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -1558,41 +1559,19 @@ export default function CalendarPage() {
         >
           {viewMode === 'week' ? formatWeekRange(days) : formatMonthLabel(currentMonth)}
         </span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 'auto' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
           {/* View switcher */}
-          <div style={{ display: 'flex', alignItems: 'center', marginRight: 4, background: theme.bg2, border: `2px solid ${theme.border}`, padding: 2 }}>
+          <div style={{ ...pixelSegmentedContainer(theme), marginRight: 4 }}>
             <button
               onClick={() => changeViewMode('week')}
-              style={{
-                padding: '0 8px',
-                height: 18,
-                background: viewMode === 'week' ? theme.accent : 'transparent',
-                color: viewMode === 'week' ? theme.onAccent : theme.ink2,
-                border: 'none',
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 9,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
+              style={pixelSegmentedBtn(theme, viewMode === 'week')}
               title="Vista settimanale"
             >
               WEEK
             </button>
             <button
               onClick={() => changeViewMode('month')}
-              style={{
-                padding: '0 8px',
-                height: 18,
-                background: viewMode === 'month' ? theme.accent : 'transparent',
-                color: viewMode === 'month' ? theme.onAccent : theme.ink2,
-                border: 'none',
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 9,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                cursor: 'pointer',
-              }}
+              style={pixelSegmentedBtn(theme, viewMode === 'month')}
               title="Vista mensile"
             >
               MONTH
@@ -1607,18 +1586,7 @@ export default function CalendarPage() {
           </button>
           <button
             onClick={() => { setWeekOffset(0); setMonthOffset(0); }}
-            style={{
-              padding: '0 8px',
-              height: 22,
-              background: theme.bg2,
-              color: theme.ink2,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
+            style={pixelToolbarBtn(theme, false)}
           >
             Oggi
           </button>

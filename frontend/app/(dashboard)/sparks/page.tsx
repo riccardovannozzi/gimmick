@@ -12,6 +12,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { usePixelTheme, PixelCard, PixelBadge } from '@/components/pixel';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import { useFilterStore } from '@/store/filter-store';
 import { sparksApi } from '@/lib/api';
 import { SparkViewer } from '@/components/spark/spark-viewer';
@@ -136,24 +137,7 @@ export default function SparksPage() {
         <div className="flex items-center justify-between gap-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button
-                className="px-press"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  height: 32,
-                  padding: '0 12px',
-                  background: theme.surfaceVariant,
-                  color: theme.ink,
-                  border: `2px solid ${theme.border}`,
-                  fontFamily: 'var(--font-pixel-head)',
-                  fontSize: 9,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
-              >
+              <button className="px-press" style={pixelToolbarBtn(theme, !!typeFilter)}>
                 <IconFilter size={13} />
                 {typeFilter ? (TYPE_LABELS[typeFilter] ?? typeFilter) : 'Tutti i tipi'}
               </button>

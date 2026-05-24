@@ -15,8 +15,28 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { typeIconsApi, type TypeIconEntity } from '@/lib/api';
 import { usePixelTheme } from '@/components/pixel';
-import { hexWithAlpha } from '@/constants/pixel-theme';
 import type { Tile } from '@/types';
+
+// Pre-blend `overlay` over `base` with `alpha`. Restituisce un hex OPACO con la
+// stessa tinta visiva di un overlay rgba(... , alpha): così le linee dell'ora
+// non traspaiono attraverso il bg del tile.
+function mixHex(base: string, overlay: string, alpha: number): string {
+  const parse = (hex: string) => {
+    const h = hex.replace('#', '');
+    return [
+      parseInt(h.slice(0, 2), 16),
+      parseInt(h.slice(2, 4), 16),
+      parseInt(h.slice(4, 6), 16),
+    ];
+  };
+  const [r1, g1, b1] = parse(base);
+  const [r2, g2, b2] = parse(overlay);
+  const r = Math.round(r1 * (1 - alpha) + r2 * alpha);
+  const g = Math.round(g1 * (1 - alpha) + g2 * alpha);
+  const b = Math.round(b1 * (1 - alpha) + b2 * alpha);
+  const to2 = (n: number) => n.toString(16).padStart(2, '0');
+  return `#${to2(r)}${to2(g)}${to2(b)}`;
+}
 
 export interface TileColors {
   /** Background fill — type-icon color at 30% alpha, or theme.surface fallback. */
@@ -69,9 +89,10 @@ export function useTileColors() {
     const isDeadline = tile.action_type === 'deadline';
 
     if (baseColor) {
-      // Tile with type-icon: tinted bg (30% alpha), ink readable on light.
+      // Tile with type-icon: tinted bg (30% del colore mixato sopra bg1) —
+      // opaco per evitare che le linee dell'ora si vedano in trasparenza.
       return {
-        bg: hexWithAlpha(baseColor, 0.3),
+        bg: mixHex(theme.bg1, baseColor, 0.3),
         border: isDeadline ? theme.semantic.danger : theme.border,
         deadlineBorder: isDeadline,
         fg: theme.ink,

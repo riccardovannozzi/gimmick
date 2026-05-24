@@ -17,6 +17,7 @@ import {
   IconRoute,
   IconCalendarTime,
   IconSettings,
+  IconArrowLeft,
 } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { usePixelTheme } from '@/components/pixel';
@@ -40,6 +41,7 @@ export function TopNav({ activePath }: TopNavProps) {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const router = useRouter();
+  const canGoBack = router.canGoBack();
 
   return (
     <View style={{ backgroundColor: theme.bg1, borderBottomWidth: 2, borderBottomColor: theme.border }}>
@@ -57,6 +59,20 @@ export function TopNav({ activePath }: TopNavProps) {
           gap: 10,
         }}
       >
+        {/* Back button — sempre prima icona della nav. Disabilitata (opacity)
+           quando non c'è cronologia di navigazione. */}
+        <Pressable
+          onPress={() => { if (canGoBack) router.back(); }}
+          android_ripple={null}
+          hitSlop={8}
+          disabled={!canGoBack}
+          style={({ pressed }) => ({
+            padding: 8,
+            opacity: !canGoBack ? 0.3 : pressed ? 0.6 : 1,
+          })}
+        >
+          <IconArrowLeft size={28} color={theme.ink} strokeWidth={2} />
+        </Pressable>
         {TABS.map((tab) => {
           const matchPath = activePath ?? pathname;
           const isActive =
@@ -68,12 +84,13 @@ export function TopNav({ activePath }: TopNavProps) {
                 key={tab.name}
                 onPress={() => router.replace(tab.path as any)}
                 android_ripple={null}
+                hitSlop={8}
                 style={({ pressed }) => ({
-                  padding: 4,
+                  padding: 8,
                   opacity: pressed ? 0.6 : 1,
                 })}
               >
-                <Icon size={22} color={theme.ink} strokeWidth={2} />
+                <Icon size={28} color={theme.ink} strokeWidth={2} />
               </Pressable>
             );
           }
@@ -110,21 +127,21 @@ export function TopNav({ activePath }: TopNavProps) {
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
-                    height: 28,
-                    paddingHorizontal: 10,
-                    gap: 6,
+                    height: 36,
+                    paddingHorizontal: 12,
+                    gap: 8,
                     backgroundColor: theme.accent,
                     borderWidth: 2,
                     borderColor: theme.border,
                   }}
                 >
-                  <Icon size={12} color={theme.onAccent as string} strokeWidth={2.4} />
+                  <Icon size={16} color={theme.onAccent as string} strokeWidth={2.4} />
                   <Text
                     numberOfLines={1}
                     style={{
                       fontFamily: theme.fontHead,
-                      fontSize: 9,
-                      lineHeight: 12,
+                      fontSize: 11,
+                      lineHeight: 14,
                       color: theme.onAccent as string,
                       letterSpacing: 1,
                     }}

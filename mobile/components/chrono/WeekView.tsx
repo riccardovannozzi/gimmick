@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   addDays,
   isSameDay,
@@ -55,6 +56,7 @@ export function WeekView({
   onSelectDay,
 }: Props) {
   const theme = usePixelTheme();
+  const insets = useSafeAreaInsets();
   const colors = {
     border: theme.border,
     tertiary: theme.ink2,
@@ -294,14 +296,16 @@ export function WeekView({
   );
 
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
-      {needsHScroll ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {Content}
-        </ScrollView>
-      ) : (
-        Content
-      )}
-    </ScrollView>
+    <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }}>
+        {needsHScroll ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {Content}
+          </ScrollView>
+        ) : (
+          Content
+        )}
+      </ScrollView>
+    </View>
   );
 }

@@ -36,6 +36,13 @@ export default function LoginPage() {
     const result = await signIn(data.email, data.password);
 
     if (result.error) {
+      // Email non confermata → manda alla pagina di verifica così l'utente
+      // può cliccare "Reinvia" senza tornare al register.
+      if (result.code === 'EMAIL_NOT_CONFIRMED') {
+        toast.error('Email non confermata');
+        router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
+        return;
+      }
       setError(result.error);
       toast.error(result.error);
     } else {
@@ -121,7 +128,22 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label htmlFor="password" style={labelStyle}>Password</label>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+              <label htmlFor="password" style={labelStyle}>Password</label>
+              <Link
+                href="/forgot-password"
+                style={{
+                  fontFamily: 'var(--font-pixel-head)',
+                  fontSize: 8,
+                  letterSpacing: '0.08em',
+                  textTransform: 'uppercase',
+                  color: theme.accent,
+                  textDecoration: 'underline',
+                }}
+              >
+                Dimenticata?
+              </Link>
+            </div>
             <input
               id="password"
               type="password"

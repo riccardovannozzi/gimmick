@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2, IconUsersGroup } from '@tabler/icons-react';
+import { IconUser, IconBell, IconShield, IconPalette, IconLogout, IconBrush, IconMoodSmile, IconDeviceGamepad2, IconUsersGroup, IconAlertTriangle, IconTrash } from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme, PixelToggle } from '@/components/pixel';
 import { PixelArcadeModal } from '@/components/pixel/PixelArcadeModal';
@@ -12,6 +12,8 @@ import { ActionsModal } from '@/components/actions/actions-modal';
 import { StatusesModal } from '@/components/statuses/statuses-modal';
 import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
 import { CardRosterModal } from '@/components/cards/card-roster-modal';
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { authApi } from '@/lib/api';
 
 type IconComp = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
@@ -163,6 +165,7 @@ export default function SettingsPage() {
   const [typeIconsOpen, setTypeIconsOpen] = useState(false);
   const [pixelArcadeOpen, setPixelArcadeOpen] = useState(false);
   const [cardRosterOpen, setCardRosterOpen] = useState(false);
+  const [dangerZoneOpen, setDangerZoneOpen] = useState(false);
 
   const handleLogout = async () => {
     await signOut();
@@ -281,6 +284,35 @@ export default function SettingsPage() {
               Logout
             </button>
           </PixelSection>
+
+          {/* Danger Zone — irreversible actions */}
+          <PixelSection icon={IconAlertTriangle} title="Danger Zone" description="Azioni permanenti e irreversibili">
+            <button
+              onClick={() => setDangerZoneOpen(true)}
+              className="px-press"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 6,
+                width: '100%',
+                height: 32,
+                padding: '0 12px',
+                background: '#E24B4A',
+                color: '#FFFFFF',
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              }}
+            >
+              <IconTrash size={14} />
+              Elimina account
+            </button>
+          </PixelSection>
         </div>
       </div>
 
@@ -290,6 +322,185 @@ export default function SettingsPage() {
       <TypeIconsModal open={typeIconsOpen} onOpenChange={setTypeIconsOpen} />
       <PixelArcadeModal open={pixelArcadeOpen} onOpenChange={setPixelArcadeOpen} />
       <CardRosterModal open={cardRosterOpen} onOpenChange={setCardRosterOpen} />
+      <DangerZoneDialog open={dangerZoneOpen} onOpenChange={setDangerZoneOpen} />
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Danger zone — eliminazione account permanente
+// ──────────────────────────────────────────────────────────────────────────
+function DangerZoneDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const theme = usePixelTheme();
+  const router = useRouter();
+  const signOut = useAuthStore((s) => s.signOut);
+  const [password, setPassword] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset stato ogni volta che la modale viene chiusa.
+  const reset = () => { setPassword(''); setConfirmed(false); setError(null); };
+
+  const handleDelete = async () => {
+    if (!password || !confirmed) return;
+    setSubmitting(true);
+    setError(null);
+    const res = await authApi.deleteAccount(password);
+    setSubmitting(false);
+    if (!res.success) {
+      setError(res.error || 'Eliminazione fallita');
+      toast.error(res.error || 'Eliminazione fallita');
+      return;
+    }
+    toast.success('Account eliminato');
+    // Cleanup locale del client store: i token sono già stati svuotati da
+    // authApi.deleteAccount, ma signOut chiama anche la stessa cleanup e
+    // l'API /signout (che ora fallirà perché user è già eliminato) — la
+    // skippiamo facendo solo un router.replace.
+    await signOut().catch(() => null);
+    onOpenChange(false);
+    router.replace('/login');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) reset(); onOpenChange(v); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="!gap-0 !p-0 !rounded-none"
+        style={{
+          maxWidth: 420,
+          background: theme.surface,
+          border: `2px solid ${theme.border}`,
+          borderRadius: 0,
+          color: theme.ink,
+          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          padding: 0,
+          gap: 0,
+          display: 'block',
+        }}
+      >
+        <DialogTitle className="sr-only">Elimina account</DialogTitle>
+        <DialogDescription className="sr-only">Conferma eliminazione permanente dell&apos;account</DialogDescription>
+
+        <div style={{ padding: '12px 14px', background: '#E24B4A', borderBottom: `2px solid ${theme.border}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <IconAlertTriangle size={16} style={{ color: '#FFFFFF', flexShrink: 0 }} />
+            <h2 style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 11,
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              color: '#FFFFFF',
+              margin: 0,
+            }}>
+              Elimina account
+            </h2>
+          </div>
+          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: '#FFFFFF', margin: '6px 0 0', lineHeight: 1.5 }}>
+            Tutti i tuoi tile, spark, tag, flow e impostazioni verranno eliminati
+            permanentemente. Questa azione è irreversibile.
+          </p>
+        </div>
+
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{
+              fontFamily: 'var(--font-pixel-head)',
+              fontSize: 9,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink3,
+              display: 'block',
+              marginBottom: 4,
+            }}>
+              Conferma con la tua password
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                width: '100%',
+                background: theme.surfaceVariant,
+                border: `2px solid ${theme.border}`,
+                padding: '8px 10px',
+                color: theme.ink,
+                fontFamily: 'var(--font-pixel-body)',
+                fontSize: 12,
+                outline: 'none',
+              }}
+            />
+          </div>
+
+          <label style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 8,
+            cursor: 'pointer',
+            fontFamily: 'var(--font-pixel-body)',
+            fontSize: 12,
+            color: theme.ink2,
+            lineHeight: 1.5,
+          }}>
+            <input
+              type="checkbox"
+              checked={confirmed}
+              onChange={(e) => setConfirmed(e.target.checked)}
+              style={{ accentColor: '#E24B4A', marginTop: 2, flexShrink: 0 }}
+            />
+            <span>Capisco che <strong>l&apos;eliminazione è irreversibile</strong> e che perderò tutti i miei dati.</span>
+          </label>
+
+          {error && (
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: '#E24B4A', margin: 0 }}>
+              {error}
+            </p>
+          )}
+
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              style={{
+                padding: '8px 12px',
+                background: theme.surfaceVariant,
+                color: theme.ink2,
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: 'pointer',
+              }}
+            >
+              Annulla
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={!password || !confirmed || submitting}
+              className="px-press"
+              style={{
+                padding: '8px 12px',
+                background: '#E24B4A',
+                color: '#FFFFFF',
+                border: `2px solid ${theme.border}`,
+                fontFamily: 'var(--font-pixel-head)',
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                cursor: !password || !confirmed || submitting ? 'not-allowed' : 'pointer',
+                opacity: !password || !confirmed || submitting ? 0.5 : 1,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+              }}
+            >
+              {submitting ? 'Eliminazione…' : 'Conferma eliminazione'}
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

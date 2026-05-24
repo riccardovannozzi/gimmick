@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
   IconX,
@@ -187,7 +187,14 @@ function TagSidebarGroup({
                   display: 'flex',
                   alignItems: 'center',
                   height: 30,
-                  background: isSelected ? theme.surfaceVariant : 'transparent',
+                  // Tag selezionato: "slot scuro" della palette in entrambi i
+                  // mode (theme.ink nel light, theme.surface nel dark), così
+                  // resta scuro+pop ovunque. Hardcodare theme.ink darebbe in
+                  // dark mode bianco/giallo/rosa bright bg = collide col TYPE
+                  // chip pastel.
+                  background: isSelected
+                    ? (theme.mode === 'dark' ? theme.surface : theme.ink)
+                    : 'transparent',
                   border: `2px solid ${isSelected ? theme.border : 'transparent'}`,
                   opacity: dragIdx === idx ? 0.4 : 1,
                 }}
@@ -225,7 +232,11 @@ function TagSidebarGroup({
                     minWidth: 0,
                     fontFamily: 'var(--font-pixel-body)',
                     fontSize: 12,
-                    color: isSelected ? theme.ink : theme.ink2,
+                    // Inversione mode-aware: su bg "slot scuro" usiamo lo
+                    // "slot chiaro" del mode (vedi pixel-toolbar.ts).
+                    color: isSelected
+                      ? (theme.mode === 'dark' ? theme.ink : theme.surface)
+                      : theme.ink2,
                     fontWeight: isSelected ? 600 : 400,
                     background: 'transparent',
                     border: 'none',
@@ -269,8 +280,23 @@ export function Sidebar() {
   const theme = usePixelTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { selectedTagIds, toggle, clear } = useTagFilterStore();
+  const searchParams = useSearchParams();
+  const { selectedTagIds: filterTagIds, toggle, clear } = useTagFilterStore();
   const { tagTypes, getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
+
+  // Su /canvas e /graph la tag "corrente" sta nella query string (?tag=ID),
+  // non nel filter store (il click su un tag su queste pagine navighi via
+  // router invece di toggleare il filtro). Per far apparire il pulsante
+  // selezionato nella sidebar in modo coerente con quello che la pagina sta
+  // mostrando, faccio l'union del filter store + l'eventuale ?tag= URL.
+  const selectedTagIds = useMemo(() => {
+    const isRouteWithUrlTag = pathname === '/canvas' || pathname === '/graph';
+    if (!isRouteWithUrlTag) return filterTagIds;
+    const urlTag = searchParams?.get('tag');
+    if (!urlTag) return filterTagIds;
+    if (filterTagIds.has(urlTag)) return filterTagIds;
+    return new Set([...filterTagIds, urlTag]);
+  }, [filterTagIds, pathname, searchParams]);
 
   // ─── New tiles notification ───
   const { lastSeen, readIds, dismissAll } = useTileNotificationStore();
@@ -296,7 +322,10 @@ export function Sidebar() {
     ).length;
   }, [tilesData, lastSeen, readIds]);
 
-  const hasFilter = selectedTagIds.size > 0;
+  // "Pulisci filtro" agisce solo sul filter store: il ?tag= URL viene gestito
+  // dalla pagina (canvas/graph), non dalla sidebar, quindi `hasFilter` riflette
+  // solo lo stato vero dello store, non l'union con URL.
+  const hasFilter = filterTagIds.size > 0;
 
   // ─── Pin state (DB-backed) ───
   const pinnedIds = useMemo(() => new Set(tags.filter((t) => t.is_pinned).map((t) => t.id)), [tags]);

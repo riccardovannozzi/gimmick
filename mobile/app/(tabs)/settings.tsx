@@ -5,9 +5,6 @@ import {
   IconChevronRight,
   IconLogout,
   IconCheck,
-  IconSun,
-  IconMoon,
-  IconDeviceMobile,
   IconUser,
 } from '@tabler/icons-react-native';
 import { useSettingsStore, useAuthStore } from '@/store';
@@ -364,21 +361,11 @@ export default function SettingsScreen() {
     setUploadOnWifiOnly,
     aiModel,
     setAiModel,
-    theme: themeMode,
-    setTheme,
   } = useSettingsStore();
 
   const { user, signOut } = useAuthStore();
   const router = useRouter();
   const [modelPickerOpen, setModelPickerOpen] = useState(false);
-  const [themePickerOpen, setThemePickerOpen] = useState(false);
-
-  const themeOptions = [
-    { id: 'light' as const, label: 'LIGHT', description: 'Light theme', icon: IconSun },
-    { id: 'dark' as const, label: 'DARK', description: 'Dark theme', icon: IconMoon },
-    { id: 'system' as const, label: 'SYSTEM', description: 'Match device setting', icon: IconDeviceMobile },
-  ];
-  const currentTheme = themeOptions.find((t) => t.id === themeMode) || themeOptions[1];
 
   const aiModels = [
     { id: 'claude-haiku-4-5-20251001', label: 'CLAUDE HAIKU', description: 'Fast & economical' },
@@ -506,13 +493,6 @@ export default function SettingsScreen() {
         {/* General section */}
         <PixelSection title="GENERAL">
           <PixelRow
-            label="Theme"
-            description={currentTheme.label}
-            onPress={() => setThemePickerOpen(true)}
-            showArrow
-          />
-          <PixelRow
-            divider
             label="Haptic feedback"
             value={hapticFeedback}
             onValueChange={setHapticFeedback}
@@ -650,88 +630,6 @@ export default function SettingsScreen() {
         </View>
       </PixelModal>
 
-      {/* Theme Picker Modal — Pixel */}
-      <PixelModal
-        theme={theme}
-        visible={themePickerOpen}
-        onClose={() => setThemePickerOpen(false)}
-        title="THEME"
-      >
-        <View style={{ gap: 6 }}>
-          {themeOptions.map((option) => {
-            const Icon = option.icon;
-            const isSel = themeMode === option.id;
-            return (
-              <Pressable
-                key={option.id}
-                onPress={() => {
-                  setTheme(option.id);
-                  setThemePickerOpen(false);
-                }}
-                style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-              >
-                <View
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingHorizontal: 12,
-                    paddingVertical: 12,
-                    borderWidth: 2,
-                    borderColor: theme.border,
-                    backgroundColor: isSel ? theme.accent : theme.surface,
-                    gap: 12,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36, height: 36,
-                      borderWidth: 2, borderColor: theme.border,
-                      backgroundColor: isSel ? theme.surface : theme.bg2,
-                      alignItems: 'center', justifyContent: 'center',
-                    }}
-                  >
-                    <Icon
-                      size={18}
-                      color={isSel ? theme.ink : theme.ink2}
-                      strokeWidth={2}
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={{
-                        fontFamily: theme.fontHead,
-                        fontSize: 10,
-                        color: isSel ? (theme.onAccent as string) : theme.ink,
-                        letterSpacing: 1,
-                      }}
-                    >
-                      {option.label}
-                    </Text>
-                    <Text
-                      style={{
-                        fontFamily: theme.fontBody,
-                        fontSize: 12,
-                        color: isSel ? (theme.onAccent as string) : theme.ink2,
-                        marginTop: 4,
-                        opacity: isSel ? 0.85 : 1,
-                      }}
-                    >
-                      {option.description}
-                    </Text>
-                  </View>
-                  {isSel && (
-                    <IconCheck
-                      size={18}
-                      color={theme.onAccent as string}
-                      strokeWidth={2.6}
-                    />
-                  )}
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      </PixelModal>
     </View>
   );
 }

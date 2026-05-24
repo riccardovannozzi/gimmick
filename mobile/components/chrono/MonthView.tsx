@@ -7,6 +7,7 @@
  */
 import React, { useMemo } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   isSameDay,
   isToday,
@@ -28,6 +29,7 @@ const MAX_DOTS = 3;
 
 export function MonthView({ monthAnchor, events, isLoading, onSelectDay }: Props) {
   const theme = usePixelTheme();
+  const insets = useSafeAreaInsets();
   const colors = {
     border: theme.border,
     tertiary: theme.ink2,
@@ -73,7 +75,7 @@ export function MonthView({ monthAnchor, events, isLoading, onSelectDay }: Props
   for (let r = 0; r < 6; r++) rows.push(days.slice(r * 7, r * 7 + 7));
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingBottom: insets.bottom }}>
       {/* Weekday labels row */}
       <View
         style={{

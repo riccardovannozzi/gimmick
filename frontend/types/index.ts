@@ -69,6 +69,9 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
+  /** Domain-specific error code (e.g. 'EMAIL_NOT_CONFIRMED'). Set by some
+   *  auth endpoints to let the UI branch on the cause. */
+  code?: string;
 }
 
 // Paginated Response

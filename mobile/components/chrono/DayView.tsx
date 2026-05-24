@@ -13,6 +13,7 @@
  */
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, ActivityIndicator } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isSameDay, isToday, minutesFromMidnight } from '@/lib/chrono-utils';
 import { usePixelTheme } from '@/components/pixel';
 import { useTileColors } from '@/hooks/useTileColors';
@@ -38,6 +39,7 @@ export const GUTTER_WIDTH = 48;
 
 export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Props) {
   const theme = usePixelTheme();
+  const insets = useSafeAreaInsets();
   // Mappa minimo dei colori legacy ai token Pixel così la firma di EventBlock /
   // AllDayChip (che ancora aspettano `colors.border/tertiary/...`) non rompe.
   const colors = {
@@ -117,10 +119,16 @@ export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Pr
   }
 
   return (
-    <ScrollView
+    <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+      <ScrollView
       ref={scrollRef}
       style={{ flex: 1 }}
-      contentContainerStyle={{ minHeight: bodyHeight + 24 }}
+      contentContainerStyle={{
+        minHeight: bodyHeight + 24,
+        // Bordo destro così le tile non finiscono attaccate al bordo schermo
+        paddingRight: 12,
+        paddingBottom: 16,
+      }}
       onLayout={(e) => {
         // viewport height of the ScrollView itself — used to centre the
         // now indicator on first paint.
@@ -269,5 +277,6 @@ export function DayView({ day, events, isLoading, onOpenTile, onReschedule }: Pr
         </View>
       </View>
     </ScrollView>
+    </View>
   );
 }

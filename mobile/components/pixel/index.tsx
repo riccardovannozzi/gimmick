@@ -497,7 +497,7 @@ export function Segmented<T extends string>({
   return (
     <View style={{
       flexDirection: 'row',
-      padding: 2,
+      padding: 3,
       backgroundColor: theme.bg1,
       borderWidth: 2, borderColor: theme.border,
     }}>
@@ -509,17 +509,22 @@ export function Segmented<T extends string>({
             onPress={() => onChange(o.id)}
             style={{
               flex: 1,
-              paddingHorizontal: small ? 4 : 8,
-              paddingVertical: small ? 5 : 6,
+              paddingHorizontal: small ? 6 : 12,
+              paddingVertical: small ? 9 : 12,
               backgroundColor: active ? theme.accent : 'transparent',
             }}
           >
-            <Text style={{
-              fontFamily: theme.fontHead,
-              fontSize: small ? 7 : 8,
-              color: active ? theme.onAccent : theme.ink2,
-              textAlign: 'center', letterSpacing: 1,
-            }}>{o.label}</Text>
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.8}
+              style={{
+                fontFamily: theme.fontHead,
+                fontSize: small ? 9 : 11,
+                color: active ? theme.onAccent : theme.ink2,
+                textAlign: 'center', letterSpacing: 1,
+              }}
+            >{o.label}</Text>
           </Pressable>
         );
       })}
@@ -538,32 +543,34 @@ export function ChipGrid<T extends string>({
   swatched?: boolean;
 }) {
   return (
-    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>
+    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
       {options.map((o) => {
         const active = o.id === value;
         return (
           <Pressable
             key={o.id}
             onPress={() => onChange(o.id)}
+            hitSlop={4}
             style={{
-              flexDirection: 'row', alignItems: 'center', gap: 5,
-              paddingHorizontal: 7, paddingVertical: 5,
+              flexDirection: 'row', alignItems: 'center', gap: 8,
+              paddingHorizontal: 12, paddingVertical: 10,
+              minHeight: 38,
               backgroundColor: active ? theme.accent : theme.bg1,
               borderWidth: 2, borderColor: theme.border,
             }}
           >
             {swatched && o.sw && (
               <View style={{
-                width: 9, height: 9,
+                width: 14, height: 14,
                 backgroundColor: o.sw as string,
                 borderWidth: 1.5,
                 borderColor: active ? theme.onAccent : theme.border,
               }} />
             )}
             <Text style={{
-              fontFamily: theme.fontHead, fontSize: 7,
+              fontFamily: theme.fontHead, fontSize: 9,
               color: active ? theme.onAccent : theme.ink2,
-              letterSpacing: 0.5,
+              letterSpacing: 0.8,
             }}>{o.label}</Text>
           </Pressable>
         );
