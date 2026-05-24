@@ -664,8 +664,13 @@ export default function HomeScreen() {
                   borderBottomColor: theme.border,
                 }}
               >
-                <PixelIconButton theme={theme} onPress={handleCloseEdit} size={48}>
-                  <IconX size={22} color={theme.ink} strokeWidth={2.4} />
+                <PixelIconButton
+                  theme={theme}
+                  onPress={handleCloseEdit}
+                  size={48}
+                  bg={theme.semantic.danger}
+                >
+                  <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
                 </PixelIconButton>
 
                 <Text
@@ -684,12 +689,12 @@ export default function HomeScreen() {
                     theme={theme}
                     onPress={handleSaveEdit}
                     size={48}
-                    bg={editText.trim() ? theme.cap.text : theme.surfaceVariant}
+                    bg={editText.trim() ? theme.semantic.success : theme.surfaceVariant}
                     disabled={!editText.trim()}
                   >
                     <IconCheck
                       size={22}
-                      color={editText.trim() ? (theme.onAccent as string) : theme.ink3}
+                      color={editText.trim() ? '#FFFFFF' : theme.ink3}
                       strokeWidth={2.4}
                     />
                   </PixelIconButton>
@@ -775,12 +780,13 @@ export default function HomeScreen() {
                   <Text
                     style={{
                       color: theme.ink2,
-                      fontFamily: theme.fontBody,
-                      fontSize: 12,
+                      fontFamily: theme.fontHead,
+                      fontSize: 9,
+                      letterSpacing: 1,
                       textAlign: 'right',
                     }}
                   >
-                    {editText.length} characters
+                    {editText.length} CHARS
                   </Text>
                 </View>
               )}

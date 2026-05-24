@@ -1,21 +1,24 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { IconEye, IconEyeOff } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useAuthStore, toast } from '@/store';
-import { useThemeColors } from '@/lib/theme';
+import {
+  usePixelTheme,
+  PixelButton,
+  PixelTextInput,
+  PixelWordmark,
+} from '@/components/pixel';
 
 export default function LoginScreen() {
-  const colors = useThemeColors();
+  const theme = usePixelTheme();
   const router = useRouter();
   const { signIn, signUp, isLoading } = useAuthStore();
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const handleSubmit = async () => {
     if (!email || !password) {
@@ -51,146 +54,153 @@ export default function LoginScreen() {
     }
   };
 
-  const inputBorderColor = (focused: boolean) =>
-    focused ? colors.accent : colors.border;
-
   return (
     <SafeAreaWrapper edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        className="flex-1"
+        style={{ flex: 1, backgroundColor: theme.bg1 }}
       >
-        <View className="flex-1 justify-center px-6">
+        <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 24 }}>
           {/* Brand */}
-          <View className="items-center mb-12">
+          <View style={{ alignItems: 'center', marginBottom: 32 }}>
+            <PixelWordmark theme={theme} size={28} />
             <Text
               style={{
-                fontSize: 36,
-                fontWeight: '700',
-                color: colors.accent,
-                letterSpacing: -0.5,
+                fontFamily: theme.fontHead,
+                fontSize: 9,
+                color: theme.ink2,
+                letterSpacing: 1.2,
+                textAlign: 'center',
+                marginTop: 12,
               }}
             >
-              Gimmick
-            </Text>
-            <Text
-              style={{
-                fontSize: 15,
-                color: colors.secondary,
-                marginTop: 8,
-              }}
-            >
-              Capture everything, anywhere
+              CAPTURE EVERYTHING, ANYWHERE
             </Text>
           </View>
 
-          {/* Email field — filled style */}
-          <View className="mb-4">
-            <View
-              style={{
-                borderRadius: 16,
-                backgroundColor: colors.background2,
-                borderWidth: emailFocused ? 1 : 0,
-                borderColor: colors.accent,
-              }}
-            >
-              <TextInput
-                value={email}
-                onChangeText={setEmail}
-                placeholder="Email"
-                placeholderTextColor={colors.tertiary}
-                keyboardType="email-address"
-                autoCapitalize="none"
-                autoCorrect={false}
-                onFocus={() => setEmailFocused(true)}
-                onBlur={() => setEmailFocused(false)}
-                style={{
-                  color: colors.primary,
-                  fontSize: 16,
-                  paddingHorizontal: 20,
-                  paddingVertical: 18,
-                }}
-              />
-            </View>
-          </View>
-
-          {/* Password field — filled style */}
-          <View className="mb-8">
-            <View
-              style={{
-                borderRadius: 16,
-                backgroundColor: colors.background2,
-                flexDirection: 'row',
-                alignItems: 'center',
-                borderWidth: passwordFocused ? 1 : 0,
-                borderColor: colors.accent,
-              }}
-            >
-              <TextInput
-                value={password}
-                onChangeText={setPassword}
-                placeholder="Password"
-                placeholderTextColor={colors.tertiary}
-                secureTextEntry={!showPassword}
-                onFocus={() => setPasswordFocused(true)}
-                onBlur={() => setPasswordFocused(false)}
-                style={{
-                  flex: 1,
-                  color: colors.primary,
-                  fontSize: 16,
-                  paddingHorizontal: 20,
-                  paddingVertical: 18,
-                }}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={{ paddingRight: 20 }}
-              >
-                {showPassword ? (
-                  <IconEyeOff size={20} color={colors.secondary} />
-                ) : (
-                  <IconEye size={20} color={colors.secondary} />
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Submit button — Phantom vivid purple */}
-          <TouchableOpacity
-            onPress={handleSubmit}
-            disabled={isLoading}
-            activeOpacity={0.8}
+          {/* Email */}
+          <Text
             style={{
-              backgroundColor: colors.fabBg,
-              paddingVertical: 16,
-              borderRadius: 16,
-              alignItems: 'center',
-              opacity: isLoading ? 0.6 : 1,
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink2,
+              letterSpacing: 1.2,
+              marginBottom: 8,
+              paddingHorizontal: 4,
             }}
           >
-            <Text
-              style={{
-                color: colors.onAccent,
-                fontSize: 16,
-                fontWeight: '600',
-              }}
+            EMAIL
+          </Text>
+          <PixelTextInput
+            theme={theme}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            keyboardType="email-address"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+
+          {/* Password */}
+          <Text
+            style={{
+              fontFamily: theme.fontHead,
+              fontSize: 9,
+              color: theme.ink2,
+              letterSpacing: 1.2,
+              marginTop: 18,
+              marginBottom: 8,
+              paddingHorizontal: 4,
+            }}
+          >
+            PASSWORD
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <PixelTextInput
+              theme={theme}
+              value={password}
+              onChangeText={setPassword}
+              placeholder="••••••••"
+              secureTextEntry={!showPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+              containerStyle={{ flex: 1 }}
+            />
+            <Pressable
+              onPress={() => setShowPassword(!showPassword)}
+              style={({ pressed }) => ({
+                width: 40,
+                height: 40,
+                marginLeft: 8,
+                borderWidth: 2,
+                borderColor: theme.border,
+                backgroundColor: theme.surface,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.8 : 1,
+              })}
             >
-              {isLoading ? 'Loading...' : isRegister ? 'Create Account' : 'Sign In'}
-            </Text>
-          </TouchableOpacity>
+              <View style={{ width: 18, height: 18 }}>
+                {showPassword ? (
+                  <IconEyeOff size={18} color={theme.ink} strokeWidth={2} />
+                ) : (
+                  <IconEye size={18} color={theme.ink} strokeWidth={2} />
+                )}
+              </View>
+            </Pressable>
+          </View>
+
+          {/* Submit */}
+          <View style={{ marginTop: 24 }}>
+            <PixelButton
+              theme={theme}
+              big
+              full
+              bg={theme.semantic.success}
+              color={theme.onAccent}
+              label={
+                isLoading
+                  ? 'LOADING…'
+                  : isRegister
+                    ? 'CREATE ACCOUNT'
+                    : 'SIGN IN'
+              }
+              onPress={isLoading ? undefined : handleSubmit}
+              style={isLoading ? { opacity: 0.5 } : undefined}
+            />
+          </View>
 
           {/* Toggle register/login */}
-          <TouchableOpacity
+          <Pressable
             onPress={() => setIsRegister(!isRegister)}
-            className="mt-6 items-center"
+            style={({ pressed }) => ({
+              alignItems: 'center',
+              marginTop: 16,
+              opacity: pressed ? 0.7 : 1,
+            })}
           >
-            <Text style={{ color: colors.secondary, fontSize: 14 }}>
+            <Text
+              style={{
+                fontFamily: theme.fontBody,
+                fontSize: 12,
+                color: theme.ink2,
+                textAlign: 'center',
+              }}
+            >
               {isRegister ? 'Already have an account? ' : "Don't have an account? "}
-              <Text style={{ color: colors.accent, fontWeight: '600' }}>
-                {isRegister ? 'Sign in' : 'Sign up'}
-              </Text>
             </Text>
-          </TouchableOpacity>
+            <Text
+              style={{
+                fontFamily: theme.fontHead,
+                fontSize: 10,
+                color: theme.accent,
+                letterSpacing: 1,
+                marginTop: 4,
+              }}
+            >
+              {isRegister ? 'SIGN IN' : 'SIGN UP'}
+            </Text>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaWrapper>
