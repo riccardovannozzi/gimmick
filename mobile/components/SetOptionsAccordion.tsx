@@ -13,6 +13,8 @@ import {
   Modal,
 } from 'react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { usePixelTheme } from '@/components/pixel';
 import {
   IconArrowUp,
   IconBolt,
@@ -46,10 +48,12 @@ const ACTION_PRIMARY: { key: ActionKey; label: string; icon?: typeof IconArrowUp
   { key: 'none', label: 'NOTES' },
   { key: 'anytime', label: 'TO DO', icon: IconArrowUp },
 ];
-const ACTION_SECONDARY: { key: ActionKey; label: string; icon: typeof IconBolt; color: string }[] = [
-  { key: 'deadline', label: 'DUE', icon: IconBolt, color: '#EF4444' },
-  { key: 'allday', label: 'ALL DAY', icon: IconCalendar, color: '#F59E0B' },
-  { key: 'timed', label: 'TIMED', icon: IconClock, color: '#3B82F6' },
+// Note: i colori 'color' qui sono semantici (rosso/giallo/blu).
+// Mappati su theme.semantic / theme.cap nei callsite tramite getActionColor.
+const ACTION_SECONDARY: { key: ActionKey; label: string; icon: typeof IconBolt; colorKey: 'danger' | 'warning' | 'info' }[] = [
+  { key: 'deadline', label: 'DUE', icon: IconBolt, colorKey: 'danger' },
+  { key: 'allday', label: 'ALL DAY', icon: IconCalendar, colorKey: 'warning' },
+  { key: 'timed', label: 'TIMED', icon: IconClock, colorKey: 'info' },
 ];
 
 const TAG_TYPE_ORDER = ['project', 'person', 'context', 'place', 'topic'] as const;
@@ -127,7 +131,22 @@ interface SetOptionsAccordionProps {
   onChange: (next: TileOptions) => void;
 }
 
-export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAccordionProps) {
+export function SetOptionsAccordion({ colors: _legacy, options, onChange }: SetOptionsAccordionProps) {
+  // Sovrascrive il `colors` legacy ricevuto come prop con un adapter
+  // derivato dal Pixel theme attivo — così l'accordion segue il design
+  // Gimmick (cream/ink) anche se il caller passa ancora un legacy colors.
+  const theme = usePixelTheme();
+  const colors = {
+    border: theme.border,
+    tertiary: theme.ink2,
+    secondary: theme.ink2,
+    primary: theme.ink,
+    accent: theme.accent,
+    onAccent: theme.onAccent,
+    background1: theme.bg1,
+    background2: theme.surface,
+    background3: theme.surfaceVariant,
+  } as const;
   const actionKey = resolveActionKey(options);
   const showDateRow = actionKey === 'deadline' || actionKey === 'allday' || actionKey === 'timed';
   const showTimeRow = actionKey === 'timed';
@@ -225,7 +244,7 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
     <View
       style={{
         backgroundColor: colors.background2,
-        borderRadius: 16,
+        borderRadius: 0,
         padding: 14,
         gap: 12,
       }}
@@ -247,11 +266,11 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                paddingVertical: 14,
-                borderRadius: 8,
-                backgroundColor: colors.background3,
-                borderWidth: 1.5,
-                borderColor: isActive ? colors.primary : 'transparent',
+                paddingVertical: 12,
+                borderRadius: 0,
+                backgroundColor: isActive ? colors.accent : colors.background2,
+                borderWidth: 2,
+                borderColor: theme.border,
               }}
             >
               {Icon && (
@@ -259,16 +278,24 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
                   style={{
                     width: 18,
                     height: 18,
-                    borderRadius: 9,
-                    backgroundColor: '#71717A',
+                    borderWidth: 2,
+                    borderColor: isActive ? '#FFFFFF' : theme.border,
+                    backgroundColor: isActive ? '#FFFFFF' : colors.tertiary,
                     alignItems: 'center',
                     justifyContent: 'center',
                   }}
                 >
-                  <Icon size={11} color="#fff" />
+                  <Icon size={11} color={isActive ? colors.accent : '#FFFFFF'} strokeWidth={2.6} />
                 </View>
               )}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.primary, letterSpacing: 0.5 }}>
+              <Text
+                style={{
+                  fontFamily: 'PressStart2P-Regular',
+                  fontSize: 9,
+                  color: isActive ? (colors.onAccent as string) : colors.primary,
+                  letterSpacing: 1,
+                }}
+              >
                 {opt.label}
               </Text>
             </TouchableOpacity>
@@ -280,6 +307,7 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
         {ACTION_SECONDARY.map((opt) => {
           const isActive = actionKey === opt.key;
           const Icon = opt.icon;
+          const semColor = theme.semantic[opt.colorKey];
           return (
             <TouchableOpacity
               key={opt.key}
@@ -291,31 +319,32 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 6,
-                paddingVertical: 14,
-                borderRadius: 8,
-                backgroundColor: colors.background3,
-                borderWidth: 1.5,
-                borderColor: isActive ? opt.color : 'transparent',
+                paddingVertical: 12,
+                borderRadius: 0,
+                backgroundColor: isActive ? semColor : colors.background2,
+                borderWidth: 2,
+                borderColor: theme.border,
               }}
             >
               <View
                 style={{
                   width: 18,
                   height: 18,
-                  borderRadius: 9,
-                  backgroundColor: opt.color,
+                  borderWidth: 2,
+                  borderColor: isActive ? '#FFFFFF' : theme.border,
+                  backgroundColor: isActive ? '#FFFFFF' : semColor,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Icon size={11} color="#fff" />
+                <Icon size={11} color={isActive ? semColor : '#FFFFFF'} strokeWidth={2.6} />
               </View>
               <Text
                 style={{
-                  fontSize: 12,
-                  fontWeight: '700',
-                  color: isActive ? opt.color : colors.primary,
-                  letterSpacing: 0.5,
+                  fontFamily: 'PressStart2P-Regular',
+                  fontSize: 9,
+                  color: isActive ? '#FFFFFF' : colors.primary,
+                  letterSpacing: 1,
                 }}
               >
                 {opt.label}
@@ -358,8 +387,8 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
             alignItems: 'center',
             gap: 8,
             backgroundColor: colors.background3,
-            borderRadius: 10,
-            borderWidth: 1,
+            borderRadius: 0,
+            borderWidth: 2,
             borderColor: colors.border,
             paddingHorizontal: 12,
             paddingVertical: 12,
@@ -394,8 +423,8 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
             alignItems: 'center',
             gap: 10,
             backgroundColor: colors.background3,
-            borderRadius: 10,
-            borderWidth: 1,
+            borderRadius: 0,
+            borderWidth: 2,
             borderColor: colors.border,
             paddingHorizontal: 12,
             paddingVertical: 12,
@@ -426,8 +455,8 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
             alignItems: 'center',
             gap: 10,
             backgroundColor: colors.background3,
-            borderRadius: 10,
-            borderWidth: 1,
+            borderRadius: 0,
+            borderWidth: 2,
             borderColor: colors.border,
             paddingHorizontal: 12,
             paddingVertical: 12,
@@ -439,7 +468,7 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
                 style={{
                   width: 14,
                   height: 14,
-                  borderRadius: 3,
+                  borderRadius: 0,
                   backgroundColor: '#A1A1AA',
                 }}
               />
@@ -593,7 +622,7 @@ export function SetOptionsAccordion({ colors, options, onChange }: SetOptionsAcc
                 style={{
                   width: 14,
                   height: 14,
-                  borderRadius: 3,
+                  borderRadius: 0,
                   backgroundColor: '#A1A1AA',
                 }}
               />
@@ -625,14 +654,14 @@ function SectionLabel({
   return (
     <Text
       style={{
-        fontSize: small ? 10 : 11,
-        fontWeight: '600',
+        fontFamily: 'PressStart2P-Regular',
+        fontSize: small ? 8 : 9,
         color: colors.tertiary,
-        letterSpacing: 0.5,
-        marginBottom: 6,
+        letterSpacing: 1.2,
+        marginBottom: 8,
       }}
     >
-      {text}
+      {text.toUpperCase()}
     </Text>
   );
 }
@@ -652,8 +681,8 @@ function PickerField({
       activeOpacity={0.7}
       style={{
         backgroundColor: colors.background3,
-        borderRadius: 8,
-        borderWidth: 1,
+        borderRadius: 0,
+        borderWidth: 2,
         borderColor: colors.border,
         paddingHorizontal: 10,
         paddingVertical: 12,
@@ -673,7 +702,7 @@ function TypeIconBadge({ icon, color }: { icon: string; color?: string }) {
       style={{
         width: 18,
         height: 18,
-        borderRadius: 4,
+        borderRadius: 0,
         backgroundColor: bg,
         alignItems: 'center',
         justifyContent: 'center',
@@ -719,16 +748,29 @@ function PickerModal({
   colors: any;
   children: React.ReactNode;
 }) {
+  const insets = useSafeAreaInsets();
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' }}>
         <View
           style={{
             backgroundColor: colors.background2,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            maxHeight: '70%',
-            paddingBottom: 16,
+            borderTopLeftRadius: 0,
+            borderTopRightRadius: 0,
+            // maxHeight cap a 80% del viewport meno la safe area top (status bar)
+            maxHeight: '80%',
+            // Border 2px sopra per separare visivamente dal backdrop
+            borderTopWidth: 2,
+            borderTopColor: colors.border,
+            // Padding bottom = safe area inferiore (gesture bar / nav buttons)
+            // + 8 di respiro. Garantisce che l'ultima riga sia tappabile.
+            paddingBottom: insets.bottom + 8,
           }}
         >
           <View
@@ -738,7 +780,7 @@ function PickerModal({
               justifyContent: 'space-between',
               paddingHorizontal: 20,
               paddingVertical: 16,
-              borderBottomWidth: 1,
+              borderBottomWidth: 2,
               borderBottomColor: colors.border,
             }}
           >
@@ -779,10 +821,10 @@ function PickerRow({
         gap: 12,
         paddingVertical: 12,
         paddingHorizontal: 12,
-        borderRadius: 10,
+        borderRadius: 0,
         marginBottom: 4,
         backgroundColor: isActive ? `${colors.accent}1F` : 'transparent',
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: isActive ? colors.accent : 'transparent',
       }}
     >

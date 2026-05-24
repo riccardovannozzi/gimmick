@@ -42,9 +42,17 @@ export default function RegisterPage() {
     if (result.error) {
       setError(result.error);
       toast.error(result.error);
+      return;
+    }
+
+    if (result.requiresEmailVerification) {
+      // In produzione: l'utente deve confermare via email prima di poter loggare.
+      toast.success('Email di conferma inviata');
+      router.push(`/verify-email?email=${encodeURIComponent(data.email)}`);
     } else {
-      toast.success('Registrazione completata! Effettua il login.');
-      router.push('/login');
+      // Auto-confirm attivo (dev): siamo già loggati, vai al welcome wizard.
+      toast.success('Registrazione completata!');
+      router.push('/welcome');
     }
   };
 

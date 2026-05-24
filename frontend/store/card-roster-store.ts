@@ -2,6 +2,7 @@
 
 import { create } from 'zustand';
 import { MASCOTS } from '@/lib/mascots';
+import { settingsApi } from '@/lib/api';
 
 /**
  * Card Roster settings — per `/MASCOT.md` § "Settings · Mascot preferences".
@@ -13,8 +14,11 @@ import { MASCOTS } from '@/lib/mascots';
  * `useMascotConfig('<id>')`. New mascots that need bespoke options should
  * add their type to MascotConfigs + default in DEFAULT_CONFIGS.
  *
- * Persisted to localStorage. When the user-settings backend ships this
- * should move to `user_settings.mascots` (jsonb).
+ * Dual-persistence:
+ *   - localStorage: cache locale + fallback offline (load() / save())
+ *   - server `user_settings.mascot_settings_v2`: source of truth multi-device,
+ *     scritto via `settingsApi.set` con debounce 400 ms, letto al boot da
+ *     `hydrateFromServer()` (chiamato dal dashboard layout).
  */
 
 export type MascotFrequency = 'off' | 'rare' | 'normal' | 'often';
@@ -162,9 +166,54 @@ function save(state: PersistedShape) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* ignore quota */ }
 }
 
+// Debounced server sync: chiamato dopo ogni mutator dello store. Sincronizza
+// la copia su `user_settings.mascot_settings_v2` così l'utente vede gli
+// stessi preferences su un altro device. Best-effort: errori transitori non
+// blocccano l'UX (lo stato local è già salvato).
+const SERVER_KEY = 'mascot_settings_v2';
+const SYNC_DEBOUNCE_MS = 400;
+let syncTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleServerSync(state: PersistedShape) {
+  if (typeof window === 'undefined') return;
+  if (syncTimer) clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => {
+    void settingsApi.set(SERVER_KEY, state).catch(() => { /* silent: torna a tentare al prossimo mutator */ });
+  }, SYNC_DEBOUNCE_MS);
+}
+
+function persistAll(state: PersistedShape) {
+  save(state);
+  scheduleServerSync(state);
+}
+
+// Normalize a possibly-partial PersistedShape from server with the defaults,
+// così uno snapshot vecchio non rompe la app quando viene espanso lo schema.
+function reconcile(raw: unknown): PersistedShape {
+  const isShape = raw && typeof raw === 'object' && 'settings' in (raw as object);
+  const rawSettings = (isShape ? (raw as PersistedShape).settings : raw) as Partial<MascotSettings> | undefined;
+  const rawConfigs = (isShape ? (raw as PersistedShape).configs : {}) as Partial<MascotConfigs>;
+  return {
+    settings: {
+      enabled: Array.isArray(rawSettings?.enabled) ? rawSettings.enabled : defaultSettings().enabled,
+      frequency: (['off', 'rare', 'normal', 'often'] as const).includes(rawSettings?.frequency as MascotFrequency)
+        ? (rawSettings!.frequency as MascotFrequency)
+        : 'normal',
+      animations: typeof rawSettings?.animations === 'boolean' ? rawSettings.animations : true,
+      dialog: typeof rawSettings?.dialog === 'boolean' ? rawSettings.dialog : true,
+    },
+    configs: {
+      kron: { ...DEFAULT_CONFIGS.kron, ...(rawConfigs?.kron ?? {}), sound: { ...DEFAULT_CONFIGS.kron.sound, ...(rawConfigs?.kron?.sound ?? {}) } },
+      flocky: { ...DEFAULT_CONFIGS.flocky, ...(rawConfigs?.flocky ?? {}), sound: { ...DEFAULT_CONFIGS.flocky.sound, ...(rawConfigs?.flocky?.sound ?? {}) } },
+    },
+  };
+}
+
 interface CardRosterState {
   settings: MascotSettings;
   configs: MascotConfigs;
+  /** Flag interno: true dopo che hydrateFromServer ha già girato per la
+   *  session corrente. Evita race tra mutator locali e fetch lenta. */
+  hydrated: boolean;
   toggleMascot: (id: string) => void;
   setFrequency: (f: MascotFrequency) => void;
   setAnimations: (on: boolean) => void;
@@ -179,6 +228,10 @@ interface CardRosterState {
   getFlocky: () => FlockyConfig;
   updateKron: (patch: Partial<KronConfig>) => void;
   updateFlocky: (patch: Partial<FlockyConfig>) => void;
+  /** Carica la copia salvata su `user_settings.mascot_settings_v2` e la
+   *  applica come stato corrente. Se sul server non esiste un record,
+   *  fa l'inverso (push del local corrente come baseline). */
+  hydrateFromServer: () => Promise<void>;
 }
 
 export const useCardRoster = create<CardRosterState>((set, get) => {
@@ -186,6 +239,7 @@ export const useCardRoster = create<CardRosterState>((set, get) => {
   return {
     settings: initial.settings,
     configs: initial.configs,
+    hydrated: false,
 
     toggleMascot: (id) => {
       const cur = get().settings;
@@ -194,37 +248,37 @@ export const useCardRoster = create<CardRosterState>((set, get) => {
         ...cur,
         enabled: has ? cur.enabled.filter((x) => x !== id) : [...cur.enabled, id],
       };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
     setFrequency: (frequency) => {
       const settings = { ...get().settings, frequency };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
     setAnimations: (animations) => {
       const settings = { ...get().settings, animations };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
     setDialog: (dialog) => {
       const settings = { ...get().settings, dialog };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
     enableAll: () => {
       const settings = { ...get().settings, enabled: MASCOTS.map((m) => m.id) };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
     disableAll: () => {
       const settings = { ...get().settings, enabled: [] };
-      save({ settings, configs: get().configs });
+      persistAll({ settings, configs: get().configs });
       set({ settings });
     },
 
@@ -236,15 +290,37 @@ export const useCardRoster = create<CardRosterState>((set, get) => {
     updateKron: (patch) => {
       const cur = get().configs.kron ?? DEFAULT_CONFIGS.kron;
       const configs: MascotConfigs = { ...get().configs, kron: { ...cur, ...patch } };
-      save({ settings: get().settings, configs });
+      persistAll({ settings: get().settings, configs });
       set({ configs });
     },
 
     updateFlocky: (patch) => {
       const cur = get().configs.flocky ?? DEFAULT_CONFIGS.flocky;
       const configs: MascotConfigs = { ...get().configs, flocky: { ...cur, ...patch } };
-      save({ settings: get().settings, configs });
+      persistAll({ settings: get().settings, configs });
       set({ configs });
+    },
+
+    hydrateFromServer: async () => {
+      if (get().hydrated) return;
+      try {
+        const res = await settingsApi.get<PersistedShape>(SERVER_KEY);
+        if (res.success && res.data) {
+          const reconciled = reconcile(res.data);
+          save(reconciled);  // sync local cache to server truth
+          set({ settings: reconciled.settings, configs: reconciled.configs, hydrated: true });
+        } else {
+          // Niente sul server: inizializziamolo col nostro stato locale così
+          // dal prossimo device si troverà già la copia di partenza.
+          const cur: PersistedShape = { settings: get().settings, configs: get().configs };
+          scheduleServerSync(cur);
+          set({ hydrated: true });
+        }
+      } catch {
+        // Errore di rete o auth: marchiamo comunque hydrated per non bloccare
+        // l'UX. Riproveremo al prossimo mutator (debounced sync).
+        set({ hydrated: true });
+      }
     },
   };
 });

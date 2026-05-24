@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
 
 function ToolbarToggle({ icon, label, active, onClick }: {
@@ -13,27 +14,7 @@ function ToolbarToggle({ icon, label, active, onClick }: {
 }) {
   const theme = usePixelTheme();
   return (
-    <button
-      onClick={onClick}
-      className="px-press"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        height: 28,
-        padding: '0 10px',
-        background: active ? theme.accent : theme.surfaceVariant,
-        color: active ? theme.onAccent : theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-head)',
-        fontSize: 9,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-        boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
-      }}
-      title={label}
-    >
+    <button onClick={onClick} className="px-press" style={pixelToolbarBtn(theme, active)} title={label}>
       {icon}
       {label}
     </button>
@@ -47,26 +28,7 @@ function ToolbarButton({ icon, label, onClick }: {
 }) {
   const theme = usePixelTheme();
   return (
-    <button
-      onClick={onClick}
-      className="px-press"
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 6,
-        height: 28,
-        padding: '0 10px',
-        background: theme.surfaceVariant,
-        color: theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-head)',
-        fontSize: 9,
-        letterSpacing: '0.08em',
-        textTransform: 'uppercase',
-        cursor: 'pointer',
-      }}
-      title={label}
-    >
+    <button onClick={onClick} className="px-press" style={pixelToolbarBtn(theme, false)} title={label}>
       {icon}
       {label}
     </button>
@@ -142,17 +104,17 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '0 10px',
-                height: 28,
+                padding: '0 12px',
+                height: 30,
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `2px solid ${theme.border}`,
+                border: `2px solid ${theme.onAccent}`,
                 fontFamily: 'var(--font-pixel-head)',
-                fontSize: 9,
+                fontSize: 8,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 flexShrink: 0,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.mode === 'dark' ? theme.shadowColor : theme.surface}`,
               }}
               title={`Canvas corrente: ${tag.name}`}
             >
@@ -168,6 +130,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
           const isDropTarget = dropTargetId === pt.id && draggingId !== pt.id;
           const draggingIdx = draggingId ? otherPinned.findIndex((t) => t.id === draggingId) : -1;
           const insertAfter = draggingIdx !== -1 && draggingIdx < idx;
+          // Stesso "swap ink/surface in base al mode" di pixelToolbarBtn.
+          const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
+          const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
           return (
           <div
             key={pt.id}
@@ -199,13 +164,13 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               position: 'relative',
               display: 'inline-flex',
               alignItems: 'center',
-              padding: '0 10px',
-              height: 28,
-              background: theme.surfaceVariant,
-              color: theme.ink2,
-              border: `2px solid ${theme.border}`,
+              padding: '0 12px',
+              height: 30,
+              background: darkSlot,
+              color: lightSlot,
+              border: `2px solid ${lightSlot}`,
               fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
+              fontSize: 8,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               flexShrink: 0,

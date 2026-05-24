@@ -8,6 +8,7 @@ import { Header } from '@/components/layout/header';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { pixelToolbarBtn, pixelSegmentedBtn, pixelSegmentedContainer } from '@/lib/pixel-toolbar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
@@ -1240,22 +1241,7 @@ export default function GraphPage() {
   const isEmpty = (!graphData || (graphData.tiles.length === 0 && graphData.sparks.length === 0))
     && (!tagGraph || (tagGraph.nodes as TagNode[]).length === 0);
 
-  const pillBtn = (active: boolean): React.CSSProperties => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    height: 28,
-    padding: '0 10px',
-    background: active ? theme.accent : theme.surfaceVariant,
-    color: active ? theme.onAccent : theme.ink2,
-    border: `2px solid ${theme.border}`,
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    cursor: 'pointer',
-    boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
-  });
+  const pillBtn = (active: boolean): React.CSSProperties => pixelToolbarBtn(theme, active);
   const popupContainer: React.CSSProperties = {
     position: 'absolute',
     top: '100%',
@@ -1267,20 +1253,28 @@ export default function GraphPage() {
     boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
     padding: 4,
   };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
+  const popupItem = (active: boolean): React.CSSProperties => {
+    // Stesso swap ink/surface per mode di pixel-toolbar.ts: in dark mode
+    // theme.ink è brillante (white/yellow/pink) → invertiamo per avere
+    // sempre bg scuro + testo chiaro sull'item selezionato.
+    const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
+    const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
+    return {
+      display: 'flex',
+      alignItems: 'center',
+      gap: 8,
+      width: '100%',
+      padding: '6px 8px',
+      textAlign: 'left',
+      background: active ? darkSlot : 'transparent',
+      border: `2px solid ${active ? theme.border : 'transparent'}`,
+      color: active ? lightSlot : theme.ink2,
+      fontWeight: active ? 600 : 400,
+      fontFamily: 'var(--font-pixel-body)',
+      fontSize: 12,
+      cursor: 'pointer',
+    };
+  };
 
   return (
     <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
@@ -1299,53 +1293,17 @@ export default function GraphPage() {
         }}
       >
         {/* Mode toggle (segmented) */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: theme.surfaceVariant,
-            border: `2px solid ${theme.border}`,
-            padding: 2,
-          }}
-        >
+        <div style={pixelSegmentedContainer(theme)}>
           <button
             onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 10px',
-              height: 22,
-              background: toolbarMode === 'navigate' ? theme.accent : 'transparent',
-              color: toolbarMode === 'navigate' ? theme.onAccent : theme.ink2,
-              border: 'none',
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
+            style={pixelSegmentedBtn(theme, toolbarMode === 'navigate')}
           >
             <IconEye size={12} />
             Navigate
           </button>
           <button
             onClick={() => setToolbarMode('edit')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '0 10px',
-              height: 22,
-              background: toolbarMode === 'edit' ? theme.accent : 'transparent',
-              color: toolbarMode === 'edit' ? theme.onAccent : theme.ink2,
-              border: 'none',
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
+            style={pixelSegmentedBtn(theme, toolbarMode === 'edit')}
           >
             <IconSettings2 size={12} />
             Edit Tag

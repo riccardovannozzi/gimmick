@@ -6,14 +6,15 @@
  *   Week    — 7-column day grid
  *   Month   — 6×7 grid with event dots; tap a day → switch to Daily on it
  */
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
   IconChevronLeft,
   IconChevronRight,
-  IconRefresh,
 } from '@tabler/icons-react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { useCalendarEvents } from '@/hooks/useCalendarEvents';
 import { usePixelTheme } from '@/components/pixel';
 import {
@@ -51,7 +52,7 @@ export default function ChronoScreen() {
     return { start: s, end: e };
   }, [view, anchor]);
 
-  const { events, isLoading, refetch, reschedule } = useCalendarEvents(start, end);
+  const { events, isLoading, reschedule } = useCalendarEvents(start, end);
 
   const title = useMemo(() => {
     if (view === 'daily') {
@@ -71,7 +72,7 @@ export default function ChronoScreen() {
   }, [view, anchor]);
 
   const stepDays = view === 'daily' ? 1 : view === 'week' ? 7 : 0;
-  const stepPrev = () => {
+  const stepPrev = useCallback(() => {
     if (view === 'month') {
       const x = new Date(anchor);
       x.setMonth(x.getMonth() - 1);
@@ -79,8 +80,8 @@ export default function ChronoScreen() {
     } else {
       setAnchor(addDays(anchor, -stepDays));
     }
-  };
-  const stepNext = () => {
+  }, [view, anchor, stepDays]);
+  const stepNext = useCallback(() => {
     if (view === 'month') {
       const x = new Date(anchor);
       x.setMonth(x.getMonth() + 1);
@@ -88,7 +89,26 @@ export default function ChronoScreen() {
     } else {
       setAnchor(addDays(anchor, stepDays));
     }
-  };
+  }, [view, anchor, stepDays]);
+
+  // Swipe orizzontale = stepPrev/stepNext. activeOffsetX evita conflitti con lo
+  // scroll verticale del DayView; failOffsetY scarta diagonali ambigue.
+  const swipeGesture = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-20, 20])
+        .failOffsetY([-15, 15])
+        .onEnd((e) => {
+          'worklet';
+          const SWIPE_THRESHOLD = 60;
+          if (e.translationX < -SWIPE_THRESHOLD) {
+            runOnJS(stepNext)();
+          } else if (e.translationX > SWIPE_THRESHOLD) {
+            runOnJS(stepPrev)();
+          }
+        }),
+    [stepNext, stepPrev],
+  );
 
   const handleOpenTile = (tileId: string) => {
     router.push(`/tile/${tileId}` as any);
@@ -153,22 +173,20 @@ export default function ChronoScreen() {
           <IconChevronRight size={16} color={theme.ink} strokeWidth={2.4} />
         </NavBtn>
         <Text
-          numberOfLines={1}
+          numberOfLines={2}
           style={{
             flex: 1,
             fontFamily: theme.fontBody,
-            fontSize: 13,
+            fontSize: 16,
+            lineHeight: 20,
             fontWeight: '700',
             color: theme.ink,
-            marginLeft: 4,
+            marginLeft: 8,
             textTransform: 'capitalize',
           }}
         >
           {title}
         </Text>
-        <NavBtn onPress={() => refetch()}>
-          <IconRefresh size={14} color={theme.ink2} strokeWidth={2.2} />
-        </NavBtn>
       </View>
 
       {/* View switcher — DAILY / WEEK / MONTH */}
@@ -216,38 +234,42 @@ export default function ChronoScreen() {
         })}
       </View>
 
-      {/* View body */}
-      {view === 'daily' && (
-        <DayView
-          day={anchor}
-          events={events}
-          isLoading={isLoading}
-          onOpenTile={handleOpenTile}
-          onReschedule={(id, start_at, end_at) =>
-            reschedule.mutate({ id, start_at, end_at })
-          }
-        />
-      )}
-      {view === 'week' && (
-        <WeekView
-          anchor={anchor}
-          events={events}
-          isLoading={isLoading}
-          onOpenTile={handleOpenTile}
-          onReschedule={(id, start_at, end_at) =>
-            reschedule.mutate({ id, start_at, end_at })
-          }
-          onSelectDay={handleSelectDay}
-        />
-      )}
-      {view === 'month' && (
-        <MonthView
-          monthAnchor={anchor}
-          events={events}
-          isLoading={isLoading}
-          onSelectDay={handleSelectDay}
-        />
-      )}
+      {/* View body — wrapped in swipe gesture detector */}
+      <GestureDetector gesture={swipeGesture}>
+        <View style={{ flex: 1 }} collapsable={false}>
+          {view === 'daily' && (
+            <DayView
+              day={anchor}
+              events={events}
+              isLoading={isLoading}
+              onOpenTile={handleOpenTile}
+              onReschedule={(id, start_at, end_at) =>
+                reschedule.mutate({ id, start_at, end_at })
+              }
+            />
+          )}
+          {view === 'week' && (
+            <WeekView
+              anchor={anchor}
+              events={events}
+              isLoading={isLoading}
+              onOpenTile={handleOpenTile}
+              onReschedule={(id, start_at, end_at) =>
+                reschedule.mutate({ id, start_at, end_at })
+              }
+              onSelectDay={handleSelectDay}
+            />
+          )}
+          {view === 'month' && (
+            <MonthView
+              monthAnchor={anchor}
+              events={events}
+              isLoading={isLoading}
+              onSelectDay={handleSelectDay}
+            />
+          )}
+        </View>
+      </GestureDetector>
     </View>
   );
 }

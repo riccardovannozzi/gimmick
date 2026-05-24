@@ -31,6 +31,7 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { Header } from '@/components/layout/header';
 import { usePixelTheme } from '@/components/pixel';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { kanbanApi, tilesApi, tagsApi, statusesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -809,21 +810,7 @@ export default function KanbanPage() {
     },
   });
 
-  const toolbarBtn: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    height: 28,
-    padding: '0 10px',
-    background: theme.surfaceVariant,
-    color: theme.ink2,
-    border: `2px solid ${theme.border}`,
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    cursor: 'pointer',
-  };
+  const toolbarBtn: React.CSSProperties = pixelToolbarBtn(theme, false);
 
   return (
     <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
@@ -836,7 +823,7 @@ export default function KanbanPage() {
         <div
           className="shrink-0"
           style={{
-            height: 40,
+            height: 44,
             display: 'flex',
             alignItems: 'center',
             gap: 4,

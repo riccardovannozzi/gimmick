@@ -10,6 +10,7 @@ import { Header } from '@/components/layout/header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { usePixelTheme, PixelCard, PixelButton, PixelBadge } from '@/components/pixel';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import type { CaptureKey } from '@/lib/pixel-theme';
 import { useFilterStore } from '@/store/filter-store';
 import {
@@ -1861,15 +1862,10 @@ export default function TilesPage() {
           }}>
             {tiles.length}{totalCount ? ` / ${totalCount}` : ''} tiles
           </span>
-          <PixelButton
-            bg={theme.accent}
-            color={theme.onAccent}
-            leading={<IconPlus size={12} />}
-            onClick={handleAddTile}
-            style={{ padding: '6px 10px', fontSize: 9 }}
-          >
+          <button onClick={handleAddTile} className="px-press" style={pixelToolbarBtn(theme, true)}>
+            <IconPlus size={12} />
             Add Tile
-          </PixelButton>
+          </button>
           {(titleFilter || actionFilter.size > 0 || sparkTypeFilter.size > 0 || tagFilter.size > 0 || dateFrom || dateTo) && (
             <button
               onClick={() => {

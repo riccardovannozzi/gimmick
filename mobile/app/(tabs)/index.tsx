@@ -26,6 +26,7 @@ import {
   IconSparkles,
   IconCheck,
 } from '@tabler/icons-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { ChatInput } from '@/components/chat/ChatInput';
 import { SetOptionsAccordion, EMPTY_OPTIONS, type TileOptions } from '@/components/SetOptionsAccordion';
@@ -195,6 +196,7 @@ export default function HomeScreen() {
   const theme = usePixelTheme();
   const colors = useThemeColors(); // ancora usato dai sub-component legacy
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const { width: screenWidth } = useWindowDimensions();
   // Layout calcolato per evitare bug Android di aspectRatio+flex.
   // 3 tile per riga: ognuno occupa (T + offset) di spazio per ospitare l'ombra
@@ -390,7 +392,12 @@ export default function HomeScreen() {
       <View style={{ flex: 1 }}>
         {chatMode ? (
           /* ====== CHAT MODE ====== */
-          <View style={{ flex: 1 }}>
+          <KeyboardAvoidingView
+            style={{ flex: 1 }}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            // Offset = altezza TopNav (insets.top + paddingTop 10 + riga icone ~32 + paddingBottom 8 + border 2)
+            keyboardVerticalOffset={insets.top + 52}
+          >
             {/* Chat header */}
             <View
               style={{
@@ -415,8 +422,12 @@ export default function HomeScreen() {
               >
                 AI ASSISTANT
               </Text>
-              <PixelIconButton theme={theme} onPress={toggleChatMode} size={36}>
-                <IconX size={18} color={theme.ink} strokeWidth={2.5} />
+              <PixelIconButton
+                theme={theme}
+                onPress={toggleChatMode}
+                bg={theme.semantic.danger}
+              >
+                <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
               </PixelIconButton>
             </View>
 
@@ -445,17 +456,21 @@ export default function HomeScreen() {
               }
             />
 
-            <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <View style={{ paddingHorizontal: 16, paddingBottom: insets.bottom + 8 }}>
               <ChatInput
                 onSubmitText={handleTextCommand}
                 onSubmitVoice={handleVoiceCommand}
                 isProcessing={isProcessing}
               />
             </View>
-          </View>
+          </KeyboardAvoidingView>
         ) : (
           /* ====== NORMAL MODE ====== */
-          <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={{ flex: 1 }}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: insets.bottom + 16 }}
+          >
             <View style={{ marginHorizontal: 16, marginTop: 16, gap: 10 }}>
               {/* ASK / SEND GIMMICK — top action button. When the buffer is
                   empty the button opens the chat (ASK GIMMICK); as soon as
@@ -664,8 +679,13 @@ export default function HomeScreen() {
                   borderBottomColor: theme.border,
                 }}
               >
-                <PixelIconButton theme={theme} onPress={handleCloseEdit} size={48}>
-                  <IconX size={22} color={theme.ink} strokeWidth={2.4} />
+                <PixelIconButton
+                  theme={theme}
+                  onPress={handleCloseEdit}
+                  size={48}
+                  bg={theme.semantic.danger}
+                >
+                  <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
                 </PixelIconButton>
 
                 <Text
@@ -684,12 +704,12 @@ export default function HomeScreen() {
                     theme={theme}
                     onPress={handleSaveEdit}
                     size={48}
-                    bg={editText.trim() ? theme.cap.text : theme.surfaceVariant}
+                    bg={editText.trim() ? theme.semantic.success : theme.surfaceVariant}
                     disabled={!editText.trim()}
                   >
                     <IconCheck
                       size={22}
-                      color={editText.trim() ? (theme.onAccent as string) : theme.ink3}
+                      color={editText.trim() ? '#FFFFFF' : theme.ink3}
                       strokeWidth={2.4}
                     />
                   </PixelIconButton>
@@ -775,12 +795,13 @@ export default function HomeScreen() {
                   <Text
                     style={{
                       color: theme.ink2,
-                      fontFamily: theme.fontBody,
-                      fontSize: 12,
+                      fontFamily: theme.fontHead,
+                      fontSize: 9,
+                      letterSpacing: 1,
                       textAlign: 'right',
                     }}
                   >
-                    {editText.length} characters
+                    {editText.length} CHARS
                   </Text>
                 </View>
               )}

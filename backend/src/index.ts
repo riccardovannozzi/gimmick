@@ -29,11 +29,26 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Railway / Vercel / Heroku put us behind a reverse proxy. Without
+// `trust proxy` Express sees only the proxy's IP in `req.ip`, so every
+// rate limiter (signup, signin, password recovery) would share a single
+// bucket across ALL users instead of one bucket per real client IP.
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet());
+// CORS — whitelist of allowed front-end origins. The env var
+// CORS_ORIGIN (comma-separated) wins; otherwise we fall back to the known
+// production + dev domains so a missing/wrong env var never blows up
+// signin from the real users.
+const DEFAULT_CORS_ORIGINS = [
+  'https://app.gimmickapp.com',
+  'https://gimmick-frontend-production.up.railway.app',
+  'http://localhost:3000',
+];
 const corsOrigin = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim())
-  : '*';
+  ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
+  : DEFAULT_CORS_ORIGINS;
 app.use(cors({
   origin: corsOrigin,
   credentials: true,

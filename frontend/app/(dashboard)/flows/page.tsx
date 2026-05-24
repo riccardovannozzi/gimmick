@@ -24,6 +24,7 @@ import { StatusIcon } from '@/components/flow/FlowNodeView';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useActionColors } from '@/store/action-colors-store';
 import { readableOn } from '@/lib/palette';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import type { FlowHubItem } from '@/types/flow';
 
 function isItemSelf(item: FlowHubItem): boolean {
@@ -446,6 +447,16 @@ export default function FlowsPage() {
           >
             {TABS.map((tab) => {
               const isActive = filter === tab.key;
+              // Flow tabs are special: instead of theme.accent, the active
+              // tint is the state color (done/wait/undo/stop). Active text
+              // contrast is computed via `readableOn` (tint is mid-saturated,
+              // not a palette pair). Default usa "slot scuro/chiaro" della
+              // palette swap-pati per mode così il fondo resta scuro in
+              // entrambi i mode (vedi pixel-toolbar.ts).
+              const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
+              const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
+              const fg = isActive ? readableOn(tab.tint) : lightSlot;
+              const shadowCol = theme.mode === 'dark' ? theme.shadowColor : theme.surface;
               return (
                 <button
                   key={tab.key}
@@ -455,21 +466,21 @@ export default function FlowsPage() {
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: 6,
-                    height: 28,
-                    padding: '0 10px',
-                    background: isActive ? tab.tint : theme.surfaceVariant,
-                    color: isActive ? '#000' : theme.ink2,
-                    border: `2px solid ${theme.border}`,
+                    height: 30,
+                    padding: '0 12px',
+                    background: isActive ? tab.tint : darkSlot,
+                    color: fg,
+                    border: `2px solid ${fg}`,
                     fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 9,
+                    fontSize: 8,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     cursor: 'pointer',
                     flexShrink: 0,
-                    boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                    boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${shadowCol}` : 'none',
                   }}
                 >
-                  <StateGlyph state={tab.key} color={isActive ? '#000' : tab.tint} size={13} />
+                  <StateGlyph state={tab.key} color={fg} size={13} />
                   {tab.label}
                 </button>
               );
@@ -481,21 +492,7 @@ export default function FlowsPage() {
                 onClick={() => setSortMenuOpen((v) => !v)}
                 className="px-press"
                 title="Ordina"
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  height: 28,
-                  padding: '0 10px',
-                  background: sortMenuOpen ? theme.surface : theme.surfaceVariant,
-                  color: theme.ink2,
-                  border: `2px solid ${theme.border}`,
-                  fontFamily: 'var(--font-pixel-head)',
-                  fontSize: 9,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  cursor: 'pointer',
-                }}
+                style={pixelToolbarBtn(theme, sortMenuOpen)}
               >
                 <IconArrowsSort size={12} />
                 {SORT_OPTIONS.find((o) => o.key === sortBy)?.label ?? 'Ordina'}

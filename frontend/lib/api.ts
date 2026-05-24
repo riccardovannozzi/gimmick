@@ -78,6 +78,7 @@ async function apiRequest<T>(
       return {
         success: false,
         error: data.error || `HTTP ${response.status}`,
+        code: data.code,
       };
     }
 
@@ -92,11 +93,26 @@ async function apiRequest<T>(
 
 // ============ Auth API ============
 export const authApi = {
+  /**
+   * Signup. In production Supabase email-verification è attiva e la response
+   * arriva senza session: `requiresEmailVerification: true`. L'UI deve
+   * mandare l'utente a /auth/verify-email. In dev (auto-confirm) torna
+   * direttamente con session valida.
+   */
   async signUp(email: string, password: string) {
-    return apiRequest<{ user: User }>('/api/auth/signup', {
+    const result = await apiRequest<{
+      user: User;
+      session: AuthTokens | null;
+      requiresEmailVerification: boolean;
+    }>('/api/auth/signup', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
     });
+    // Se Supabase ha auto-confirm e arriva subito una session, salviamo i token.
+    if (result.success && result.data?.session) {
+      setTokens(result.data.session);
+    }
+    return result;
   },
 
   async signIn(email: string, password: string) {
@@ -140,6 +156,61 @@ export const authApi = {
 
   async getMe() {
     return apiRequest<{ user: User }>('/api/auth/me');
+  },
+
+  // ── Nuovi metodi per email-verify / password-reset / account-delete ─────
+
+  /** Conferma un token_hash ricevuto dal link nell'email (signup o recovery).
+   *  Su success il backend ritorna una session valida che salviamo subito. */
+  async confirmSignup(token_hash: string, type: 'signup' | 'recovery' | 'email_change') {
+    const result = await apiRequest<{
+      user: User;
+      session: AuthTokens;
+      type: typeof type;
+    }>('/api/auth/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token_hash, type }),
+    });
+    if (result.success && result.data?.session) {
+      setTokens(result.data.session);
+    }
+    return result;
+  },
+
+  /** Rinvia l'email di verifica signup. Sempre 200 (no enumeration). */
+  async resendVerification(email: string) {
+    return apiRequest('/api/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /** Invia email per reset password. Sempre 200 (no enumeration). */
+  async forgotPassword(email: string) {
+    return apiRequest('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+  },
+
+  /** Aggiorna la password usando l'access_token recuperato via /confirm
+   *  con type=recovery (il flow è confirm → resetPassword). */
+  async resetPassword(access_token: string, new_password: string) {
+    return apiRequest('/api/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ access_token, new_password }),
+    });
+  },
+
+  /** Elimina l'account corrente (richiede password come re-conferma).
+   *  Su success svuota anche i token locali. */
+  async deleteAccount(password: string) {
+    const result = await apiRequest('/api/auth/account', {
+      method: 'DELETE',
+      body: JSON.stringify({ password }),
+    });
+    if (result.success) setTokens(null);
+    return result;
   },
 };
 

@@ -18,6 +18,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePixelTheme } from '@/components/pixel';
+import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -805,22 +806,7 @@ export default function TagsPage() {
           <button
             onClick={() => setCreateOpen(true)}
             className="px-press"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              height: 28,
-              padding: '0 10px',
-              background: theme.accent,
-              color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-            }}
+            style={pixelToolbarBtn(theme, true)}
           >
             <IconPlus size={12} />
             Add Tag
@@ -828,21 +814,7 @@ export default function TagsPage() {
           <button
             onClick={() => setTypesOpen(true)}
             className="px-press"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              height: 28,
-              padding: '0 10px',
-              background: theme.surfaceVariant,
-              color: theme.ink2,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: 'pointer',
-            }}
+            style={pixelToolbarBtn(theme, false)}
           >
             <IconPencil size={12} />
             Edit Tags

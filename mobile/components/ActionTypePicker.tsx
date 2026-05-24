@@ -193,7 +193,11 @@ export function ActionTypePicker({
   const onClickToday = () => onSelectDay(startOfDay(new Date()));
 
   // Start-hour/min changes: keep the existing duration (so end moves with start).
+  // Guard: early-return se il valore non è cambiato — durante un pan il
+  // responder system chiama N volte al secondo, e setState con stesso ref
+  // crea un loop infinito di re-render (Maximum update depth exceeded).
   const onPickStartHour = (h: number) => {
+    if (h === startDate.getHours()) return;
     const durationMin = (endDate.getTime() - startDate.getTime()) / 60000;
     const next = new Date(startDate);
     next.setHours(h);
@@ -201,6 +205,7 @@ export function ActionTypePicker({
     if (durationMin > 0) setEndDate(new Date(next.getTime() + durationMin * 60_000));
   };
   const onPickStartMinute = (m: number) => {
+    if (m === startDate.getMinutes()) return;
     const durationMin = (endDate.getTime() - startDate.getTime()) / 60000;
     const next = new Date(startDate);
     next.setMinutes(m);
@@ -210,11 +215,13 @@ export function ActionTypePicker({
 
   // End-hour/min changes set the end independently (duration auto-derives).
   const onPickEndHour = (h: number) => {
+    if (h === endDate.getHours()) return;
     const next = new Date(endDate);
     next.setHours(h);
     setEndDate(next);
   };
   const onPickEndMinute = (m: number) => {
+    if (m === endDate.getMinutes()) return;
     const next = new Date(endDate);
     next.setMinutes(m);
     setEndDate(next);
