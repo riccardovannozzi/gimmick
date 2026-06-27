@@ -1,0 +1,93 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — Service states.
+
+   Cross-cutting states: empty, loading skeleton, offline/error, toasts
+   (success/undo/AI/error) and the notification center. Reference:
+   GimmickStates.dc.html. Reads `--ob-*` tokens; light/dark via data-theme.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Frame (card surface used by empty/loading/error/notif) ── */
+.ob-states-frame {
+  background: var(--ob-canvas);
+  border: 1px solid var(--ob-line-2);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px -32px rgba(0, 0, 0, 0.4);
+  font-family: var(--ob-font-sans);
+}
+
+/* ── Spinner ── */
+.ob-spinner {
+  width: 15px; height: 15px; border-radius: 50%;
+  border: 2px solid var(--ob-line-2);
+  border-top-color: var(--ob-accent);
+  animation: ob-spin 0.9s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes ob-spin { to { transform: rotate(360deg); } }
+
+/* ── Empty / Error ── */
+.ob-empty {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; padding: 40px 60px; height: 100%;
+  font-family: var(--ob-font-sans);
+}
+.ob-empty__icon {
+  width: 78px; height: 78px; border-radius: 22px;
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 20px;
+  background: var(--ob-surface-2); color: var(--ob-accent);
+}
+.ob-empty__icon--error { background: color-mix(in srgb, var(--ob-error) 14%, transparent); color: var(--ob-error); }
+.ob-empty__title { font-size: 19px; font-weight: 700; color: var(--ob-text); margin-bottom: 7px; }
+.ob-empty__desc { font-size: 14px; line-height: 1.5; color: var(--ob-muted); max-width: 300px; margin-bottom: 22px; }
+.ob-empty__actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* ── Loading list ── */
+.ob-loading__head { display: flex; align-items: center; gap: 10px; padding: 15px 18px; border-bottom: 1px solid var(--ob-line); }
+.ob-loading__head-label { font-size: 12.5px; font-weight: 600; color: var(--ob-subtle); }
+.ob-skrow { display: flex; align-items: center; gap: 14px; padding: 15px 18px; border-bottom: 1px solid var(--ob-line); }
+.ob-skrow:last-child { border-bottom: none; }
+.ob-skrow__main { flex: 1; display: flex; flex-direction: column; gap: 7px; }
+
+/* ── Toast (dark chip) ── */
+.ob-dtoast {
+  width: 360px; max-width: 100%;
+  display: flex; align-items: flex-start; gap: 12px;
+  border-radius: 13px; padding: 13px 14px;
+  box-shadow: 0 16px 36px -16px rgba(0, 0, 0, 0.5);
+  font-family: var(--ob-font-sans);
+  background: #211d2b;
+}
+[data-theme='dark'] .ob-dtoast { background: #232323; }
+.ob-dtoast__icon {
+  width: 30px; height: 30px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--tc) 18%, transparent); color: var(--tc);
+}
+.ob-dtoast__body { flex: 1; min-width: 0; }
+.ob-dtoast__title { font-size: 13.5px; font-weight: 600; color: #f4f3f6; }
+.ob-dtoast__sub { font-size: 12px; color: rgba(244, 243, 246, 0.6); margin-top: 2px; }
+.ob-dtoast__action {
+  font-size: 12.5px; font-weight: 700; color: #AB9FF2; flex-shrink: 0; margin-top: 1px;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: none; border: none; cursor: pointer; padding: 0;
+}
+.ob-dtoast__close { color: rgba(244, 243, 246, 0.45); flex-shrink: 0; background: none; border: none; cursor: pointer; display: inline-flex; padding: 0; margin-top: 1px; }
+
+/* ── Notification center ── */
+.ob-notif__head { display: flex; align-items: center; gap: 9px; padding: 14px 16px; border-bottom: 1px solid var(--ob-line); }
+.ob-notif__title { font-size: 14px; font-weight: 700; color: var(--ob-text); flex: 1; }
+.ob-notif__mark { font-size: 12px; font-weight: 600; color: var(--ob-accent); background: none; border: none; cursor: pointer; padding: 0; }
+.ob-notif__row { display: flex; gap: 12px; padding: 13px 16px; border-bottom: 1px solid var(--ob-line); position: relative; }
+.ob-notif__row:last-child { border-bottom: none; }
+.ob-notif__row--unread { background: var(--ob-accent-soft); }
+.ob-notif__bullet { position: absolute; left: 6px; top: 20px; width: 6px; height: 6px; border-radius: 50%; background: var(--ob-accent); }
+.ob-notif__icon {
+  width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: color-mix(in srgb, var(--nc) 16%, transparent); color: var(--nc);
+}
+.ob-notif__r-title { font-size: 13px; font-weight: 600; color: var(--ob-text); margin-bottom: 2px; }
+.ob-notif__r-body { font-size: 12px; line-height: 1.4; color: var(--ob-muted); }
+.ob-notif__r-time { font-size: 11px; color: var(--ob-faint); margin-top: 4px; }

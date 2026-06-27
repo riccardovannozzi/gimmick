@@ -1,0 +1,130 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — CSS variable foundation.
+
+   Exact mirror of lib/theme/obsidian.ts (values from
+   design_handoff_obsidian/TOKENS.md — hifi, hex verified). Keep in sync.
+
+   Tokens are exposed as `--ob-*` CSS variables and switched via the
+   `data-theme="light|dark"` attribute on a root element. The `--ob-` prefix
+   keeps these fully separate from the legacy Pixel `--px-*` tokens and the
+   shadcn tokens, so this can live alongside the old theme during migration.
+
+   Usage: set `data-theme="light"` or `data-theme="dark"` on <html> (or any
+   scoping container). When no `data-theme` is present, light is the default.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Theme-dependent tokens (colors + elevation) ── */
+:root,
+[data-theme='light'] {
+  /* Accent — Phantom Violet */
+  --ob-accent: #7C5CCB;
+  --ob-accent-ink: #ffffff;
+  --ob-accent-soft: #efeafb;
+  /* Deeper accent for text on accent-soft (e.g. mascot suggestion title). */
+  --ob-accent-text: #5b3aa8;
+
+  /* Mascot (beniamini) eye ink. */
+  --ob-mascot-ink: #26212f;
+
+  /* Neutrals */
+  --ob-canvas: #f6f6f8;
+  --ob-surface: #ffffff;
+  --ob-surface-2: #f1f0f4;
+  --ob-head: #fbfbfc;
+  --ob-field: #ffffff;
+  --ob-text: #1b1923;
+  --ob-muted: #5c5868;
+  --ob-subtle: #9a96a4;
+  --ob-faint: #c4c1cd;
+  --ob-line: rgba(24, 20, 38, 0.08);
+  --ob-line-2: rgba(24, 20, 38, 0.13);
+
+  /* Type scale (canonical) */
+  --ob-type-photo: #4F86EE;
+  --ob-type-video: #E0588C;
+  --ob-type-voice: #E0544F;
+  --ob-type-text: #3FAE72;
+  --ob-type-file: #C99220;
+  --ob-type-gallery: #8C7BE0;
+
+  /* Semantic (derived from the type scale) */
+  --ob-success: #3FAE72; /* timed  ← text  */
+  --ob-error: #E0544F;   /* deadline ← voice */
+  --ob-info: #4F86EE;    /* all-day ← photo */
+  --ob-warning: #C99220; /* amber  ← file  */
+
+  /* Elevation — a single faint card shadow in light. */
+  --ob-shadow-card: 0 1px 3px rgba(24, 20, 38, 0.05);
+}
+
+[data-theme='dark'] {
+  /* Accent — Phantom Violet */
+  --ob-accent: #AB9FF2;
+  --ob-accent-ink: #1b0d2e;
+  --ob-accent-soft: #2e2747;
+  /* Lighter accent for text on accent-soft (e.g. mascot suggestion title). */
+  --ob-accent-text: #cbbef5;
+
+  /* Mascot (beniamini) eye ink — near-black on deep dark surfaces. */
+  --ob-mascot-ink: #181818;
+
+  /* Neutrals */
+  --ob-canvas: #161616;
+  --ob-surface: #1e1e1e;
+  --ob-surface-2: #262626;
+  --ob-head: #1b1b1b;
+  --ob-field: #1e1e1e;
+  --ob-text: #dcdcdc;
+  --ob-muted: #9a9a9a;
+  --ob-subtle: #6e6e6e;
+  --ob-faint: #4a4a4a;
+  --ob-line: rgba(255, 255, 255, 0.08);
+  --ob-line-2: rgba(255, 255, 255, 0.13);
+
+  /* Type scale (canonical) */
+  --ob-type-photo: #7AA7F5;
+  --ob-type-video: #F08DB4;
+  --ob-type-voice: #F38682;
+  --ob-type-text: #74D6A2;
+  --ob-type-file: #E7C25E;
+  --ob-type-gallery: #B0A2EE;
+
+  /* Semantic (derived from the type scale) */
+  --ob-success: #74D6A2; /* timed  ← text  */
+  --ob-error: #F38682;   /* deadline ← voice */
+  --ob-info: #7AA7F5;    /* all-day ← photo */
+  --ob-warning: #E7C25E; /* amber  ← file  */
+
+  /* Elevation — no hard shadows in dark. */
+  --ob-shadow-card: none;
+}
+
+/* ── Theme-independent tokens (typography, radii, spacing) ── */
+:root {
+  /* Typography — Geist (UI) + Geist Mono (dates/counts/labels/eyebrow).
+     The font families resolve to the next/font CSS vars set in layout.tsx. */
+  --ob-font-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --ob-font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Radii */
+  --ob-radius-panel: 12px;
+  --ob-radius-card: 14px;
+  --ob-radius-control: 10px;
+  --ob-radius-chip: 8px;
+  --ob-radius-icon: 8px;
+  --ob-radius-pill: 999px;
+
+  /* Spacing scale (step of 4) */
+  --ob-space-4: 4px;
+  --ob-space-6: 6px;
+  --ob-space-8: 8px;
+  --ob-space-10: 10px;
+  --ob-space-12: 12px;
+  --ob-space-14: 14px;
+  --ob-space-18: 18px;
+  --ob-space-22: 22px;
+  --ob-space-24: 24px;
+  --ob-space-32: 32px;
+  --ob-space-40: 40px;
+  --ob-space-56: 56px;
+}

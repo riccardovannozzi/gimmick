@@ -45,6 +45,7 @@ const DEFAULT_CORS_ORIGINS = [
   'https://app.gimmickapp.com',
   'https://gimmick-frontend-production.up.railway.app',
   'http://localhost:3000',
+  'http://localhost:3001',
 ];
 const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)

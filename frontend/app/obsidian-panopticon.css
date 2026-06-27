@@ -1,0 +1,64 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — Panopticon view (graph).
+
+   "Flocky vede l'intero grafo dei tile dall'alto": a force-directed-looking
+   knowledge graph with hubs (tags) + tile nodes. Reference:
+   GimmickPanopticon.dc.html. Node colors map to the canonical type/semantic
+   scale; the layout is generated deterministically (seeded PRNG).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ob-pan {
+  display: flex; flex-direction: column; height: 100%; min-height: 0;
+  background: var(--ob-canvas); font-family: var(--ob-font-sans);
+  /* node palette → canonical tokens */
+  --node-blue: var(--ob-type-photo);
+  --node-green: var(--ob-type-text);
+  --node-red: var(--ob-type-voice);
+  --node-amber: var(--ob-type-file);
+  --node-violet: var(--ob-accent);
+  --node-grey: var(--ob-subtle);
+  --ob-edge: rgba(24, 20, 38, 0.14);
+  --ob-pan-dot: rgba(24, 20, 38, 0.09);
+  --ob-pan-label-bg: rgba(255, 255, 255, 0.86);
+}
+[data-theme='dark'] .ob-pan {
+  --ob-edge: rgba(255, 255, 255, 0.16);
+  --ob-pan-dot: rgba(255, 255, 255, 0.06);
+  --ob-pan-label-bg: rgba(20, 20, 20, 0.82);
+}
+
+/* ── Header ── */
+.ob-pan__header { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line); }
+.ob-pan__header-mascot { width: 30px; height: 30px; border-radius: 8px; background: var(--ob-surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.ob-pan__header-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-pan__header-sub { font-size: 11px; color: var(--ob-subtle); margin-top: 1px; }
+.ob-pan__header-meta { font-size: 11px; color: var(--ob-subtle); }
+
+/* ── Toolbar ── */
+.ob-pan__toolbar { height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
+.ob-pan__div { width: 1px; height: 22px; background: var(--ob-line-2); margin: 0 2px; }
+.ob-pan__dd { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 9px; font-size: 12px; font-weight: 600; color: var(--ob-muted); background: var(--ob-surface); border: 1px solid var(--ob-line-2); cursor: pointer; }
+.ob-pan__dd-icon { color: var(--ob-subtle); display: inline-flex; }
+.ob-pan__meta { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+
+/* ── Canvas ── */
+.ob-pan__canvas {
+  flex: 1; min-height: 0; position: relative; overflow: hidden;
+  background: var(--ob-canvas);
+  background-image: radial-gradient(var(--ob-pan-dot) 1.3px, transparent 1.3px);
+  background-size: 22px 22px;
+}
+.ob-pan__graph-wrap { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.ob-pan__graph { display: block; max-width: 100%; max-height: 100%; font-family: var(--ob-font-sans); }
+
+.ob-pan__zoom { position: absolute; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 7px; }
+.ob-pan__legend {
+  position: absolute; right: 16px; bottom: 16px;
+  display: flex; flex-direction: column; gap: 7px;
+  background: var(--ob-pan-label-bg);
+  border: 1px solid var(--ob-line); border-radius: 10px;
+  padding: 11px 13px;
+}
+.ob-pan__legend-row { display: flex; align-items: center; gap: 8px; }
+.ob-pan__legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.ob-pan__legend-label { font-size: 11px; font-weight: 500; color: var(--ob-muted); }

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      doc: S('<path d="M4 2.6h5.4L12.6 5.8V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.2 2.6v3.2h3.2"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 13) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', soft: '#2e2747' } : { a: '#7C5CCB', soft: '#efeafb' };
+    const b = dark ? {
+      lane: '#141414', surface: '#1e1e1e', surface2: '#262626', text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)', cap: { voice: '#F08D89', file: '#E7C25E', photo: '#7AA7F5', doc: '#74D6A2' }
+    } : {
+      lane: '#f4f3f6', surface: '#ffffff', surface2: '#f3f2f6', text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#b4b1bd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', cap: { voice: '#E0544F', file: '#C99220', photo: '#4F86EE', doc: '#3FAE72' }
+    };
+    b.accent = acc.a; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+
+  card(T, t, dateInline) {
+    const h = React.createElement;
+    const c = t.amber ? T.cap.file : T.accent;
+    const tint = T.dark ? '2b' : '1c';
+    return h('div', { key: t.title, style: { background: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30'), borderRadius: '9px', padding: '10px 11px', display: 'flex', flexDirection: 'column', gap: '9px' } },
+      dateInline ? h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px' } },
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', fontWeight: 600, color: t.today ? T.accent : T.subtle } }, t.date),
+        t.today ? h('span', { style: { fontSize: '8px', fontWeight: 700, letterSpacing: '0.08em', color: T.accent } }, 'OGGI') : h('span', { style: { fontSize: '9px', fontWeight: 600, color: T.faint } }, t.dow)) : null,
+      h('div', { style: { fontSize: '12.5px', lineHeight: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, t.title),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('div', { style: { width: '20px', height: '20px', borderRadius: '6px', background: T.cap[t.cap] + (T.dark ? '2e' : '1c'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.cap[t.cap] } }, this.glyph(t.cap, 12)),
+        h('div', { style: { flex: 1 } }),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 600, color: T.dark ? T.muted : c } },
+          h('span', { style: { width: '11px', height: '11px', color: c } }, this.glyph('tag', 11)), t.tag)));
+  }
+
+  // ---- date treatments ----
+  dPill(T, d) { const h = React.createElement; return h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '7px', alignSelf: 'flex-start', padding: '3px 9px', borderRadius: '7px', background: d.today ? T.accentSoft : T.surface2, border: '1px solid ' + (d.today ? 'transparent' : T.line) } }, h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', fontWeight: 600, color: d.today ? T.accent : T.muted } }, d.date), h('span', { style: { fontSize: '9px', fontWeight: 700, letterSpacing: '0.08em', color: d.today ? T.accent : T.subtle } }, d.dow)); }
+
+  dRule(T, d) { const h = React.createElement; return h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', padding: '2px 2px' } },
+    h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.05em', color: d.today ? T.accent : T.muted, whiteSpace: 'nowrap' } }, d.today ? 'Oggi' : d.long),
+    h('span', { style: { flex: 1, height: '1px', background: T.line2 } }),
+    h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: T.subtle } }, d.date)); }
+
+  dCaps(T, d) { const h = React.createElement; return h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '7px', padding: '4px 2px 0' } },
+    h('span', { style: { fontSize: '9px', fontWeight: 700, letterSpacing: '0.12em', color: d.today ? T.accent : T.subtle, whiteSpace: 'nowrap' } }, (d.today ? 'OGGI' : d.dow) + ' · ' + d.date)); }
+
+  dRail(T, d) { const h = React.createElement; return h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '2px' } },
+    h('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: d.today ? T.accent : T.faint } }),
+    h('span', { style: { fontSize: '11px', fontWeight: 600, color: d.today ? T.accent : T.muted } }, d.today ? 'Oggi' : d.long),
+    h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: T.subtle, marginLeft: 'auto' } }, d.dow)); }
+
+  laneCol(T, kind) {
+    const h = React.createElement;
+    const D1 = { date: '27/06/26', dow: 'SAB', long: 'Sab 27 giu', today: true };
+    const D2 = { date: '29/06/26', dow: 'LUN', long: 'Lun 29 giu' };
+    const t1 = { title: 'Audio e incontro con Marco', tag: 'OM', cap: 'voice' };
+    const t2 = { title: 'GDS/bisdomini — sopralluogo', tag: 'GDS', cap: 'photo', amber: true };
+    const t3 = { title: 'Revoca certificato Aruba', tag: 'OM', cap: 'file', amber: true };
+    let kids = [];
+    if (kind === 'inline') {
+      kids = [this.card(T, Object.assign({}, t1, D1, { today: true }), true), this.card(T, Object.assign({}, t2, D2), true), this.card(T, Object.assign({}, t3, D2), true)];
+    } else {
+      const fn = { pill: 'dPill', rule: 'dRule', caps: 'dCaps', rail: 'dRail' }[kind];
+      kids = [this[fn](T, D1), this.card(T, t1), h('div', { key: 'sp', style: { height: '3px' } }), this[fn](T, D2), this.card(T, t2), this.card(T, t3)];
+    }
+    return h('div', { style: { width: '258px', flexShrink: 0, background: T.lane, border: '1px solid ' + T.line, borderTop: '2px solid ' + T.accent, borderRadius: '12px', padding: '12px 11px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px' } },
+        h('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: T.accent } }),
+        h('span', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: T.text } }, 'PROGRAMMATI'),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, '3')),
+      ...kids);
+  }
+
+  option(num, name, note, kind) {
+    const h = React.createElement;
+    return h('div', { style: { marginBottom: '30px' } },
+      h('div', { style: { display: 'flex', alignItems: 'baseline', gap: '11px', marginBottom: '13px' } },
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '13px', fontWeight: 600, color: '#9a96a4' } }, num),
+        h('span', { style: { fontSize: '19px', fontWeight: 600, letterSpacing: '-0.015em', color: '#1b1923' } }, name),
+        h('span', { style: { fontSize: '13px', color: '#8a8694' } }, note)),
+      h('div', { style: { display: 'flex', gap: '22px' } },
+        h('div', {}, h('div', { style: { fontSize: '9px', fontWeight: 700, letterSpacing: '0.18em', color: '#9a96a4', marginBottom: '8px' } }, 'LIGHT'), this.laneCol(this.tok(false), kind)),
+        h('div', { style: { padding: '0', borderRadius: '12px' } }, h('div', { style: { fontSize: '9px', fontWeight: 700, letterSpacing: '0.18em', color: '#9a96a4', marginBottom: '8px' } }, 'DARK'),
+          h('div', { style: { background: '#161616', padding: '14px', borderRadius: '14px' } }, this.laneCol(this.tok(true), kind)))));
+  }
+
+  view() {
+    const h = React.createElement;
+    const head = h('div', { style: { marginBottom: '34px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '11px', marginBottom: '14px' } },
+        h('div', { style: { width: '24px', height: '24px', borderRadius: '7px', background: '#7C5CCB', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '8px', height: '8px', borderRadius: '2.5px', background: '#fff' } })),
+        h('span', { style: { fontSize: '12px', fontWeight: 600, letterSpacing: '0.16em', color: '#7a7589' } }, 'GIMMICK · KANBAN · DATE')),
+      h('h1', { style: { margin: '0 0 8px', fontSize: '34px', fontWeight: 700, letterSpacing: '-0.03em', color: '#1b1923' } }, 'Come mostrare le date · 5 alternative'),
+      h('p', { style: { margin: 0, fontSize: '15px', lineHeight: 1.55, color: '#5c5868', maxWidth: '680px' } }, 'Stessa colonna, cinque modi di indicare la data. Oggi sempre evidenziato in accento. Scegline uno.'));
+    const opts = [
+      this.option('01', 'Pill', 'la versione attuale — chip mono data+giorno', 'pill'),
+      this.option('02', 'Divisore', 'etichetta a sinistra, hairline, data mono a destra', 'rule'),
+      this.option('03', 'Eyebrow', 'micro-titolo maiuscoletto, leggerissimo', 'caps'),
+      this.option('04', 'Rail a punto', 'pallino + giorno esteso, come una mini-sezione', 'rail'),
+      this.option('05', 'Sulla card', 'niente header di gruppo: la data vive su ogni card', 'inline')
+    ];
+    return h('div', { style: { minHeight: '100%', background: '#eceaef', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '48px 40px 80px' } },
+      h('div', { style: { maxWidth: '760px', margin: '0 auto' } }, head, ...opts));
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

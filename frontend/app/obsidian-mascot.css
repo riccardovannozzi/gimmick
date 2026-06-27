@@ -1,0 +1,63 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — Beniamini (mascot) styles.
+
+   Sprite sizing + the "suggerimento del beniamino" callout. Reads `--ob-*`
+   tokens (incl. --ob-mascot-ink, --ob-accent-text from app/obsidian.css).
+   Reference: Mascot.dc.html + GimmickCaptureFlows.dc.html (Salva spark).
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ob-beniamino {
+  display: inline-flex;
+  line-height: 0;
+  flex-shrink: 0;
+}
+.ob-beniamino svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Suggestion callout ── */
+.ob-mascot-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  background: var(--ob-accent-soft);
+  border: 1px solid color-mix(in srgb, var(--ob-accent) 20%, transparent);
+  border-radius: 13px;
+  padding: 12px 13px;
+}
+.ob-mascot-suggestion__body { flex: 1; min-width: 0; }
+.ob-mascot-suggestion__title {
+  font-family: var(--ob-font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ob-accent-text);
+}
+.ob-mascot-suggestion__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.ob-suggestion-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ob-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ob-accent);
+  background: var(--ob-surface);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 3px 8px;
+}
+.ob-suggestion-chip--interactive {
+  cursor: pointer;
+  transition: background-color 140ms ease-out, border-color 140ms ease-out;
+}
+.ob-suggestion-chip--interactive:hover { border-color: color-mix(in srgb, var(--ob-accent) 35%, transparent); }
+.ob-suggestion-chip--interactive:active { filter: brightness(0.97); }
+.ob-suggestion-chip--interactive:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: 2px; }

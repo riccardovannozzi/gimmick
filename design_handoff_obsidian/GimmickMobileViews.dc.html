@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}
+  .gm-s::-webkit-scrollbar{width:0;}
+</style>
+</helmet>
+
+<div style="position:relative; width:1820px; height:1880px;">{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() {
+    const S = (b) => this.S(b);
+    return {
+      back: S('<path d="M9.5 3.5 5 8l4.5 4.5"/>'),
+      home: S('<path d="M2.6 7.6 8 3.2l5.4 4.4M4 6.6V13h8V6.6"/>'),
+      tiles: S('<rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/>'),
+      flows: S('<circle cx="3.6" cy="8" r="1.7"/><circle cx="12.4" cy="4.2" r="1.7"/><circle cx="12.4" cy="11.8" r="1.7"/><path d="M5.2 7.3 10.8 4.9M5.2 8.7l5.6 2.4"/>'),
+      chrono: S('<circle cx="8" cy="8.6" r="5.4"/><path d="M8 5.6v3l2 1.4"/><path d="M5.4 1.9 3.6 3.3M10.6 1.9l1.8 1.4"/>'),
+      gear: S('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v2M8 12.4v2M14.4 8h-2M3.6 8h-2M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4M12.5 12.5l-1.4-1.4M4.9 4.9 3.5 3.5"/>'),
+      action: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      type: S('<path d="M8 2.4 14 5.6 8 8.8 2 5.6Z"/><path d="M2 9.2 8 12.4l6-3.2"/>'),
+      status: S('<circle cx="8" cy="8" r="5.6"/><path d="M5.6 8.2 7.3 10l3.3-3.8"/>'),
+      trash: S('<path d="M3.5 4.5h9M6 4.5V3.2h4v1.3M4.6 4.5l.6 8.3h5.6l.6-8.3"/>'),
+      clock: S('<circle cx="8" cy="8" r="5.4"/><path d="M8 5.2v3l2 1.3"/>'),
+      box: S('<rect x="3" y="3" width="10" height="10" rx="2"/>'),
+      done: S('<path d="M3 8.6 6.4 12 13 4.6"/>'),
+      wait: S('<path d="M4.5 2.5h7M4.5 13.5h7M5.5 2.5c0 3 5 3.5 5 5.5s-5 2.5-5 5.5M10.5 2.5c0 3-5 3.5-5 5.5"/>'),
+      undo: S('<path d="M5 5 2.6 7.4 5 9.8M2.6 7.4h7a3.6 3.6 0 0 1 0 7.2H6"/>'),
+      stop: S('<path d="M4 4l8 8M12 4l-8 8"/>'),
+      chevL: S('<path d="M10 4 6 8l4 4"/>'),
+      chevR: S('<path d="M6 4l4 4-4 4"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      person: S('<circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13.2a4.4 4.4 0 0 1 8.8 0"/>'),
+      bell: S('<path d="M5 7a3 3 0 0 1 6 0c0 3 1.2 3.8 1.2 3.8H3.8S5 10 5 7ZM6.6 12.6a1.5 1.5 0 0 0 2.8 0"/>'),
+      globe: S('<circle cx="8" cy="8" r="5.5"/><path d="M2.6 8h10.8M8 2.5c1.6 1.7 2.4 3.6 2.4 5.5S9.6 11.8 8 13.5C6.4 11.8 5.6 9.9 5.6 8S6.4 4.2 8 2.5Z"/>'),
+      vibrate: S('<rect x="5.5" y="3" width="5" height="10" rx="1.4"/><path d="M2.5 6v4M13.5 6v4"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 16) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const b = dark ? {
+      bezel: '#0c0c0d', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', field: '#1d1d1d', head: '#1c1c1c',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656', statusInk: '#dcdcdc',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)', gridLine: 'rgba(255,255,255,0.05)', todayBg: 'rgba(171,159,242,0.07)',
+      timed: '#74D6A2', allday: '#7AA7F5', deadline: '#F08D89', anytime: '#9aa0ad', notes: '#8b8b94', amber: '#E7C25E'
+    } : {
+      bezel: '#d9d7dd', canvas: '#f6f6f8', surface: '#ffffff', surface2: '#f1f0f4', field: '#ffffff', head: '#fbfbfc',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd', statusInk: '#1b1923',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', gridLine: 'rgba(24,20,38,0.06)', todayBg: 'rgba(124,92,203,0.05)',
+      timed: '#3FAE72', allday: '#4F86EE', deadline: '#E0544F', anytime: '#7e8694', notes: '#8a8694', amber: '#C99220'
+    };
+    b.accent = acc.a; b.accentInk = acc.ink; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+  readable(hex) { let x = hex.replace('#', ''); const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), bl = parseInt(x.slice(4, 6), 16); return (0.299 * r + 0.587 * g + 0.114 * bl) / 255 > 0.62 ? '#1b1923' : '#ffffff'; }
+  fill(c, T) { const tint = T.dark ? '2b' : '1c'; return { bg: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30') }; }
+
+  statusBar(T) {
+    const h = React.createElement; const c = T.statusInk;
+    return h('div', { style: { height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', position: 'relative' } },
+      h('span', { style: { fontSize: '13px', fontWeight: 600, color: c } }, '9:30'),
+      h('div', { style: { position: 'absolute', left: '50%', top: '9px', transform: 'translateX(-50%)', width: '9px', height: '9px', borderRadius: '50%', background: '#000' } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('span', { style: { width: '15px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5"/><rect x="9" y="3" width="3" height="9" rx="0.5"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.5" opacity="0.35"/></svg>' } }),
+        h('span', { style: { width: '22px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 24 12" width="100%" height="100%" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="2.6" width="13" height="6.8" rx="1.2" fill="currentColor"/><rect x="21" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>' } }))
+    );
+  }
+  navPill(T) { return React.createElement('div', { style: { height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, React.createElement('div', { style: { width: '128px', height: '4px', borderRadius: '2px', background: T.dark ? 'rgba(255,255,255,0.4)' : 'rgba(24,20,38,0.32)' } })); }
+
+  topNav(T, active) {
+    const h = React.createElement;
+    const ib = (n, on) => h('div', { key: n, style: { width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: on ? T.accent : T.muted } }, this.glyph(n, 19));
+    const pill = (n, label) => h('div', { key: 'p' + n, style: { display: 'flex', alignItems: 'center', gap: '7px', height: '36px', padding: '0 14px', borderRadius: '11px', background: T.accent, color: T.accentInk, fontSize: '13px', fontWeight: 600 } }, this.glyph(n, 16, T.accentInk), label);
+    const tab = (n, label) => active === n ? pill(n, label) : ib(n, false);
+    return h('div', { style: { height: '54px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '3px', padding: '0 8px', borderBottom: '1px solid ' + T.line } },
+      ib('back'), ib('home'),
+      h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', gap: '3px' } }, tab('tiles', 'Tiles'), tab('flows', 'Flows'), tab('chrono', 'Chrono')),
+      tab('gear', 'Settings'));
+  }
+
+  // ---------- TILES ----------
+  filterChip(T, icon, label) {
+    const h = React.createElement;
+    return h('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 11px', borderRadius: '9px', background: T.surface, border: '1px solid ' + T.line2, fontSize: '12.5px', fontWeight: 600, color: T.muted } }, this.glyph(icon, 13, T.subtle), label, this.glyph('chevD', 11, T.subtle));
+  }
+  tileCard(T, t) {
+    const h = React.createElement;
+    const c = t.kind === 'timed' ? T.timed : (t.kind === 'deadline' ? T.deadline : T.notes);
+    const tinted = t.kind === 'timed' || t.kind === 'deadline';
+    const f = tinted ? this.fill(c, T) : { bg: T.surface, border: '1px solid ' + T.line };
+    const lead = t.kind === 'notes' ? h('div', { style: { width: '20px', height: '20px', borderRadius: '5px', border: '1.5px solid ' + T.line2, flexShrink: 0 } }) : h('div', { style: { width: '24px', height: '24px', borderRadius: '7px', background: c + (T.dark ? '33' : '22'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: c, flexShrink: 0 } }, this.glyph(t.kind === 'deadline' ? 'status' : 'clock', 13));
+    return h('div', { key: t.title, style: Object.assign({ borderRadius: '13px', padding: '13px 14px' }, f) },
+      h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '10px' } },
+        h('div', { style: { flex: 1, minWidth: 0 } },
+          h('div', { style: { fontSize: '14.5px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text, marginBottom: t.meta ? '3px' : 0 } }, t.title),
+          t.meta ? h('div', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, t.meta) : null),
+        this.glyph('trash', 15, T.faint)),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginTop: '11px' } }, lead,
+        h('div', { style: { flex: 1 } }),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', background: T.text, color: T.canvas, borderRadius: '7px', padding: '3px 8px' } },
+          h('span', { style: { width: '11px', height: '11px', color: T.canvas }, dangerouslySetInnerHTML: { __html: this.ICONS.action } }),
+          h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', fontWeight: 600 } }, t.spark + ' SPARK'))));
+  }
+  tilesView(T) {
+    const h = React.createElement;
+    const chips = h('div', { style: { display: 'flex', gap: '7px', padding: '12px 16px 8px', flexShrink: 0 } }, this.filterChip(T, 'action', 'Action'), this.filterChip(T, 'tag', 'Tag'), this.filterChip(T, 'type', 'Type'), this.filterChip(T, 'status', 'Status'));
+    const grp = (label) => h('div', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.13em', color: T.subtle, margin: '6px 2px 0' } }, label);
+    const body = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', padding: '4px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+      grp('IERI'),
+      this.tileCard(T, { title: 'Contattare Giovanni domattina', meta: '27 Giu 2026 · 11:30 · 1h', kind: 'timed', spark: 1 }),
+      grp('25 GIUGNO'),
+      this.tileCard(T, { title: 'Marco al tramonto mediterraneo', kind: 'notes', spark: 2 }),
+      this.tileCard(T, { title: 'Audio e incontro con Marco', meta: '26 Giu 2026 · 17:00 · 1h', kind: 'timed', spark: 2 }),
+      this.tileCard(T, { title: 'Appuntamento con Marco Guerrieri', kind: 'notes', spark: 1 }),
+      this.tileCard(T, { title: 'GDS/bisdomini', meta: '26 Giu 2026 · 12:15 · 1h', kind: 'timed', spark: 1 }));
+    return h(React.Fragment, {}, chips, body);
+  }
+
+  // ---------- FLOWS ----------
+  flowFilter(T) {
+    const h = React.createElement;
+    const items = [['done', 'Done', T.timed, false], ['wait', 'Wait', T.amber, true], ['undo', 'Undo', T.accent, false], ['stop', 'Stop', T.deadline, false]];
+    return h('div', { style: { display: 'flex', gap: '7px', padding: '12px 16px 8px', flexShrink: 0 } },
+      items.map((it) => h('div', { key: it[1], style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px', padding: '8px', borderRadius: '9px', fontSize: '12px', fontWeight: 600, color: it[3] ? '#fff' : it[2], background: it[3] ? it[2] : it[2] + (T.dark ? '22' : '16'), border: '1px solid ' + (it[3] ? 'transparent' : it[2] + (T.dark ? '40' : '33')) } }, this.glyph(it[0], 13, it[3] ? '#fff' : it[2]), it[1])));
+  }
+  flowCard(T, fl) {
+    const h = React.createElement;
+    return h('div', { key: fl.tag + fl.title, style: { background: T.surface, border: '1px solid ' + T.line, borderRadius: '13px', padding: '12px 14px' } },
+      h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '10px' } },
+        h('div', { style: { flex: 1, minWidth: 0 } },
+          h('div', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', fontWeight: 600, color: T.accent, marginBottom: '5px', letterSpacing: '0.04em' } }, fl.tag),
+          h('div', { style: { fontSize: '14px', fontWeight: 600, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, fl.title)),
+        h('div', { style: { width: '26px', height: '26px', borderRadius: '50%', background: T.amber + (T.dark ? '2e' : '1c'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.amber, flexShrink: 0 } }, this.glyph('wait', 14))),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0' } },
+        h('span', { style: { fontSize: '12px', color: T.muted } }, fl.state),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '7px', padding: '3px 8px' } },
+          this.glyph('person', 11, T.subtle), h('span', { style: { fontSize: '11px', fontWeight: 600, color: T.muted } }, fl.who))),
+      h('div', { style: { display: 'flex', alignItems: 'center', borderTop: '1px solid ' + T.line, paddingTop: '9px' } },
+        h('span', { style: { fontSize: '11px', color: T.subtle, flex: 1 } }, fl.ago),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, fl.date)));
+  }
+  flowsView(T) {
+    const h = React.createElement;
+    const body = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', padding: '4px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' } },
+      this.flowCard(T, { tag: 'RUSLAN_VIA SARDEGNA', title: 'Ruslan/inviare messaggio', state: 'Aggiornare docume…', who: 'IO', ago: '5g fa', date: '22 Giu 2026' }),
+      this.flowCard(T, { tag: 'OM_PADEL', title: 'OM/Richiesta preventivo', state: 'Attesa preventivo', who: 'L. Anichini', ago: '5g fa', date: '22 Giu 2026' }),
+      this.flowCard(T, { tag: 'GDS_VARIE', title: 'GDS/Area matrimoni', state: 'Attesa firme', who: 'N. Mainetti', ago: '5g fa', date: '22 Giu 2026' }),
+      this.flowCard(T, { tag: 'CONSORZIO BONIFICA', title: 'Richiesta informazioni', state: '(senza etichetta)', who: 'Consorzio', ago: '12g fa', date: '15 Giu 2026' }),
+      this.flowCard(T, { tag: 'GDS_PULIZIA', title: 'GDS/Pulizia pannelli', state: 'Attendo feed', who: 'L. Alessi', ago: '23g fa', date: '04 Giu 2026' }));
+    return h(React.Fragment, {}, this.flowFilter(T), body);
+  }
+
+  // ---------- CHRONO ----------
+  chronoView(T) {
+    const h = React.createElement;
+    const dateNav = h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '12px 16px 6px', flexShrink: 0 } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', border: '1px solid ' + T.line2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph('chevL', 14)),
+      h('div', { style: { padding: '6px 13px', borderRadius: '8px', border: '1px solid ' + T.line2, fontSize: '12px', fontWeight: 600, color: T.text } }, 'Oggi'),
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', border: '1px solid ' + T.line2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph('chevR', 14)),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontSize: '14px', fontWeight: 600, color: T.text } }, 'Sab 27 giu'));
+    const seg = h('div', { style: { display: 'flex', gap: '3px', margin: '4px 16px 10px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '3px', flexShrink: 0 } },
+      [['Daily', true], ['Week', false], ['Month', false]].map((s) => h('div', { key: s[0], style: { flex: 1, textAlign: 'center', padding: '7px', borderRadius: '7px', fontSize: '12.5px', fontWeight: s[1] ? 600 : 500, color: s[1] ? T.accent : T.muted, background: s[1] ? T.accentSoft : 'transparent' } }, s[0])));
+    const H = 56, START = 8, END = 16;
+    const hours = []; for (let x = START; x <= END; x++) hours.push(x);
+    const f = this.fill(T.timed, T);
+    const event = h('div', { style: { position: 'absolute', top: ((11.5 - START) * H + 1) + 'px', left: '52px', right: '12px', height: (H - 4) + 'px', borderRadius: '8px', padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' } });
+    const grid = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', position: 'relative' } },
+      h('div', { style: { position: 'relative', height: (hours.length * H) + 'px', padding: '4px 0' } },
+        hours.map((x, i) => h('div', { key: x, style: { position: 'absolute', top: (i * H + 4) + 'px', left: 0, right: 0, borderTop: '1px solid ' + T.gridLine } },
+          h('span', { style: { position: 'absolute', top: '-7px', left: '12px', fontSize: '10px', fontFamily: "'Geist Mono',monospace", color: T.subtle, background: T.canvas, padding: '0 4px' } }, (x < 10 ? '0' + x : x) + ':00'))),
+        h('div', { style: Object.assign({ position: 'absolute', top: ((11.5 - START) * H + 5) + 'px', left: '52px', right: '12px', height: (H - 6) + 'px', borderRadius: '8px', padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: '2px', overflow: 'hidden' }, f) },
+          h('span', { style: { fontSize: '12.5px', fontWeight: 600, color: T.text } }, 'Contattare Giovanni'),
+          h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: T.dark ? T.muted : T.timed } }, '11:30 – 12:30')),
+        h('div', { style: { position: 'absolute', top: ((11.9 - START) * H + 5) + 'px', left: '46px', right: 0, height: 0, borderTop: '1.5px solid ' + T.accent } }, h('div', { style: { position: 'absolute', left: '0', top: '-3.5px', width: '7px', height: '7px', borderRadius: '50%', background: T.accent } }))));
+    return h(React.Fragment, {}, dateNav, seg, grid);
+  }
+
+  // ---------- SETTINGS ----------
+  toggle(T, on) { const h = React.createElement; return h('div', { style: { width: '44px', height: '26px', borderRadius: '13px', background: on ? T.accent : T.line2, position: 'relative', flexShrink: 0 } }, h('div', { style: { position: 'absolute', top: '3px', left: on ? '21px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.25)' } })); }
+  settingsView(T) {
+    const h = React.createElement;
+    const sh = (t) => h('div', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.13em', color: T.subtle, margin: '20px 2px 12px' } }, t);
+    const row = (icon, label, sub, control) => h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', background: T.surface, border: '1px solid ' + T.line, borderRadius: '12px', padding: '13px 14px' } },
+      h('div', { style: { width: '34px', height: '34px', borderRadius: '9px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted, flexShrink: 0 } }, this.glyph(icon, 16)),
+      h('div', { style: { flex: 1, minWidth: 0 } }, h('div', { style: { fontSize: '14px', fontWeight: 600, color: T.text } }, label), sub ? h('div', { style: { fontSize: '11.5px', color: T.subtle, marginTop: '1px' } }, sub) : null), control);
+    const seg = (items) => h('div', { style: { display: 'flex', gap: '3px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '3px' } },
+      items.map((s) => h('div', { key: s[0], style: { flex: 1, textAlign: 'center', padding: '8px 6px', borderRadius: '7px', fontSize: '12.5px', fontWeight: s[1] ? 600 : 500, color: s[1] ? T.accent : T.muted, background: s[1] ? T.accentSoft : 'transparent' } }, s[0])));
+    const segRow = (label, control) => h('div', { style: { background: T.surface, border: '1px solid ' + T.line, borderRadius: '12px', padding: '13px 14px', marginBottom: '9px' } },
+      h('div', { style: { fontSize: '13px', fontWeight: 600, color: T.text, marginBottom: '10px' } }, label), control);
+    const body = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', padding: '12px 16px 24px' } },
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '9px' } },
+        row('vibrate', 'Feedback aptico', 'Vibrazione su cattura e invio', this.toggle(T, true)),
+        row('trash', 'Conferma eliminazione', null, this.toggle(T, true)),
+        row('bell', 'Notifiche', 'Promemoria e scadenze', this.toggle(T, false))),
+      sh('ASPETTO'),
+      segRow('Tema', seg([['Light', true], ['Dark', false], ['Sistema', false]])),
+      segRow('Colore tile', seg([['Tinta', true], ['Pieno', false]])),
+      sh('GENERALE'),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '9px' } },
+        row('globe', 'Lingua', 'Italiano', this.glyph('chevR', 15, T.faint)),
+        row('action', 'Beniamino assistente', 'Bito', this.glyph('chevR', 15, T.faint))));
+    return body;
+  }
+
+  phone(T, active, contentFn) {
+    const h = React.createElement;
+    return h('div', { style: { width: '380px', height: '812px', borderRadius: '40px', background: T.bezel, padding: '7px', boxShadow: '0 40px 90px -50px rgba(0,0,0,0.6)' } },
+      h('div', { style: { width: '100%', height: '100%', borderRadius: '34px', overflow: 'hidden', background: T.canvas, display: 'flex', flexDirection: 'column', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased' } },
+        this.statusBar(T), this.topNav(T, active), contentFn.call(this, T), this.navPill(T)));
+  }
+  frame(key, x, T, active, fn, y) { return React.createElement('div', { key: key, style: { position: 'absolute', left: x + 'px', top: (y || 64) + 'px', width: '380px' } }, this.phone(T, active, fn)); }
+  label(text, x, y) { return React.createElement('div', { key: text, 'data-drags-parent': '1', style: { position: 'absolute', left: x + 'px', top: (y || 20) + 'px', fontSize: '13px', fontWeight: 600, color: '#46434f' } }, text); }
+
+  view() {
+    const h = React.createElement; const L = this.tok(false), D = this.tok(true); const G = 440; const Y2 = 980;
+    return h(React.Fragment, {},
+      this.label('Tiles · Light', 0), this.frame('t', 0, L, 'tiles', this.tilesView),
+      this.label('Flows · Light', G), this.frame('f', G, L, 'flows', this.flowsView),
+      this.label('Chrono · Light', G * 2), this.frame('c', G * 2, L, 'chrono', this.chronoView),
+      this.label('Settings · Light', G * 3), this.frame('s', G * 3, L, 'gear', this.settingsView),
+      this.label('Tiles · Dark', 0, Y2 - 44), this.frame('td', 0, D, 'tiles', this.tilesView, Y2),
+      this.label('Flows · Dark', G, Y2 - 44), this.frame('fd', G, D, 'flows', this.flowsView, Y2),
+      this.label('Chrono · Dark', G * 2, Y2 - 44), this.frame('cd', G * 2, D, 'chrono', this.chronoView, Y2),
+      this.label('Settings · Dark', G * 3, Y2 - 44), this.frame('sd', G * 3, D, 'gear', this.settingsView, Y2)
+    );
+  }
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

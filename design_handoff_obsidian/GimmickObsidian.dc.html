@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;}
+</style>
+</helmet>
+
+<div style="background:#eceaef; font-family:'Geist',ui-sans-serif,system-ui,sans-serif; color:#1b1923; -webkit-font-smoothing:antialiased; padding:56px 40px 96px; min-width:1180px;">
+<div style="max-width:1300px; margin:0 auto;">
+
+  <!-- ============ HEADER ============ -->
+  <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:32px; margin-bottom:14px;">
+    <div>
+      <div style="display:flex; align-items:center; gap:11px; margin-bottom:16px;">
+        <div style="width:26px; height:26px; border-radius:8px; background:#7C5CCB; display:flex; align-items:center; justify-content:center;">
+          <div style="width:9px; height:9px; border-radius:3px; background:#fff;"></div>
+        </div>
+        <span style="font-size:12px; font-weight:600; letter-spacing:0.16em; color:#7a7589;">GIMMICK · DESIGN SYSTEM</span>
+      </div>
+      <h1 style="margin:0; font-size:46px; font-weight:700; letter-spacing:-0.03em; line-height:1.02;">Obsidian</h1>
+      <p style="margin:16px 0 0; font-size:16px; line-height:1.55; color:#5c5868; max-width:640px;">Dall'arcade neon a un chassis monocromatico e calmo, pensato per l'uso quotidiano. Tipografia <strong style="font-weight:600; color:#1b1923;">Geist</strong>, hairline da 1px, niente ombre dure né scanline. Il colore vive solo dove serve: i sei tipi di cattura e i <strong style="font-weight:600; color:#1b1923;">beniamini</strong>, ora ridisegnati morbidi.</p>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:7px; text-align:right; font-size:12px; color:#8a8694; line-height:1.5; padding-bottom:6px;">
+      <span>2 direzioni d'accento</span>
+      <span>Light · Dark</span>
+      <span>10 beniamini</span>
+    </div>
+  </div>
+
+  <div style="height:1px; background:rgba(24,20,38,0.1); margin:36px 0 40px;"></div>
+
+  <!-- ============ DIREZIONI ============ -->
+  <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:18px;">
+    <span style="font-family:'Geist Mono',monospace; font-size:13px; font-weight:600; color:#9a96a4;">01</span>
+    <span style="font-size:20px; font-weight:600; letter-spacing:-0.015em;">Direzione d'accento</span>
+    <span style="font-size:13px; color:#8a8694;">Phantom Violet — l'accento unico del sistema</span>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr; gap:24px; margin-bottom:56px; max-width:560px;">
+
+    <!-- Phantom Violet -->
+    <div style="--canvas:#f6f6f8;--surface:#ffffff;--surface2:#f3f2f6;--text:#1b1923;--muted:#5c5868;--subtle:#8a8694;--faint:#bdbac6;--line:rgba(24,20,38,0.09);--line2:rgba(24,20,38,0.16);--cap-photo:#4F86EE;--cap-video:#E0588C;--cap-gallery:#8C7BE0;--cap-text:#3FAE72;--cap-voice:#E0544F;--cap-file:#C99220;--mascot-ink:#26212f;--accent:#7C5CCB;--accent-ink:#ffffff;--accent-soft:#efeafb;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div style="display:flex; align-items:center; gap:9px;"><span style="width:11px; height:11px; border-radius:50%; background:var(--accent);"></span><span style="font-size:15px; font-weight:600;">Phantom Violet</span></div>
+        <span style="font-size:12px; color:#8a8694;">l'accento del sistema</span>
+      </div>
+      <div style="border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--surface);">{{ surfaceA }}</div>
+    </div>
+  </div>
+
+  <!-- ============ BENIAMINI ============ -->
+  <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:6px;">
+    <span style="font-family:'Geist Mono',monospace; font-size:13px; font-weight:600; color:#9a96a4;">02</span>
+    <span style="font-size:20px; font-weight:600; letter-spacing:-0.015em;">Beniamini</span>
+    <span style="font-size:13px; color:#8a8694;">ridisegnati morbidi — niente più pixel, stessa identità</span>
+  </div>
+  <p style="margin:0 0 22px; font-size:14px; color:#5c5868; max-width:680px; line-height:1.5;">Dieci personaggi, forme arrotondate, due colori ciascuno. Sono l'unico elemento espressivo del sistema: compaiono negli empty-state, nello splash, accanto all'assistente AI.</p>
+
+  <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:24px; --mascot-ink:#26212f;">
+    <sc-for list="{{ mascots }}" as="m" hint-placeholder-count="10">
+      <div style="background:#fff; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:18px 14px 14px; display:flex; flex-direction:column; align-items:center; text-align:center; gap:10px;">
+        <div style="width:80px; height:80px; display:flex; align-items:center; justify-content:center; background:#f6f6f8; border-radius:50%;">
+          <dc-import name="Mascot" id="{{ m.id }}" size="60" hint-size="60px,60px"></dc-import>
+        </div>
+        <div>
+          <div style="font-size:14px; font-weight:600; letter-spacing:-0.01em;">{{ m.name }}</div>
+          <div style="font-size:10px; font-weight:600; letter-spacing:0.08em; color:#9a96a4; margin-top:3px;">{{ m.role }}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- dark strip -->
+  <div style="background:#161616; border-radius:14px; padding:22px 24px; display:flex; align-items:center; gap:24px; margin-bottom:56px; --mascot-ink:#181818;">
+    <span style="font-size:10px; font-weight:700; letter-spacing:0.18em; color:#6c6780; writing-mode:vertical-rl; transform:rotate(180deg);">DARK</span>
+    <div style="display:flex; gap:18px; flex-wrap:wrap; flex:1;">
+      <sc-for list="{{ mascots }}" as="m" hint-placeholder-count="10">
+        <div style="width:54px; height:54px; display:flex; align-items:center; justify-content:center;">
+          <dc-import name="Mascot" id="{{ m.id }}" size="48" hint-size="48px,48px"></dc-import>
+        </div>
+      </sc-for>
+    </div>
+    <span style="font-size:13px; color:#8a8694; max-width:170px; line-height:1.5;">Stessi colori, fondo profondo. Gli occhi restano scuri.</span>
+  </div>
+
+  <!-- ============ COLORE ============ -->
+  <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:20px;">
+    <span style="font-family:'Geist Mono',monospace; font-size:13px; font-weight:600; color:#9a96a4;">03</span>
+    <span style="font-size:20px; font-weight:600; letter-spacing:-0.015em;">Colore</span>
+    <span style="font-size:13px; color:#8a8694;">chassis monocromatico · sei tipi di cattura · accento</span>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1.4fr 1fr; gap:24px; margin-bottom:18px;">
+    <div style="background:#fff; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:22px;">
+      <div style="font-size:11px; font-weight:600; letter-spacing:0.08em; color:#9a96a4; margin-bottom:16px;">CHASSIS — SCALA NEUTRA (LIGHT)</div>
+      <div style="display:flex; gap:0; border-radius:10px; overflow:hidden; border:1px solid rgba(24,20,38,0.08);">
+        <sc-for list="{{ neutrals }}" as="n" hint-placeholder-count="8">
+          <div style="flex:1; height:64px; background:{{ n.v }};"></div>
+        </sc-for>
+      </div>
+      <div style="display:flex; gap:0; margin-top:8px;">
+        <sc-for list="{{ neutrals }}" as="n" hint-placeholder-count="8">
+          <div style="flex:1; text-align:center;"><div style="font-size:10px; font-weight:600; color:#5c5868;">{{ n.name }}</div><div style="font-family:'Geist Mono',monospace; font-size:9px; color:#9a96a4;">{{ n.v }}</div></div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#fff; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:22px;">
+      <div style="font-size:11px; font-weight:600; letter-spacing:0.08em; color:#9a96a4; margin-bottom:16px;">ACCENTO</div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; align-items:center; gap:12px;"><div style="width:40px; height:40px; border-radius:10px; background:#7C5CCB;"></div><div><div style="font-size:13px; font-weight:600;">Phantom Violet</div><div style="font-family:'Geist Mono',monospace; font-size:11px; color:#9a96a4;">#7C5CCB · dark #AB9FF2</div></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div style="background:#fff; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:22px; margin-bottom:56px;">
+    <div style="font-size:11px; font-weight:600; letter-spacing:0.08em; color:#9a96a4; margin-bottom:16px;">CATTURA — I SEI TIPI (UNICO COLORE DEL SISTEMA)</div>
+    <div style="display:grid; grid-template-columns:repeat(6,1fr); gap:14px;">
+      <sc-for list="{{ captures }}" as="c" hint-placeholder-count="6">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:9px;">
+          <div style="width:100%; height:48px; border-radius:10px; background:{{ c.color }};"></div>
+          <div style="text-align:center;"><div style="font-size:12px; font-weight:600;">{{ c.label }}</div><div style="font-family:'Geist Mono',monospace; font-size:10px; color:#9a96a4;">{{ c.hex }}</div></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- ============ TIPOGRAFIA ============ -->
+  <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:20px;">
+    <span style="font-family:'Geist Mono',monospace; font-size:13px; font-weight:600; color:#9a96a4;">04</span>
+    <span style="font-size:20px; font-weight:600; letter-spacing:-0.015em;">Tipografia</span>
+    <span style="font-size:13px; color:#8a8694;">Geist · Geist Mono — leggibile fino a 11px</span>
+  </div>
+  <div style="background:#fff; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:10px 24px; margin-bottom:56px;">
+    <sc-for list="{{ typeRows }}" as="t" hint-placeholder-count="5">
+      <div style="display:flex; align-items:baseline; gap:24px; padding:16px 0; border-bottom:1px solid rgba(24,20,38,0.07);">
+        <div style="width:160px; flex-shrink:0;"><div style="font-size:12px; font-weight:600;">{{ t.label }}</div><div style="font-family:'Geist Mono',monospace; font-size:11px; color:#9a96a4;">{{ t.meta }}</div></div>
+        <div style="flex:1; color:#1b1923; font-family:{{ t.family }}; font-size:{{ t.size }}; font-weight:{{ t.weight }}; letter-spacing:{{ t.tracking }};">{{ t.sample }}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- ============ COMPONENTI ============ -->
+  <div style="display:flex; align-items:baseline; gap:12px; margin-bottom:20px;">
+    <span style="font-family:'Geist Mono',monospace; font-size:13px; font-weight:600; color:#9a96a4;">05</span>
+    <span style="font-size:20px; font-weight:600; letter-spacing:-0.015em;">Componenti</span>
+    <span style="font-size:13px; color:#8a8694;">light + dark — testo nitido anche su card minime</span>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+    <!-- LIGHT components -->
+    <div style="--surface:#ffffff;--surface2:#f3f2f6;--text:#1b1923;--muted:#5c5868;--subtle:#8a8694;--line:rgba(24,20,38,0.1);--line2:rgba(24,20,38,0.18);--cap-photo:#4F86EE;--cap-video:#E0588C;--cap-gallery:#8C7BE0;--cap-text:#3FAE72;--cap-voice:#E0544F;--cap-file:#C99220;--mascot-ink:#26212f;--accent:#7C5CCB;--accent-ink:#ffffff;--accent-soft:#efeafb; background:#f6f6f8; border:1px solid rgba(24,20,38,0.08); border-radius:14px; padding:24px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.18em; color:var(--subtle); margin-bottom:18px;">LIGHT</div>
+      {{ componentsLight }}
+    </div>
+    <!-- DARK components -->
+    <div style="--surface:#262626;--surface2:#2d2d2d;--text:#dcdcdc;--muted:#9a9a9a;--subtle:#6e6e6e;--line:rgba(255,255,255,0.1);--line2:rgba(255,255,255,0.2);--cap-photo:#7AA7F5;--cap-video:#F08DB4;--cap-gallery:#B0A2EE;--cap-text:#74D6A2;--cap-voice:#F38682;--cap-file:#E7C25E;--mascot-ink:#181818;--accent:#AB9FF2;--accent-ink:#1b0d2e;--accent-soft:#2e2747; background:#1e1e1e; border:1px solid rgba(255,255,255,0.08); border-radius:14px; padding:24px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.18em; color:var(--subtle); margin-bottom:18px;">DARK</div>
+      {{ componentsDark }}
+    </div>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  // ----- a themed mini app surface (used for both directions) -----
+  surface() {
+    const h = React.createElement;
+    const chip = (label) => h('div', { key: label, style: { fontSize: '12px', fontWeight: 500, color: 'var(--muted)', padding: '6px 11px', borderRadius: '8px', background: 'var(--surface2)', border: '1px solid var(--line)' } }, '# ' + label);
+    const capIcon = (v) => h('div', { key: v, style: { width: '34px', height: '34px', borderRadius: '9px', background: v, opacity: 0.92 } });
+    return h('div', { style: { background: 'var(--canvas)', backgroundImage: 'radial-gradient(var(--line2) 1px, transparent 1px)', backgroundSize: '20px 20px', padding: '16px' } },
+      // header
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '14px' } },
+        h('div', { style: { width: '26px', height: '26px', borderRadius: '8px', background: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '8px', height: '8px', borderRadius: '3px', background: 'var(--accent-ink)' } })),
+        h('span', { style: { fontSize: '14px', fontWeight: 600, color: 'var(--text)' } }, 'Gimmick'),
+        h('div', { style: { flex: 1 } }),
+        h('div', { style: { fontSize: '12px', fontWeight: 500, color: 'var(--accent-ink)', background: 'var(--accent)', padding: '5px 12px', borderRadius: '8px' } }, 'Teleport')
+      ),
+      // body: tags + content
+      h('div', { style: { display: 'flex', gap: '12px' } },
+        h('div', { style: { display: 'flex', flexDirection: 'column', gap: '8px', width: '116px' } }, ['lavoro', 'idee', 'spesa'].map(chip)),
+        h('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' } },
+          // tile card
+          h('div', { style: { background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '10px', padding: '12px 13px' } },
+            h('div', { style: { fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '5px' } }, 'Call Marco · brief'),
+            h('div', { style: { fontSize: '12px', color: 'var(--muted)', lineHeight: 1.45, marginBottom: '9px' } }, 'Definire scope e date del flusso Teleport.'),
+            h('div', { style: { display: 'flex', gap: '6px' } },
+              h('span', { style: { width: '14px', height: '14px', borderRadius: '4px', background: 'var(--cap-text)' } }),
+              h('span', { style: { width: '14px', height: '14px', borderRadius: '4px', background: 'var(--cap-voice)' } }),
+              h('span', { style: { fontSize: '11px', color: 'var(--subtle)', marginLeft: 'auto', fontFamily: "'Geist Mono',monospace" } }, '2 spark'))
+          ),
+          // chat bubble
+          h('div', { style: { alignSelf: 'flex-start', maxWidth: '90%', background: 'var(--accent-soft)', border: '1px solid var(--line)', borderRadius: '12px 12px 12px 4px', padding: '9px 12px', fontSize: '12px', color: 'var(--text)', lineHeight: 1.45 } }, 'Ho trovato 3 spark di oggi. Li archivio come tile?')
+        )
+      ),
+      // capture row
+      h('div', { style: { display: 'flex', gap: '8px', marginTop: '14px', justifyContent: 'space-between' } },
+        ['var(--cap-photo)', 'var(--cap-video)', 'var(--cap-gallery)', 'var(--cap-text)', 'var(--cap-voice)', 'var(--cap-file)'].map(capIcon))
+    );
+  }
+
+  // ----- a column of components, themed by the wrapping element's vars -----
+  components() {
+    const h = React.createElement;
+    const block = (title, body) => h('div', { key: title, style: { marginBottom: '20px' } },
+      h('div', { style: { fontSize: '10px', fontWeight: 600, letterSpacing: '0.1em', color: 'var(--subtle)', marginBottom: '10px' } }, title), body);
+    const btn = (label, style) => h('div', { key: label, style: Object.assign({ fontSize: '13px', fontWeight: 500, padding: '8px 14px', borderRadius: '8px', cursor: 'default' }, style) }, label);
+    return h('div', {},
+      block('PULSANTI', h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '8px' } },
+        btn('Crea', { background: 'var(--accent)', color: 'var(--accent-ink)' }),
+        btn('Annulla', { background: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--line2)' }),
+        btn('Modifica', { background: 'transparent', color: 'var(--muted)' }),
+        btn('Elimina', { background: 'transparent', color: '#E0584F', border: '1px solid rgba(224,88,79,0.35)' })
+      )),
+      block('INPUT', h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--surface)', border: '1px solid var(--line2)', borderRadius: '8px', padding: '9px 12px' } },
+        h('span', { style: { flex: 1, fontSize: '13px', color: 'var(--text)' } }, 'Idea da catturare'),
+        h('span', { style: { fontSize: '11px', color: 'var(--subtle)', fontFamily: "'Geist Mono',monospace" } }, '⏎')
+      )),
+      block('TAG', h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '7px' } },
+        ['lavoro', 'idee', 'viaggio', 'spesa'].map((t, i) => h('span', { key: t, style: { fontSize: '12px', fontWeight: 500, color: i === 0 ? 'var(--accent-ink)' : 'var(--muted)', background: i === 0 ? 'var(--accent)' : 'var(--surface2)', border: '1px solid var(--line)', padding: '4px 10px', borderRadius: '7px' } }, '# ' + t))
+      )),
+      block('TILE · MICRO-CARD', h('div', { style: { display: 'flex', gap: '8px' } },
+        ['Brief Marco', 'Spesa casa', 'Note call'].map((tt, i) => h('div', { key: tt, style: { flex: 1, minWidth: 0, background: 'var(--surface)', border: '1px solid var(--line)', borderRadius: '9px', padding: '9px 9px' } },
+          h('div', { style: { fontSize: '11.5px', fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, tt),
+          h('div', { style: { display: 'flex', gap: '4px', marginTop: '7px' } },
+            h('span', { style: { width: '11px', height: '11px', borderRadius: '3px', background: ['var(--cap-photo)', 'var(--cap-text)', 'var(--cap-voice)'][i] } }),
+            h('span', { style: { width: '11px', height: '11px', borderRadius: '3px', background: 'var(--cap-file)' } }))
+        ))
+      )),
+      block('ASSISTENTE', h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '10px' } },
+        h('div', { style: { width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: 'var(--surface2)', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '26px', height: '26px' }, dangerouslySetInnerHTML: { __html: this.bitoSvg() } })),
+        h('div', { style: { background: 'var(--accent-soft)', border: '1px solid var(--line)', borderRadius: '12px 12px 12px 4px', padding: '9px 12px', fontSize: '12.5px', color: 'var(--text)', lineHeight: 1.45 } }, 'Vuoi che trasformi la nota in 3 sub-task?')
+      ))
+    );
+  }
+
+  bitoSvg() {
+    return '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#56C2E6;--m2:#AB9FF2;"><line x1="48" y1="18" x2="48" y2="9" stroke="var(--m1)" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="7" r="4" fill="var(--m2)"/><rect x="18" y="18" width="60" height="50" rx="16" fill="var(--m1)"/><rect x="26" y="26" width="44" height="34" rx="10" fill="#11131a" opacity="0.18"/><circle cx="40" cy="42" r="5" fill="var(--mascot-ink,#26212f)"/><circle cx="56" cy="42" r="5" fill="var(--mascot-ink,#26212f)"/><path d="M40 52 q8 7 16 0" stroke="var(--m2)" stroke-width="3.5" fill="none" stroke-linecap="round"/><rect x="30" y="68" width="14" height="14" rx="6" fill="var(--m1)"/><rect x="52" y="68" width="14" height="14" rx="6" fill="var(--m1)"/></svg>';
+  }
+
+  renderVals() {
+    return {
+      surfaceA: this.surface(),
+      surfaceB: this.surface(),
+      componentsLight: this.components(),
+      componentsDark: this.components(),
+      mascots: [
+        { id: 'gimmick', name: 'Gimmick', role: 'THE MASCOT' },
+        { id: 'surfer', name: 'Surfer', role: 'THE RIDER' },
+        { id: 'tilo', name: 'Tilo', role: 'THE ARCHIVIST' },
+        { id: 'kron', name: 'Kron', role: 'THE TIMEKEEPER' },
+        { id: 'buffy', name: 'Buffy', role: 'THE CARRIER' },
+        { id: 'bito', name: 'Bito', role: 'THE ASSISTANT' },
+        { id: 'sloth', name: 'Sloth', role: 'THE CHILL' },
+        { id: 'flocky', name: 'Flocky', role: 'THE EARLY BIRD' },
+        { id: 'snappy', name: 'Snappy', role: 'THE SNAPPER' },
+        { id: 'ballerina', name: 'Ballerina', role: 'THE DANCER' }
+      ],
+      captures: [
+        { label: 'Photo', color: '#5B8DEF', hex: '#5B8DEF' },
+        { label: 'Video', color: '#E87DA0', hex: '#E87DA0' },
+        { label: 'Gallery', color: '#AB9FF2', hex: '#AB9FF2' },
+        { label: 'Text', color: '#6FCF97', hex: '#6FCF97' },
+        { label: 'Voice', color: '#EF6A6A', hex: '#EF6A6A' },
+        { label: 'File', color: '#E0B341', hex: '#E0B341' }
+      ],
+      neutrals: [
+        { name: 'canvas', v: '#f6f6f8' },
+        { name: 'surface', v: '#ffffff' },
+        { name: 'surface2', v: '#f3f2f6' },
+        { name: 'line', v: '#e6e4ec' },
+        { name: 'faint', v: '#bdbac6' },
+        { name: 'subtle', v: '#8a8694' },
+        { name: 'muted', v: '#5c5868' },
+        { name: 'text', v: '#1b1923' }
+      ],
+      typeRows: [
+        { label: 'Display', meta: 'Geist 30 · 700', family: "'Geist',sans-serif", size: '30px', weight: 700, tracking: '-0.03em', sample: 'Cattura in un attimo' },
+        { label: 'Titolo', meta: 'Geist 20 · 600', family: "'Geist',sans-serif", size: '20px', weight: 600, tracking: '-0.015em', sample: 'Tile e spark di oggi' },
+        { label: 'Corpo', meta: 'Geist 14 · 400', family: "'Geist',sans-serif", size: '14px', weight: 400, tracking: '0', sample: 'L\u2019assistente legge gli spark e propone tag e riassunti.' },
+        { label: 'Label', meta: 'Geist 11 · 600 caps', family: "'Geist',sans-serif", size: '11px', weight: 600, tracking: '0.08em', sample: 'QUANTIT\u00c0 · IMPORTO · FONTE' },
+        { label: 'Mono', meta: 'Geist Mono 12', family: "'Geist Mono',monospace", size: '12px', weight: 500, tracking: '0', sample: 'tile_id · 8 spark · 1.284,34' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

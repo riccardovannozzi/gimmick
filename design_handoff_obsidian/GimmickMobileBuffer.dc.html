@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;} .gm-s::-webkit-scrollbar{width:0;height:0;}</style>
+</helmet>
+
+<div style="position:relative; width:1380px; height:1020px;">{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() { const S = (b) => this.S(b); return {
+    back: S('<path d="M9.5 3.5 5 8l4.5 4.5"/>'),
+    more: S('<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>'),
+    voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+    text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+    photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+    file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+    play: S('<circle cx="8" cy="8" r="5.6"/><path d="M6.6 5.5 11 8l-4.4 2.5z" fill="currentColor"/>'),
+    check: S('<path d="M3 8.4 6.4 12 13 4.6"/>'),
+    x: S('<path d="M4 4l8 8M12 4l-8 8"/>'),
+    tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+    note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3"/>'),
+    todo: S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+    timed: S('<circle cx="8" cy="8.4" r="5.4"/><path d="M8 5.4v3l2 1.4"/>'),
+    sparkle: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+    inbox: S('<path d="M2.5 9.5 4 4.2A1 1 0 0 1 5 3.5h6a1 1 0 0 1 1 .7l1.5 5.3M2.5 9.5V12a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5h3l1 1.6h3l1-1.6h3"/>')
+  }; }
+  glyph(name, size, color) { const px = (size || 16) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const b = dark ? {
+      bezel: '#0c0c0d', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', field: '#1d1d1d', statusInk: '#dcdcdc',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)',
+      cap: { photo: '#7AA7F5', text: '#82D7A6', voice: '#F08D89', file: '#E7C25E' }
+    } : {
+      bezel: '#d9d7dd', canvas: '#f6f6f8', surface: '#ffffff', surface2: '#f1f0f4', field: '#ffffff', statusInk: '#1b1923',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)',
+      cap: { photo: '#4F86EE', text: '#3FAE72', voice: '#E0544F', file: '#C99220' }
+    };
+    b.accent = acc.a; b.accentInk = acc.ink; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+  statusBar(T) { const h = React.createElement; const c = T.statusInk; return h('div', { style: { height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', position: 'relative' } }, h('span', { style: { fontSize: '13px', fontWeight: 600, color: c } }, '9:30'), h('div', { style: { position: 'absolute', left: '50%', top: '9px', transform: 'translateX(-50%)', width: '9px', height: '9px', borderRadius: '50%', background: '#000' } }), h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } }, h('span', { style: { width: '15px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5"/><rect x="9" y="3" width="3" height="9" rx="0.5"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.5" opacity="0.35"/></svg>' } }), h('span', { style: { width: '22px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 24 12" width="100%" height="100%" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="2.6" width="13" height="6.8" rx="1.2" fill="currentColor"/><rect x="21" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>' } }))); }
+  navPill(T) { return React.createElement('div', { style: { height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, React.createElement('div', { style: { width: '128px', height: '4px', borderRadius: '2px', background: T.dark ? 'rgba(255,255,255,0.4)' : 'rgba(24,20,38,0.32)' } })); }
+  topBar(T, title, count) { const h = React.createElement; return h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 10px', borderBottom: '1px solid ' + T.line } }, h('div', { style: { width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph('back', 18)), h('span', { style: { fontSize: '16px', fontWeight: 600, color: T.text } }, title), count != null ? h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '12px', fontWeight: 600, color: T.accent, background: T.accentSoft, borderRadius: '6px', padding: '2px 7px' } }, count) : null, h('div', { style: { flex: 1 } }), h('div', { style: { width: '36px', height: '36px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph('more', 16))); }
+
+  // ---- main triage card (front of stack)
+  frontCard(T) {
+    const h = React.createElement;
+    const chip = (txt, c) => h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', background: c + (T.dark ? '24' : '16'), color: c, borderRadius: '8px', padding: '5px 10px', fontSize: '12px', fontWeight: 600 } }, this.glyph('voice', 12, c), txt);
+    return h('div', { style: { background: T.surface, border: '1px solid ' + T.line2, borderRadius: '20px', boxShadow: T.dark ? '0 24px 50px -28px #000' : '0 24px 50px -30px rgba(24,20,38,0.4)', padding: '18px', display: 'flex', flexDirection: 'column', gap: '15px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' } }, chip('Memo vocale', T.cap.voice), h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, 'oggi · 09:12')),
+      // voice player
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '13px', background: T.field, border: '1px solid ' + T.line, borderRadius: '14px', padding: '14px' } },
+        h('div', { style: { width: '42px', height: '42px', borderRadius: '12px', background: T.cap.voice, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' } }, this.glyph('play', 20)),
+        h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', gap: '2.5px', height: '26px' } }, [10, 18, 26, 14, 30, 38, 22, 12, 28, 36, 20, 11, 17, 30, 24, 14, 22, 32, 18, 10, 16].map((v, i) => h('div', { key: i, style: { width: '2.6px', height: v + 'px', borderRadius: '2px', background: i < 8 ? T.cap.voice : T.line2 } }))),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, '02:14')),
+      // AI suggestion
+      h('div', { style: { background: T.accentSoft, borderRadius: '14px', padding: '14px' } },
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '9px' } }, this.glyph('sparkle', 13, T.accent), h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: T.accent } }, 'BITO PROPONE')),
+        h('div', { style: { fontSize: '15px', fontWeight: 600, color: T.text, lineHeight: 1.35, marginBottom: '12px' } }, 'OM/Sopralluogo Galaxia\u00a0— installazione D-matrix'),
+        h('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '7px' } },
+          h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.surface, border: '1px solid ' + T.line, borderRadius: '8px', padding: '6px 9px', fontSize: '12px', fontWeight: 600, color: T.text } }, this.glyph('todo', 12, T.muted), 'To-do'),
+          h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.surface, border: '1px solid ' + T.line, borderRadius: '8px', padding: '6px 9px', fontSize: '12px', fontWeight: 600, color: T.text } }, this.glyph('timed', 12, T.muted), 'Mar 24 · 10:00'),
+          h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '6px', background: T.surface, border: '1px solid ' + T.line, borderRadius: '8px', padding: '6px 9px', fontSize: '12px', fontWeight: 600, color: T.cap.photo } }, this.glyph('tag', 12), 'Golfo del Sole'))));
+  }
+  stackBehind(T, dx, scale, z) { return React.createElement('div', { style: { position: 'absolute', left: dx + 'px', right: dx + 'px', top: (-(scale)) + 'px', height: '60px', background: T.surface, border: '1px solid ' + T.line, borderRadius: '20px', zIndex: z, transform: 'scale(' + (1 - scale * 0.01) + ')', opacity: T.dark ? 0.6 : 0.85 } }); }
+
+  actionRow(T) { const h = React.createElement;
+    const btn = (icon, label, c, fill) => h('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '5px', height: '60px', borderRadius: '16px', background: fill ? c : (T.dark ? 'transparent' : T.surface), border: '1px solid ' + (fill ? c : T.line2), color: fill ? (label === 'Conferma' ? T.accentInk : '#fff') : c } }, this.glyph(icon, 19), h('span', { style: { fontSize: '11px', fontWeight: 600 } }, label));
+    return h('div', { style: { flexShrink: 0, padding: '12px 16px 14px', borderTop: '1px solid ' + T.line, display: 'flex', gap: '10px' } },
+      btn('x', 'Scarta', T.cap.voice, false),
+      btn('note', 'Modifica', T.muted, false),
+      btn('check', 'Conferma', T.accent, true));
+  }
+
+  phoneTriage(T) { const h = React.createElement;
+    const body = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', padding: '18px 16px 8px', display: 'flex', flexDirection: 'column' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px' } },
+        h('span', { style: { fontSize: '12px', fontWeight: 600, color: T.subtle } }, '1 di 6 da smistare'),
+        h('div', { style: { display: 'flex', gap: '4px' } }, [0, 1, 2, 3, 4, 5].map((i) => h('div', { key: i, style: { width: i === 0 ? '18px' : '6px', height: '6px', borderRadius: '3px', background: i === 0 ? T.accent : T.line2 } })))),
+      h('div', { style: { position: 'relative', marginTop: '6px' } }, this.stackBehind(T, 14, 12, 1), this.stackBehind(T, 7, 6, 2), h('div', { style: { position: 'relative', zIndex: 3 } }, this.frontCard(T))));
+    return this.shell(T, h(React.Fragment, {}, this.topBar(T, 'Buffer', 6), body, this.actionRow(T)));
+  }
+
+  // ---- empty state
+  phoneEmpty(T) { const h = React.createElement;
+    const body = h('div', { style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '0 40px', textAlign: 'center' } },
+      h('div', { style: { width: '88px', height: '88px', borderRadius: '24px', background: T.surface, border: '1px solid ' + T.line2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent, marginBottom: '22px' } }, this.glyph('check', 38)),
+      h('div', { style: { fontSize: '20px', fontWeight: 700, color: T.text, marginBottom: '8px' } }, 'Buffer vuoto'),
+      h('div', { style: { fontSize: '14px', lineHeight: 1.5, color: T.muted, maxWidth: '240px' } }, 'Hai smistato tutto. I nuovi spark che catturi appariranno qui.'),
+      h('div', { style: { marginTop: '26px', display: 'inline-flex', alignItems: 'center', gap: '8px', height: '46px', padding: '0 22px', borderRadius: '13px', background: T.accent, color: T.accentInk, fontSize: '14px', fontWeight: 600 } }, this.glyph('voice', 16, T.accentInk), 'Cattura qualcosa'));
+    return this.shell(T, h(React.Fragment, {}, this.topBar(T, 'Buffer', 0), body, this.navPill(T)));
+  }
+
+  shell(T, inner) { const h = React.createElement;
+    return h('div', { style: { width: '380px', height: '812px', borderRadius: '40px', background: T.bezel, padding: '7px', boxShadow: '0 40px 90px -50px rgba(0,0,0,0.6)' } }, h('div', { style: { width: '100%', height: '100%', borderRadius: '34px', overflow: 'hidden', background: T.canvas, display: 'flex', flexDirection: 'column', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased' } }, this.statusBar(T), inner));
+  }
+  label(text, x) { return React.createElement('div', { key: text, 'data-drags-parent': '1', style: { position: 'absolute', left: x + 'px', top: '20px', fontSize: '13px', fontWeight: 600, color: '#46434f' } }, text); }
+  view() { const h = React.createElement;
+    return h(React.Fragment, {},
+      this.label('Triage · Light', 0), h('div', { style: { position: 'absolute', left: '0px', top: '64px', width: '380px' } }, this.phoneTriage(this.tok(false))),
+      this.label('Triage · Dark', 470), h('div', { style: { position: 'absolute', left: '470px', top: '64px', width: '380px' } }, this.phoneTriage(this.tok(true))),
+      this.label('Buffer vuoto · Light', 940), h('div', { style: { position: 'absolute', left: '940px', top: '64px', width: '380px' } }, this.phoneEmpty(this.tok(false))));
+  }
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

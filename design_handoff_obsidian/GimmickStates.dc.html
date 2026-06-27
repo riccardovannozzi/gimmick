@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}
+@keyframes gmShimmer{0%{background-position:-380px 0;}100%{background-position:380px 0;}}
+.gm-sk{background:linear-gradient(90deg,var(--b) 0%,var(--h) 50%,var(--b) 100%);background-size:760px 100%;animation:gmShimmer 1.4s infinite linear;border-radius:6px;}
+@keyframes gmSpin{to{transform:rotate(360deg);}}
+.gm-spin{animation:gmSpin 0.9s linear infinite;}
+</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() { const S = (b) => this.S(b); return {
+    inbox: S('<path d="M2.5 9.5 4 4.2A1 1 0 0 1 5 3.5h6a1 1 0 0 1 1 .7l1.5 5.3M2.5 9.5V12a1 1 0 0 0 1 1h9a1 1 0 0 0 1-1V9.5M2.5 9.5h3l1 1.6h3l1-1.6h3"/>'),
+    check: S('<path d="M3 8.4 6.4 12 13 4.6"/>'),
+    x: S('<path d="M4 4l8 8M12 4l-8 8"/>'),
+    wifi: S('<path d="M1.5 6.2a10 10 0 0 1 13 0M4 8.8a6 6 0 0 1 8 0M6.4 11.3a2.5 2.5 0 0 1 3.2 0"/><path d="M2 2l12 12" stroke-width="1.6"/>'),
+    alert: S('<path d="M8 2.5 14 13H2z"/><path d="M8 6.6v3M8 11.2h.01"/>'),
+    voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+    sparkle: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+    undo: S('<path d="M5 5 2.6 7.4 5 9.8M2.6 7.4h7a3.6 3.6 0 0 1 0 7.2H6"/>'),
+    bell: S('<path d="M5 7a3 3 0 0 1 6 0c0 3 1.2 3.8 1.2 3.8H3.8S5 10 5 7ZM6.6 12.6a1.5 1.5 0 0 0 2.8 0"/>'),
+    refresh: S('<path d="M13 7a5 5 0 1 0-1 3.5M13 4v3h-3"/>'),
+    plus: S('<path d="M8 3.5v9M3.5 8h9"/>'),
+    tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/>'),
+    flow: S('<circle cx="3.6" cy="8" r="1.6"/><circle cx="12.4" cy="4.4" r="1.6"/><path d="M5.2 7.3 10.8 5"/>')
+  }; }
+  glyph(name, size, color) { const px = (size || 16) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const b = dark ? {
+      page: '#0c0a12', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', skB: '#222', skH: '#2c2c2c', toast: '#232323',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)',
+      green: '#74D6A2', red: '#F08D89', blue: '#7AA7F5', amber: '#E7C25E'
+    } : {
+      page: '#e7e6ea', canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', skB: '#eceaef', skH: '#f6f5f8', toast: '#211d2b',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)',
+      green: '#3FAE72', red: '#E0544F', blue: '#4F86EE', amber: '#C99220'
+    };
+    b.accent = acc.a; b.accentInk = acc.ink; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+
+  frame(T, w, hgt, inner, pad) { return React.createElement('div', { style: { width: w + 'px', height: hgt ? hgt + 'px' : 'auto', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.1)'), borderRadius: '14px', overflow: 'hidden', boxShadow: '0 20px 50px -32px rgba(0,0,0,0.4)', padding: pad == null ? 0 : pad + 'px' } }, inner); }
+
+  // EMPTY
+  emptyState(T) { const h = React.createElement;
+    return this.frame(T, 560, 380, h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px', fontFamily: "'Geist',sans-serif" } },
+      h('div', { style: { width: '78px', height: '78px', borderRadius: '22px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accent, marginBottom: '20px' } }, this.glyph('inbox', 34)),
+      h('div', { style: { fontSize: '19px', fontWeight: 700, color: T.text, marginBottom: '7px' } }, 'Ancora nessun tile'),
+      h('div', { style: { fontSize: '14px', lineHeight: 1.5, color: T.muted, maxWidth: '300px', marginBottom: '22px' } }, 'Cattura una foto, una nota o un memo vocale: Gimmick lo trasforma in un tile pronto da organizzare.'),
+      h('div', { style: { display: 'flex', gap: '10px' } },
+        h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '8px', height: '42px', padding: '0 18px', borderRadius: '11px', background: T.accent, color: T.accentInk, fontSize: '13.5px', fontWeight: 600 } }, this.glyph('plus', 15, T.accentInk), 'Nuova cattura'),
+        h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '8px', height: '42px', padding: '0 18px', borderRadius: '11px', background: T.surface, border: '1px solid ' + T.line2, color: T.text, fontSize: '13.5px', fontWeight: 600 } }, this.glyph('voice', 15, T.muted), 'Registra memo'))));
+  }
+
+  // LOADING skeleton (tiles list)
+  skeleton(T) { const h = React.createElement;
+    const sk = (w, ht, mr) => h('div', { className: 'gm-sk', style: { '--b': T.skB, '--h': T.skH, width: w, height: (ht || 12) + 'px', marginRight: mr || 0 } });
+    const rowSk = (i) => h('div', { key: i, style: { display: 'flex', alignItems: 'center', gap: '14px', padding: '15px 18px', borderBottom: '1px solid ' + T.line } },
+      h('div', { className: 'gm-sk', style: { '--b': T.skB, '--h': T.skH, width: '32px', height: '32px', borderRadius: '9px', flexShrink: 0 } }),
+      h('div', { style: { flex: 1 } }, sk('62%', 13), h('div', { style: { height: '7px' } }), sk('38%', 10)),
+      sk('64px', 22), h('div', { style: { width: '14px' } }), sk('40px', 22));
+    return this.frame(T, 560, 380, h('div', { style: { fontFamily: "'Geist',sans-serif" } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '15px 18px', borderBottom: '1px solid ' + T.line } }, h('div', { className: 'gm-spin', style: { width: '15px', height: '15px', borderRadius: '50%', border: '2px solid ' + T.line2, borderTopColor: T.accent } }), h('span', { style: { fontSize: '12.5px', fontWeight: 600, color: T.subtle } }, 'Carico i tuoi tile\u2026')),
+      [0, 1, 2, 3, 4].map((i) => rowSk(i))));
+  }
+
+  // ERROR / offline
+  errorState(T) { const h = React.createElement;
+    return this.frame(T, 560, 380, h('div', { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '0 60px', fontFamily: "'Geist',sans-serif" } },
+      h('div', { style: { width: '78px', height: '78px', borderRadius: '22px', background: T.red + (T.dark ? '22' : '14'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.red, marginBottom: '20px' } }, this.glyph('wifi', 34)),
+      h('div', { style: { fontSize: '19px', fontWeight: 700, color: T.text, marginBottom: '7px' } }, 'Sei offline'),
+      h('div', { style: { fontSize: '14px', lineHeight: 1.5, color: T.muted, maxWidth: '300px', marginBottom: '22px' } }, 'Le tue catture restano salvate sul dispositivo e verranno sincronizzate appena torni online.'),
+      h('div', { style: { display: 'inline-flex', alignItems: 'center', gap: '8px', height: '42px', padding: '0 18px', borderRadius: '11px', background: T.surface, border: '1px solid ' + T.line2, color: T.text, fontSize: '13.5px', fontWeight: 600 } }, this.glyph('refresh', 15, T.muted), 'Riprova')));
+  }
+
+  // TOASTS
+  toast(T, opts) { const h = React.createElement;
+    return h('div', { style: { width: '360px', display: 'flex', alignItems: 'flex-start', gap: '12px', background: T.toast, borderRadius: '13px', padding: '13px 14px', boxShadow: '0 16px 36px -16px rgba(0,0,0,0.5)', fontFamily: "'Geist',sans-serif" } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '9px', background: opts.color + '26', display: 'flex', alignItems: 'center', justifyContent: 'center', color: opts.color, flexShrink: 0 } }, this.glyph(opts.icon, 16)),
+      h('div', { style: { flex: 1, minWidth: 0 } }, h('div', { style: { fontSize: '13.5px', fontWeight: 600, color: '#f4f3f6' } }, opts.title), opts.sub ? h('div', { style: { fontSize: '12px', color: 'rgba(244,243,246,0.6)', marginTop: '2px' } }, opts.sub) : null),
+      opts.action ? h('span', { style: { fontSize: '12.5px', fontWeight: 700, color: '#AB9FF2', flexShrink: 0, marginTop: '1px', display: 'inline-flex', alignItems: 'center', gap: '5px' } }, opts.actionIcon ? this.glyph(opts.actionIcon, 12) : null, opts.action) : h('span', { style: { width: '18px', height: '18px', color: 'rgba(244,243,246,0.45)', flexShrink: 0 }, dangerouslySetInnerHTML: { __html: this.ICONS.x } }));
+  }
+  toastStack(T) { const h = React.createElement;
+    return h('div', { style: { display: 'flex', flexDirection: 'column', gap: '12px' } },
+      this.toast(T, { icon: 'check', color: T.green, title: 'Tile creato', sub: 'OM/Sopralluogo Galaxia' }),
+      this.toast(T, { icon: 'undo', color: T.accent, title: 'Spark scartato', sub: 'Memo vocale · 02:14', action: 'Annulla', actionIcon: 'undo' }),
+      this.toast(T, { icon: 'sparkle', color: T.accent, title: 'Bito ha proposto 3 tile', sub: 'dal tuo ultimo memo', action: 'Vedi' }),
+      this.toast(T, { icon: 'alert', color: T.red, title: 'Cattura non riuscita', sub: 'File troppo grande (max 50MB)', action: 'Riprova' }));
+  }
+
+  // NOTIFICATIONS panel
+  notifPanel(T) { const h = React.createElement;
+    const row = (icon, c, title, body, time, unread) => h('div', { style: { display: 'flex', gap: '12px', padding: '13px 16px', borderBottom: '1px solid ' + T.line, background: unread ? T.accentSoft + (T.dark ? '' : '') : 'transparent', position: 'relative' } },
+      unread ? h('div', { style: { position: 'absolute', left: '6px', top: '20px', width: '6px', height: '6px', borderRadius: '50%', background: T.accent } }) : null,
+      h('div', { style: { width: '32px', height: '32px', borderRadius: '9px', background: c + (T.dark ? '24' : '16'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: c, flexShrink: 0 } }, this.glyph(icon, 15)),
+      h('div', { style: { flex: 1 } }, h('div', { style: { fontSize: '13px', fontWeight: 600, color: T.text, marginBottom: '2px' } }, title), h('div', { style: { fontSize: '12px', lineHeight: 1.4, color: T.muted } }, body), h('div', { style: { fontSize: '11px', color: T.faint, marginTop: '4px' } }, time)));
+    return this.frame(T, 380, null, h('div', { style: { fontFamily: "'Geist',sans-serif" } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', padding: '14px 16px', borderBottom: '1px solid ' + T.line } }, this.glyph('bell', 16, T.text), h('span', { style: { fontSize: '14px', fontWeight: 700, color: T.text, flex: 1 } }, 'Notifiche'), h('span', { style: { fontSize: '12px', fontWeight: 600, color: T.accent } }, 'Segna lette')),
+      row('sparkle', T.accent, 'Bito ha smistato 4 spark', 'Mentre eri via, ha proposto tile e tag.', '5 min fa', true),
+      row('flow', T.blue, 'Flusso aggiornato', 'OM/Richiesta preventivo \u2192 in attesa di L. Anichini.', '1 ora fa', true),
+      row('check', T.green, 'Sincronizzazione completata', '12 tile e 3 flussi aggiornati su tutti i dispositivi.', 'Oggi · 08:40', false),
+      row('tag', T.amber, 'Nuovo tag dal pattern', 'Bito suggerisce \u201cGalaxia\u201d per 6 tile.', 'Ieri', false)), 0);
+  }
+
+  lbl(text, x, y) { return React.createElement('div', { key: text + x, 'data-drags-parent': '1', style: { position: 'absolute', left: x + 'px', top: y + 'px', fontSize: '13px', fontWeight: 600, color: '#46434f' } }, text); }
+  view() { const h = React.createElement; const L = this.tok(false); const D = this.tok(true);
+    const at = (x, y, el) => h('div', { style: { position: 'absolute', left: x + 'px', top: y + 'px' } }, el);
+    return h('div', { style: { position: 'relative', width: '1640px', height: '1320px' } },
+      this.lbl('Empty · vista Tiles', 0, 0), at(0, 24, this.emptyState(L)),
+      this.lbl('Loading · skeleton', 620, 0), at(620, 24, this.skeleton(L)),
+      this.lbl('Offline / error', 1240, 0), at(1240, 24, this.errorState(L)),
+      this.lbl('Toasts (light bg)', 0, 460), at(0, 484, h('div', { style: { background: L.page, borderRadius: '16px', padding: '24px' } }, this.toastStack(L))),
+      this.lbl('Toasts (dark bg)', 440, 460), at(440, 484, h('div', { style: { background: D.page, borderRadius: '16px', padding: '24px' } }, this.toastStack(D))),
+      this.lbl('Centro notifiche · Light', 880, 460), at(880, 484, this.notifPanel(L)),
+      this.lbl('Centro notifiche · Dark', 1290, 460), at(1290, 484, this.notifPanel(D)),
+      this.lbl('Empty · Dark', 0, 980), at(0, 1004, this.emptyState(D)),
+      this.lbl('Offline · Dark', 620, 980), at(620, 1004, this.errorState(D)));
+  }
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>
