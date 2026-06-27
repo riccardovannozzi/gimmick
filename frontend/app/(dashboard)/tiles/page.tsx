@@ -33,6 +33,9 @@ import { StatusPattern } from '@/components/statuses/status-pattern';
 import { ActionBadge } from '@/components/actions/action-badge';
 import { TileDetailModal } from '@/components/tiles/tile-detail-modal';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { ViewContainer } from '@/components/shell';
+import { TilesLive } from '@/components/views/tiles-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
@@ -1566,6 +1569,20 @@ function TileRow({
 }
 
 export default function TilesPage() {
+  // Migrazione Obsidian (Fase 3): dietro feature-flag la tabella Tiles reale è
+  // resa dalla `TilesView` Obsidian (browse + select→Inspector + add + infinite
+  // scroll). Editing nel TileSidebar. Default OFF = tabella arcade.
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <TilesLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeTilesPage />;
+}
+
+function ArcadeTilesPage() {
   const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const actionColors = useActionColors();

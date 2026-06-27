@@ -25,6 +25,9 @@ import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useActionColors } from '@/store/action-colors-store';
 import { readableOn } from '@/lib/palette';
 import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
+import { ViewContainer } from '@/components/shell';
+import { FlowsLive } from '@/components/views/flows-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { FlowHubItem } from '@/types/flow';
 
 function isItemSelf(item: FlowHubItem): boolean {
@@ -318,6 +321,20 @@ function FlowMiniBadge({
 }
 
 export default function FlowsPage() {
+  // Migrazione Obsidian (Fase 2): dietro feature-flag la board Flows reale è
+  // resa dalla `FlowsView` Obsidian (4 lane) collegata all'hub. Read-only:
+  // click card → deep-link canvas. Default OFF = FlowHub arcade.
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <FlowsLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeFlowsPage />;
+}
+
+function ArcadeFlowsPage() {
   const theme = usePixelTheme();
   const [filter, setFilter] = useState<FlowHubFilter>('wait');
   const [sortBy, setSortBy] = useState<FlowSort>('days_desc');

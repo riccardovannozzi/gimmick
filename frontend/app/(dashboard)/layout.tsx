@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
+import { ObsidianShell } from '@/components/shell/ObsidianShell';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { usePixelTheme } from '@/components/pixel';
 import { useAuthStore } from '@/store/auth-store';
 import { useTypeIcons } from '@/store/type-icons-store';
@@ -86,6 +88,19 @@ export default function DashboardLayout({
 
   if (!user) {
     return null;
+  }
+
+  // Migrazione strangler (Fase 0): dietro feature-flag montiamo lo shell
+  // Obsidian con dati reali al posto della shell arcade. Default OFF →
+  // produzione invariata. La ChatPanel resta montata in entrambi i casi così
+  // che "Ask Gimmick" (onAsk) continui a funzionare.
+  if (isObsidianShellEnabled()) {
+    return (
+      <>
+        <ObsidianShell>{children}</ObsidianShell>
+        <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+      </>
+    );
   }
 
   return (

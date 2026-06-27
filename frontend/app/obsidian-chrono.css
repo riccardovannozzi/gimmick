@@ -46,6 +46,9 @@
 
 /* tile card */
 .ob-chrono__card { border-radius: 8px; padding: 9px 10px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card--clickable { cursor: pointer; }
+.ob-chrono__card--active { box-shadow: 0 0 0 2px var(--ob-accent); }
+.ob-chrono__event--clickable { cursor: pointer; }
 .ob-chrono__card-title { font-size: 12px; line-height: 15px; font-weight: 500; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-chrono__card-bars { display: flex; gap: 3px; }
 .ob-chrono__card-bar { flex: 1; height: 4px; border-radius: 2px; background: var(--ob-line-2); }

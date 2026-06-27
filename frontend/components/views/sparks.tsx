@@ -17,7 +17,8 @@ import { Icon, type ShellIconName } from '@/components/shell';
 // ─── Model ────────────────────────────────────────────────────────────────────
 type SparkKind = 'audio' | 'text' | 'photo' | 'video' | 'file';
 export interface SparkItem {
-  id: number;
+  /** number for the design mock; string (UUID) when wired to real sparks. */
+  id: string | number;
   name: string;
   type: SparkKind;
   date: string; // dd/mm/yyyy
@@ -86,11 +87,14 @@ function TypeBadge({ type }: { type: SparkKind }) {
 
 export interface SparksViewProps {
   sparks?: SparkItem[];
-  onDelete?: (id: number) => void;
+  onDelete?: (id: string | number) => void;
+  /** Row click (e.g. open the spark viewer). */
+  onSelect?: (id: string | number) => void;
 }
 
-export function SparksView({ sparks = SPARKS, onDelete }: SparksViewProps) {
+export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewProps) {
   const [filter, setFilter] = React.useState<'all' | SparkKind>('all');
+  const [search, setSearch] = React.useState('');
   const [sortKey, setSortKey] = React.useState<SortKey>('date');
   const [sortDir, setSortDir] = React.useState<SortDir>('desc');
 
@@ -107,13 +111,16 @@ export function SparksView({ sparks = SPARKS, onDelete }: SparksViewProps) {
   }, [sparks]);
 
   const rows = React.useMemo(() => {
-    const filtered = filter === 'all' ? sparks.slice() : sparks.filter((s) => s.type === filter);
+    const q = search.trim().toLowerCase();
+    const filtered = sparks.filter(
+      (s) => (filter === 'all' || s.type === filter) && (!q || s.name.toLowerCase().includes(q)),
+    );
     const dir = sortDir === 'asc' ? 1 : -1;
     return filtered.sort((a, b) => {
       const va = sortVal(a, sortKey), vb = sortVal(b, sortKey);
       return va < vb ? -dir : va > vb ? dir : 0;
     });
-  }, [sparks, filter, sortKey, sortDir]);
+  }, [sparks, filter, search, sortKey, sortDir]);
 
   const chipDefs: Array<{ id: 'all' | SparkKind; label: string; type?: SparkKind; count: number }> = [
     { id: 'all', label: 'Tutti', count: sparks.length },
@@ -138,6 +145,8 @@ export function SparksView({ sparks = SPARKS, onDelete }: SparksViewProps) {
           wrapperClassName="ob-sparks__search"
           leading={<Icon name="search" size={14} />}
           placeholder="Cerca…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
         />
         <button type="button" className="ob-sparks__typefilter">
           <span className="ob-sparks__typefilter-icon"><Icon name="filter" size={13} /></span>
@@ -197,7 +206,23 @@ export function SparksView({ sparks = SPARKS, onDelete }: SparksViewProps) {
 
         {rows.length ? (
           rows.map((s) => (
-            <div key={s.id} className="ob-sparks__row">
+            <div
+              key={s.id}
+              className={cn('ob-sparks__row', onSelect && 'ob-sparks__row--clickable')}
+              onClick={onSelect ? () => onSelect(s.id) : undefined}
+              role={onSelect ? 'button' : undefined}
+              tabIndex={onSelect ? 0 : undefined}
+              onKeyDown={
+                onSelect
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        onSelect(s.id);
+                      }
+                    }
+                  : undefined
+              }
+            >
               <div className="ob-sparks__cell"><span className="ob-sparks__name">{s.name}</span></div>
               <div className="ob-sparks__cell"><TypeBadge type={s.type} /></div>
               <div className="ob-sparks__cell"><span className="ob-sparks__date">{s.date}</span></div>
@@ -212,7 +237,12 @@ export function SparksView({ sparks = SPARKS, onDelete }: SparksViewProps) {
                 )}
               </div>
               <div className="ob-sparks__cell ob-sparks__cell--center">
-                <button type="button" className="ob-sparks__del" aria-label="Elimina spark" onClick={() => onDelete?.(s.id)}>
+                <button
+                  type="button"
+                  className="ob-sparks__del"
+                  aria-label="Elimina spark"
+                  onClick={(e) => { e.stopPropagation(); onDelete?.(s.id); }}
+                >
                   <IconTrash size={14} stroke={1.6} />
                 </button>
               </div>

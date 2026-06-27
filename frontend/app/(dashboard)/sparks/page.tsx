@@ -16,6 +16,9 @@ import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import { useFilterStore } from '@/store/filter-store';
 import { sparksApi } from '@/lib/api';
 import { SparkViewer } from '@/components/spark/spark-viewer';
+import { ViewContainer } from '@/components/shell';
+import { SparksLive } from '@/components/views/sparks-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { Spark } from '@/types';
 
 const TYPE_LABELS: Record<string, string> = {
@@ -28,6 +31,20 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export default function SparksPage() {
+  // Migrazione Obsidian (Fase 1): dietro feature-flag la vista Sparks reale è
+  // resa dalla `SparksView` Obsidian collegata ai dati (niente più <Header/>
+  // di pagina → no doppio header dentro lo shell). Default OFF = arcade.
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <SparksLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeSparksPage />;
+}
+
+function ArcadeSparksPage() {
   const theme = usePixelTheme();
   const [page, setPage] = useState(1);
   const [typeFilter, setTypeIconFilter] = useState<string | undefined>();

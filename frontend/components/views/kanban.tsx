@@ -30,14 +30,16 @@ function CapGlyph({ kind }: { kind: CapKind }) {
   return <Icon name={name} size={12} />;
 }
 
-interface CardData {
+export interface CardData {
+  /** Presente quando la vista è collegata ai dati reali. */
+  id?: string;
   title: string;
   tag: string;
   amber?: boolean;
   caps?: CapKind[];
   checklist?: boolean[];
 }
-interface DateGroup {
+export interface DateGroup {
   date?: string;
   long?: string;
   today?: boolean;
@@ -45,7 +47,9 @@ interface DateGroup {
   drop?: boolean;
   tiles: CardData[];
 }
-interface Lane {
+export interface Lane {
+  /** Id colonna reale (target del drag-drop). */
+  id?: string;
   label: string;
   color: string;
   square?: boolean; // square status dot (deadline)
@@ -92,11 +96,25 @@ const LANES: Lane[] = [
 ];
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
-function TileCard({ t }: { t: CardData }) {
+function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; active?: boolean }) {
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
   const done = t.checklist?.filter(Boolean).length ?? 0;
+  const draggable = !!t.id;
   return (
-    <div className="ob-kanban__card" style={{ ['--card-c' as string]: cardC }}>
+    <div
+      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable')}
+      style={{ ['--card-c' as string]: cardC }}
+      draggable={draggable}
+      onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }
+          : undefined
+      }
+    >
       <div className="ob-kanban__card-top">
         <div className="ob-kanban__card-title">{t.title}</div>
         <span className="ob-kanban__card-grip"><IconGripVertical size={14} stroke={1.6} /></span>
@@ -137,10 +155,34 @@ function DatePill({ g }: { g: DateGroup }) {
   );
 }
 
-function LaneCol({ lane }: { lane: Lane }) {
+function LaneCol({
+  lane, onCardClick, selectedId, onMoveTile,
+}: {
+  lane: Lane;
+  onCardClick?: (id: string) => void;
+  selectedId?: string;
+  onMoveTile?: (tileId: string, targetColId: string) => void;
+}) {
   const count = lane.groups.reduce((n, g) => n + g.tiles.length, 0);
+  const [dragOver, setDragOver] = React.useState(false);
+  const canDrop = !!onMoveTile && !!lane.id;
   return (
-    <div className="ob-kanban__lane" style={{ ['--lane-c' as string]: lane.color }}>
+    <div
+      className={cn('ob-kanban__lane', dragOver && 'ob-kanban__lane--dropover')}
+      style={{ ['--lane-c' as string]: lane.color }}
+      onDragOver={canDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); } : undefined}
+      onDragLeave={canDrop ? () => setDragOver(false) : undefined}
+      onDrop={
+        canDrop
+          ? (e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const id = e.dataTransfer.getData('text/x-tile');
+              if (id) onMoveTile!(id, lane.id!);
+            }
+          : undefined
+      }
+    >
       <div className="ob-kanban__lane-head">
         <span className="ob-kanban__lane-grip"><IconGripVertical size={11} stroke={1.6} /></span>
         <span className={cn('ob-kanban__lane-dot', lane.square && 'ob-kanban__lane-dot--sq')} />
@@ -155,7 +197,14 @@ function LaneCol({ lane }: { lane: Lane }) {
           lane.groups.map((g, gi) => (
             <div key={gi} className="ob-kanban__group">
               <DatePill g={g} />
-              {g.tiles.map((t, ti) => <TileCard key={ti} t={t} />)}
+              {g.tiles.map((t, ti) => (
+                <TileCard
+                  key={t.id ?? ti}
+                  t={t}
+                  active={!!t.id && t.id === selectedId}
+                  onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
+                />
+              ))}
               {g.drop && <div className="ob-kanban__drop">Rilascia qui</div>}
             </div>
           ))
@@ -169,9 +218,14 @@ function LaneCol({ lane }: { lane: Lane }) {
 
 export interface KanbanViewProps {
   lanes?: Lane[];
+  onCardClick?: (id: string) => void;
+  selectedId?: string;
+  onAddTile?: () => void;
+  /** Drag di un tile su una colonna → applica i filtri colonna come update. */
+  onMoveTile?: (tileId: string, targetColId: string) => void;
 }
 
-export function KanbanView({ lanes = LANES }: KanbanViewProps) {
+export function KanbanView({ lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile }: KanbanViewProps) {
   const [tag, setTag] = React.useState('all');
   const total = lanes.reduce((n, l) => n + l.groups.reduce((m, g) => m + g.tiles.length, 0), 0);
 
@@ -218,12 +272,20 @@ export function KanbanView({ lanes = LANES }: KanbanViewProps) {
         <button type="button" className="ob-kanban__ctrl">
           <span className="ob-kanban__ctrl-icon"><Icon name="kanban" size={13} /></span>Colonna
         </button>
-        <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />}>Tile</Button>
+        <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>Tile</Button>
       </div>
 
       {/* Board */}
       <div className="ob-kanban__board ob-scroll">
-        {lanes.map((l) => <LaneCol key={l.label} lane={l} />)}
+        {lanes.map((l) => (
+          <LaneCol
+            key={l.id ?? l.label}
+            lane={l}
+            onCardClick={onCardClick}
+            selectedId={selectedId}
+            onMoveTile={onMoveTile}
+          />
+        ))}
       </div>
     </div>
   );

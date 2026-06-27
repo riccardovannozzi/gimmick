@@ -15,7 +15,7 @@ import { Beniamino } from '@/components/mascot';
 import { Icon } from '@/components/shell';
 
 // ─── State → semantic token + icon ────────────────────────────────────────────
-type FlowState = 'wait' | 'undo' | 'done' | 'stop';
+export type FlowState = 'wait' | 'undo' | 'done' | 'stop';
 const STATE: Record<FlowState, { color: string; label: string; Icon: React.ComponentType<{ size?: number; stroke?: number }> }> = {
   wait: { color: 'var(--ob-warning)', label: 'Wait', Icon: IconHourglass },
   undo: { color: 'var(--ob-info)', label: 'Undo', Icon: IconArrowBackUp },
@@ -23,15 +23,18 @@ const STATE: Record<FlowState, { color: string; label: string; Icon: React.Compo
   stop: { color: 'var(--ob-error)', label: 'Stop', Icon: IconX },
 };
 
-interface Flow {
+export interface Flow {
   tag: string;
   title: string;
   action: string;
   who: string;
   ago: string;
   date: string;
+  /** Presenti quando la vista è collegata ai dati reali (deep-link al canvas). */
+  tileId?: string;
+  nodeId?: string;
 }
-interface FlowLane {
+export interface FlowLane {
   label: string;
   state: FlowState;
   flows: Flow[];
@@ -58,10 +61,26 @@ const LANES: FlowLane[] = [
 ];
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
-function FlowCard({ flow, state }: { flow: Flow; state: FlowState }) {
+function FlowCard({ flow, state, onOpen }: { flow: Flow; state: FlowState; onOpen?: () => void }) {
   const s = STATE[state];
   return (
-    <div className="ob-flows__card" style={{ ['--st-c' as string]: s.color }}>
+    <div
+      className="ob-flows__card"
+      style={{ ['--st-c' as string]: s.color, ...(onOpen ? { cursor: 'pointer' } : null) }}
+      onClick={onOpen}
+      role={onOpen ? 'button' : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onKeyDown={
+        onOpen
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onOpen();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="ob-flows__card-top">
         <div className="ob-flows__card-main">
           <div className="ob-flows__card-tag">{flow.tag}</div>
@@ -85,7 +104,7 @@ function FlowCard({ flow, state }: { flow: Flow; state: FlowState }) {
   );
 }
 
-function Lane({ lane }: { lane: FlowLane }) {
+function Lane({ lane, onOpenFlow }: { lane: FlowLane; onOpenFlow?: (tileId: string, nodeId: string) => void }) {
   const s = STATE[lane.state];
   return (
     <div className="ob-flows__lane" style={{ ['--st-c' as string]: s.color }}>
@@ -98,7 +117,18 @@ function Lane({ lane }: { lane: FlowLane }) {
       </div>
       <div className="ob-flows__lane-body ob-scroll">
         {lane.flows.length
-          ? lane.flows.map((f, i) => <FlowCard key={i} flow={f} state={lane.state} />)
+          ? lane.flows.map((f, i) => (
+              <FlowCard
+                key={f.nodeId ?? i}
+                flow={f}
+                state={lane.state}
+                onOpen={
+                  onOpenFlow && f.tileId && f.nodeId
+                    ? () => onOpenFlow(f.tileId!, f.nodeId!)
+                    : undefined
+                }
+              />
+            ))
           : <div className="ob-flows__empty">NESSUN FLUSSO</div>}
       </div>
     </div>
@@ -107,9 +137,11 @@ function Lane({ lane }: { lane: FlowLane }) {
 
 export interface FlowsViewProps {
   lanes?: FlowLane[];
+  /** Click su una card → deep-link al canvas (tile + nodo flow). */
+  onOpenFlow?: (tileId: string, nodeId: string) => void;
 }
 
-export function FlowsView({ lanes = LANES }: FlowsViewProps) {
+export function FlowsView({ lanes = LANES, onOpenFlow }: FlowsViewProps) {
   return (
     <div className="ob-flows">
       {/* Toolbar / header */}
@@ -135,7 +167,7 @@ export function FlowsView({ lanes = LANES }: FlowsViewProps) {
 
       {/* Board */}
       <div className="ob-flows__board ob-scroll">
-        {lanes.map((l) => <Lane key={l.label} lane={l} />)}
+        {lanes.map((l) => <Lane key={l.label} lane={l} onOpenFlow={onOpenFlow} />)}
       </div>
     </div>
   );

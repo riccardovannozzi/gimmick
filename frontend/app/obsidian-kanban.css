@@ -117,6 +117,9 @@
   background: color-mix(in srgb, var(--card-c) 14%, transparent);
   border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent);
 }
+.ob-kanban__card--clickable { cursor: pointer; }
+.ob-kanban__card--active { box-shadow: 0 0 0 2px var(--ob-accent); }
+.ob-kanban__lane--dropover { outline: 2px dashed var(--ob-accent); outline-offset: -2px; }
 .ob-kanban__card-top { display: flex; align-items: flex-start; gap: 7px; }
 .ob-kanban__card-title { font-size: 12.5px; line-height: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-kanban__card-grip { color: var(--ob-faint); margin-top: 1px; display: inline-flex; flex-shrink: 0; }

@@ -19,6 +19,9 @@ import { cn } from '@/lib/utils';
 import type { Tile, Tag, ApiResponse, StatusShape } from '@/types';
 import { useTagTypes } from '@/store/tag-types-store';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { ViewContainer } from '@/components/shell';
+import { ChronoLive } from '@/components/views/chrono-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { isTileDimmed, isToday, generateWeekDays, groupByDay, formatWeekRange, formatMonthLabel } from '@/lib/tile-helpers';
 import { useStatuses } from '@/store/statuses-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
@@ -215,6 +218,21 @@ const START_HOUR = 6;
 const END_HOUR = 24;
 
 export default function CalendarPage() {
+  // Migrazione Obsidian (Fase 5): dietro feature-flag la vista Chrono reale
+  // (colonne Notes/Todo + griglia settimanale) è resa dalla `ChronoView`
+  // Obsidian collegata ai dati. Mese/drag-drop/modale evento restano arcade.
+  // Default OFF = pagina calendario arcade (FullCalendar).
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <ChronoLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeCalendarPage />;
+}
+
+function ArcadeCalendarPage() {
   const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();

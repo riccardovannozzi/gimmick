@@ -65,6 +65,8 @@
 }
 .ob-tiles__row:last-child { border-bottom: none; }
 .ob-tiles__row:hover { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
+.ob-tiles__row--clickable { cursor: pointer; }
+.ob-tiles__row--active { background: var(--ob-accent-soft); }
 
 .ob-tiles__cell { display: flex; align-items: center; padding: 0 14px; min-width: 0; overflow: hidden; }
 .ob-tiles__cell--check { justify-content: center; padding: 0 8px; }

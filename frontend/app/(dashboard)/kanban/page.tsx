@@ -33,6 +33,9 @@ import { Header } from '@/components/layout/header';
 import { usePixelTheme } from '@/components/pixel';
 import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
+import { ViewContainer } from '@/components/shell';
+import { KanbanLive } from '@/components/views/kanban-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { kanbanApi, tilesApi, tagsApi, statusesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -436,6 +439,20 @@ function getFilterLabel(
 // ═══════════════════════════════════════════
 
 export default function KanbanPage() {
+  // Migrazione Obsidian (Fase 4): dietro feature-flag la board Kanban reale è
+  // resa dalla `KanbanView` Obsidian (colonne reali + drag-drop tile + select→
+  // Inspector + add). CRUD/riordino colonne restano nell'arcade. Default OFF.
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <KanbanLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeKanbanPage />;
+}
+
+function ArcadeKanbanPage() {
   const theme = usePixelTheme();
   const queryClient = useQueryClient();
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();

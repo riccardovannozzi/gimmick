@@ -34,6 +34,8 @@ type ActionKind = 'timed' | 'allday' | 'notes';
 type SparkType = 'photo' | 'voice' | 'text' | 'file';
 interface RowSpark { t: SparkType; x?: string }
 export interface TileRow {
+  /** Presente quando la vista è collegata ai dati reali. */
+  id?: string;
   title: string;
   action: ActionKind;
   date?: string;
@@ -120,10 +122,25 @@ function SparkEl({ s }: { s: RowSpark }) {
   );
 }
 
-function Row({ row }: { row: TileRow }) {
+function Row({ row, onClick, active }: { row: TileRow; onClick?: () => void; active?: boolean }) {
   const am = actionMeta(row.action);
   return (
-    <div className="ob-tiles__row">
+    <div
+      className={cn('ob-tiles__row', active && 'ob-tiles__row--active', onClick && 'ob-tiles__row--clickable')}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+    >
       <div className="ob-tiles__cell ob-tiles__cell--check"><div className="ob-tiles__checkbox" /></div>
       <div className="ob-tiles__cell"><span className="ob-tiles__title">{row.title}</span></div>
       <div className="ob-tiles__cell ob-tiles__cell--ctrl"><Control label={am.label} icon={am.icon} iconColor={am.color} /></div>
@@ -167,9 +184,15 @@ export interface TilesViewProps {
   count?: number;
   total?: number;
   onAddTile?: () => void;
+  /** Click su una riga (apre il dettaglio nell'Inspector). */
+  onRowClick?: (id: string) => void;
+  /** Id della riga attualmente selezionata (evidenziata). */
+  selectedId?: string;
+  /** Contenuto in coda alla lista, dentro lo scroll (es. sentinella infinite-scroll). */
+  footer?: React.ReactNode;
 }
 
-export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile }: TilesViewProps) {
+export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile, onRowClick, selectedId, footer }: TilesViewProps) {
   return (
     <div className="ob-tiles">
       <div className="ob-tiles__topbar">
@@ -201,7 +224,15 @@ export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile }: 
             </div>
           ))}
         </div>
-        {rows.map((r, i) => <Row key={i} row={r} />)}
+        {rows.map((r, i) => (
+          <Row
+            key={r.id ?? i}
+            row={r}
+            active={!!r.id && r.id === selectedId}
+            onClick={onRowClick && r.id ? () => onRowClick(r.id!) : undefined}
+          />
+        ))}
+        {footer}
       </div>
     </div>
   );
