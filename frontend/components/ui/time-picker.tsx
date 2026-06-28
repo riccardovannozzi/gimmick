@@ -12,11 +12,13 @@ interface TimePickerProps {
   value: string; // "HH:MM"
   onChange: (time: string) => void;
   label?: string;
+  /** Optional leading icon node (e.g. a clock) shown before the value. */
+  icon?: React.ReactNode;
   compact?: boolean; // smaller trigger for table cells
   borderless?: boolean; // no border/bg for inline use
 }
 
-export function TimePicker({ value, onChange, label, compact, borderless }: TimePickerProps) {
+export function TimePicker({ value, onChange, label, icon, compact, borderless }: TimePickerProps) {
   const theme = usePixelTheme();
   const inShell = isObsidianShellEnabled();
   const monoFont = inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)';
@@ -109,6 +111,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
   return (
     <>
       <button ref={triggerRef} onClick={() => setOpen(!open)} style={triggerStyle}>
+        {icon && <span style={{ display: 'inline-flex', color: theme.ink3, flexShrink: 0 }}>{icon}</span>}
         {label && (
           <span
             style={{

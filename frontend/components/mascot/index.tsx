@@ -11,6 +11,11 @@ export type { BeniaminoProps } from './beniamino';
 export { MascotSuggestion } from './mascot-suggestion';
 export type { MascotSuggestionProps, MascotSuggestionItem } from './mascot-suggestion';
 
+export { MascotRosterPanel } from './mascot-roster-panel';
+
+export { BENIAMINO_ROSTER } from './roster';
+export type { RosterEntry, RosterSurface } from './roster';
+
 export {
   BENIAMINO_NAMES,
   BENIAMINO_PAIRS,

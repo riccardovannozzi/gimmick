@@ -10,14 +10,15 @@
 import * as React from 'react';
 import {
   IconPalette, IconPlug, IconShield, IconLogout,
-  IconDeviceMobileVibration, IconTrash, IconWorld, IconDownload,
+  IconDeviceMobileVibration, IconTrash, IconWorld, IconDownload, IconAdjustments, IconMoodSmile,
 } from '@tabler/icons-react';
 import { SegmentedControl, Toggle } from '@/components/primitives';
-import { Beniamino } from '@/components/mascot';
+import { Beniamino, MascotRosterPanel } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
+import { PersonalizzazionePanel } from '@/components/views/settings-management';
 
 // ─── Settings nav ─────────────────────────────────────────────────────────────
-type NavId = 'account' | 'aspetto' | 'notifiche' | 'cattura' | 'integrazioni' | 'privacy';
+type NavId = 'account' | 'aspetto' | 'personalizza' | 'beniamini' | 'notifiche' | 'cattura' | 'integrazioni' | 'privacy';
 interface NavDef { id: NavId; label: string; render: () => React.ReactNode }
 
 function NavRow({ icon, label, active, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
@@ -64,7 +65,7 @@ function ChevLink({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Aspetto panel ────────────────────────────────────────────────────────────
-function AspettoPanel({ themeMode, onThemeMode }: { themeMode?: string; onThemeMode?: (v: string) => void }) {
+function AspettoPanel({ themeMode, onThemeMode, onOpenBeniamini }: { themeMode?: string; onThemeMode?: (v: string) => void; onOpenBeniamini?: () => void }) {
   const [themeLocal, setThemeLocal] = React.useState('light');
   const theme = themeMode ?? themeLocal;
   const setTheme = onThemeMode ?? setThemeLocal;
@@ -114,11 +115,11 @@ function AspettoPanel({ themeMode, onThemeMode }: { themeMode?: string; onThemeM
         <Row
           icon="sparkles"
           label="Assistente"
-          sub="Il beniamino che ti aiuta"
+          sub="Gestisci i beniamini e le loro apparizioni"
           control={
-            <button type="button" className="ob-settings__beniamino">
+            <button type="button" className="ob-settings__beniamino" onClick={onOpenBeniamini}>
               <Beniamino name="bito" size={28} title="" />
-              <span className="ob-settings__beniamino-name">Bito</span>
+              <span className="ob-settings__beniamino-name">Roster</span>
               <span className="ob-settings__row-link-chev"><Icon name="chevR" size={14} /></span>
             </button>
           }
@@ -178,7 +179,9 @@ export function SettingsView({ themeMode, onThemeMode, account }: SettingsViewPr
 
   const NAV: NavDef[] = [
     { id: 'account', label: 'Account', render: () => (account ? <AccountPanel email={account.email} onLogout={account.onLogout} /> : null) },
-    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} /> },
+    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} onOpenBeniamini={() => setActive('beniamini')} /> },
+    { id: 'personalizza', label: 'Personalizzazione', render: () => <PersonalizzazionePanel /> },
+    { id: 'beniamini', label: 'Beniamini', render: () => <MascotRosterPanel /> },
     { id: 'notifiche', label: 'Notifiche', render: () => null },
     { id: 'cattura', label: 'Cattura & AI', render: () => null },
     { id: 'integrazioni', label: 'Integrazioni', render: () => null },
@@ -191,6 +194,8 @@ export function SettingsView({ themeMode, onThemeMode, account }: SettingsViewPr
         <div className="ob-settings__nav-eyebrow">IMPOSTAZIONI</div>
         <NavRow icon={<Icon name="person" size={17} />} label="Account" active={active === 'account'} onClick={() => setActive('account')} />
         <NavRow icon={<IconPalette size={17} stroke={1.6} />} label="Aspetto" active={active === 'aspetto'} onClick={() => setActive('aspetto')} />
+        <NavRow icon={<IconAdjustments size={17} stroke={1.6} />} label="Personalizzazione" active={active === 'personalizza'} onClick={() => setActive('personalizza')} />
+        <NavRow icon={<IconMoodSmile size={17} stroke={1.6} />} label="Beniamini" active={active === 'beniamini'} onClick={() => setActive('beniamini')} />
         <NavRow icon={<Icon name="bell" size={17} />} label="Notifiche" active={active === 'notifiche'} onClick={() => setActive('notifiche')} />
         <NavRow icon={<Icon name="sparkles" size={17} />} label="Cattura & AI" active={active === 'cattura'} onClick={() => setActive('cattura')} />
         <NavRow icon={<IconPlug size={17} stroke={1.6} />} label="Integrazioni" active={active === 'integrazioni'} onClick={() => setActive('integrazioni')} />

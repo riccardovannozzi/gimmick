@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconArrowUp, IconMaximize, IconX } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconArrowUp, IconMaximize, IconX, IconList, IconShare2, IconChevronDown } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -129,7 +129,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 
   return (
     <div style={{ position: 'relative' }}>
-      <label style={labelStyle}>Type</label>
+      <label style={labelStyle}>{inShell ? 'Tipo' : 'Type'}</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
@@ -154,6 +154,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 height: 18,
                 background: current?.color || theme.surfaceVariant,
                 border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                borderRadius: inShell ? 5 : 0,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -165,8 +166,9 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona tipo...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: inShell ? 13.5 : 11 }}>Seleziona tipo...</span>
         )}
+        {inShell && <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
       {open && dropPos && createPortal(
         <div
@@ -293,7 +295,7 @@ function StatusPickerField({ statuses, value, onChange }: {
 
   return (
     <div>
-      <label style={labelStyle}>Status</label>
+      <label style={labelStyle}>{inShell ? 'Stato' : 'Status'}</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
@@ -317,8 +319,9 @@ function StatusPickerField({ statuses, value, onChange }: {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selected.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona status...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: inShell ? 13.5 : 11 }}>{inShell ? 'Seleziona stato…' : 'Seleziona status...'}</span>
         )}
+        {inShell && <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
       {open && dropPos && createPortal(
         <div
@@ -1185,20 +1188,20 @@ export function TileSidebar({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    padding: '0 10px',
-    height: 30,
-    borderRadius: 8,
-    background: active ? `${theme.accent}22` : 'transparent',
+    gap: 5,
+    padding: '0 8px',
+    height: 28,
+    borderRadius: 7,
+    background: active ? theme.surface : 'transparent',
     color: active ? theme.accent : theme.ink2,
-    border: 'none',
+    border: `1px solid ${active ? theme.border : 'transparent'}`,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 13,
+    fontSize: 12.5,
     fontWeight: 600,
     letterSpacing: 0,
     textTransform: 'none',
     cursor: 'pointer',
-    boxShadow: 'none',
+    boxShadow: active ? 'var(--ob-shadow-card)' : 'none',
   } : {
     flex: 1,
     display: 'inline-flex',
@@ -1288,9 +1291,19 @@ export function TileSidebar({
             >
               <IconLayoutSidebarRightCollapse size={14} />
             </button>
-            <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}>Edit</button>
-            <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}>List</button>
-            <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}>Flow</button>
+            {inShell ? (
+              <div style={{ flex: 1, display: 'flex', gap: 3, padding: 3, background: theme.surfaceVariant, borderRadius: 10 }}>
+                <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}><IconEdit size={14} />Edit</button>
+                <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}><IconList size={14} />List</button>
+                <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}><IconShare2 size={14} />Flow</button>
+              </div>
+            ) : (
+              <>
+                <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}>Edit</button>
+                <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}>List</button>
+                <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}>Flow</button>
+              </>
+            )}
           </div>
         )}
         <div
@@ -1310,7 +1323,7 @@ export function TileSidebar({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Title</label>
+                <label style={labelStyle}>{inShell ? 'Titolo' : 'Title'}</label>
                 <textarea
                   value={editTitle}
                   onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
@@ -1325,14 +1338,14 @@ export function TileSidebar({
                     outline: 'none',
                     resize: 'none',
                   }}
-                  placeholder="Title..."
+                  placeholder={inShell ? 'Titolo…' : 'Title...'}
                 />
               </div>
 
 
               {/* Type selector */}
               <div>
-                <label style={labelStyle}>Action</label>
+                <label style={labelStyle}>{inShell ? 'Azione' : 'Action'}</label>
                 {(() => {
                   const ac = actionColors;
                   // Same icon mapping used in tile renderers (kanban/calendar/canvas).
@@ -1480,21 +1493,30 @@ export function TileSidebar({
 
                 return (
                   <div>
+                    {inShell && <label style={labelStyle}>Data e orario</label>}
                     <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
                       {/* Date */}
-                      <div style={{ flexShrink: 0 }}>
-                        <label style={labelStyle}>Date</label>
+                      <div style={{ flexShrink: 0, position: 'relative' }}>
+                        {!inShell && <label style={labelStyle}>Date</label>}
+                        {inShell && (
+                          <IconCalendar
+                            size={14}
+                            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
+                          />
+                        )}
                         <input
                           type="date"
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
+                          onClick={inShell ? (e) => { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); } : undefined}
+                          className={inShell ? 'ob-ts-date' : undefined}
                           style={{
                             ...obField(theme, inShell),
-                            padding: '0 10px',
+                            padding: inShell ? '0 8px 0 30px' : '0 10px',
                             height: inShell ? 36 : 30,
                             outline: 'none',
                             width: 'auto',
-                            maxWidth: 120,
+                            maxWidth: inShell ? 138 : 120,
                             colorScheme: theme.mode,
                           }}
                         />
@@ -1503,17 +1525,19 @@ export function TileSidebar({
                       {isTimed && (
                         <>
                           <div style={{ flexShrink: 0 }}>
-                            <label style={labelStyle}>Start</label>
+                            {!inShell && <label style={labelStyle}>Start</label>}
                             <TimePicker
                               value={startTime || '09:00'}
+                              icon={inShell ? <IconClock size={14} /> : undefined}
                               onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
                               compact
                             />
                           </div>
                           <div style={{ flexShrink: 0 }}>
-                            <label style={labelStyle}>End</label>
+                            {!inShell && <label style={labelStyle}>End</label>}
                             <TimePicker
                               value={endTime || '10:00'}
+                              icon={inShell ? <IconClock size={14} /> : undefined}
                               onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
                               compact
                             />
@@ -1544,16 +1568,29 @@ export function TileSidebar({
 
               <div>
                 <div style={{ ...obLabel(theme, inShell), marginBottom: 8 }}>
-                  Sparks ({sparks.length})
+                  {inShell ? `Sparks · ${sparks.length}` : `Sparks (${sparks.length})`}
                 </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div
+                  style={inShell ? {
+                    display: 'flex',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    background: theme.surface,
+                    marginBottom: 12,
+                  } : {
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    marginBottom: 12,
+                  }}
+                >
                   {[
-                    { id: 'photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
-                    { id: 'video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
-                    { id: 'gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
-                    { id: 'text', icon: IconEdit, capKey: 'text' as const, accept: null },
-                    { id: 'voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
-                    { id: 'file', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
+                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
+                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
+                    { id: 'gallery', label: 'Gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
+                    { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
+                    { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
                   ].map((opt) => {
                     const BtnIcon = opt.icon;
                     const isDropTarget = dropTargetIcon === opt.id;
@@ -1586,24 +1623,42 @@ export function TileSidebar({
                           if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
                         } : undefined}
                         className={inShell ? undefined : 'px-press'}
-                        style={{
+                        style={inShell ? {
                           position: 'relative',
-                          width: inShell ? 38 : 32,
-                          height: inShell ? 38 : 32,
-                          borderRadius: inShell ? 9 : 0,
+                          flex: 1,
+                          minWidth: 0,
+                          height: 56,
+                          borderRadius: 0,
+                          display: 'inline-flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          background: isDropTarget ? `${cap}1F` : 'transparent',
+                          border: 'none',
+                          cursor: 'pointer',
+                        } : {
+                          position: 'relative',
+                          width: 32,
+                          height: 32,
+                          borderRadius: 0,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           background: cstyle.background,
-                          border: `${inShell ? 1 : 2}px solid ${cstyle.border}`,
+                          border: `2px solid ${cstyle.border}`,
                           cursor: 'pointer',
-                          ...(isDropTarget && !inShell ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
-                          ...(isDropTarget && inShell ? { boxShadow: `0 0 0 2px ${cap}` } : {}),
+                          ...(isDropTarget ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
                         }}
                         title={opt.id}
                       >
-                        <BtnIcon size={14} style={{ color: cstyle.iconColor }} />
-                        {cstyle.dot && (
+                        <BtnIcon size={inShell ? 19 : 14} style={{ color: inShell ? cap : cstyle.iconColor }} />
+                        {inShell && (
+                          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, fontWeight: 500, color: theme.ink2, lineHeight: 1 }}>
+                            {opt.label}
+                          </span>
+                        )}
+                        {!inShell && cstyle.dot && (
                           <span
                             style={{
                               position: 'absolute',

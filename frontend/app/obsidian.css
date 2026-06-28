@@ -129,6 +129,11 @@
   --ob-space-56: 56px;
 }
 
+/* TileSidebar date input (shell): la calendar-icon di leading è disegnata in
+   JSX; nascondiamo l'indicatore nativo webkit (il campo apre il picker via
+   showPicker su click). */
+.ob-ts-date::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+
 /* ── Scrollbar (shell ON) ──────────────────────────────────────────────────────
    Quando lo shell Obsidian è attivo (`data-ob="on"` sul root, impostato da
    ObsidianThemeProvider), sostituiamo la scrollbar pixel globale di globals.css
