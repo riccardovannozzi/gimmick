@@ -9,6 +9,7 @@ import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api'
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { pixelToolbarBtn, pixelSegmentedBtn, pixelSegmentedContainer } from '@/lib/pixel-toolbar';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
@@ -93,6 +94,9 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 
 export default function GraphPage() {
   const theme = usePixelTheme();
+  // Migrazione Obsidian (Fase 9): nello shell la pagina vive nel ViewContainer
+  // → niente <Header/> di pagina e root che cresce. Restyle token D3 rimandato.
+  const inShell = isObsidianShellEnabled();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -1277,8 +1281,8 @@ export default function GraphPage() {
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
-      <Header title="Panopticon" />
+    <div className={cn('flex flex-col h-full', inShell && 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
+      {!inShell && <Header title="Panopticon" />}
 
       {/* Toolbar */}
       <div

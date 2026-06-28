@@ -17,10 +17,15 @@ import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
   const theme = usePixelTheme();
+  // Migrazione Obsidian (Fase 8): dentro lo shell la pagina vive nel
+  // ViewContainer → niente <Header/> di pagina (lo shell ne ha già uno) e il
+  // root cresce nel body flex. Il restyle dei token D3 interni è rimandato.
+  const inShell = isObsidianShellEnabled();
   const searchParams = useSearchParams();
   const router = useRouter();
   const tagId = searchParams.get('tag');
@@ -661,8 +666,8 @@ export default function CanvasPage() {
   }, [tileCtx, tagId, tiles, queryClient]);
 
   return (
-    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
-      <Header title="Canvas" />
+    <div className={`flex flex-col h-full${inShell ? ' flex-1 min-w-0' : ''}`} style={{ background: theme.bg1 }}>
+      {!inShell && <Header title="Canvas" />}
 
       {tagId && tag ? (
         <div className="flex flex-1 overflow-hidden">

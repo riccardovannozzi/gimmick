@@ -79,6 +79,9 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   );
 
   const activeView: ViewId = PATH_TO_VIEW[pathname ?? ''] ?? 'tiles';
+  // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
+  // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
+  const pageOwnsInspector = activeView === 'canvas' || activeView === 'panopticon';
   // Single tag per tile → un solo tag selezionato alla volta lato sidebar.
   const activeChildId =
     selectedTagIds.size === 1 ? [...selectedTagIds][0] : undefined;
@@ -108,7 +111,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       }
       inspector={
         inspector ??
-        (selectedTileId ? (
+        (pageOwnsInspector ? undefined : selectedTileId ? (
           <TileSidebar
             tileId={selectedTileId}
             open

@@ -7,6 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
+import { Field, Button } from '@/components/primitives';
+import { AuthLayout, AuthField } from '@/components/auth/obsidian-auth';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { authApi, getAccessToken } from '@/lib/api';
 
 const schema = z.object({
@@ -78,6 +81,35 @@ export default function ResetPasswordPage() {
     fontSize: 12,
     outline: 'none',
   };
+
+  if (isObsidianShellEnabled()) {
+    return (
+      <AuthLayout title="Nuova password">
+        {missingToken ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+              Il link di reset non è più valido o è già stato utilizzato. Richiedine uno nuovo.
+            </p>
+            <Button variant="primary" onClick={() => router.push('/forgot-password')} style={{ width: '100%' }}>
+              Richiedi nuovo link
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <AuthField label="Nuova password" htmlFor="new_password" error={errors.new_password?.message}>
+              <Field id="new_password" type="password" placeholder="••••••••" invalid={!!errors.new_password} {...register('new_password')} />
+            </AuthField>
+            <AuthField label="Conferma password" htmlFor="confirm" error={errors.confirm?.message}>
+              <Field id="confirm" type="password" placeholder="••••••••" invalid={!!errors.confirm} {...register('confirm')} />
+            </AuthField>
+            <Button variant="primary" type="submit" disabled={submitting} style={{ width: '100%' }}>
+              {submitting ? 'Salvataggio…' : 'Aggiorna password'}
+            </Button>
+          </form>
+        )}
+      </AuthLayout>
+    );
+  }
 
   return (
     <div

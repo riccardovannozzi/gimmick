@@ -8,6 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
+import { Field, Button } from '@/components/primitives';
+import { AuthLayout, AuthField, AuthError, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { useAuthStore } from '@/store/auth-store';
 
 const loginSchema = z.object({
@@ -70,6 +73,31 @@ export default function LoginPage() {
     fontSize: 12,
     outline: 'none',
   };
+
+  if (isObsidianShellEnabled()) {
+    return (
+      <AuthLayout title="Gimmick" subtitle="Accedi al tuo account">
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <AuthField label="Email" htmlFor="email" error={errors.email?.message}>
+            <Field id="email" type="email" placeholder="nome@esempio.com" invalid={!!errors.email} {...register('email')} />
+          </AuthField>
+          <AuthField
+            label="Password"
+            htmlFor="password"
+            error={errors.password?.message}
+            action={<AuthLink href="/forgot-password">Dimenticata?</AuthLink>}
+          >
+            <Field id="password" type="password" placeholder="••••••••" invalid={!!errors.password} {...register('password')} />
+          </AuthField>
+          {error && <AuthError>{error}</AuthError>}
+          <Button variant="primary" type="submit" disabled={isLoading} style={{ width: '100%' }}>
+            {isLoading ? 'Caricamento…' : 'Accedi'}
+          </Button>
+          <AuthFoot>Non hai un account? <AuthLink href="/register">Registrati</AuthLink></AuthFoot>
+        </form>
+      </AuthLayout>
+    );
+  }
 
   return (
     <div

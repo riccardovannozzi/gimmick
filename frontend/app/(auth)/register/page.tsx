@@ -8,6 +8,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
+import { Field, Button } from '@/components/primitives';
+import { AuthLayout, AuthField, AuthError, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { useAuthStore } from '@/store/auth-store';
 
 const registerSchema = z.object({
@@ -81,6 +84,29 @@ export default function RegisterPage() {
     color: '#E24B4A',
     margin: '4px 0 0',
   };
+
+  if (isObsidianShellEnabled()) {
+    return (
+      <AuthLayout title="Gimmick" subtitle="Crea un nuovo account">
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <AuthField label="Email" htmlFor="email" error={errors.email?.message}>
+            <Field id="email" type="email" placeholder="nome@esempio.com" invalid={!!errors.email} {...register('email')} />
+          </AuthField>
+          <AuthField label="Password" htmlFor="password" error={errors.password?.message}>
+            <Field id="password" type="password" placeholder="••••••••" invalid={!!errors.password} {...register('password')} />
+          </AuthField>
+          <AuthField label="Conferma Password" htmlFor="confirmPassword" error={errors.confirmPassword?.message}>
+            <Field id="confirmPassword" type="password" placeholder="••••••••" invalid={!!errors.confirmPassword} {...register('confirmPassword')} />
+          </AuthField>
+          {error && <AuthError>{error}</AuthError>}
+          <Button variant="primary" type="submit" disabled={isLoading} style={{ width: '100%' }}>
+            {isLoading ? 'Caricamento…' : 'Registrati'}
+          </Button>
+          <AuthFoot>Hai già un account? <AuthLink href="/login">Accedi</AuthLink></AuthFoot>
+        </form>
+      </AuthLayout>
+    );
+  }
 
   return (
     <div

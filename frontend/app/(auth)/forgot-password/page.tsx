@@ -7,6 +7,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
+import { Field, Button } from '@/components/primitives';
+import { AuthLayout, AuthField, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { authApi } from '@/lib/api';
 
 const schema = z.object({
@@ -55,6 +58,31 @@ export default function ForgotPasswordPage() {
     fontSize: 12,
     outline: 'none',
   };
+
+  if (isObsidianShellEnabled()) {
+    return (
+      <AuthLayout title="Password dimenticata" subtitle="Ti invieremo un link per reimpostarla">
+        {submitted ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+              Se l&apos;email è registrata riceverai a breve un link per reimpostare la password. Controlla anche nello spam.
+            </p>
+            <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <AuthField label="Email" htmlFor="email" error={errors.email?.message}>
+              <Field id="email" type="email" placeholder="nome@esempio.com" invalid={!!errors.email} {...register('email')} />
+            </AuthField>
+            <Button variant="primary" type="submit" disabled={sending} style={{ width: '100%' }}>
+              {sending ? 'Invio…' : 'Invia link'}
+            </Button>
+            <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
+          </form>
+        )}
+      </AuthLayout>
+    );
+  }
 
   return (
     <div
