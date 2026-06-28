@@ -15,6 +15,9 @@ import {
   PaletteId, PaletteMode, ShadowSize, BgColorId, BackgroundId, CaptureTreatment,
   backgroundCSS, themeCssVars,
 } from '@/lib/pixel-theme';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
+import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
+import { buildObsidianPixelTheme } from '@/lib/theme/obsidian-pixel-theme';
 
 // ─── Provider + hooks ──────────────────────────────────────────────────────
 
@@ -131,6 +134,14 @@ export function PixelThemeProvider({
 export function usePixelTheme() {
   const c = useContext(Ctx);
   if (!c) throw new Error('usePixelTheme must be inside <PixelThemeProvider>');
+  // Migrazione Obsidian (Fase 8/9): dentro lo shell la palette pixel viene
+  // sostituita da un PixelTheme mappato sui token Obsidian, così il layer D3
+  // (Canvas/Graph) e le superfici arcade residue (TileSidebar, menu, modali)
+  // rese dentro lo shell adottano i colori Obsidian senza riscrivere l'SVG.
+  // Reattivo al mode light/dark via useObsidianTheme.
+  const { mode } = useObsidianTheme();
+  const obsidian = useMemo(() => buildObsidianPixelTheme(mode), [mode]);
+  if (isObsidianShellEnabled()) return obsidian;
   return c.theme;
 }
 export function usePixelSettings() {

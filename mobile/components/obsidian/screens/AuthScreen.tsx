@@ -24,11 +24,40 @@ function GimmickMark({ c, size }: { c: ObsidianColors; size: number }) {
 }
 
 // ─── Login ────────────────────────────────────────────────────────────────────
-function Login({ c, onNext }: { c: ObsidianColors; onNext: () => void }) {
-  const Field = ({ Icon, placeholder, secure, eye }: { Icon: typeof IconMail; placeholder: string; secure?: boolean; eye?: boolean }) => (
+interface LoginProps {
+  c: ObsidianColors;
+  onNext: () => void;
+  /** Live auth wiring (omit → static demo that just advances onboarding). */
+  email?: string;
+  password?: string;
+  onEmail?: (t: string) => void;
+  onPassword?: (t: string) => void;
+  onSubmit?: () => void;
+  onRegister?: () => void;
+  loading?: boolean;
+  error?: string | null;
+}
+function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRegister, loading, error }: LoginProps) {
+  const live = onSubmit !== undefined;
+  const Field = ({ Icon, placeholder, secure, eye, value, onChangeText, keyboardType, autoCapitalize }: {
+    Icon: typeof IconMail; placeholder: string; secure?: boolean; eye?: boolean;
+    value?: string; onChangeText?: (t: string) => void;
+    keyboardType?: 'email-address' | 'default'; autoCapitalize?: 'none' | 'sentences';
+  }) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14 }}>
       <Icon size={17} color={c.subtle} strokeWidth={1.8} />
-      <TextInput placeholder={placeholder} placeholderTextColor={c.subtle} secureTextEntry={secure} style={{ flex: 1, fontSize: 14, color: c.text }} />
+      <TextInput
+        placeholder={placeholder}
+        placeholderTextColor={c.subtle}
+        secureTextEntry={secure}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={false}
+        editable={!loading}
+        style={{ flex: 1, fontSize: 14, color: c.text }}
+      />
       {eye ? <IconEye size={16} color={c.subtle} strokeWidth={1.8} /> : null}
     </View>
   );
@@ -38,6 +67,7 @@ function Login({ c, onNext }: { c: ObsidianColors; onNext: () => void }) {
       <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>{label}</Text>
     </View>
   );
+  const primary = live ? onSubmit : onNext;
   return (
     <View style={{ flex: 1, paddingHorizontal: 24, justifyContent: 'center' }}>
       <View style={{ alignItems: 'center', marginBottom: 30 }}>
@@ -46,12 +76,13 @@ function Login({ c, onNext }: { c: ObsidianColors; onNext: () => void }) {
         <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi spark</Text>
       </View>
       <View style={{ gap: 11 }}>
-        <Field Icon={IconMail} placeholder="ruslan@gimmick.app" />
-        <Field Icon={IconLock} placeholder="••••••••••" secure eye />
+        <Field Icon={IconMail} placeholder="ruslan@gimmick.app" value={email} onChangeText={onEmail} keyboardType="email-address" autoCapitalize="none" />
+        <Field Icon={IconLock} placeholder="••••••••••" secure eye value={password} onChangeText={onPassword} />
       </View>
+      {error ? <Text style={{ fontSize: 12.5, color: c.deadline, marginTop: 12, marginHorizontal: 2 }}>{error}</Text> : null}
       <Text style={{ textAlign: 'right', fontSize: 12.5, fontWeight: '600', color: c.accent, marginVertical: 14, marginHorizontal: 2 }}>Password dimenticata?</Text>
-      <Pressable onPress={onNext} style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.9 : 1 })}>
-        <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Accedi</Text>
+      <Pressable onPress={primary} disabled={loading} style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.6 : pressed ? 0.9 : 1 })}>
+        <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
       </Pressable>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
@@ -62,7 +93,7 @@ function Login({ c, onNext }: { c: ObsidianColors; onNext: () => void }) {
         <Social Icon={IconBrandGoogle} label="Google" />
         <Social Icon={IconBrandApple} label="Apple" />
       </View>
-      <Pressable onPress={onNext} style={{ marginTop: 24 }}>
+      <Pressable onPress={live ? onRegister : onNext} disabled={loading} style={{ marginTop: 24 }}>
         <Text style={{ textAlign: 'center', fontSize: 13, color: c.muted }}>Non hai un account? <Text style={{ fontWeight: '600', color: c.accent }}>Registrati</Text></Text>
       </Pressable>
     </View>
@@ -142,14 +173,42 @@ function FirstCapture({ c, onNext }: { c: ObsidianColors; onNext: () => void }) 
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-export function ObsidianAuthScreen({ initial = 'login' }: { initial?: 'login' | 'onb' | 'first' }) {
+export interface ObsidianAuthScreenProps {
+  initial?: 'login' | 'onb' | 'first';
+  /** Live login wiring (authStore). Omit → static demo walkthrough. */
+  email?: string;
+  password?: string;
+  onEmail?: (t: string) => void;
+  onPassword?: (t: string) => void;
+  onLogin?: () => void;
+  onRegister?: () => void;
+  loading?: boolean;
+  error?: string | null;
+}
+
+export function ObsidianAuthScreen({
+  initial = 'login', email, password, onEmail, onPassword, onLogin, onRegister, loading, error,
+}: ObsidianAuthScreenProps = {}) {
   const c = useObsidian();
   const [screen, setScreen] = React.useState<'login' | 'onb' | 'first'>(initial);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      {screen === 'login' && <Login c={c} onNext={() => setScreen('onb')} />}
+      {screen === 'login' && (
+        <Login
+          c={c}
+          onNext={() => setScreen('onb')}
+          email={email}
+          password={password}
+          onEmail={onEmail}
+          onPassword={onPassword}
+          onSubmit={onLogin}
+          onRegister={onRegister}
+          loading={loading}
+          error={error}
+        />
+      )}
       {screen === 'onb' && <Onboarding c={c} onNext={() => setScreen('first')} />}
       {screen === 'first' && <FirstCapture c={c} onNext={() => setScreen('login')} />}
       <ObsidianNavPill />

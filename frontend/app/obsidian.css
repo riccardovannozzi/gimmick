@@ -128,3 +128,35 @@
   --ob-space-40: 40px;
   --ob-space-56: 56px;
 }
+
+/* ── Scrollbar (shell ON) ──────────────────────────────────────────────────────
+   Quando lo shell Obsidian è attivo (`data-ob="on"` sul root, impostato da
+   ObsidianThemeProvider), sostituiamo la scrollbar pixel globale di globals.css
+   (track bianco + thumb rosso, 12px, bordi 2px) con una scrollbar Obsidian
+   sottile: track trasparente, thumb neutro arrotondato. Lo scoping
+   `[data-ob='on']` vince per specificità sulle regole `*` / `::-webkit-scrollbar`
+   non scoped. */
+[data-ob='on'] * {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--ob-subtle) 50%, transparent) transparent;
+}
+[data-ob='on'] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+[data-ob='on'] ::-webkit-scrollbar-track {
+  background: transparent;
+  border: none;
+}
+[data-ob='on'] ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--ob-subtle) 45%, transparent);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+[data-ob='on'] ::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--ob-subtle) 70%, transparent);
+}
+[data-ob='on'] ::-webkit-scrollbar-corner {
+  background: transparent;
+}

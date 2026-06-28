@@ -79,8 +79,28 @@ function ConfirmRow({ c }: { c: ObsidianColors }) {
 
 const SUGGESTIONS = ['Riepilogo di oggi', 'Cosa scade?', 'Spark da smistare'];
 
-export function ObsidianAskScreen({ onBack }: { onBack?: () => void }) {
+export interface AskMessage { id: string; role: 'user' | 'assistant'; content: string }
+
+export interface ObsidianAskScreenProps {
+  onBack?: () => void;
+  /** Live conversation. Omit to render the static demo thread (QA preview). */
+  messages?: AskMessage[];
+  input?: string;
+  onInput?: (t: string) => void;
+  onSend?: () => void;
+  isLoading?: boolean;
+  suggestions?: string[];
+  onSuggestion?: (s: string) => void;
+  onNewChat?: () => void;
+}
+
+export function ObsidianAskScreen({
+  onBack, messages, input, onInput, onSend, isLoading, suggestions, onSuggestion, onNewChat,
+}: ObsidianAskScreenProps = {}) {
   const c = useObsidian();
+  const live = messages !== undefined;
+  const chips = suggestions ?? SUGGESTIONS;
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
@@ -97,28 +117,44 @@ export function ObsidianAskScreen({ onBack }: { onBack?: () => void }) {
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Ask Gimmick</Text>
           <Text style={{ fontSize: 11, color: c.subtle }}>Bito · sa tutto dei tuoi tile</Text>
         </View>
-        <View style={{ width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={onNewChat} hitSlop={6} style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 10, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
           <IconPlus size={16} color={c.muted} strokeWidth={1.8} />
-        </View>
+        </Pressable>
       </View>
 
       {/* Thread */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 13 }}>
-        <BotWrap c={c}><Bubble c={c}>Ciao Ruslan. 5 tile per oggi e 4 spark nel buffer. Da dove partiamo?</Bubble></BotWrap>
-        <UserMsg c={c}>Trasforma la nota vocale di stamattina in un evento per la call con Marco alle 16.</UserMsg>
-        <BotWrap c={c}>
-          <Bubble c={c}>Fatto. Ho creato questo evento — lo confermi?</Bubble>
-          <TileResult c={c} />
-          <ConfirmRow c={c} />
-        </BotWrap>
-        <UserMsg c={c}>Perfetto. Cosa scade questa settimana?</UserMsg>
-        <BotWrap c={c}><Bubble c={c}>Una scadenza: certificato Aruba, lun 30/06. Ti ricordo domenica sera?</Bubble></BotWrap>
+        {live ? (
+          <>
+            {messages!.length === 0 && !isLoading && (
+              <BotWrap c={c}><Bubble c={c}>Ciao! Sono Bito. Chiedimi qualcosa sui tuoi tile e spark.</Bubble></BotWrap>
+            )}
+            {messages!.map((m) => (
+              m.role === 'user'
+                ? <UserMsg key={m.id} c={c}>{m.content}</UserMsg>
+                : <BotWrap key={m.id} c={c}><Bubble c={c}>{m.content}</Bubble></BotWrap>
+            ))}
+            {isLoading && <BotWrap c={c}><Bubble c={c}>…</Bubble></BotWrap>}
+          </>
+        ) : (
+          <>
+            <BotWrap c={c}><Bubble c={c}>Ciao Ruslan. 5 tile per oggi e 4 spark nel buffer. Da dove partiamo?</Bubble></BotWrap>
+            <UserMsg c={c}>Trasforma la nota vocale di stamattina in un evento per la call con Marco alle 16.</UserMsg>
+            <BotWrap c={c}>
+              <Bubble c={c}>Fatto. Ho creato questo evento — lo confermi?</Bubble>
+              <TileResult c={c} />
+              <ConfirmRow c={c} />
+            </BotWrap>
+            <UserMsg c={c}>Perfetto. Cosa scade questa settimana?</UserMsg>
+            <BotWrap c={c}><Bubble c={c}>Una scadenza: certificato Aruba, lun 30/06. Ti ricordo domenica sera?</Bubble></BotWrap>
+          </>
+        )}
       </ScrollView>
 
       {/* Suggestions */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 7, paddingHorizontal: 14, paddingBottom: 10 }}>
-        {SUGGESTIONS.map((s) => (
-          <Pressable key={s} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line }}>
+        {chips.map((s) => (
+          <Pressable key={s} onPress={onSuggestion ? () => onSuggestion(s) : undefined} style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line }}>
             <IconSparkles size={11} color={c.accent} strokeWidth={1.8} />
             <Text style={{ fontSize: 12, fontWeight: '600', color: c.accent }}>{s}</Text>
           </Pressable>
@@ -129,9 +165,20 @@ export function ObsidianAskScreen({ onBack }: { onBack?: () => void }) {
       <View style={{ paddingHorizontal: 14, paddingBottom: 12 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 14, paddingHorizontal: 10, paddingVertical: 8 }}>
           <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}><IconPaperclip size={16} color={c.subtle} strokeWidth={1.8} /></View>
-          <TextInput placeholder="Chiedi a Gimmick…" placeholderTextColor={c.subtle} style={{ flex: 1, fontSize: 13.5, color: c.text }} />
+          <TextInput
+            value={input}
+            onChangeText={onInput}
+            onSubmitEditing={onSend}
+            returnKeyType="send"
+            editable={!isLoading}
+            placeholder="Chiedi a Gimmick…"
+            placeholderTextColor={c.subtle}
+            style={{ flex: 1, fontSize: 13.5, color: c.text }}
+          />
           <View style={{ width: 30, height: 30, borderRadius: 8, alignItems: 'center', justifyContent: 'center' }}><IconMicrophone size={16} color={c.subtle} strokeWidth={1.8} /></View>
-          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}><IconSend size={16} color={c.accentInk} strokeWidth={1.8} /></View>
+          <Pressable onPress={onSend} disabled={isLoading} style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 10, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: isLoading ? 0.5 : pressed ? 0.7 : 1 })}>
+            <IconSend size={16} color={c.accentInk} strokeWidth={1.8} />
+          </Pressable>
         </View>
       </View>
 

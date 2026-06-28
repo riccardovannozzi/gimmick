@@ -19,9 +19,21 @@ export {
   CameraFlow, VideoFlow, VoiceFlow, TextFlow, GalleryFlow, FileFlow, SaveSparkScreen,
 } from './screens/CaptureFlows';
 export { ObsidianViewsScreen } from './screens/ViewsScreen';
+export type { ObsidianViewsScreenProps } from './screens/ViewsScreen';
+export { ObsidianViewsScreenLive } from './screens/ViewsScreenLive';
 export { ObsidianSparksScreen } from './screens/SparksScreen';
+export type { ObsidianSparksScreenProps } from './screens/SparksScreen';
+export { ObsidianSparksScreenLive } from './screens/SparksScreenLive';
 export { ObsidianBufferScreen } from './screens/BufferScreen';
+export type { ObsidianBufferScreenProps } from './screens/BufferScreen';
+export { ObsidianBufferScreenLive } from './screens/BufferScreenLive';
 export { ObsidianTileScreen } from './screens/TileScreen';
+export type { ObsidianTileScreenProps } from './screens/TileScreen';
+export { ObsidianTileScreenLive } from './screens/TileScreenLive';
 export { ObsidianAskScreen } from './screens/AskScreen';
+export type { ObsidianAskScreenProps, AskMessage } from './screens/AskScreen';
+export { ObsidianAskScreenLive } from './screens/AskScreenLive';
 export { ObsidianAuthScreen } from './screens/AuthScreen';
+export type { ObsidianAuthScreenProps } from './screens/AuthScreen';
+export { ObsidianAuthScreenLive } from './screens/AuthScreenLive';
 export { BitoMascot } from './Mascot';

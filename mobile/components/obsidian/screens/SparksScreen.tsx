@@ -14,22 +14,25 @@ import {
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import type { ObsidianColors } from '@/constants/obsidian';
+import type { ObSparkVM, ObSparkType } from '@/lib/obsidian-adapters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 
-type SparkType = 'audio' | 'text' | 'photo' | 'video' | 'file';
-interface Spark { id: number; name: string; type: SparkType; date: string; body?: string; dim?: string; ai?: boolean }
+// View-model rendered by this screen. Live data arrives pre-mapped via
+// `lib/obsidian-adapters.sparkToVM`; the mock below feeds the QA preview.
+type SparkType = ObSparkType;
+type Spark = ObSparkVM;
 
 const SPARKS: Spark[] = [
-  { id: 1, name: 'audio_recording', type: 'audio', date: '26/06', ai: true },
-  { id: 2, name: 'p 16.12.25', type: 'text', date: '26/06', body: 'Promemoria pagamento', ai: true },
-  { id: 3, name: 'pagata 20.03.26', type: 'text', date: '26/06', body: 'Fattura saldata', ai: true },
-  { id: 4, name: 'Questo è marco guerrieri', type: 'text', date: '25/06', body: 'Contatto nuovo', ai: true },
-  { id: 5, name: 'photo', type: 'photo', date: '25/06', dim: '1,4 MB', ai: true },
-  { id: 6, name: 'audio_recording', type: 'audio', date: '25/06', ai: true },
-  { id: 7, name: 'preventivo_om.pdf', type: 'file', date: '25/06', dim: '240 KB', ai: false },
-  { id: 8, name: 'clip_demo', type: 'video', date: '24/06', dim: '8,2 MB', ai: false },
-  { id: 9, name: 'audio_recording', type: 'audio', date: '24/06', ai: true },
+  { id: '1', name: 'audio_recording', type: 'audio', date: '26/06', ai: true },
+  { id: '2', name: 'p 16.12.25', type: 'text', date: '26/06', body: 'Promemoria pagamento', ai: true },
+  { id: '3', name: 'pagata 20.03.26', type: 'text', date: '26/06', body: 'Fattura saldata', ai: true },
+  { id: '4', name: 'Questo è marco guerrieri', type: 'text', date: '25/06', body: 'Contatto nuovo', ai: true },
+  { id: '5', name: 'photo', type: 'photo', date: '25/06', dim: '1,4 MB', ai: true },
+  { id: '6', name: 'audio_recording', type: 'audio', date: '25/06', ai: true },
+  { id: '7', name: 'preventivo_om.pdf', type: 'file', date: '25/06', dim: '240 KB', ai: false },
+  { id: '8', name: 'clip_demo', type: 'video', date: '24/06', dim: '8,2 MB', ai: false },
+  { id: '9', name: 'audio_recording', type: 'audio', date: '24/06', ai: true },
 ];
 
 function typeMeta(type: SparkType, c: ObsidianColors): { color: string; Icon: typeof IconCamera; label: string } {
@@ -60,12 +63,16 @@ function Preview({ c, s }: { c: ObsidianColors; s: Spark }) {
   return null;
 }
 
-function SparkCard({ c, s, last }: { c: ObsidianColors; s: Spark; last: boolean }) {
+function SparkCard({ c, s, last, onPress }: { c: ObsidianColors; s: Spark; last: boolean; onPress?: (id: string, tileId?: string) => void }) {
   const { color, Icon, label } = typeMeta(s.type, c);
   const preview = <Preview c={c} s={s} />;
   const hasPreview = (s.type === 'audio') || (s.type === 'text' && !!s.body) || !!s.dim;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 4, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line }}>
+    <Pressable
+      onPress={onPress ? () => onPress(s.id, s.tileId) : undefined}
+      disabled={!onPress}
+      style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, paddingHorizontal: 4, borderBottomWidth: last ? 0 : 1, borderBottomColor: c.line, opacity: pressed ? 0.6 : 1 })}
+    >
       <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: color + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
         <Icon size={20} color={color} strokeWidth={1.8} />
       </View>
@@ -87,11 +94,11 @@ function SparkCard({ c, s, last }: { c: ObsidianColors; s: Spark; last: boolean 
         <View style={{ width: 22, height: 22, borderRadius: 7, borderWidth: 1.5, borderColor: c.line2 }} />
       )}
       <IconChevronRight size={15} color={c.faint} strokeWidth={1.8} />
-    </View>
+    </Pressable>
   );
 }
 
-function Header({ c, onBack, onHome, onSearch, onSettings }: { c: ObsidianColors; onBack?: () => void; onHome?: () => void; onSearch?: () => void; onSettings?: () => void }) {
+function Header({ c, count, onBack, onHome, onSearch, onSettings }: { c: ObsidianColors; count: number; onBack?: () => void; onHome?: () => void; onSearch?: () => void; onSettings?: () => void }) {
   const Ib = ({ Icon, onPress, label }: { Icon: typeof IconHome; onPress?: () => void; label: string }) => (
     <Pressable onPress={onPress} accessibilityLabel={label} hitSlop={6} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
       <Icon size={19} color={c.muted} strokeWidth={1.8} />
@@ -104,7 +111,7 @@ function Header({ c, onBack, onHome, onSearch, onSettings }: { c: ObsidianColors
       <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, marginLeft: 4 }}>
         <IconSparkles size={20} color={c.accent} strokeWidth={1.8} />
         <Text style={{ fontSize: 17, fontWeight: '600', color: c.text }}>Sparks</Text>
-        <Text style={{ fontSize: 12, color: c.subtle }}>14</Text>
+        <Text style={{ fontSize: 12, color: c.subtle }}>{count}</Text>
       </View>
       <Ib Icon={IconSearch} onPress={onSearch} label="Cerca" />
       <Ib Icon={IconSettings} onPress={onSettings} label="Impostazioni" />
@@ -112,19 +119,35 @@ function Header({ c, onBack, onHome, onSearch, onSettings }: { c: ObsidianColors
   );
 }
 
-export function ObsidianSparksScreen() {
+export interface ObsidianSparksScreenProps {
+  /** Live sparks (pre-mapped via sparkToVM). Omit for the static QA mock. */
+  sparks?: Spark[];
+  loading?: boolean;
+  onBack?: () => void;
+  onHome?: () => void;
+  onSearch?: () => void;
+  onSettings?: () => void;
+  onOpenSpark?: (id: string, tileId?: string) => void;
+}
+
+export function ObsidianSparksScreen({
+  sparks, loading, onBack, onHome, onSearch, onSettings, onOpenSpark,
+}: ObsidianSparksScreenProps = {}) {
   const c = useObsidian();
   const [filter, setFilter] = React.useState<'all' | SparkType>('all');
 
+  // Live data when provided, otherwise the static mock for the QA preview.
+  const data = sparks ?? SPARKS;
+
   const counts = React.useMemo(() => {
     const m: Record<string, number> = {};
-    SPARKS.forEach((s) => { m[s.type] = (m[s.type] ?? 0) + 1; });
+    data.forEach((s) => { m[s.type] = (m[s.type] ?? 0) + 1; });
     return m;
-  }, []);
-  const rows = filter === 'all' ? SPARKS : SPARKS.filter((s) => s.type === filter);
+  }, [data]);
+  const rows = filter === 'all' ? data : data.filter((s) => s.type === filter);
 
   const chips: Array<{ id: 'all' | SparkType; label: string; type?: SparkType; count: number }> = [
-    { id: 'all', label: 'Tutti', count: SPARKS.length },
+    { id: 'all', label: 'Tutti', count: data.length },
     { id: 'audio', label: 'Audio', type: 'audio', count: counts.audio ?? 0 },
     { id: 'text', label: 'Text', type: 'text', count: counts.text ?? 0 },
     { id: 'photo', label: 'Photo', type: 'photo', count: counts.photo ?? 0 },
@@ -135,7 +158,7 @@ export function ObsidianSparksScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <Header c={c} />
+      <Header c={c} count={data.length} onBack={onBack} onHome={onHome} onSearch={onSearch} onSettings={onSettings} />
 
       {/* Filter chips */}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 7, paddingHorizontal: 16, paddingVertical: 12 }}>
@@ -168,8 +191,11 @@ export function ObsidianSparksScreen() {
 
       {/* List */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 16 }}>
-        {rows.length ? rows.map((s, i) => <SparkCard key={s.id} c={c} s={s} last={i === rows.length - 1} />)
-          : <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Nessuno spark di questo tipo.</Text>}
+        {loading
+          ? <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Caricamento…</Text>
+          : rows.length
+            ? rows.map((s, i) => <SparkCard key={s.id} c={c} s={s} last={i === rows.length - 1} onPress={onOpenSpark} />)
+            : <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Nessuno spark di questo tipo.</Text>}
       </ScrollView>
 
       <ObsidianNavPill />

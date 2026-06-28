@@ -11,6 +11,7 @@ import type { Tag } from '@/types';
 import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
 import { usePixelTheme, usePixelSettings } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { resolveCaptureStyle } from '@/lib/pixel-theme';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -43,8 +44,60 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
+// ─── Flag-aware style helpers (Obsidian nativo in shell, pixel arcade fuori) ──
+// I colori arrivano già dal PixelTheme mappato sui token Obsidian quando lo
+// shell è attivo; qui cambiamo la STRUTTURA (font Geist, hairline 1px + raggi,
+// niente uppercase pixel né ombre dure).
+type PT = ReturnType<typeof usePixelTheme>;
+
+/** Eyebrow/section label (TITOLO, AZIONE, …). */
+function obLabel(theme: PT, inShell: boolean): React.CSSProperties {
+  return {
+    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+    fontSize: inShell ? 10.5 : 9,
+    fontWeight: inShell ? 700 : undefined,
+    letterSpacing: inShell ? '0.08em' : '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: inShell ? 6 : 4,
+  };
+}
+
+/** Field / select trigger box (input, dropdown trigger). */
+function obField(theme: PT, inShell: boolean): React.CSSProperties {
+  return {
+    background: inShell ? theme.surface : theme.surfaceVariant,
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRadius: inShell ? 10 : 0,
+    color: theme.ink,
+    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+    fontSize: inShell ? 13.5 : 12,
+  };
+}
+
+/** Dropdown row. */
+function obPopupRow(theme: PT, inShell: boolean, active: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    borderRadius: inShell ? 6 : 0,
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `${inShell ? 1 : 2}px solid ${active && !inShell ? theme.border : 'transparent'}`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+    fontSize: 12,
+    cursor: 'pointer',
+  };
+}
+
 function TypeIconPicker({ tileId }: { tileId: string }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const { icons, tileIcons, assignIcon } = useTypeIcons();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -71,29 +124,8 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 
   if (icons.length === 0) return null;
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
+  const labelStyle = obLabel(theme, inShell);
+  const popupItem = (active: boolean): React.CSSProperties => obPopupRow(theme, inShell, active);
 
   return (
     <div style={{ position: 'relative' }}>
@@ -102,17 +134,14 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         style={{
+          ...obField(theme, inShell),
           width: '100%',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: current?.color ? `${current.color}40` : theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
-          height: 30,
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
+          background: current?.color ? `${current.color}40` : (inShell ? theme.surface : theme.surfaceVariant),
+          padding: '0 10px',
+          height: inShell ? 36 : 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -124,7 +153,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 width: 18,
                 height: 18,
                 background: current?.color || theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
+                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -149,10 +178,11 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             width: dropPos.width,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
+            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 4,
-            maxHeight: 192,
+            maxHeight:192,
             overflowY: 'auto',
           }}
         >
@@ -178,7 +208,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                       width: 18,
                       height: 18,
                       background: icon.color || theme.surfaceVariant,
-                      border: `2px solid ${theme.border}`,
+                      border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -225,6 +255,7 @@ function StatusPickerField({ statuses, value, onChange }: {
   onChange: (id: string | null) => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -247,15 +278,7 @@ function StatusPickerField({ statuses, value, onChange }: {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
+  const labelStyle = obLabel(theme, inShell);
   const swatch: React.CSSProperties = {
     width: 18,
     height: 18,
@@ -263,22 +286,10 @@ function StatusPickerField({ statuses, value, onChange }: {
     flexShrink: 0,
     position: 'relative',
     background: theme.surfaceVariant,
-    border: `2px solid ${theme.border}`,
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRadius: inShell ? 5 : 0,
   };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
+  const popupItem = (active: boolean): React.CSSProperties => obPopupRow(theme, inShell, active);
 
   return (
     <div>
@@ -287,17 +298,13 @@ function StatusPickerField({ statuses, value, onChange }: {
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         style={{
+          ...obField(theme, inShell),
           width: '100%',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
-          height: 30,
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
+          padding: '0 10px',
+          height: inShell ? 36 : 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -323,10 +330,11 @@ function StatusPickerField({ statuses, value, onChange }: {
             width: dropPos.width,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
+            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 4,
-            maxHeight: 192,
+            maxHeight:192,
             overflowY: 'auto',
           }}
         >
@@ -362,6 +370,7 @@ function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; si
 
 function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = [] }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient>; invalidateKeys?: string[] }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const [open, setOpen] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
@@ -448,27 +457,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
     }
   };
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
+  const labelStyle = obLabel(theme, inShell);
   const popupItem = (active: boolean, busy: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
+    ...obPopupRow(theme, inShell, active),
     cursor: busy ? 'not-allowed' : 'pointer',
     opacity: busy ? 0.5 : 1,
   });
@@ -479,17 +470,16 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
       <div
         ref={triggerRef}
         style={{
+          ...obField(theme, inShell),
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          height: 30,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
+          height: inShell ? 36 : 30,
+          // TAG: in shell usa il tinta accent-soft come da design.
+          background: inShell ? `${theme.accent}1f` : theme.surfaceVariant,
+          color: inShell ? theme.accent : theme.ink,
+          padding: '0 10px',
           cursor: 'pointer',
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
         }}
         onClick={() => setOpen(!open)}
       >
@@ -516,15 +506,16 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             width: dropPos.width,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
+            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 4,
-            maxHeight: 256,
+            maxHeight:256,
             overflowY: 'auto',
           }}
         >
           {allTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+            <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
           ) : (
             allTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
@@ -564,6 +555,7 @@ function SparkEditor({
   onUpdateText: (content: string) => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const SparkIcon = SPARK_ICONS[spark.type] || IconFile;
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [editText, setEditText] = useState(spark.content || '');
@@ -597,14 +589,16 @@ function SparkEditor({
   const mediaWrap: React.CSSProperties = {
     overflow: 'hidden',
     background: theme.surfaceVariant,
-    border: `2px solid ${theme.border}`,
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRadius: inShell ? 12 : 0,
     position: 'relative',
   };
   const overlayBtn = (danger: boolean): React.CSSProperties => ({
     padding: 4,
     background: danger ? '#E24B4A' : theme.surface,
     color: danger ? '#FFFFFF' : theme.ink2,
-    border: `2px solid ${theme.border}`,
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRadius: inShell ? 6 : 0,
     cursor: 'pointer',
     display: 'inline-flex',
   });
@@ -614,8 +608,9 @@ function SparkEditor({
       <div
         className="group"
         style={{
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
+          background: inShell ? theme.surface : theme.surfaceVariant,
+          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+          borderRadius: inShell ? 12 : 0,
           padding: '10px 12px',
           position: 'relative',
           height: 128,
@@ -625,15 +620,7 @@ function SparkEditor({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexShrink: 0 }}>
           <IconFileText size={11} style={{ color: theme.ink3 }} />
-          <span
-            style={{
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: theme.ink3,
-            }}
-          >
+          <span style={obLabel(theme, inShell)}>
             Testo
           </span>
         </div>
@@ -664,7 +651,7 @@ function SparkEditor({
               padding: 2,
               background: theme.surface,
               color: theme.ink2,
-              border: `2px solid ${theme.border}`,
+              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -678,7 +665,7 @@ function SparkEditor({
               padding: 2,
               background: confirmDelete ? '#E24B4A' : theme.surface,
               color: confirmDelete ? '#FFFFFF' : theme.ink2,
-              border: `2px solid ${theme.border}`,
+              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -732,7 +719,7 @@ function SparkEditor({
               padding: 8,
               background: theme.accent,
               color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
+              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
               display: 'inline-flex',
               cursor: 'pointer',
             }}
@@ -769,7 +756,7 @@ function SparkEditor({
             padding: '4px 8px',
           }}
         >
-          <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {spark.file_name}
           </span>
         </div>
@@ -794,7 +781,7 @@ function SparkEditor({
           className="group"
           style={{
             background: theme.surfaceVariant,
-            border: `2px solid ${theme.border}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
             overflow: 'hidden',
             position: 'relative',
             cursor: 'zoom-in',
@@ -815,14 +802,14 @@ function SparkEditor({
               alignItems: 'center',
               gap: 6,
               padding: '4px 8px',
-              borderTop: `2px solid ${theme.border}`,
+              borderTop: `${inShell ? 1 : 2}px solid ${theme.border}`,
               background: theme.surface,
             }}
           >
             <IconFileText size={11} style={{ color: theme.ink2, flexShrink: 0 }} />
             <span
               style={{
-                fontFamily: 'var(--font-pixel-body)',
+                fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
                 fontSize: 10,
                 color: theme.ink2,
                 overflow: 'hidden',
@@ -863,7 +850,7 @@ function SparkEditor({
             <div
               style={{
                 background: theme.surface,
-                border: `2px solid ${theme.border}`,
+                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                 boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                 display: 'flex',
                 flexDirection: 'column',
@@ -879,7 +866,7 @@ function SparkEditor({
                   alignItems: 'center',
                   gap: 8,
                   padding: '10px 14px',
-                  borderBottom: `2px solid ${theme.border}`,
+                  borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
                   background: theme.surfaceVariant,
                   flexShrink: 0,
                 }}
@@ -887,7 +874,7 @@ function SparkEditor({
                 <IconFileText size={14} style={{ color: theme.ink2, flexShrink: 0 }} />
                 <span
                   style={{
-                    fontFamily: 'var(--font-pixel-head)',
+                    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                     fontSize: 11,
                     letterSpacing: '0.1em',
                     textTransform: 'uppercase',
@@ -940,7 +927,7 @@ function SparkEditor({
       className="group"
       style={{
         background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
         padding: '8px 10px',
         display: 'flex',
         alignItems: 'center',
@@ -955,7 +942,7 @@ function SparkEditor({
           width: 36,
           height: 36,
           background: theme.surface,
-          border: `2px solid ${theme.border}`,
+          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -964,7 +951,7 @@ function SparkEditor({
       >
         <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
         {spark.file_name || spark.type}
       </span>
       {signedUrl && (
@@ -977,7 +964,7 @@ function SparkEditor({
           padding: 2,
           background: confirmDelete ? '#E24B4A' : 'transparent',
           color: confirmDelete ? '#FFFFFF' : theme.ink3,
-          border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+          border: confirmDelete ? `${inShell ? 1 : 2}px solid ${theme.border}` : 'none',
           cursor: 'pointer',
           display: 'inline-flex',
           flexShrink: 0,
@@ -1032,6 +1019,7 @@ export function TileSidebar({
   forceFlowTab?: number;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
@@ -1192,7 +1180,26 @@ export function TileSidebar({
     },
   });
 
-  const tabBtn = (active: boolean): React.CSSProperties => ({
+  const tabBtn = (active: boolean): React.CSSProperties => inShell ? {
+    flex: 1,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    padding: '0 10px',
+    height: 30,
+    borderRadius: 8,
+    background: active ? `${theme.accent}22` : 'transparent',
+    color: active ? theme.accent : theme.ink2,
+    border: 'none',
+    fontFamily: 'var(--ob-font-sans)',
+    fontSize: 13,
+    fontWeight: 600,
+    letterSpacing: 0,
+    textTransform: 'none',
+    cursor: 'pointer',
+    boxShadow: 'none',
+  } : {
     flex: 1,
     display: 'inline-flex',
     alignItems: 'center',
@@ -1201,28 +1208,20 @@ export function TileSidebar({
     height: 28,
     background: active ? theme.accent : theme.surfaceVariant,
     color: active ? theme.onAccent : theme.ink2,
-    border: `2px solid ${theme.border}`,
-    fontFamily: 'var(--font-pixel-head)',
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     cursor: 'pointer',
     boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
-  });
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
   };
+  const labelStyle = obLabel(theme, inShell);
 
   return (
     <div
       style={{
-        borderLeft: `2px solid ${theme.border}`,
+        borderLeft: `${inShell ? 1 : 2}px solid ${theme.border}`,
         background: theme.bg2,
         transition: 'width 200ms',
         display: 'flex',
@@ -1242,7 +1241,7 @@ export function TileSidebar({
             justifyContent: 'center',
             background: 'transparent',
             border: 'none',
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
             cursor: 'pointer',
             flexShrink: 0,
             color: theme.ink2,
@@ -1265,8 +1264,8 @@ export function TileSidebar({
               display: 'flex',
               alignItems: 'center',
               gap: 4,
-              borderBottom: `2px solid ${theme.border}`,
-              background: theme.surfaceVariant,
+              borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              background: inShell ? theme.bg2 : theme.surfaceVariant,
               flexShrink: 0,
             }}
           >
@@ -1278,9 +1277,10 @@ export function TileSidebar({
                 justifyContent: 'center',
                 width: 28,
                 height: 28,
-                background: theme.surface,
+                borderRadius: inShell ? 8 : 0,
+                background: inShell ? 'transparent' : theme.surface,
                 color: theme.ink2,
-                border: `2px solid ${theme.border}`,
+                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
@@ -1298,11 +1298,11 @@ export function TileSidebar({
           style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
         >
           {!tileId ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
+            <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
+            <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
+            <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
             <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
@@ -1318,13 +1318,9 @@ export function TileSidebar({
                   onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
                   rows={2}
                   style={{
+                    ...obField(theme, inShell),
                     width: '100%',
-                    background: theme.surfaceVariant,
-                    border: `2px solid ${theme.border}`,
-                    padding: '6px 8px',
-                    color: theme.ink,
-                    fontFamily: 'var(--font-pixel-body)',
-                    fontSize: 12,
+                    padding: inShell ? '8px 10px' : '6px 8px',
                     lineHeight: '20px',
                     outline: 'none',
                     resize: 'none',
@@ -1357,6 +1353,10 @@ export function TileSidebar({
                   ] as const;
                   const row1 = allOpts.slice(0, 2);
                   const row2 = allOpts.slice(2);
+                  // Etichette native Obsidian (immagine di design).
+                  const OB_LABEL: Record<string, string> = {
+                    'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Scadenza', 'ALL DAY': 'Giornata', 'TIMED': 'A orario',
+                  };
                   const renderBtn = (opt: typeof allOpts[number]) => {
                     const isActive = opt.value === 'event'
                       ? tile.action_type === 'event' && ((opt as any).extra?.all_day ? !!tile.all_day : !tile.all_day)
@@ -1378,7 +1378,25 @@ export function TileSidebar({
                           }
                           updateTileMutation.mutate(updates);
                         }}
-                        style={{
+                        style={inShell ? {
+                          flex: 1,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 6,
+                          height: 34,
+                          borderRadius: 9,
+                          background: isActive ? `${theme.accent}22` : 'transparent',
+                          color: isActive ? theme.accent : theme.ink2,
+                          border: `1px solid ${isActive ? theme.accent : theme.border}`,
+                          fontFamily: 'var(--ob-font-sans)',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          letterSpacing: 0,
+                          textTransform: 'none',
+                          cursor: 'pointer',
+                          boxShadow: 'none',
+                        } : {
                           flex: 1,
                           display: 'inline-flex',
                           alignItems: 'center',
@@ -1387,8 +1405,8 @@ export function TileSidebar({
                           height: 30,
                           background: isActive ? theme.accent : theme.surfaceVariant,
                           color: isActive ? theme.onAccent : theme.ink2,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
+                          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                          fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                           fontSize: 9,
                           letterSpacing: '0.06em',
                           textTransform: 'uppercase',
@@ -1396,7 +1414,9 @@ export function TileSidebar({
                           boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
                         }}
                       >
-                        {Icon && (
+                        {Icon && (inShell ? (
+                          <Icon size={14} color={isActive ? theme.accent : theme.ink2} />
+                        ) : (
                           <div
                             style={{
                               width: 14,
@@ -1411,8 +1431,8 @@ export function TileSidebar({
                           >
                             <Icon size={8} color={readableOn(actionColor)} />
                           </div>
-                        )}
-                        {opt.label}
+                        ))}
+                        {inShell ? (OB_LABEL[opt.label] ?? opt.label) : opt.label}
                       </button>
                     );
                   };
@@ -1469,17 +1489,13 @@ export function TileSidebar({
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
                           style={{
-                            background: theme.surfaceVariant,
-                            border: `2px solid ${theme.border}`,
-                            padding: '0 8px',
-                            height: 30,
-                            color: theme.ink,
-                            fontFamily: 'var(--font-pixel-body)',
-                            fontSize: 12,
+                            ...obField(theme, inShell),
+                            padding: '0 10px',
+                            height: inShell ? 36 : 30,
                             outline: 'none',
                             width: 'auto',
-                            maxWidth: 110,
-                            colorScheme: 'dark',
+                            maxWidth: 120,
+                            colorScheme: theme.mode,
                           }}
                         />
                       </div>
@@ -1524,19 +1540,10 @@ export function TileSidebar({
                 />
               )}
 
-              <div style={{ borderTop: `2px solid ${theme.border}` }} />
+              <div style={{ borderTop: `${inShell ? 1 : 2}px solid ${theme.border}` }} />
 
               <div>
-                <div
-                  style={{
-                    fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 9,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: theme.ink3,
-                    marginBottom: 8,
-                  }}
-                >
+                <div style={{ ...obLabel(theme, inShell), marginBottom: 8 }}>
                   Sparks ({sparks.length})
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
@@ -1578,18 +1585,20 @@ export function TileSidebar({
                           setDropTargetIcon(null);
                           if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
                         } : undefined}
-                        className="px-press"
+                        className={inShell ? undefined : 'px-press'}
                         style={{
                           position: 'relative',
-                          width: 32,
-                          height: 32,
+                          width: inShell ? 38 : 32,
+                          height: inShell ? 38 : 32,
+                          borderRadius: inShell ? 9 : 0,
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           background: cstyle.background,
-                          border: `2px solid ${cstyle.border}`,
+                          border: `${inShell ? 1 : 2}px solid ${cstyle.border}`,
                           cursor: 'pointer',
-                          ...(isDropTarget ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
+                          ...(isDropTarget && !inShell ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
+                          ...(isDropTarget && inShell ? { boxShadow: `0 0 0 2px ${cap}` } : {}),
                         }}
                         title={opt.id}
                       >
@@ -1634,10 +1643,10 @@ export function TileSidebar({
                         minHeight: 80,
                         textAlign: 'left',
                         background: theme.surfaceVariant,
-                        border: `2px solid ${theme.border}`,
+                        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                         padding: '8px 10px',
                         color: theme.ink,
-                        fontFamily: 'var(--font-pixel-body)',
+                        fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
                         fontSize: 12,
                         cursor: 'pointer',
                       }}
@@ -1659,7 +1668,7 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           background: theme.surface,
-                          border: `2px solid ${theme.border}`,
+                          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                           color: theme.ink2,
                         }}
                       >
@@ -1678,8 +1687,8 @@ export function TileSidebar({
                           height: 26,
                           background: theme.accent,
                           color: theme.onAccent,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
+                          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                          fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                           fontSize: 9,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
@@ -1699,8 +1708,8 @@ export function TileSidebar({
                           height: 26,
                           background: theme.surfaceVariant,
                           color: theme.ink2,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
+                          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                          fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                           fontSize: 9,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
@@ -1733,10 +1742,10 @@ export function TileSidebar({
         </div>
 
         {tileId && tile && (
-          <div style={{ padding: '8px 12px', flexShrink: 0, textAlign: 'right', borderTop: `2px solid ${theme.border}`, background: theme.surfaceVariant }}>
+          <div style={{ padding: '8px 12px', flexShrink: 0, textAlign: 'right', borderTop: `${inShell ? 1 : 2}px solid ${theme.border}`, background: theme.surfaceVariant }}>
             <span
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                 fontSize: 8,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',

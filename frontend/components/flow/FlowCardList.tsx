@@ -30,6 +30,7 @@ import { FLOW_STATE_COLORS, FLOW_STATE_LABELS } from '@/lib/flow-colors';
 import { ContactCombobox } from './ContactCombobox';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { FlowNode, FlowNodeState } from '@/types/flow';
 
 const STATUSES: Exclude<FlowNodeState, 'active'>[] = ['done', 'wait', 'undo', 'stop'];
@@ -52,6 +53,7 @@ interface Props {
 
 export function FlowCardList({ tileId }: Props) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const { graph, isLoading, addNode, updateNode, deleteNode, reorderNodes } = useFlow(tileId);
   const nodes = graph.nodes;
 
@@ -71,7 +73,7 @@ export function FlowCardList({ tileId }: Props) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, padding: 12 }}>
+      <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, padding: 12 }}>
         Caricamento flow...
       </p>
     );
@@ -82,7 +84,7 @@ export function FlowCardList({ tileId }: Props) {
       {nodes.length === 0 && (
         <p
           style={{
-            fontFamily: 'var(--font-pixel-head)',
+            fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
             fontSize: 9,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -127,19 +129,21 @@ export function FlowCardList({ tileId }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 6,
-          padding: '6px 8px',
+          padding: inShell ? '9px 8px' : '6px 8px',
           background: 'transparent',
-          color: theme.ink3,
-          border: `2px dashed ${theme.border}`,
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 9,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
+          color: inShell ? theme.ink2 : theme.ink3,
+          border: `${inShell ? 1 : 2}px dashed ${theme.border}`,
+          borderRadius: inShell ? 10 : 0,
+          fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
+          fontSize: inShell ? 12.5 : 9,
+          fontWeight: inShell ? 600 : undefined,
+          letterSpacing: inShell ? 0 : '0.08em',
+          textTransform: inShell ? 'none' : 'uppercase',
           cursor: addNode.isPending ? 'not-allowed' : 'pointer',
           opacity: addNode.isPending ? 0.4 : 1,
         }}
       >
-        <IconPlus size={11} />
+        <IconPlus size={inShell ? 14 : 11} />
         Aggiungi nodo
       </button>
     </div>
@@ -172,6 +176,7 @@ function FlowCard({
   onDragEnd,
 }: CardProps) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const [label, setLabel] = useState(node.label);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expanded, setExpanded] = useState<ExpandedField>(null);
@@ -214,12 +219,13 @@ function FlowCard({
       }}
       className="group"
       style={{
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        background: inShell ? theme.surface : theme.surfaceVariant,
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 10 : 0,
         padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
-        borderTopWidth: isDropTarget ? 4 : 2,
+        borderTopWidth: isDropTarget ? (inShell ? 2 : 4) : (inShell ? 1 : 2),
         borderTopColor: isDropTarget ? theme.accent : theme.border,
       }}
     >
@@ -252,7 +258,7 @@ function FlowCard({
             minWidth: 0,
             background: 'transparent',
             color: theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
+            fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
             fontSize: 12,
             lineHeight: 1.3,
             resize: 'none',
@@ -354,6 +360,7 @@ function StatusChip({
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const Icon = state === 'active' ? null : STATUS_ICON[state];
   const color = state === 'active' ? theme.ink3 : FLOW_STATE_COLORS[state];
   return (
@@ -366,7 +373,8 @@ function StatusChip({
         width: 28,
         height: 24,
         background: active ? theme.accent : theme.surface,
-        border: `2px solid ${active ? theme.border : theme.border}`,
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 7 : 0,
         cursor: 'pointer',
       }}
       title={state === 'active' ? 'Imposta status' : FLOW_STATE_LABELS[state]}
@@ -374,7 +382,7 @@ function StatusChip({
       {Icon ? (
         <Icon size={13} style={{ color: active ? theme.onAccent : color }} stroke={2.5} />
       ) : (
-        <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
+        <span style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
       )}
     </button>
   );
@@ -390,6 +398,7 @@ function ContactChip({
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const { contacts } = useContacts();
   const contact = contactId ? contacts.find((c) => c.id === contactId) : null;
   const text = contact
@@ -409,8 +418,9 @@ function ContactChip({
         maxWidth: 150,
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-body)',
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 8 : 0,
+        fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
         fontSize: 11,
         cursor: 'pointer',
       }}
@@ -440,6 +450,7 @@ function DateChip({
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const text = iso ? formatShortDate(iso) : 'Data';
   return (
     <button
@@ -452,8 +463,9 @@ function DateChip({
         height: 24,
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-body)',
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 8 : 0,
+        fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
         fontSize: 11,
         cursor: 'pointer',
       }}
@@ -474,6 +486,7 @@ function StatusEditor({
   onPick: (s: FlowNodeState) => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       {STATUSES.map((s) => {
@@ -493,14 +506,15 @@ function StatusEditor({
               gap: 8,
               padding: '0 10px',
               background: isActive ? color : theme.surfaceVariant,
-              border: `2px solid ${theme.border}`,
+              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderRadius: inShell ? 8 : 0,
               color: isActive ? '#000000' : theme.ink,
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
               fontSize: 9,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
-              boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+              boxShadow: isActive && !inShell ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
             }}
           >
             <Icon size={13} style={{ color: isActive ? '#000000' : color }} stroke={2.5} />
@@ -520,6 +534,7 @@ function DateEditor({
   onChange: (iso: string | null) => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const initial = iso ? new Date(iso) : null;
   const [text, setText] = useState(initial ? fmtItalianDate(initial) : '');
   const [anchor, setAnchor] = useState<Date>(initial ?? new Date());
@@ -558,13 +573,14 @@ function DateEditor({
           placeholder="gg/mm/aaaa"
           style={{
             flex: 1,
-            background: theme.surfaceVariant,
-            border: `2px solid ${theme.border}`,
-            padding: '0 8px',
-            height: 30,
+            background: inShell ? theme.surface : theme.surfaceVariant,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 10 : 0,
+            padding: '0 10px',
+            height: inShell ? 36 : 30,
             color: theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
-            fontSize: 12,
+            fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+            fontSize: inShell ? 13 : 12,
             outline: 'none',
           }}
         />
@@ -575,13 +591,14 @@ function DateEditor({
               onChange(null);
             }}
             style={{
-              padding: '0 8px',
-              height: 30,
+              padding: '0 10px',
+              height: inShell ? 36 : 30,
               background: theme.surface,
               color: '#E24B4A',
-              border: `2px solid ${theme.border}`,
+              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderRadius: inShell ? 10 : 0,
               cursor: 'pointer',
-              fontFamily: 'var(--font-pixel-body)',
+              fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
               fontSize: 14,
             }}
             title="Cancella"
@@ -612,6 +629,7 @@ function MiniCalendar({
   onSelect: (d: Date) => void;
 }) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const days = useMemo(() => monthGridDays(anchor), [anchor]);
   const stepMonth = (delta: number) => {
     const next = new Date(anchor);
@@ -626,19 +644,20 @@ function MiniCalendar({
     justifyContent: 'center',
     background: theme.surface,
     color: theme.ink2,
-    border: `2px solid ${theme.border}`,
+    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRadius: inShell ? 7 : 0,
     cursor: 'pointer',
-    fontFamily: 'var(--font-pixel-body)',
+    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
     fontSize: 14,
   };
   return (
-    <div style={{ background: theme.surface, border: `2px solid ${theme.border}`, padding: 8 }}>
+    <div style={{ background: theme.surface, border: `${inShell ? 1 : 2}px solid ${theme.border}`, borderRadius: inShell ? 12 : 0, padding: 8 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <button onClick={() => stepMonth(-1)} style={navBtn}>‹</button>
         <span
           style={{
-            fontFamily: 'var(--font-pixel-head)',
+            fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
             fontSize: 10,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -655,7 +674,7 @@ function MiniCalendar({
           <div
             key={i}
             style={{
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -684,8 +703,9 @@ function MiniCalendar({
                 justifyContent: 'center',
                 background: isSel ? theme.accent : 'transparent',
                 color: isSel ? theme.onAccent : inMonth ? theme.ink : theme.ink3,
-                border: isTd && !isSel ? `2px solid ${theme.accent}` : `2px solid transparent`,
-                fontFamily: 'var(--font-pixel-body)',
+                border: isTd && !isSel ? `${inShell ? 1 : 2}px solid ${theme.accent}` : `${inShell ? 1 : 2}px solid transparent`,
+                borderRadius: inShell ? 7 : 0,
+                fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
                 fontSize: 11,
                 fontWeight: isSel ? 700 : 400,
                 cursor: 'pointer',

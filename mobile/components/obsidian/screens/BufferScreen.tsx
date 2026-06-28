@@ -10,9 +10,11 @@ import { View, Text, Pressable, ScrollView } from 'react-native';
 import {
   IconArrowLeft, IconDots, IconPlayerPlay, IconSparkles, IconCheckbox, IconClock,
   IconTag, IconMicrophone, IconX, IconNote, IconCheck,
+  IconAlignLeft, IconCamera, IconVideo, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import type { ObsidianColors } from '@/constants/obsidian';
+import type { ObBufferVM } from '@/lib/obsidian-adapters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 
@@ -87,6 +89,50 @@ function FrontCard({ c }: { c: ObsidianColors }) {
   );
 }
 
+function bufKindMeta(kind: ObBufferVM['kind'], c: ObsidianColors): { color: string; Icon: typeof IconMicrophone; label: string } {
+  switch (kind) {
+    case 'audio': return { color: c.cap.voice, Icon: IconMicrophone, label: 'Memo vocale' };
+    case 'text': return { color: c.cap.text, Icon: IconAlignLeft, label: 'Nota' };
+    case 'photo': return { color: c.cap.photo, Icon: IconCamera, label: 'Foto' };
+    case 'video': return { color: c.cap.video, Icon: IconVideo, label: 'Video' };
+    case 'file': return { color: c.cap.file, Icon: IconPaperclip, label: 'File' };
+  }
+}
+
+/** Front card backed by a real BufferItem (pre-upload, so no AI suggestion). */
+function LiveCard({ c, item }: { c: ObsidianColors; item: ObBufferVM }) {
+  const { color, Icon, label } = bufKindMeta(item.kind, c);
+  return (
+    <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 20, padding: 18, gap: 15 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: color + (c.dark ? '24' : '16'), borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 }}>
+          <Icon size={12} color={color} strokeWidth={1.8} />
+          <Text style={{ fontSize: 12, fontWeight: '600', color }}>{label}</Text>
+        </View>
+        {item.time ? <Text style={{ fontSize: 11, color: c.subtle }}>{item.time}</Text> : null}
+      </View>
+
+      <Text style={{ fontSize: 16, fontWeight: '600', color: c.text, lineHeight: 21 }}>{item.title}</Text>
+
+      {item.kind === 'audio' ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 13, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 14 }}>
+          <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
+            <IconPlayerPlay size={20} color="#fff" fill="#fff" />
+          </View>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2.5, height: 26 }}>
+            {PLAYER_BARS.map((v, i) => <View key={i} style={{ width: 2.6, height: v, borderRadius: 2, backgroundColor: i < 8 ? color : c.line2 }} />)}
+          </View>
+          {item.duration ? <Text style={{ fontSize: 11, color: c.subtle, fontVariant: ['tabular-nums'] }}>{item.duration}</Text> : null}
+        </View>
+      ) : item.kind === 'text' && item.preview ? (
+        <Text style={{ fontSize: 14, lineHeight: 20, color: c.muted }}>{item.preview}</Text>
+      ) : item.dim ? (
+        <Text style={{ fontSize: 12, color: c.subtle }}>{item.dim}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 function StackBehind({ c, dx, lift, opacity }: { c: ObsidianColors; dx: number; lift: number; opacity: number }) {
   return (
     <View style={{ position: 'absolute', left: dx, right: dx, top: -lift, height: 60, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 20, opacity, transform: [{ scaleX: 1 - dx * 0.004 }] }} />
@@ -109,10 +155,25 @@ function EmptyState({ c, onCapture }: { c: ObsidianColors; onCapture?: () => voi
   );
 }
 
-export function ObsidianBufferScreen() {
+export interface ObsidianBufferScreenProps {
+  /** Live buffer items (pre-mapped via bufferItemToVM). Omit for the QA mock. */
+  items?: ObBufferVM[];
+  onDiscard?: (id: string) => void;
+  onConfirm?: (id: string) => void;
+  onCapture?: () => void;
+  onBack?: () => void;
+}
+
+export function ObsidianBufferScreen({ items, onDiscard, onConfirm, onCapture, onBack }: ObsidianBufferScreenProps = {}) {
   const c = useObsidian();
+  const live = items !== undefined;
+
+  // Mock advances a synthetic index; live shrinks the store, so the front item
+  // is always items[0] and `remaining` is the live length.
   const [index, setIndex] = React.useState(0);
-  const remaining = TOTAL - index;
+  const total = live ? items!.length : TOTAL;
+  const remaining = live ? items!.length : TOTAL - index;
+  const current = live ? items![0] : undefined;
   const advance = () => setIndex((i) => Math.min(i + 1, TOTAL));
   const reset = () => setIndex(0);
 
@@ -130,40 +191,45 @@ export function ObsidianBufferScreen() {
     </Pressable>
   );
 
+  const onDiscardPress = () => { if (live) { if (current) onDiscard?.(current.id); } else advance(); };
+  const onConfirmPress = () => { if (live) { if (current) onConfirm?.(current.id); } else advance(); };
+
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <TopBar c={c} title="Buffer" count={remaining} onBack={remaining === 0 ? reset : undefined} />
+      <TopBar c={c} title="Buffer" count={remaining} onBack={onBack ?? (remaining === 0 && !live ? reset : undefined)} />
 
       {remaining > 0 ? (
         <>
           <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 18, paddingBottom: 8 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: c.subtle }}>{index + 1} di {TOTAL} da smistare</Text>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: c.subtle }}>
+                {live ? `${remaining} da smistare` : `${index + 1} di ${TOTAL} da smistare`}
+              </Text>
               <View style={{ flexDirection: 'row', gap: 4 }}>
-                {Array.from({ length: TOTAL }).map((_, i) => (
-                  <View key={i} style={{ width: i === index ? 18 : 6, height: 6, borderRadius: 3, backgroundColor: i === index ? c.accent : c.line2 }} />
+                {Array.from({ length: Math.min(total, 8) }).map((_, i) => (
+                  <View key={i} style={{ width: i === 0 ? 18 : 6, height: 6, borderRadius: 3, backgroundColor: i === 0 ? c.accent : c.line2 }} />
                 ))}
               </View>
             </View>
             <View style={{ position: 'relative', marginTop: 6 }}>
-              <StackBehind c={c} dx={14} lift={12} opacity={c.dark ? 0.6 : 0.85} />
-              <StackBehind c={c} dx={7} lift={6} opacity={c.dark ? 0.6 : 0.85} />
+              {remaining > 1 && <StackBehind c={c} dx={14} lift={12} opacity={c.dark ? 0.6 : 0.85} />}
+              {remaining > 1 && <StackBehind c={c} dx={7} lift={6} opacity={c.dark ? 0.6 : 0.85} />}
               <View style={{ position: 'relative', zIndex: 3 }}>
-                <FrontCard c={c} />
+                {current ? <LiveCard c={c} item={current} /> : <FrontCard c={c} />}
               </View>
             </View>
           </ScrollView>
 
           <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 14, borderTopWidth: 1, borderTopColor: c.line }}>
-            <ActionBtn Icon={IconX} label="Scarta" color={c.cap.voice} onPress={advance} />
+            <ActionBtn Icon={IconX} label="Scarta" color={c.cap.voice} onPress={onDiscardPress} />
             <ActionBtn Icon={IconNote} label="Modifica" color={c.muted} />
-            <ActionBtn Icon={IconCheck} label="Conferma" color={c.accent} fill onPress={advance} />
+            <ActionBtn Icon={IconCheck} label="Conferma" color={c.accent} fill onPress={onConfirmPress} />
           </View>
         </>
       ) : (
         <>
-          <EmptyState c={c} onCapture={reset} />
+          <EmptyState c={c} onCapture={onCapture ?? (live ? undefined : reset)} />
           <ObsidianNavPill />
         </>
       )}

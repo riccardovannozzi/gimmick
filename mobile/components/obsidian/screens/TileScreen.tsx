@@ -15,6 +15,8 @@ import {
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import type { ObsidianColors } from '@/constants/obsidian';
+import type { Tile, Spark } from '@/types';
+import { formatDuration } from '@/utils/formatters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 
@@ -51,10 +53,52 @@ const CAPS: Array<{ key: string; label: string; color: (c: ObsidianColors) => st
 ];
 const VOICE_BARS = [8, 14, 20, 12, 24, 30, 18, 10, 22, 28, 16, 9, 15, 22, 13, 18, 10];
 
-export function ObsidianTileScreen({ onBack }: { onBack?: () => void }) {
+const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
+const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+function hhmm(d: Date): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+/** Header chip text for a scheduled tile, e.g. "Oggi · 11:00–12:00". */
+function chipText(t: Tile): string | null {
+  if (!t.start_at) return null;
+  const s = new Date(t.start_at);
+  if (Number.isNaN(s.getTime())) return null;
+  const now = new Date();
+  const sameDay = s.toDateString() === now.toDateString();
+  const datePart = sameDay
+    ? 'Oggi'
+    : `${DAYS_SHORT[s.getDay()]} ${s.getDate()} ${MONTHS_LONG[s.getMonth()].slice(0, 3)}`;
+  if (t.all_day) return `${datePart} · Giornata`;
+  const range = t.end_at ? `${hhmm(s)}–${hhmm(new Date(t.end_at))}` : hhmm(s);
+  return `${datePart} · ${range}`;
+}
+
+export interface ObsidianTileScreenProps {
+  onBack?: () => void;
+  /** API tile (with sparks). Omit for the static QA mockup. */
+  tile?: Tile;
+  loading?: boolean;
+}
+
+export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreenProps) {
   const c = useObsidian();
-  const [when, setWhen] = React.useState<'due' | 'allday' | 'timed'>('timed');
-  const [action, setAction] = React.useState<'note' | 'todo'>('note');
+  const live = !!tile;
+  const sparks: Spark[] = tile?.sparks ?? [];
+  const voiceSpark = sparks.find((s) => s.type === 'audio_recording');
+  const textSpark = sparks.find((s) => s.type === 'text');
+  const tagName = tile?.tags?.find((tg) => !tg.is_root)?.name;
+  const chip = tile ? chipText(tile) : 'Oggi · 11:00–12:00';
+  const title = live ? (tile?.title?.trim() || 'Senza titolo') : 'OM/call con barbini';
+  const sparksCount = live ? sparks.length : 3;
+
+  const initialWhen: 'due' | 'allday' | 'timed' =
+    tile?.action_type === 'deadline' ? 'due' : tile?.all_day ? 'allday' : 'timed';
+  const [when, setWhen] = React.useState<'due' | 'allday' | 'timed'>(initialWhen);
+  const [action, setAction] = React.useState<'note' | 'todo'>(
+    tile?.action_type === 'anytime' ? 'todo' : 'note',
+  );
 
   const ActionBtn = ({ id, label, Icon }: { id: 'note' | 'todo'; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
@@ -83,11 +127,15 @@ export function ObsidianTileScreen({ onBack }: { onBack?: () => void }) {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24 }}>
         {/* Title */}
         <View style={{ marginTop: 6 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: c.accentSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 }}>
-            <IconClock size={13} color={c.accent} strokeWidth={1.8} />
-            <Text style={{ fontSize: 11, fontWeight: '600', color: c.accent }}>Oggi · 11:00–12:00</Text>
-          </View>
-          <Text style={{ fontSize: 23, fontWeight: '700', letterSpacing: -0.4, color: c.text, lineHeight: 27 }}>OM/call con barbini</Text>
+          {chip ? (
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: c.accentSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 }}>
+              <IconClock size={13} color={c.accent} strokeWidth={1.8} />
+              <Text style={{ fontSize: 11, fontWeight: '600', color: c.accent }}>{chip}</Text>
+            </View>
+          ) : null}
+          <Text style={{ fontSize: 23, fontWeight: '700', letterSpacing: -0.4, color: c.text, lineHeight: 27 }}>
+            {loading ? 'Caricamento…' : title}
+          </Text>
         </View>
 
         {/* Timing segmented */}
@@ -126,7 +174,7 @@ export function ObsidianTileScreen({ onBack }: { onBack?: () => void }) {
         <Section c={c} eyebrow="TAG">
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12 }}>
             <IconTag size={16} color={c.accent} strokeWidth={1.8} />
-            <Text style={{ fontSize: 14, fontWeight: '500', color: c.accent }}>Golfo del Sole</Text>
+            <Text style={{ fontSize: 14, fontWeight: '500', color: c.accent }}>{live ? (tagName ?? 'Senza tag') : 'Golfo del Sole'}</Text>
           </View>
         </Section>
 
@@ -139,7 +187,7 @@ export function ObsidianTileScreen({ onBack }: { onBack?: () => void }) {
         </Section>
 
         {/* Sparks */}
-        <Section c={c} eyebrow="SPARKS · 3">
+        <Section c={c} eyebrow={`SPARKS · ${sparksCount}`}>
           <View style={{ flexDirection: 'row', backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, overflow: 'hidden' }}>
             {CAPS.map((cap, i) => (
               <View key={cap.key} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', gap: 3, borderLeftWidth: i === 0 ? 0 : 1, borderLeftColor: c.line }}>
@@ -149,27 +197,35 @@ export function ObsidianTileScreen({ onBack }: { onBack?: () => void }) {
             ))}
           </View>
 
-          {/* voice card */}
-          <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 }}>
-            <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.cap.voice, alignItems: 'center', justifyContent: 'center' }}>
-              <IconPlayerPlay size={19} color="#fff" fill="#fff" />
+          {/* voice card — shown when an audio spark exists (or in the QA mock) */}
+          {(!live || voiceSpark) && (
+            <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 }}>
+              <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.cap.voice, alignItems: 'center', justifyContent: 'center' }}>
+                <IconPlayerPlay size={19} color="#fff" fill="#fff" />
+              </View>
+              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 22 }}>
+                {VOICE_BARS.map((v, i) => <View key={i} style={{ width: 2.5, height: v, borderRadius: 2, backgroundColor: i < 6 ? c.cap.voice : c.line2 }} />)}
+              </View>
+              <Text style={{ fontSize: 11, color: c.subtle, fontVariant: ['tabular-nums'] }}>
+                {voiceSpark?.duration ? formatDuration(voiceSpark.duration) : '02:14'}
+              </Text>
             </View>
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 22 }}>
-              {VOICE_BARS.map((v, i) => <View key={i} style={{ width: 2.5, height: v, borderRadius: 2, backgroundColor: i < 6 ? c.cap.voice : c.line2 }} />)}
-            </View>
-            <Text style={{ fontSize: 11, color: c.subtle, fontVariant: ['tabular-nums'] }}>02:14</Text>
-          </View>
+          )}
 
-          {/* text card */}
-          <View style={{ marginTop: 10, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, overflow: 'hidden' }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.line }}>
-              <IconAlignLeft size={14} color={c.cap.text} strokeWidth={1.8} />
-              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.subtle }}>TESTO</Text>
+          {/* text card — shown when a text spark exists (or in the QA mock) */}
+          {(!live || textSpark) && (
+            <View style={{ marginTop: 10, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, overflow: 'hidden' }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.line }}>
+                <IconAlignLeft size={14} color={c.cap.text} strokeWidth={1.8} />
+                <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.subtle }}>TESTO</Text>
+              </View>
+              <Text style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: 13, lineHeight: 19.5, color: c.muted }}>
+                {live
+                  ? (textSpark?.content?.trim() || '')
+                  : 'Abbiamo n°3 D-matrix (per ricevere segnale satellitare) ed una centrale Galaxia (già installata sul tetto…)'}
+              </Text>
             </View>
-            <Text style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: 13, lineHeight: 19.5, color: c.muted }}>
-              Abbiamo n°3 D-matrix (per ricevere segnale satellitare) ed una centrale Galaxia (già installata sul tetto…)
-            </Text>
-          </View>
+          )}
         </Section>
       </ScrollView>
 

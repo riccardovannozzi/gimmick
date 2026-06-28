@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = ['00', '15', '30', '45'];
@@ -17,6 +18,9 @@ interface TimePickerProps {
 
 export function TimePicker({ value, onChange, label, compact, borderless }: TimePickerProps) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
+  const monoFont = inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)';
+  const sansFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -79,22 +83,24 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        padding: compact ? '0 8px' : '6px 8px',
-        height: compact ? 30 : 'auto',
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        padding: compact ? '0 10px' : '6px 8px',
+        height: compact ? (inShell ? 36 : 30) : 'auto',
+        background: inShell ? theme.surface : theme.surfaceVariant,
+        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 10 : 0,
         cursor: 'pointer',
         textAlign: 'left',
-        fontFamily: 'var(--font-pixel-body)',
-        fontSize: compact ? 11 : 12,
+        fontFamily: sansFont,
+        fontSize: compact ? (inShell ? 13 : 11) : 12,
         color: theme.ink,
       };
 
   const gridBtn = (active: boolean): React.CSSProperties => ({
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink,
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    fontFamily: 'var(--font-pixel-body)',
+    border: `${inShell ? 1 : 2}px solid ${active && !inShell ? theme.border : 'transparent'}`,
+    borderRadius: inShell ? 7 : 0,
+    fontFamily: sansFont,
     fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
@@ -106,7 +112,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
         {label && (
           <span
             style={{
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: monoFont,
               fontSize: 9,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -128,8 +134,9 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             left: pos.left,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
+            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 8,
           }}
         >
@@ -138,7 +145,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             <div>
               <span
                 style={{
-                  fontFamily: 'var(--font-pixel-head)',
+                  fontFamily: monoFont,
                   fontSize: 9,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
@@ -164,13 +171,13 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             </div>
 
             {/* Separator */}
-            <div style={{ width: 2, background: theme.border, alignSelf: 'stretch' }} />
+            <div style={{ width: inShell ? 1 : 2, background: theme.border, alignSelf: 'stretch' }} />
 
             {/* Minutes column */}
             <div>
               <span
                 style={{
-                  fontFamily: 'var(--font-pixel-head)',
+                  fontFamily: monoFont,
                   fontSize: 9,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',

@@ -12,6 +12,7 @@ import {
 } from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
@@ -108,6 +109,14 @@ export function StagingPanel({
   onToggle,
 }: Props) {
   const theme = usePixelTheme();
+  // Strutturali per il restyle nativo Obsidian (colori già dal theme in shell).
+  const inShell = isObsidianShellEnabled();
+  const bW = inShell ? 1 : 2;
+  const headFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)';
+  const bodyFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
+  const headTransform: 'none' | 'uppercase' = inShell ? 'none' : 'uppercase';
+  const headWeight = inShell ? 600 : 400;
+  const radius = inShell ? 8 : 0;
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -272,8 +281,9 @@ export function StagingPanel({
             background: tileBg,
             width: TILE_W,
             height: TILE_H,
-            border: actionKey === 'deadline' ? '2px dashed #E24B4A' : `2px solid ${theme.border}`,
-            boxShadow: isSelected ? `0 0 0 3px ${theme.accent}` : 'none',
+            borderRadius: radius,
+            border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${theme.border}`,
+            boxShadow: isSelected ? `0 0 0 ${inShell ? 2 : 3}px ${theme.accent}` : 'none',
           }}
           title={t.title || 'Senza titolo'}
         >
@@ -281,7 +291,7 @@ export function StagingPanel({
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <p
                 style={{
-                  fontFamily: 'var(--font-pixel-body)',
+                  fontFamily: bodyFont,
                   fontSize: 11,
                   lineHeight: '14px',
                   color: readableOn(tileBg),
@@ -323,11 +333,13 @@ export function StagingPanel({
               height: 16,
               background: theme.accent,
               color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 8,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              border: `${bW}px solid ${inShell ? 'transparent' : theme.border}`,
+              borderRadius: inShell ? 6 : 0,
+              fontFamily: headFont,
+              fontSize: inShell ? 9 : 8,
+              fontWeight: headWeight,
+              letterSpacing: inShell ? 0.2 : '0.08em',
+              textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
               cursor: 'pointer',
@@ -350,7 +362,7 @@ export function StagingPanel({
           flexShrink: 0,
           width: 32,
           background: panelBg,
-          borderRight: `2px solid ${panelBorderColor}`,
+          borderRight: `${bW}px solid ${panelBorderColor}`,
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -364,7 +376,7 @@ export function StagingPanel({
             justifyContent: 'center',
             background: 'transparent',
             border: 'none',
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `${bW}px solid ${theme.border}`,
             cursor: 'pointer',
             flexShrink: 0,
             color: theme.ink2,
@@ -375,7 +387,7 @@ export function StagingPanel({
         </button>
         {tiles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
-            <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
+            <span style={{ fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -390,7 +402,7 @@ export function StagingPanel({
         flexShrink: 0,
         width: width != null ? width : 176,
         background: panelBg,
-        borderRight: `2px solid ${panelBorderColor}`,
+        borderRight: `${bW}px solid ${panelBorderColor}`,
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -403,7 +415,7 @@ export function StagingPanel({
           gap: 6,
           paddingLeft: 4,
           paddingRight: 12,
-          borderBottom: `2px solid ${theme.border}`,
+          borderBottom: `${bW}px solid ${theme.border}`,
           background: theme.surfaceVariant,
         }}
       >
@@ -427,16 +439,17 @@ export function StagingPanel({
         </button>
         <span
           style={{
-            fontFamily: 'var(--font-pixel-head)',
-            fontSize: 10,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontFamily: headFont,
+            fontSize: inShell ? 13 : 10,
+            fontWeight: headWeight,
+            letterSpacing: inShell ? 0 : '0.1em',
+            textTransform: headTransform,
             color: theme.ink,
           }}
         >
           Staging
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-pixel-head)', fontSize: 9, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)', fontSize: inShell ? 11 : 9, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
           {tiles.length}
         </span>
       </div>
@@ -449,7 +462,7 @@ export function StagingPanel({
             display: 'flex',
             alignItems: 'center',
             gap: 4,
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `${bW}px solid ${theme.border}`,
             flexShrink: 0,
             background: theme.bg1,
           }}
@@ -468,10 +481,11 @@ export function StagingPanel({
               background: 'transparent',
               border: 'none',
               color: theme.ink2,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
+              fontFamily: headFont,
+              fontSize: inShell ? 11.5 : 9,
+              fontWeight: headWeight,
+              letterSpacing: inShell ? 0 : '0.06em',
+              textTransform: headTransform,
               cursor: 'pointer',
             }}
             title="Raggruppa per"
@@ -489,8 +503,9 @@ export function StagingPanel({
                 width: groupMenuPos.width,
                 zIndex: 9999,
                 background: theme.surface,
-                border: `2px solid ${theme.border}`,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                border: `${bW}px solid ${theme.border}`,
+                borderRadius: inShell ? 10 : 0,
+                boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                 padding: 4,
               }}
             >
@@ -502,10 +517,11 @@ export function StagingPanel({
                     width: '100%',
                     textAlign: 'left',
                     padding: '6px 10px',
+                    borderRadius: inShell ? 6 : 0,
                     background: groupBy === opt ? theme.surfaceVariant : 'transparent',
-                    border: `2px solid ${groupBy === opt ? theme.border : 'transparent'}`,
+                    border: `${bW}px solid ${groupBy === opt && !inShell ? theme.border : 'transparent'}`,
                     color: groupBy === opt ? theme.ink : theme.ink2,
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: bodyFont,
                     fontSize: 12,
                     cursor: 'pointer',
                   }}
@@ -544,8 +560,8 @@ export function StagingPanel({
         {tiles.length === 0 ? (
           <p
             style={{
-              fontFamily: 'var(--font-pixel-body)',
-              fontSize: 11,
+              fontFamily: bodyFont,
+              fontSize: inShell ? 12 : 11,
               color: theme.ink3,
               textAlign: 'center',
               padding: '24px 8px',
@@ -571,10 +587,11 @@ export function StagingPanel({
                     alignItems: 'center',
                     gap: 6,
                     marginBottom: 4,
-                    fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 9,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: headFont,
+                    fontSize: inShell ? 11 : 9,
+                    fontWeight: headWeight,
+                    letterSpacing: inShell ? 0 : '0.1em',
+                    textTransform: headTransform,
                     color: theme.ink3,
                   }}
                 >
