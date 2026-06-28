@@ -64,8 +64,10 @@ function ChevLink({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Aspetto panel ────────────────────────────────────────────────────────────
-function AspettoPanel() {
-  const [theme, setTheme] = React.useState('light');
+function AspettoPanel({ themeMode, onThemeMode }: { themeMode?: string; onThemeMode?: (v: string) => void }) {
+  const [themeLocal, setThemeLocal] = React.useState('light');
+  const theme = themeMode ?? themeLocal;
+  const setTheme = onThemeMode ?? setThemeLocal;
   const [tileColor, setTileColor] = React.useState('tint');
   const [haptic, setHaptic] = React.useState(true);
   const [confirmDelete, setConfirmDelete] = React.useState(true);
@@ -130,12 +132,53 @@ function AspettoPanel() {
   );
 }
 
-export function SettingsView() {
+// ─── Account panel ────────────────────────────────────────────────────────────
+function AccountPanel({ email, onLogout }: { email?: string; onLogout?: () => void }) {
+  return (
+    <>
+      <h1 className="ob-settings__h1">Account</h1>
+      <p className="ob-settings__lead">Il tuo profilo e l’accesso.</p>
+
+      <Card title="PROFILO">
+        <Row
+          icon={<Icon name="person" size={17} />}
+          label="Email"
+          sub={email ?? '—'}
+          control={<span />}
+        />
+      </Card>
+
+      <Card title="SESSIONE">
+        <Row
+          icon={<IconLogout size={17} stroke={1.6} />}
+          label="Esci"
+          sub="Termina la sessione su questo dispositivo"
+          control={
+            <button type="button" className="ob-settings__row-link" onClick={onLogout}>
+              Esci
+              <span className="ob-settings__row-link-chev"><Icon name="chevR" size={14} /></span>
+            </button>
+          }
+        />
+      </Card>
+    </>
+  );
+}
+
+export interface SettingsViewProps {
+  /** Modalità tema corrente ('light' | 'dark' | 'system'); controllata se passata. */
+  themeMode?: string;
+  onThemeMode?: (v: string) => void;
+  /** Dati account reali; se assenti il pannello Account resta vuoto (anteprima). */
+  account?: { email?: string; onLogout?: () => void };
+}
+
+export function SettingsView({ themeMode, onThemeMode, account }: SettingsViewProps = {}) {
   const [active, setActive] = React.useState<NavId>('aspetto');
 
   const NAV: NavDef[] = [
-    { id: 'account', label: 'Account', render: () => null },
-    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel /> },
+    { id: 'account', label: 'Account', render: () => (account ? <AccountPanel email={account.email} onLogout={account.onLogout} /> : null) },
+    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} /> },
     { id: 'notifiche', label: 'Notifiche', render: () => null },
     { id: 'cattura', label: 'Cattura & AI', render: () => null },
     { id: 'integrazioni', label: 'Integrazioni', render: () => null },
@@ -153,12 +196,12 @@ export function SettingsView() {
         <NavRow icon={<IconPlug size={17} stroke={1.6} />} label="Integrazioni" active={active === 'integrazioni'} onClick={() => setActive('integrazioni')} />
         <NavRow icon={<IconShield size={17} stroke={1.6} />} label="Privacy & dati" active={active === 'privacy'} onClick={() => setActive('privacy')} />
         <div style={{ flex: 1 }} />
-        <NavRow icon={<IconLogout size={17} stroke={1.6} />} label="Esci" />
+        <NavRow icon={<IconLogout size={17} stroke={1.6} />} label="Esci" onClick={account?.onLogout} />
       </nav>
 
       <main className="ob-settings__main ob-scroll">
         <div className="ob-settings__inner">
-          {NAV.find((n) => n.id === active)?.render() ?? <AspettoPanel />}
+          {NAV.find((n) => n.id === active)?.render() ?? <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} />}
         </div>
       </main>
     </div>

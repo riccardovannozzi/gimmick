@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/sidebar';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { ObsidianShell } from '@/components/shell/ObsidianShell';
+import { AskPanel } from '@/components/views/ask-live';
 import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { usePixelTheme } from '@/components/pixel';
 import { useAuthStore } from '@/store/auth-store';
@@ -98,7 +99,7 @@ export default function DashboardLayout({
     return (
       <>
         <ObsidianShell>{children}</ObsidianShell>
-        <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+        <AskPanel open={chatOpen} onClose={() => setChatOpen(false)} />
       </>
     );
   }

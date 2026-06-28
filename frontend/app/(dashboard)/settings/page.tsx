@@ -14,6 +14,9 @@ import { TypeIconsModal } from '@/components/type-icons/type-icons-modal';
 import { CardRosterModal } from '@/components/cards/card-roster-modal';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { authApi } from '@/lib/api';
+import { ViewContainer } from '@/components/shell';
+import { SettingsLive } from '@/components/views/settings-live';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
 type IconComp = React.ComponentType<{ size?: number; style?: React.CSSProperties }>;
 
@@ -155,6 +158,21 @@ function PixelRow({ title, description, children }: { title: string; description
 }
 
 export default function SettingsPage() {
+  // Migrazione Obsidian (Fase 6): dietro feature-flag le impostazioni reali
+  // (Aspetto→tema persistito, Account→email/logout) sono rese dalla
+  // `SettingsView` Obsidian. I pannelli arcade (azioni/statuses/type-icons/
+  // roster/palette) e la danger-zone restano arcade. Default OFF.
+  if (isObsidianShellEnabled()) {
+    return (
+      <ViewContainer hideToolbar>
+        <SettingsLive />
+      </ViewContainer>
+    );
+  }
+  return <ArcadeSettingsPage />;
+}
+
+function ArcadeSettingsPage() {
   const theme = usePixelTheme();
   const router = useRouter();
   const { user, signOut } = useAuthStore();
