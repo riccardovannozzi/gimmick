@@ -655,6 +655,7 @@ function SparkEditor({
               background: theme.surface,
               color: theme.ink2,
               border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderRadius: inShell ? 6 : 0,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -669,6 +670,7 @@ function SparkEditor({
               background: confirmDelete ? '#E24B4A' : theme.surface,
               color: confirmDelete ? '#FFFFFF' : theme.ink2,
               border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderRadius: inShell ? 6 : 0,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -785,6 +787,7 @@ function SparkEditor({
           style={{
             background: theme.surfaceVariant,
             border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
             overflow: 'hidden',
             position: 'relative',
             cursor: 'zoom-in',
@@ -854,7 +857,8 @@ function SparkEditor({
               style={{
                 background: theme.surface,
                 border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                borderRadius: inShell ? 16 : 0,
+                boxShadow: inShell ? 'var(--ob-shadow-modal, var(--ob-shadow-card))' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -877,10 +881,11 @@ function SparkEditor({
                 <IconFileText size={14} style={{ color: theme.ink2, flexShrink: 0 }} />
                 <span
                   style={{
-                    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
-                    fontSize: 11,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
+                    fontSize: inShell ? 13.5 : 11,
+                    fontWeight: inShell ? 600 : undefined,
+                    letterSpacing: inShell ? 0 : '0.1em',
+                    textTransform: inShell ? 'none' : 'uppercase',
                     color: theme.ink,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -929,8 +934,9 @@ function SparkEditor({
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
       className="group"
       style={{
-        background: theme.surfaceVariant,
+        background: inShell ? theme.surface : theme.surfaceVariant,
         border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRadius: inShell ? 12 : 0,
         padding: '8px 10px',
         display: 'flex',
         alignItems: 'center',
@@ -944,8 +950,9 @@ function SparkEditor({
         style={{
           width: 36,
           height: 36,
-          background: theme.surface,
+          background: inShell ? theme.surfaceVariant : theme.surface,
           border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+          borderRadius: inShell ? 9 : 0,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',

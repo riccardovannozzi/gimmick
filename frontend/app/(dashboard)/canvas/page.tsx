@@ -895,8 +895,9 @@ export default function CanvasPage() {
                     top, left, width: menuW,
                     zIndex: 9999,
                     background: theme.surface,
-                    border: `2px solid ${theme.border}`,
-                    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                    boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    borderRadius: inShell ? 12 : 0,
                     padding: 4,
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
@@ -904,17 +905,17 @@ export default function CanvasPage() {
                   <div
                     style={{
                       padding: '6px 10px',
-                      fontFamily: 'var(--font-pixel-head)',
+                      fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                       fontSize: 9,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       color: theme.ink3,
-                      borderBottom: `2px solid ${theme.border}`,
+                      borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
                     }}
                   >
                     {selectedIds.length} elementi
                     {tbCount > 0 && tileCount > 0 && (
-                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
+                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
                   <button
@@ -933,7 +934,7 @@ export default function CanvasPage() {
                       cursor: groupAllowed ? 'pointer' : 'not-allowed',
                       color: groupAllowed ? theme.ink2 : theme.ink3,
                       opacity: groupAllowed ? 1 : 0.4,
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
                       fontSize: 12,
                     }}
                   >
@@ -953,7 +954,7 @@ export default function CanvasPage() {
                       border: 'none',
                       cursor: 'pointer',
                       color: '#E24B4A',
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
                       fontSize: 12,
                     }}
                   >
@@ -982,7 +983,7 @@ export default function CanvasPage() {
                 border: 'none',
                 cursor: 'pointer',
                 color: theme.ink2,
-                fontFamily: 'var(--font-pixel-body)',
+                fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
                 fontSize: 12,
               };
               const dangerItem: React.CSSProperties = { ...menuItem, color: '#E24B4A' };
@@ -997,7 +998,7 @@ export default function CanvasPage() {
                       zIndex: 9999,
                       width: 184,
                       background: theme.surface,
-                      border: `2px solid ${theme.border}`,
+                      border: `${inShell ? 1 : 2}px solid ${theme.border}`,
                       boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                       padding: 4,
                     }}
@@ -1007,12 +1008,12 @@ export default function CanvasPage() {
                         <div
                           style={{
                             padding: '6px 10px',
-                            fontFamily: 'var(--font-pixel-head)',
+                            fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                             fontSize: 9,
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             color: theme.ink3,
-                            borderBottom: `2px solid ${theme.border}`,
+                            borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
                           }}
                         >
                           {selectedIds.length} selezionati
@@ -1030,7 +1031,7 @@ export default function CanvasPage() {
                           <IconTrash size={14} />
                           Elimina {selectedIds.length} elementi
                         </button>
-                        <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
+                        <div style={{ margin: '4px 0', borderTop: `${inShell ? 1 : 2}px solid ${theme.border}` }} />
                       </>
                     )}
                     {tileCtx.inGroup && (
@@ -1094,8 +1095,9 @@ export default function CanvasPage() {
                   zIndex: 9999,
                   width: 168,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                  boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  borderRadius: inShell ? 12 : 0,
                   padding: 4,
                 }}
               >
@@ -1112,7 +1114,7 @@ export default function CanvasPage() {
                     border: 'none',
                     cursor: 'pointer',
                     color: '#E24B4A',
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
                     fontSize: 12,
                   }}
                 >
@@ -1136,8 +1138,9 @@ export default function CanvasPage() {
                   zIndex: 9999,
                   width: 168,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                  boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  borderRadius: inShell ? 12 : 0,
                   padding: 4,
                 }}
               >
@@ -1154,7 +1157,7 @@ export default function CanvasPage() {
                     border: 'none',
                     cursor: 'pointer',
                     color: '#E24B4A',
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
                     fontSize: 12,
                   }}
                 >
@@ -1199,7 +1202,8 @@ export default function CanvasPage() {
                 width: 56,
                 height: 56,
                 background: theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
+                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                borderRadius: inShell ? 14 : 0,
                 color: theme.ink3,
               }}
             >
@@ -1207,7 +1211,7 @@ export default function CanvasPage() {
             </div>
             <p
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
                 fontSize: 10,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -1217,7 +1221,7 @@ export default function CanvasPage() {
             >
               Seleziona un tag dalla sidebar
             </p>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 11, color: theme.ink3, margin: 0 }}>
               per aprire la lavagna
             </p>
           </div>

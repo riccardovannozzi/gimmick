@@ -19,6 +19,7 @@ import {
   IconMicrophone, IconMicrophoneOff,
 } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { cn } from '@/lib/utils';
 
 // Soft pastel highlight palette — the Light2 row of GIMMICK_PALETTE.
@@ -54,6 +55,7 @@ interface MarkdownEditorProps {
  */
 export function MarkdownEditor({ value, onChange, autoFocus, className }: MarkdownEditorProps) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
 
   const editor = useEditor({
     extensions: [
@@ -110,10 +112,10 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
         style={{
           background: theme.surface,
           padding: 16,
-          fontFamily: 'var(--font-pixel-body), ui-monospace, monospace',
+          fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body), ui-monospace, monospace',
           color: theme.ink,
-          fontSize: 13,
-          lineHeight: 1.5,
+          fontSize: inShell ? 14 : 13,
+          lineHeight: 1.6,
         }}
       >
         <EditorContent editor={editor} />
@@ -125,12 +127,14 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
 interface ToolbarProps { editor: Editor; theme: ReturnType<typeof usePixelTheme>; }
 
 function Toolbar({ editor, theme }: ToolbarProps) {
+  const inShell = isObsidianShellEnabled();
   const btnStyle = (active: boolean): React.CSSProperties => ({
-    width: 28,
-    height: 28,
-    background: active ? theme.accent : theme.surfaceVariant,
-    color: active ? theme.onAccent : theme.ink,
-    border: `2px solid ${theme.border}`,
+    width: inShell ? 30 : 28,
+    height: inShell ? 30 : 28,
+    background: active ? (inShell ? `${theme.accent}22` : theme.accent) : 'transparent',
+    color: active ? theme.accent : theme.ink2,
+    border: inShell ? `1px solid ${active ? theme.accent : 'transparent'}` : `2px solid ${theme.border}`,
+    borderRadius: inShell ? 8 : 0,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -163,7 +167,7 @@ function Toolbar({ editor, theme }: ToolbarProps) {
         gap: 4,
         padding: 8,
         background: theme.bg2,
-        borderBottom: `2px solid ${theme.border}`,
+        borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
       }}
     >
       <button type="button" title="Annulla" style={btnStyle(false)} onClick={() => editor.chain().focus().undo().run()}><IconArrowBackUp size={14} /></button>
@@ -297,6 +301,7 @@ interface HighlightPickerProps {
 }
 
 function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
+  const inShell = isObsidianShellEnabled();
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -334,12 +339,13 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
             marginTop: 4,
             zIndex: 100,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
+            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderRadius: inShell ? 12 : 0,
             padding: 6,
             display: 'grid',
             gridTemplateColumns: 'repeat(6, 22px)',
             gap: 4,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
           }}
         >
           {HIGHLIGHT_COLORS.map((opt) => {
@@ -354,7 +360,8 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
                   width: 22,
                   height: 22,
                   background: isRemove ? theme.surfaceVariant : (opt.color as string),
-                  border: `2px solid ${theme.border}`,
+                  border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                  borderRadius: inShell ? 6 : 0,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',

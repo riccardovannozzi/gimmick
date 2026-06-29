@@ -3,6 +3,7 @@
 import { IconBolt, IconArrowUp, IconClock, IconCalendar } from '@tabler/icons-react';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { readableOn } from '@/lib/palette';
 
 /** Action-type → icon. `none` (NOTES) renders nothing by design. */
@@ -35,6 +36,7 @@ interface ActionBadgeProps {
  */
 export function ActionBadge({ actionKey, size = 16, color, keepSpace }: ActionBadgeProps) {
   const theme = usePixelTheme();
+  const inShell = isObsidianShellEnabled();
   const actionColors = useActionColors();
   const Icon = ACTION_ICON[actionKey];
   if (!Icon) {
@@ -48,7 +50,9 @@ export function ActionBadge({ actionKey, size = 16, color, keepSpace }: ActionBa
         width: size,
         height: size,
         background: bg,
-        border: `2px solid ${theme.border}`,
+        // Obsidian: hairline + raggio morbido proporzionale; arcade: quadratino 2px.
+        border: inShell ? `1px solid ${theme.border}` : `2px solid ${theme.border}`,
+        borderRadius: inShell ? Math.max(3, Math.round(size * 0.28)) : 0,
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',

@@ -2,11 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { Sidebar } from '@/components/layout/sidebar';
-import { ChatPanel } from '@/components/chat/chat-panel';
 import { ObsidianShell } from '@/components/shell/ObsidianShell';
 import { AskPanel } from '@/components/views/ask-live';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { usePixelTheme } from '@/components/pixel';
 import { useAuthStore } from '@/store/auth-store';
 import { useTypeIcons } from '@/store/type-icons-store';
@@ -75,13 +72,11 @@ export default function DashboardLayout({
         <div
           style={{
             color: theme.ink2,
-            fontFamily: 'var(--font-pixel-head)',
-            fontSize: 10,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontFamily: 'var(--ob-font-sans)',
+            fontSize: 13,
           }}
         >
-          Caricamento...
+          Caricamento…
         </div>
       </div>
     );
@@ -91,24 +86,12 @@ export default function DashboardLayout({
     return null;
   }
 
-  // Migrazione strangler (Fase 0): dietro feature-flag montiamo lo shell
-  // Obsidian con dati reali al posto della shell arcade. Default OFF →
-  // produzione invariata. La ChatPanel resta montata in entrambi i casi così
-  // che "Ask Gimmick" (onAsk) continui a funzionare.
-  if (isObsidianShellEnabled()) {
-    return (
-      <>
-        <ObsidianShell>{children}</ObsidianShell>
-        <AskPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-      </>
-    );
-  }
-
+  // Shell Obsidian con dati reali (la vecchia shell arcade — Sidebar +
+  // ChatPanel — è stata rimossa nel cleanup della migrazione).
   return (
-    <div className="flex h-screen" style={{ background: theme.bg1 }}>
-      <Sidebar />
-      <main className="flex-1 overflow-hidden">{children}</main>
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
-    </div>
+    <>
+      <ObsidianShell>{children}</ObsidianShell>
+      <AskPanel open={chatOpen} onClose={() => setChatOpen(false)} />
+    </>
   );
 }

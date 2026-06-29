@@ -1365,7 +1365,8 @@ export default function GraphPage() {
                           style={{
                             width: 12,
                             height: 12,
-                            border: `2px solid ${clr}`,
+                            border: `${inShell ? 1.5 : 2}px solid ${clr}`,
+                            borderRadius: inShell ? 4 : 0,
                             background: active ? clr : 'transparent',
                           }}
                         />
@@ -2043,7 +2044,8 @@ export default function GraphPage() {
                   zIndex: 50,
                   background: theme.surface,
                   border: `${bW}px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  borderRadius: inShell ? 12 : 0,
+                  boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                   padding: 4,
                   minWidth: 200,
                 }}
