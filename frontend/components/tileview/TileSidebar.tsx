@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconArrowUp, IconMaximize, IconX, IconList, IconShare2, IconChevronDown } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -1187,26 +1187,6 @@ export function TileSidebar({
     },
   });
 
-  const tabBtn = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    padding: '0 8px',
-    height: 28,
-    borderRadius: 7,
-    background: active ? theme.surface : 'transparent',
-    color: active ? theme.accent : theme.ink2,
-    border: `1px solid ${active ? theme.border : 'transparent'}`,
-    fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
-    fontWeight: 600,
-    letterSpacing: 0,
-    textTransform: 'none',
-    cursor: 'pointer',
-    boxShadow: active ? 'var(--ob-shadow-card)' : 'none',
-  });
   const labelStyle = obLabel(theme);
 
   return (
@@ -1280,10 +1260,10 @@ export function TileSidebar({
               <IconLayoutSidebarRightCollapse size={14} />
             </button>
             {(
-              <div style={{ flex: 1, display: 'flex', gap: 3, padding: 3, background: theme.surfaceVariant, borderRadius: 10 }}>
-                <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}><IconEdit size={14} />Edit</button>
-                <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}><IconList size={14} />List</button>
-                <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}><IconShare2 size={14} />Flow</button>
+              <div className="ob-insp-tabs">
+                <button className={cn('ob-insp-tab', activeTab === 'edit' && 'ob-insp-tab--active')} onClick={() => setActiveTab('edit')}><IconEdit size={14} />Edit</button>
+                <button className={cn('ob-insp-tab', activeTab === 'list' && 'ob-insp-tab--active')} onClick={() => setActiveTab('list')}><IconList size={14} />List</button>
+                <button className={cn('ob-insp-tab', activeTab === 'flow' && 'ob-insp-tab--active')} onClick={() => setActiveTab('flow')}><IconShare2 size={14} />Flow</button>
               </div>
             )}
           </div>
@@ -1333,8 +1313,8 @@ export function TileSidebar({
                   // Same icon mapping used in tile renderers (kanban/calendar/canvas).
                   // Notes (none) shows no badge.
                   const TILE_ACTION_ICON: Record<string, typeof IconBolt | null> = {
-                    none:     null,
-                    anytime:  IconArrowUp,
+                    none:     IconNote,
+                    anytime:  IconCheckbox,
                     deadline: IconBolt,
                     event:    IconClock,
                     allday:   IconCalendar,
@@ -1350,7 +1330,7 @@ export function TileSidebar({
                   const row2 = allOpts.slice(2);
                   // Etichette native Obsidian (immagine di design).
                   const OB_LABEL: Record<string, string> = {
-                    'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Scadenza', 'ALL DAY': 'Giornata', 'TIMED': 'A orario',
+                    'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Due', 'ALL DAY': 'Daily', 'TIMED': 'Timing',
                   };
                   const renderBtn = (opt: typeof allOpts[number]) => {
                     const isActive = opt.value === 'event'
@@ -1379,11 +1359,13 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
-                          height: 34,
-                          borderRadius: 9,
-                          background: isActive ? `${theme.accent}22` : 'transparent',
-                          color: isActive ? theme.accent : theme.ink2,
-                          border: `1px solid ${isActive ? theme.accent : theme.border}`,
+                          height: 32,
+                          borderRadius: 7,
+                          // Tutti i bottoni hanno un leggero sfondo violaceo (accent);
+                          // l'attivo è più marcato e con contorno accent.
+                          background: isActive ? `${theme.accent}2E` : `${theme.accent}14`,
+                          color: isActive ? theme.accent : theme.ink,
+                          border: `1px solid ${isActive ? theme.accent : 'transparent'}`,
                           fontFamily: 'var(--ob-font-sans)',
                           fontSize: 12.5,
                           fontWeight: 600,
@@ -1401,9 +1383,11 @@ export function TileSidebar({
                     );
                   };
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', gap: 4 }}>{row1.map(renderBtn)}</div>
-                      <div style={{ display: 'flex', gap: 4 }}>{row2.map(renderBtn)}</div>
+                    // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
+                    // surface + cornice leggera + padding, come segmented control.
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 3 }}>
+                      <div style={{ display: 'flex', gap: 3 }}>{row1.map(renderBtn)}</div>
+                      <div style={{ display: 'flex', gap: 3 }}>{row2.map(renderBtn)}</div>
                     </div>
                   );
                 })()}
@@ -1442,19 +1426,52 @@ export function TileSidebar({
                   }
                 };
 
+                // ── Durata attività (ore): lega start/end ──
+                const startMs = tile.start_at ? new Date(tile.start_at).getTime() : NaN;
+                const endMs = tile.end_at ? new Date(tile.end_at).getTime() : NaN;
+                const durMs = (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) ? endMs - startMs : 3600000;
+                const durationHours = Math.round((durMs / 3600000) * 100) / 100;
+                const curStart = safeTime(startTime, '09:00');
+
+                // Cambio inizio: preserva la durata (sposta anche la fine).
+                const setStart = (t: string) => {
+                  if (!dateVal) return;
+                  const ns = new Date(`${dateVal}T${t}`);
+                  const ne = new Date(ns.getTime() + durMs);
+                  updateTileMutation.mutate({ start_at: ns.toISOString(), end_at: ne.toISOString() });
+                };
+                // Cambio fine: tiene fisso l'inizio (la durata si ricalcola).
+                const setEnd = (t: string) => {
+                  if (!dateVal) return;
+                  updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() });
+                };
+                // Cambio durata: tiene fisso l'inizio, ricalcola la fine.
+                const setDuration = (h: number) => {
+                  if (!dateVal || !(h > 0)) return;
+                  const ns = new Date(`${dateVal}T${curStart}`);
+                  const ne = new Date(ns.getTime() + h * 3600000);
+                  updateTileMutation.mutate({ start_at: ns.toISOString(), end_at: ne.toISOString() });
+                };
+
+                // Cella generica dentro il container: sfondo surface, NESSUN bordo
+                // (la cornice la dà il container del gruppo).
+                const cellBase: React.CSSProperties = {
+                  background: theme.surface, border: '1px solid transparent',
+                  borderRadius: 8, height: 36,
+                };
+
                 return (
                   <div>
-                    {<label style={labelStyle}>Data e orario</label>}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                      {/* Date */}
-                      <div style={{ flexShrink: 0, position: 'relative' }}>
-                        {false}
-                        {(
-                          <IconCalendar
-                            size={14}
-                            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
-                          />
-                        )}
+                    <label style={labelStyle}>Data e orario</label>
+                    {/* Tutto raggruppato in un unico container (come AZIONE): riga data +
+                        riga inizio/durata/fine. Niente label: segnaposti illustrativi inline. */}
+                    <div style={{ background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {/* Riga 1: data a piena larghezza */}
+                      <div style={{ position: 'relative' }}>
+                        <IconCalendar
+                          size={14}
+                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
+                        />
                         <input
                           type="date"
                           value={dateVal}
@@ -1462,38 +1479,46 @@ export function TileSidebar({
                           onClick={(e) => { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); }}
                           className={'ob-ts-date'}
                           style={{
-                            ...obField(theme),
-                            padding: '0 8px 0 30px',
-                            height: 36,
+                            ...cellBase,
+                            color: theme.ink,
+                            fontFamily: 'var(--ob-font-sans)',
+                            fontSize: 13.5,
+                            padding: '0 8px 0 32px',
                             outline: 'none',
-                            width: 'auto',
-                            maxWidth: 138,
+                            width: '100%',
                             colorScheme: theme.mode,
                           }}
                         />
                       </div>
-                      {/* Start/End time — only for timed */}
+                      {/* Riga 2: inizio · durata (h) · fine — solo per eventi a orario.
+                          Orologio = segnaposto orario, "h" = segnaposto durata. */}
                       {isTimed && (
-                        <>
-                          <div style={{ flexShrink: 0 }}>
-                            {false}
-                            <TimePicker
-                              value={startTime || '09:00'}
-                              icon={<IconClock size={14} />}
-                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                              compact
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <TimePicker value={startTime || '09:00'} icon={<IconClock size={14} />} onChange={setStart} compact noBorder />
+                          <div style={{ ...cellBase, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 8px' }}>
+                            <input
+                              type="number"
+                              min={0.25}
+                              step={0.25}
+                              value={durationHours}
+                              onChange={(e) => setDuration(parseFloat(e.target.value))}
+                              aria-label="Durata in ore"
+                              style={{
+                                width: 44,
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                textAlign: 'right',
+                                fontFamily: 'var(--ob-font-sans)',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: theme.ink,
+                              }}
                             />
+                            <span style={{ fontSize: 11, color: theme.ink3 }}>h</span>
                           </div>
-                          <div style={{ flexShrink: 0 }}>
-                            {false}
-                            <TimePicker
-                              value={endTime || '10:00'}
-                              icon={<IconClock size={14} />}
-                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                              compact
-                            />
-                          </div>
-                        </>
+                          <TimePicker value={endTime || '10:00'} icon={<IconClock size={14} />} onChange={setEnd} compact noBorder />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1524,7 +1549,7 @@ export function TileSidebar({
                 <div
                   style={{
                     display: 'flex',
-                    border: `1px solid ${theme.border}`,
+                    border: '1px solid var(--ob-line-2)',
                     borderRadius: 12,
                     overflow: 'hidden',
                     background: theme.surface,
@@ -1538,7 +1563,7 @@ export function TileSidebar({
                     { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
                     { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
                     { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
-                  ].map((opt) => {
+                  ].map((opt, idx, arr) => {
                     const BtnIcon = opt.icon;
                     const isDropTarget = dropTargetIcon === opt.id;
                     const acceptsDrop = opt.id !== 'text';
@@ -1583,6 +1608,8 @@ export function TileSidebar({
                           gap: 6,
                           background: isDropTarget ? `${cap}1F` : 'transparent',
                           border: 'none',
+                          // Divisore leggero tra le celle (non sull'ultima).
+                          borderRight: idx < arr.length - 1 ? '1px solid var(--ob-line-2)' : 'none',
                           cursor: 'pointer',
                         }}
                         title={opt.id}

@@ -237,22 +237,9 @@ export function ChronoLive() {
       .catch(() => toast.error('Errore schedulazione'));
   }, [fracToISO, queryClient]);
 
-  // Click su slot vuoto → crea un evento timed (1h) e lo apre nell'Inspector.
-  const handleCreateAt = useCallback(async (dayIndex: number, s: number) => {
-    const start_at = fracToISO(dayIndex, s);
-    const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
-    try {
-      const res = await calendarApi.createEvent({ title: 'Nuovo evento', start_at, end_at });
-      if (!res.success || !res.data) { toast.error('Errore creazione evento'); return; }
-      const t = res.data;
-      const rootTag = (tagsData?.data ?? []).find((tg) => tg.is_root);
-      if (rootTag) await tagsApi.tagTiles(rootTag.id, [t.id]);
-      invalidateTileCaches(queryClient, ['tags']);
-      selectTile(t.id);
-    } catch {
-      toast.error('Errore creazione evento');
-    }
-  }, [fracToISO, queryClient, tagsData, selectTile]);
+  // (Rimosso) Click su slot vuoto → creava un evento "Nuovo evento". Disabilitato
+  // su richiesta: un click semplice sulla griglia non deve inserire nulla. Gli
+  // eventi si creano via drag (schedulazione di Notes/Todo) o dal pulsante Tile.
 
   // Drop di un evento timed sulla lane "tutto il dì" → diventa all-day.
   const handleEventToAllDay = useCallback((id: string, dayIndex: number) => {
@@ -307,6 +294,27 @@ export function ChronoLive() {
       })
       .catch(() => toast.error('Errore schedulazione'));
   }, [fracToISO, queryClient]);
+
+  // Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo:
+  // imposta action_type e deschedula (azzera evento/orari).
+  const handleMoveToColumn = useCallback((tileId: string, actionType: 'none' | 'anytime') => {
+    // Optimistic: sposta il tile nella colonna giusta e toglilo dalla griglia.
+    queryClient.setQueryData(['tiles-calendar'], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === tileId ? { ...t, action_type: actionType, is_event: false, all_day: false, start_at: undefined, end_at: undefined } : t)) };
+    });
+    queryClient.setQueryData(['calendar-events', range.start, range.end], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.filter((t) => t.id !== tileId) };
+    });
+    tilesApi.update(tileId, { action_type: actionType, is_event: false, all_day: false, start_at: null, end_at: null })
+      .then(() => invalidateTileCaches(queryClient))
+      .catch(() => {
+        toast.error('Errore spostamento');
+        invalidateTileCaches(queryClient);
+      });
+    toast.success(actionType === 'none' ? 'Spostato in Notes' : 'Spostato in Todo');
+  }, [queryClient, range]);
 
   // ─── Menu contestuale (tasto destro): Copia · Incolla · Apri flow · Elimina ──
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -459,9 +467,8 @@ export function ChronoLive() {
       onEventToAllDay: handleEventToAllDay,
       onEventToTimed: handleEventToTimed,
       onScheduleAllDayTile: handleScheduleAllDayTile,
-      onCreateAt: handleCreateAt,
     };
-  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, handleCreateAt]);
+  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile]);
 
   const handleAddTile = useCallback(async () => {
     try {
@@ -504,6 +511,7 @@ export function ChronoLive() {
         selectedId={selectedTileId ?? undefined}
         onCardClick={(id) => selectTile(id)}
         onCardContextMenu={openCardMenu}
+        onMoveToColumn={handleMoveToColumn}
         onAddTile={handleAddTile}
         meta={`${calendar.allday.length + calendar.timed.length} eventi`}
       />

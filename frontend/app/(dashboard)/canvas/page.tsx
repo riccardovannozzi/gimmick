@@ -35,6 +35,9 @@ export default function CanvasPage() {
 
   const [textMode, setTextMode] = useState(false);
   const [tileMode, setTileMode] = useState(false);
+  // Tile copiata in attesa di posizionamento: quando valorizzata, il prossimo
+  // click sul canvas piazza una COPIA di questo tile nel punto scelto.
+  const [copySource, setCopySource] = useState<string | null>(null);
   const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -445,30 +448,48 @@ export default function CanvasPage() {
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
 
   // Add new tile at position
+  // Click sul canvas in modalità +Tile (nuova) o "incolla copia" (copySource).
+  // È l'unico punto che crea+posiziona un tile via click: senza una delle due
+  // modalità attive il click non inserisce nulla.
   const handleAddTileAt = useCallback(async (x: number, y: number) => {
     if (!tagId) return;
+    // Guardia: crea SOLO se una modalità di inserimento è armata (+Tile o Copia).
+    // Un click "nudo" sullo sfondo non deve mai aggiungere un tile.
+    if (!tileMode && !copySource) return;
+    const sourceId = copySource;
     setTileMode(false);
+    setCopySource(null);
     try {
-      const res = await tilesApi.create({ title: 'Nuovo tile' });
+      const source = sourceId ? tiles.find((t) => t.id === sourceId) : null;
+      const res = await tilesApi.create({ title: source ? source.title : 'Nuovo tile' });
       const newId = res?.data?.id;
-      if (newId) {
-        // Assign tag
-        const tag = tags.find((t: Tag) => t.id === tagId);
-        if (tag) await tagsApi.tagTiles(tag.id, [newId]);
-        // Save position
-        const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
-        const newLayout = [...currentLayout, { tile_id: newId, x, y }];
-        queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
-        canvasApi.saveLayout(tagId, newLayout);
-        // Refresh tiles + tags (sidebar count)
-        queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
-        queryClient.invalidateQueries({ queryKey: ['tags'] });
-        // Open sidebar
-        setSelectedTileId(newId);
-        setSidebarOpen(true);
+      if (!newId) return;
+      // In copia: replica i metadati del sorgente (non lo scheduling/evento).
+      if (source) {
+        const updates: Parameters<typeof tilesApi.update>[1] = {};
+        if (source.action_type) updates.action_type = source.action_type;
+        if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
+        if (source.status_id) updates.status_id = source.status_id;
+        if (Object.keys(updates).length > 0) {
+          try { await tilesApi.update(newId, updates); } catch { /* non bloccante */ }
+        }
       }
+      // Assign tag
+      const tag = tags.find((t: Tag) => t.id === tagId);
+      if (tag) await tagsApi.tagTiles(tag.id, [newId]);
+      // Save position
+      const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
+      const newLayout = [...currentLayout, { tile_id: newId, x, y }];
+      queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
+      canvasApi.saveLayout(tagId, newLayout);
+      // Refresh tiles + tags (sidebar count)
+      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      // Open sidebar
+      setSelectedTileId(newId);
+      setSidebarOpen(true);
     } catch { /* ignore */ }
-  }, [tagId, tags, queryClient]);
+  }, [tagId, tags, tiles, tileMode, copySource, queryClient]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -561,6 +582,16 @@ export default function CanvasPage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedIds.length, clearSelection]);
 
+  // Esc disarma le modalità di inserimento (+Tile / incolla copia).
+  useEffect(() => {
+    if (!tileMode && !copySource) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setTileMode(false); setCopySource(null); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [tileMode, copySource]);
+
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
     const tileIds = selectedTileIds;
@@ -627,40 +658,17 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tileCtx, tagId, queryClient]);
 
-  const handleDuplicateTile = useCallback(async () => {
-    if (!tileCtx || !tagId) return;
-    const sourceId = tileCtx.tileId;
+  // "Copia": memorizza il tile sorgente ed entra in modalità posizionamento —
+  // la copia viene creata al click sul punto target (vedi handleAddTileAt),
+  // non automaticamente. Disattiva +Tile per evitare modalità in conflitto.
+  const handleCopyTile = useCallback(() => {
+    if (!tileCtx) return;
+    setCopySource(tileCtx.tileId);
+    setTileMode(false);
+    setTextMode(false);
+    setImageMode(false);
     setTileCtx(null);
-    const source = tiles.find((t) => t.id === sourceId);
-    if (!source) return;
-    try {
-      const res = await tilesApi.create({ title: source.title });
-      const newId = res?.data?.id;
-      if (!newId) return;
-      // Copy metadata (except scheduling/event fields — a duplicate shouldn't clone a calendar slot)
-      const updates: Parameters<typeof tilesApi.update>[1] = {};
-      if (source.action_type) updates.action_type = source.action_type;
-      if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
-      if (source.status_id) updates.status_id = source.status_id;
-      if (Object.keys(updates).length > 0) {
-        try { await tilesApi.update(newId, updates); } catch { /* ignore */ }
-      }
-      // Assign same tag as current canvas
-      await tagsApi.tagTiles(tagId, [newId]);
-      // Place near the original (offset so it's visible but not overlapping)
-      const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
-      const sourcePos = currentLayout.find((p: { tile_id: string; x: number; y: number }) => p.tile_id === sourceId);
-      const offsetX = (sourcePos?.x ?? 0) + 40;
-      const offsetY = (sourcePos?.y ?? 0) + 40;
-      const newLayout = [...currentLayout, { tile_id: newId, x: offsetX, y: offsetY }];
-      queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
-      canvasApi.saveLayout(tagId, newLayout);
-      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
-      queryClient.invalidateQueries({ queryKey: ['tags'] });
-      setSelectedTileId(newId);
-      setSidebarOpen(true);
-    } catch { /* ignore */ }
-  }, [tileCtx, tagId, tiles, queryClient]);
+  }, [tileCtx]);
 
   return (
     <div className={`flex flex-col h-full flex-1 min-w-0`} style={{ background: theme.bg1 }}>
@@ -712,9 +720,9 @@ export default function CanvasPage() {
             textMode={textMode}
             tileMode={tileMode}
             imageMode={imageMode}
-            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); }}
-            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); }}
-            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); }}
+            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setCopySource(null); }}
+            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setCopySource(null); }}
+            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setCopySource(null); }}
             onFit={handleFit}
             onZoom100={handleZoom100}
             pinnedTags={pinnedTags}
@@ -732,7 +740,7 @@ export default function CanvasPage() {
           <div
             ref={canvasWrapperRef}
             className="flex-1 relative overflow-hidden"
-            style={{ cursor: (textMode || tileMode || imageMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || copySource) ? 'crosshair' : undefined }}
             onDragOver={(e) => {
               // Allow drops only when a staging tile is being dragged.
               if (!e.dataTransfer.types.includes('text/x-canvas-tile-id')) return;
@@ -769,7 +777,7 @@ export default function CanvasPage() {
               moveEnabled={true}
               linkEnabled={true}
               textMode={textMode}
-              tileMode={tileMode}
+              tileMode={tileMode || !!copySource}
               imageMode={imageMode}
               onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
@@ -1036,9 +1044,9 @@ export default function CanvasPage() {
                         Ungroup
                       </button>
                     )}
-                    <button onClick={handleDuplicateTile} style={menuItem}>
+                    <button onClick={handleCopyTile} style={menuItem}>
                       <IconCopy size={14} />
-                      Duplica
+                      Copia
                     </button>
                     <button
                       onClick={() => {

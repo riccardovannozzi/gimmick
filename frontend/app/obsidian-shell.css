@@ -186,6 +186,14 @@
 .ob-sb-child__act--on { opacity: 1; color: var(--ob-accent); }
 .ob-sb-child__act--on:hover { color: var(--ob-accent); }
 
+/* ── Inspector: tab bar Edit / List / Flow ──
+   Il contenitore disegna la cornice; ogni tab prende il contorno su hover
+   (oltre che da attivo), così l'interazione è coerente. */
+.ob-insp-tabs { flex: 1; display: flex; gap: 3px; padding: 3px; background: var(--ob-surface-2); border-radius: 10px; }
+.ob-insp-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; height: 28px; border-radius: 7px; background: transparent; color: var(--ob-muted); border: 1px solid transparent; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out; }
+.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: var(--ob-surface); border-color: var(--ob-line); color: var(--ob-text); }
+.ob-insp-tab--active { background: var(--ob-surface); color: var(--ob-accent); border-color: var(--ob-line); box-shadow: var(--ob-shadow-card); }
+
 /* ── ViewContainer ── */
 .ob-view { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--ob-canvas); overflow: hidden; }
 .ob-view__toolbar {

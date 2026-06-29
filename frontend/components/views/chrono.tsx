@@ -91,15 +91,37 @@ const SORT_LABELS = ['Ordina: manuale', 'Ordina: A→Z', 'Ordina: recenti'] as c
 
 function Column({
   icon, iconColor, label, tiles, empty, onCardClick, selectedId, schedulable, onCardContextMenu,
+  dropActionType, onDropTile,
 }: {
   icon: ShellIconName; iconColor: string; label: string; tiles: ColTile[]; empty: string;
   onCardClick?: (id: string) => void; selectedId?: string; schedulable?: boolean;
   onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
+  /** action_type assegnato a un tile droppato qui ('none' = Notes, 'anytime' = Todo). */
+  dropActionType?: 'none' | 'anytime';
+  onDropTile?: (tileId: string, actionType: 'none' | 'anytime') => void;
 }) {
   const [sort, setSort] = React.useState(0); // 0 manuale · 1 A→Z · 2 recenti
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [collapsed, setCollapsed] = React.useState(true);
+  const [dragOver, setDragOver] = React.useState(false);
+
+  // Drop dalla griglia calendario o da un'altra colonna: legge l'id del tile dal
+  // payload evento (JSON) o card (stringa) e ne aggiorna le proprietà.
+  const canDrop = !!onDropTile && !!dropActionType;
+  const dropProps = canDrop ? {
+    onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dragOver) setDragOver(true); },
+    onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); },
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOver(false);
+      let id = '';
+      const evRaw = e.dataTransfer.getData('application/x-chrono-event');
+      if (evRaw) { try { id = (JSON.parse(evRaw) as { id: string }).id; } catch { /* ignore */ } }
+      if (!id) id = e.dataTransfer.getData('application/x-chrono-tile');
+      if (id) onDropTile!(id, dropActionType!);
+    },
+  } : {};
 
   const shown = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,7 +134,7 @@ function Column({
   // Collassata: barra verticale stretta, click ovunque per riaprire.
   if (collapsed) {
     return (
-      <div className="ob-chrono__col ob-chrono__col--collapsed">
+      <div className={cn('ob-chrono__col ob-chrono__col--collapsed', dragOver && 'ob-chrono__col--dragover')} {...dropProps}>
         <button
           type="button"
           className="ob-chrono__col-rail"
@@ -130,7 +152,7 @@ function Column({
   }
 
   return (
-    <div className="ob-chrono__col">
+    <div className={cn('ob-chrono__col', dragOver && 'ob-chrono__col--dragover')} {...dropProps}>
       <div className="ob-chrono__colhead">
         <button
           type="button"
@@ -625,12 +647,15 @@ export interface ChronoViewProps {
   onCardClick?: (id: string) => void;
   /** Tasto destro su una card delle colonne Notes/Todo → menu contestuale. */
   onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
+  /** Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo →
+   *  aggiorna action_type e deschedula. */
+  onMoveToColumn?: (tileId: string, actionType: 'none' | 'anytime') => void;
   onAddTile?: () => void;
   meta?: React.ReactNode;
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onAddTile, meta,
+  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, meta,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
@@ -656,8 +681,8 @@ export function ChronoView({
 
       {/* Body */}
       <div className="ob-chrono__body">
-        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} />
-        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} />
+        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="none" onDropTile={onMoveToColumn} />
+        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="anytime" onDropTile={onMoveToColumn} />
         <Calendar cal={calendar} />
       </div>
     </div>

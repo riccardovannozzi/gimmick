@@ -15,9 +15,10 @@ interface TimePickerProps {
   icon?: React.ReactNode;
   compact?: boolean; // smaller trigger for table cells
   borderless?: boolean; // no border/bg for inline use
+  noBorder?: boolean; // keeps bg + size ma senza bordo visibile (cella dentro un container)
 }
 
-export function TimePicker({ value, onChange, label, icon, compact, borderless }: TimePickerProps) {
+export function TimePicker({ value, onChange, label, icon, compact, borderless, noBorder }: TimePickerProps) {
   const theme = usePixelTheme();
   const monoFont = 'var(--ob-font-mono)';
   const sansFont = 'var(--ob-font-sans)';
@@ -86,7 +87,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless }
         padding: compact ? '0 10px' : '6px 8px',
         height: compact ? 36 : 'auto',
         background: theme.surface,
-        border: `1px solid ${theme.border}`,
+        border: `1px solid ${noBorder ? 'transparent' : theme.border}`,
         borderRadius: 10,
         cursor: 'pointer',
         textAlign: 'left',
