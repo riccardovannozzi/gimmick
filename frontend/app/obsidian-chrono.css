@@ -34,7 +34,15 @@
 /* ── COLONNA NOTES / TODO ── */
 .ob-chrono__col { width: 210px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
-.ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); }
+.ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
+.ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+/* Colonna collassata: barra verticale stretta, cliccabile per riaprire. */
+.ob-chrono__col--collapsed { width: 40px; }
+.ob-chrono__col-rail { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 9px 0; background: transparent; border: none; cursor: pointer; }
+.ob-chrono__col-rail:hover { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
+.ob-chrono__col-rail-icon { display: inline-flex; flex-shrink: 0; }
+.ob-chrono__col-rail-label { writing-mode: vertical-rl; font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-text); }
+.ob-chrono__col-rail-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
 .ob-chrono__colhead-icon { display: inline-flex; flex-shrink: 0; }
 .ob-chrono__colhead-label { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
@@ -45,7 +53,7 @@
 .ob-chrono__empty { font-size: 11px; color: var(--ob-subtle); padding: 4px; }
 
 /* tile card */
-.ob-chrono__card { border-radius: 8px; padding: 9px 10px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card { border-radius: 8px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: space-between; gap: 9px; min-height: 58px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
 /* ── Vista Mese ── */
 .ob-chrono__month { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .ob-chrono__month-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--ob-line); position: sticky; top: 0; background: var(--ob-surface); z-index: 1; }
@@ -71,6 +79,11 @@
 .ob-chrono__card--draggable { cursor: grab; }
 .ob-chrono__card--draggable:active { cursor: grabbing; }
 .ob-chrono__event--clickable { cursor: pointer; }
+/* Tile selezionata: anello accent su evento timed / pill all-day / evento mese.
+   z-index alzato così l'anello non viene coperto dagli eventi affiancati. */
+.ob-chrono__event--active { box-shadow: 0 0 0 2px var(--ob-accent); z-index: 4; }
+.ob-chrono__allday-pill--active { box-shadow: 0 0 0 2px var(--ob-accent); }
+.ob-chrono__month-ev--active { box-shadow: 0 0 0 2px var(--ob-accent); }
 /* Drag-drop reschedule: maniglia + feedback colonna bersaglio. */
 .ob-chrono__event--draggable { cursor: grab; }
 .ob-chrono__event--draggable:active { cursor: grabbing; }

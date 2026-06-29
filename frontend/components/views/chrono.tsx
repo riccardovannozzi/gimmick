@@ -99,6 +99,7 @@ function Column({
   const [sort, setSort] = React.useState(0); // 0 manuale · 1 A→Z · 2 recenti
   const [searchOpen, setSearchOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
+  const [collapsed, setCollapsed] = React.useState(true);
 
   const shown = React.useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -108,10 +109,36 @@ function Column({
     return list;
   }, [tiles, query, sort]);
 
+  // Collassata: barra verticale stretta, click ovunque per riaprire.
+  if (collapsed) {
+    return (
+      <div className="ob-chrono__col ob-chrono__col--collapsed">
+        <button
+          type="button"
+          className="ob-chrono__col-rail"
+          aria-label={`Espandi ${label}`}
+          title={`Espandi ${label}`}
+          onClick={() => setCollapsed(false)}
+        >
+          <span className="ob-chrono__colhead-collapse"><Icon name="panel" size={13} /></span>
+          <span className="ob-chrono__col-rail-icon" style={{ color: iconColor }}><Icon name={icon} size={14} /></span>
+          <span className="ob-chrono__col-rail-label">{label}</span>
+          <span className="ob-chrono__col-rail-count">{tiles.length}</span>
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="ob-chrono__col">
       <div className="ob-chrono__colhead">
-        <span className="ob-chrono__colhead-collapse"><Icon name="collapse" size={13} /></span>
+        <button
+          type="button"
+          className="ob-chrono__colhead-collapse"
+          aria-label={`Comprimi ${label}`}
+          title={`Comprimi ${label}`}
+          onClick={() => setCollapsed(true)}
+        ><Icon name="collapse" size={13} /></button>
         <span className="ob-chrono__colhead-icon" style={{ color: iconColor }}><Icon name={icon} size={14} /></span>
         <span className="ob-chrono__colhead-label">{label}</span>
         <span className="ob-chrono__colhead-count">{shown.length}</span>
@@ -176,6 +203,8 @@ export interface ChronoCalendar {
   days: ChronoDay[];
   /** Index of "today" in `days`, or -1 if the current week is not shown. */
   todayIndex: number;
+  /** Id della tile selezionata: l'evento corrispondente viene evidenziato. */
+  selectedId?: string;
   rangeLabel: string;
   timed: ChronoTimed[];
   allday: ChronoAllDay[];
@@ -257,9 +286,9 @@ function layoutOverlaps(evs: ChronoTimed[]): Map<ChronoTimed, { col: number; col
 }
 
 function DayColumn({
-  dayIndex, isToday, timed, onEventClick, onEventContextMenu, onEventReschedule, onScheduleTile, onCreateAt,
+  dayIndex, isToday, timed, selectedId, onEventClick, onEventContextMenu, onEventReschedule, onScheduleTile, onCreateAt,
 }: {
-  dayIndex: number; isToday: boolean; timed: ChronoTimed[];
+  dayIndex: number; isToday: boolean; timed: ChronoTimed[]; selectedId?: string;
   onEventClick?: (id: string) => void;
   onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void;
   onEventReschedule?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
@@ -338,7 +367,7 @@ function DayColumn({
         return (
           <div
             key={e.id ?? j}
-            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable')}
+            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active')}
             style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e) }}
             onClick={click}
             onContextMenu={ctx}
@@ -397,7 +426,7 @@ function DayColumn({
 
 const MONTH_DOW = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
 
-function MonthGrid({ cells, onEventClick, onEventContextMenu }: { cells: MonthCell[]; onEventClick?: (id: string) => void; onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void }) {
+function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { cells: MonthCell[]; selectedId?: string; onEventClick?: (id: string) => void; onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void }) {
   return (
     <div className="ob-chrono__month ob-scroll">
       <div className="ob-chrono__month-head">
@@ -414,7 +443,7 @@ function MonthGrid({ cells, onEventClick, onEventContextMenu }: { cells: MonthCe
                 return (
                   <div
                     key={e.id ?? i}
-                    className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable')}
+                    className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable', !!e.id && e.id === selectedId && 'ob-chrono__month-ev--active')}
                     style={{ ['--ev-c' as string]: KIND_COLOR[e.kind] }}
                     onClick={click}
                     onContextMenu={ctx}
@@ -458,7 +487,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
       </div>
 
       {view === 'month' && cal.month ? (
-        <MonthGrid cells={cal.month} onEventClick={cal.onEventClick} onEventContextMenu={cal.onEventContextMenu} />
+        <MonthGrid cells={cal.month} selectedId={cal.selectedId} onEventClick={cal.onEventClick} onEventContextMenu={cal.onEventContextMenu} />
       ) : (
       <>
       {/* Day header */}
@@ -485,7 +514,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
                 return (
                   <div
                     key={a.id ?? j}
-                    className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable')}
+                    className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
                     style={{ ['--ev-c' as string]: KIND_COLOR[a.kind] }}
                     onClick={click}
                     onContextMenu={ctx}
@@ -518,6 +547,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
               dayIndex={i}
               isToday={i === cal.todayIndex}
               timed={cal.timed}
+              selectedId={cal.selectedId}
               onEventClick={cal.onEventClick}
               onEventContextMenu={cal.onEventContextMenu}
               onEventReschedule={cal.onEventReschedule}

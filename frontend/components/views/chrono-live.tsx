@@ -56,13 +56,40 @@ const SPARK_MAP: Record<string, 'voice' | 'text' | 'file' | 'photo'> = {
   file: 'file',
 };
 
+const SPARK_PLACEHOLDER: Record<string, string> = {
+  audio_recording: 'Nota vocale',
+  image: 'Foto',
+  photo: 'Foto',
+  video: 'Video',
+  file: 'File',
+  text: 'Nota',
+};
+
+/**
+ * Titolo da mostrare sulla card. Le note catturate al volo spesso non hanno
+ * un titolo (generazione AI non ancora avvenuta): in tal caso ripieghiamo sul
+ * contenuto testuale del primo spark, poi sul nome file, infine su un'etichetta
+ * per tipo — così la card non resta mai vuota.
+ */
+function deriveTitle(t: Tile): string {
+  if (t.title && t.title.trim()) return t.title.trim();
+  const sp = t.sparks?.[0];
+  if (sp) {
+    const text = (sp.content || sp.file_name || '').trim().replace(/\s+/g, ' ');
+    if (text) return text.length > 90 ? `${text.slice(0, 90)}…` : text;
+    const label = SPARK_PLACEHOLDER[sp.type];
+    if (label) return label;
+  }
+  return 'Senza titolo';
+}
+
 function toColTile(t: Tile): ColTile {
   const isTodo = t.action_type === 'anytime';
   const sp = t.sparks?.[0];
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
   return {
     id: t.id,
-    title: t.title || 'Senza titolo',
+    title: deriveTitle(t),
     actionLabel: isTodo ? 'To do' : 'Notes',
     actionColor: isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
     spark: sp ? SPARK_MAP[sp.type] : undefined,
@@ -350,6 +377,7 @@ export function ChronoLive() {
     return {
       days,
       todayIndex: todayIndex >= 0 && todayIndex <= 6 ? todayIndex : -1,
+      selectedId: selectedTileId ?? undefined,
       rangeLabel: view === 'month' ? monthRangeLabel : weekRangeLabel,
       timed,
       allday,
@@ -365,7 +393,7 @@ export function ChronoLive() {
       onScheduleTile: handleScheduleTile,
       onCreateAt: handleCreateAt,
     };
-  }, [events, weekStart, view, monthInfo, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleCreateAt]);
+  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleCreateAt]);
 
   const handleAddTile = useCallback(async () => {
     try {
