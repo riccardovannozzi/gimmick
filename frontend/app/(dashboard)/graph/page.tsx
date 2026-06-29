@@ -4,7 +4,6 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
-import { Header } from '@/components/layout/header';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
@@ -1289,7 +1288,6 @@ export default function GraphPage() {
 
   return (
     <div className={cn('flex flex-col h-full', inShell && 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
-      {!inShell && <Header title="Panopticon" />}
 
       {/* Toolbar */}
       <div

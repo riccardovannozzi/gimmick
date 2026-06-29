@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox } from '@tabler/icons-react';
-import { Header } from '@/components/layout/header';
 import { usePixelTheme } from '@/components/pixel';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
@@ -667,7 +666,6 @@ export default function CanvasPage() {
 
   return (
     <div className={`flex flex-col h-full${inShell ? ' flex-1 min-w-0' : ''}`} style={{ background: theme.bg1 }}>
-      {!inShell && <Header title="Canvas" />}
 
       {tagId && tag ? (
         <div className="flex flex-1 overflow-hidden">

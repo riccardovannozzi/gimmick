@@ -1,15 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
-import { usePixelTheme } from '@/components/pixel';
 import { Field, Button } from '@/components/primitives';
 import { AuthLayout, AuthField, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { authApi } from '@/lib/api';
 
 const schema = z.object({
@@ -18,7 +15,6 @@ const schema = z.object({
 type Form = z.infer<typeof schema>;
 
 export default function ForgotPasswordPage() {
-  const theme = usePixelTheme();
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
   const {
@@ -39,151 +35,26 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const inputStyle: React.CSSProperties = {
-    width: '100%',
-    background: theme.surfaceVariant,
-    border: `2px solid ${theme.border}`,
-    padding: '8px 10px',
-    color: theme.ink,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    outline: 'none',
-  };
-
-  if (isObsidianShellEnabled()) {
-    return (
-      <AuthLayout title="Password dimenticata" subtitle="Ti invieremo un link per reimpostarla">
-        {submitted ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
-              Se l&apos;email è registrata riceverai a breve un link per reimpostare la password. Controlla anche nello spam.
-            </p>
-            <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <AuthField label="Email" htmlFor="email" error={errors.email?.message}>
-              <Field id="email" type="email" placeholder="nome@esempio.com" invalid={!!errors.email} {...register('email')} />
-            </AuthField>
-            <Button variant="primary" type="submit" disabled={sending} style={{ width: '100%' }}>
-              {sending ? 'Invio…' : 'Invia link'}
-            </Button>
-            <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
-          </form>
-        )}
-      </AuthLayout>
-    );
-  }
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: theme.bg1,
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 384,
-          background: theme.surface,
-          border: `2px solid ${theme.border}`,
-          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-          color: theme.ink,
-        }}
-      >
-        <div style={{ padding: '20px 16px 16px', background: theme.surfaceVariant, borderBottom: `2px solid ${theme.border}`, textAlign: 'center' }}>
-          <h1
-            style={{
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 16,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: theme.ink,
-              margin: 0,
-            }}
-          >
-            Password dimenticata
-          </h1>
-          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: '6px 0 0' }}>
-            Ti invieremo un link per reimpostarla
+    <AuthLayout title="Password dimenticata" subtitle="Ti invieremo un link per reimpostarla">
+      {submitted ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+            Se l&apos;email è registrata riceverai a breve un link per reimpostare la password. Controlla anche nello spam.
           </p>
+          <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
         </div>
-
-        {submitted ? (
-          <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2, margin: 0, lineHeight: 1.55 }}>
-              Se l&apos;email è registrata riceverai a breve un link per
-              reimpostare la password. Controlla anche nello spam.
-            </p>
-            <p style={{ textAlign: 'center', fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: 0 }}>
-              <Link href="/login" style={{ color: theme.accent, textDecoration: 'underline' }}>
-                Torna al login
-              </Link>
-            </p>
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit(onSubmit)} style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            <div>
-              <label htmlFor="email" style={labelStyle}>Email</label>
-              <input
-                id="email"
-                type="email"
-                placeholder="nome@esempio.com"
-                style={inputStyle}
-                {...register('email')}
-              />
-              {errors.email && (
-                <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: '#E24B4A', margin: '4px 0 0' }}>
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            <button
-              type="submit"
-              disabled={sending}
-              className="px-press"
-              style={{
-                width: '100%',
-                padding: '0 12px',
-                height: 32,
-                background: theme.accent,
-                color: theme.onAccent,
-                border: `2px solid ${theme.border}`,
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 10,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                cursor: sending ? 'not-allowed' : 'pointer',
-                opacity: sending ? 0.5 : 1,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-              }}
-            >
-              {sending ? 'Invio…' : 'Invia link'}
-            </button>
-
-            <p style={{ marginTop: 4, textAlign: 'center', fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
-              <Link href="/login" style={{ color: theme.accent, textDecoration: 'underline' }}>
-                Torna al login
-              </Link>
-            </p>
-          </form>
-        )}
-      </div>
-    </div>
+      ) : (
+        <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <AuthField label="Email" htmlFor="email" error={errors.email?.message}>
+            <Field id="email" type="email" placeholder="nome@esempio.com" invalid={!!errors.email} {...register('email')} />
+          </AuthField>
+          <Button variant="primary" type="submit" disabled={sending} style={{ width: '100%' }}>
+            {sending ? 'Invio…' : 'Invia link'}
+          </Button>
+          <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
+        </form>
+      )}
+    </AuthLayout>
   );
 }

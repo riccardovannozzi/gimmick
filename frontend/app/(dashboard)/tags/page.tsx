@@ -7,7 +7,6 @@ import { IconPlus, IconTrash, IconTag, IconPencil, IconCheck, IconX, IconSetting
 import * as TablerIcons from '@tabler/icons-react';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { toast } from 'sonner';
-import { Header } from '@/components/layout/header';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Table,
@@ -770,7 +769,6 @@ export default function TagsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1, ...(inShell ? { flex: 1, minWidth: 0 } : {}) }}>
-      {!inShell && <Header title="Tags" />}
 
       <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
         {/* Toolbar */}
