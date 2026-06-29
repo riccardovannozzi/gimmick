@@ -3,7 +3,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
 const MINUTES = ['00', '15', '30', '45'];
@@ -20,9 +19,8 @@ interface TimePickerProps {
 
 export function TimePicker({ value, onChange, label, icon, compact, borderless }: TimePickerProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const monoFont = inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)';
-  const sansFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
+  const monoFont = 'var(--ob-font-mono)';
+  const sansFont = 'var(--ob-font-sans)';
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -77,7 +75,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless }
         border: 'none',
         cursor: 'pointer',
         textAlign: 'left',
-        fontFamily: 'var(--font-pixel-body)',
+        fontFamily: sansFont,
         fontSize: 11,
         color: theme.ink3,
       }
@@ -86,22 +84,22 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless }
         alignItems: 'center',
         gap: 4,
         padding: compact ? '0 10px' : '6px 8px',
-        height: compact ? (inShell ? 36 : 30) : 'auto',
-        background: inShell ? theme.surface : theme.surfaceVariant,
-        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-        borderRadius: inShell ? 10 : 0,
+        height: compact ? 36 : 'auto',
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 10,
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: sansFont,
-        fontSize: compact ? (inShell ? 13 : 11) : 12,
+        fontSize: compact ? 13 : 12,
         color: theme.ink,
       };
 
   const gridBtn = (active: boolean): React.CSSProperties => ({
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink,
-    border: `${inShell ? 1 : 2}px solid ${active && !inShell ? theme.border : 'transparent'}`,
-    borderRadius: inShell ? 7 : 0,
+    border: `1px solid transparent`,
+    borderRadius: 7,
     fontFamily: sansFont,
     fontSize: 11,
     fontWeight: 600,
@@ -137,9 +135,9 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless }
             left: pos.left,
             zIndex: 9999,
             background: theme.surface,
-            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
-            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 8,
           }}
         >
@@ -174,7 +172,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless }
             </div>
 
             {/* Separator */}
-            <div style={{ width: inShell ? 1 : 2, background: theme.border, alignSelf: 'stretch' }} />
+            <div style={{ width: 1, background: theme.border, alignSelf: 'stretch' }} />
 
             {/* Minutes column */}
             <div>

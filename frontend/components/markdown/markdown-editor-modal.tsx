@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { MarkdownEditor } from './markdown-editor';
 
 interface MarkdownEditorModalProps {
@@ -24,7 +23,6 @@ interface MarkdownEditorModalProps {
  */
 export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, title = 'Modifica testo' }: MarkdownEditorModalProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const [draft, setDraft] = useState(initialValue);
 
   // Reset draft each time the modal re-opens with a (possibly new) value.
@@ -36,14 +34,14 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
     <Dialog open={open} onOpenChange={(o) => { if (!o) onCancel(); }}>
       <DialogContent
         showCloseButton={false}
-        className={inShell ? '!max-w-[min(90vw,1024px)] !p-0 !gap-0 !border-0' : '!max-w-[min(90vw,1024px)] !p-0 !gap-0 !rounded-none !border-0'}
+        className={'!max-w-[min(90vw,1024px)] !p-0 !gap-0 !border-0'}
         style={{
           width: 'min(90vw, 1024px)',
           height: '80vh',
           background: theme.surface,
-          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-          borderRadius: inShell ? 16 : 0,
-          boxShadow: inShell ? 'var(--ob-shadow-modal, var(--ob-shadow-card))' : undefined,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 16,
+          boxShadow: 'var(--ob-shadow-modal, var(--ob-shadow-card))',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -60,16 +58,16 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
             alignItems: 'center',
             justifyContent: 'space-between',
             padding: '10px 14px',
-            borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderBottom: `1px solid ${theme.border}`,
             background: theme.bg2,
           }}
         >
           <span style={{
-            fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
-            fontSize: inShell ? 14 : 11,
-            fontWeight: inShell ? 600 : undefined,
-            letterSpacing: inShell ? 0 : '0.08em',
-            textTransform: inShell ? 'none' : 'uppercase',
+            fontFamily: 'var(--ob-font-sans)',
+            fontSize: 14,
+            fontWeight: 600,
+            letterSpacing: 0,
+            textTransform: 'none',
             color: theme.ink,
           }}>
             {title}
@@ -79,16 +77,16 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
               type="button"
               onClick={onCancel}
               style={{
-                padding: inShell ? '6px 12px' : '4px 10px',
+                padding: '6px 12px',
                 background: theme.surfaceVariant,
-                color: inShell ? theme.ink2 : theme.ink,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-                borderRadius: inShell ? 9 : 0,
-                fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
-                fontSize: inShell ? 13 : 10,
-                fontWeight: inShell ? 600 : undefined,
-                letterSpacing: inShell ? 0 : '0.08em',
-                textTransform: inShell ? 'none' : 'uppercase',
+                color: theme.ink2,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 9,
+                fontFamily: 'var(--ob-font-sans)',
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: 0,
+                textTransform: 'none',
                 cursor: 'pointer',
               }}
             >
@@ -98,16 +96,16 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
               type="button"
               onClick={() => onSave(draft)}
               style={{
-                padding: inShell ? '6px 12px' : '4px 10px',
+                padding: '6px 12px',
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `${inShell ? 1 : 2}px solid ${inShell ? 'transparent' : theme.border}`,
-                borderRadius: inShell ? 9 : 0,
-                fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
-                fontSize: inShell ? 13 : 10,
-                fontWeight: inShell ? 600 : undefined,
-                letterSpacing: inShell ? 0 : '0.08em',
-                textTransform: inShell ? 'none' : 'uppercase',
+                border: `1px solid transparent`,
+                borderRadius: 9,
+                fontFamily: 'var(--ob-font-sans)',
+                fontSize: 13,
+                fontWeight: 600,
+                letterSpacing: 0,
+                textTransform: 'none',
                 cursor: 'pointer',
               }}
             >

@@ -11,7 +11,6 @@ import { IconMicrophone, IconFile, IconDownload, IconLoader2, IconAlertCircle } 
 import { uploadApi } from '@/lib/api';
 import { typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { Spark } from '@/types';
 
 interface SparkViewerProps {
@@ -22,8 +21,7 @@ interface SparkViewerProps {
 
 export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
+  const bW = 1;
   const [signedUrl, setSignedUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -67,7 +65,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
       return (
         <div className="flex flex-col items-center justify-center py-12" style={{ color: theme.ink3 }}>
           <IconLoader2 className="h-8 w-8 animate-spin mb-3" />
-          <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12 }}>Caricamento...</p>
+          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>Caricamento...</p>
         </div>
       );
     }
@@ -76,7 +74,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
       return (
         <div className="flex flex-col items-center justify-center py-12" style={{ color: '#E24B4A' }}>
           <IconAlertCircle className="h-8 w-8 mb-3" />
-          <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12 }}>{error}</p>
+          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>{error}</p>
         </div>
       );
     }
@@ -92,7 +90,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               src={signedUrl!}
               alt={spark.file_name || 'Immagine'}
               className="max-h-[70vh] max-w-full object-contain"
-              style={{ border: `${bW}px solid ${theme.border}`, borderRadius: inShell ? 12 : 0 }}
+              style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 12 }}
             />
           </div>
         );
@@ -103,7 +101,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             src={signedUrl!}
             controls
             className="max-h-[70vh] w-full"
-            style={{ border: `${bW}px solid ${theme.border}`, borderRadius: inShell ? 12 : 0, background: '#000' }}
+            style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 12, background: '#000' }}
           >
             Il tuo browser non supporta il tag video.
           </video>
@@ -117,7 +115,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                 width: 64, height: 64,
                 background: theme.surfaceVariant,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: inShell ? 14 : 0,
+                borderRadius: 14,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
@@ -125,7 +123,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             </div>
             <audio src={signedUrl!} controls className="w-full" />
             {spark.duration != null && (
-              <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
+              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>
                 Durata: {formatDuration(spark.duration)}
               </p>
             )}
@@ -137,13 +135,13 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
           <div
             className="max-h-[60vh] overflow-auto whitespace-pre-wrap"
             style={{
-              padding: inShell ? 14 : 12,
+              padding: 14,
               background: theme.surfaceVariant,
               border: `${bW}px solid ${theme.border}`,
-              borderRadius: inShell ? 10 : 0,
+              borderRadius: 10,
               color: theme.ink,
-              fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
-              fontSize: inShell ? 13.5 : 12,
+              fontFamily: 'var(--ob-font-sans)',
+              fontSize: 13.5,
               lineHeight: 1.55,
             }}
           >
@@ -159,21 +157,21 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                 width: 64, height: 64,
                 background: theme.surfaceVariant,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: inShell ? 14 : 0,
+                borderRadius: 14,
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
               <IconFile size={32} style={{ color: theme.ink2 }} />
             </div>
             <div className="text-center" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 13, fontWeight: 600, color: theme.ink, wordBreak: 'break-all' }}>
+              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600, color: theme.ink, wordBreak: 'break-all' }}>
                 {spark.file_name || 'File'}
               </p>
               {spark.mime_type && (
-                <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>{spark.mime_type}</p>
+                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>{spark.mime_type}</p>
               )}
               {spark.file_size != null && (
-                <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>{formatFileSize(spark.file_size)}</p>
+                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>{formatFileSize(spark.file_size)}</p>
               )}
             </div>
             {signedUrl && (
@@ -187,19 +185,19 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: 6,
-                  padding: inShell ? '9px 16px' : '6px 14px',
+                  padding: '9px 16px',
                   background: theme.accent,
                   color: theme.onAccent,
-                  border: `${bW}px solid ${inShell ? 'transparent' : theme.border}`,
-                  borderRadius: inShell ? 10 : 0,
-                  fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
-                  fontSize: inShell ? 13 : 10,
-                  fontWeight: inShell ? 600 : undefined,
-                  letterSpacing: inShell ? 0 : '0.08em',
-                  textTransform: inShell ? 'none' : 'uppercase',
+                  border: `${bW}px solid transparent`,
+                  borderRadius: 10,
+                  fontFamily: 'var(--ob-font-sans)',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  letterSpacing: 0,
+                  textTransform: 'none',
                   cursor: 'pointer',
                   textDecoration: 'none',
-                  boxShadow: inShell ? 'none' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  boxShadow: 'none',
                 }}
               >
                 <IconDownload size={12} />
@@ -211,7 +209,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
 
       default:
         return (
-          <p style={{ textAlign: 'center', padding: '32px 0', color: theme.ink3, fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12 }}>
+          <p style={{ textAlign: 'center', padding: '32px 0', color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>
             Tipo non supportato
           </p>
         );
@@ -225,18 +223,18 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
     width: '100%',
     background: theme.surface,
     border: `${bW}px solid ${theme.border}`,
-    borderRadius: inShell ? 14 : 0,
+    borderRadius: 14,
     color: theme.ink,
-    boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    boxShadow: 'var(--ob-shadow-card)',
     padding: 0,
     gap: 0,
     display: 'block',
-    overflow: inShell ? 'hidden' : undefined,
+    overflow: 'hidden',
   };
 
   const headerStyle: React.CSSProperties = {
-    padding: inShell ? '14px 16px' : '10px 14px',
-    background: inShell ? theme.bg2 : theme.surfaceVariant,
+    padding: '14px 16px',
+    background: theme.bg2,
     borderBottom: `${bW}px solid ${theme.border}`,
   };
 
@@ -253,13 +251,13 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} style={dialogStyle} className={inShell ? '!gap-0 !p-0' : '!gap-0 !p-0 !rounded-none'}>
+      <DialogContent showCloseButton={false} style={dialogStyle} className={'!gap-0 !p-0'}>
         <div style={headerStyle}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <DialogTitle
               style={{
                 flex: 1,
-                fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+                fontFamily: 'var(--ob-font-mono)',
                 fontSize: 11,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -280,13 +278,13 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                 width: 22, height: 22,
                 background: theme.surface,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: inShell ? 6 : 0,
+                borderRadius: 6,
                 color: theme.ink2,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
-                fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+                fontFamily: 'var(--ob-font-mono)',
                 fontSize: 11,
                 lineHeight: 1,
                 flexShrink: 0,
@@ -304,9 +302,9 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                     background: theme.surface,
                     color: theme.ink2,
                     border: `${bW}px solid ${theme.border}`,
-                    borderRadius: inShell ? 6 : 0,
-                    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
-                    fontSize: inShell ? 9.5 : 8,
+                    borderRadius: 6,
+                    fontFamily: 'var(--ob-font-mono)',
+                    fontSize: 9.5,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}
@@ -314,7 +312,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                   {typeLabels[spark.type]}
                 </span>
               )}
-              <span style={{ color: theme.ink3, fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 11 }}>
+              <span style={{ color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: 11 }}>
                 {dateText}
               </span>
             </div>

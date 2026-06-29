@@ -5,7 +5,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { subtasksApi } from '@/lib/api';
 import type { Subtask } from '@/types';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import {
   IconPlus,
   IconTrash,
@@ -20,7 +19,6 @@ interface SubtaskListProps {
 
 export function SubtaskList({ tileId }: SubtaskListProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const queryClient = useQueryClient();
   const queryKey = ['subtasks', tileId];
 
@@ -86,7 +84,7 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
+      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
         Caricamento...
       </p>
     );
@@ -97,8 +95,8 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
       {subtasks.length === 0 && (
         <p
           style={{
-            fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
-            fontSize: inShell ? 11 : 9,
+            fontFamily: 'var(--ob-font-mono)',
+            fontSize: 11,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink3,
@@ -141,21 +139,21 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 6,
-          padding: inShell ? '9px 8px' : '6px 8px',
+          padding: '9px 8px',
           background: 'transparent',
-          color: inShell ? theme.ink2 : theme.ink3,
-          border: `${inShell ? 1 : 2}px dashed ${theme.border}`,
-          borderRadius: inShell ? 10 : 0,
-          fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)',
-          fontSize: inShell ? 12.5 : 9,
-          fontWeight: inShell ? 600 : undefined,
-          letterSpacing: inShell ? 0 : '0.08em',
-          textTransform: inShell ? 'none' : 'uppercase',
+          color: theme.ink2,
+          border: `1px dashed ${theme.border}`,
+          borderRadius: 10,
+          fontFamily: 'var(--ob-font-sans)',
+          fontSize: 12.5,
+          fontWeight: 600,
+          letterSpacing: 0,
+          textTransform: 'none',
           cursor: addMutation.isPending ? 'not-allowed' : 'pointer',
           opacity: addMutation.isPending ? 0.4 : 1,
         }}
       >
-        <IconPlus size={inShell ? 14 : 11} />
+        <IconPlus size={14} />
         Aggiungi elemento
       </button>
     </div>
@@ -178,7 +176,6 @@ interface SubtaskRowProps {
 
 function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onDelete, onCopy, onDragStart, onDragOver, onDragEnd }: SubtaskRowProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const [value, setValue] = useState(subtask.content);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const dirty = useRef(false);
@@ -217,13 +214,13 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
       onDrop={(e) => { e.preventDefault(); onDragEnd(); }}
       className="group"
       style={{
-        background: inShell ? theme.surface : theme.surfaceVariant,
-        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-        borderRadius: inShell ? 10 : 0,
-        padding: inShell ? 10 : 8,
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 10,
+        padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
-        borderTopWidth: isDropTarget ? (inShell ? 2 : 4) : (inShell ? 1 : 2),
+        borderTopWidth: isDropTarget ? (2) : (1),
         borderTopColor: isDropTarget ? theme.accent : theme.border,
       }}
     >
@@ -247,8 +244,8 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             alignItems: 'center',
             justifyContent: 'center',
             background: subtask.is_done ? theme.accent : 'transparent',
-            border: `${inShell ? 1.5 : 2}px solid ${subtask.is_done ? (inShell ? theme.accent : theme.border) : theme.ink3}`,
-            borderRadius: inShell ? 5 : 0,
+            border: `1.5px solid ${subtask.is_done ? (theme.accent) : theme.ink3}`,
+            borderRadius: 5,
             cursor: 'pointer',
             marginTop: 2,
           }}
@@ -270,7 +267,7 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             minWidth: 0,
             background: 'transparent',
             color: subtask.is_done ? theme.ink3 : theme.ink,
-            fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+            fontFamily: 'var(--ob-font-sans)',
             fontSize: 12,
             lineHeight: 1.3,
             resize: 'none',
@@ -308,8 +305,8 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             padding: 2,
             background: confirmDelete ? '#E24B4A' : 'transparent',
             color: confirmDelete ? '#FFFFFF' : theme.ink3,
-            border: confirmDelete ? `${inShell ? 1 : 2}px solid ${theme.border}` : 'none',
-            borderRadius: inShell ? 5 : 0,
+            border: confirmDelete ? `1px solid ${theme.border}` : 'none',
+            borderRadius: 5,
             cursor: 'pointer',
             display: 'inline-flex',
             ...(confirmDelete ? { opacity: 1 } : {}),

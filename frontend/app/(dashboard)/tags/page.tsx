@@ -17,8 +17,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
-import { pixelToolbarBtn, obsidianToolbarBtn } from '@/lib/pixel-toolbar';
+import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -32,7 +31,6 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
   children: React.ReactNode;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState({ top: 0, left: 0 });
 
@@ -73,7 +71,7 @@ function FilterPopup({ anchorRef, open, onClose, children }: {
         left: pos.left,
         zIndex: 9999,
         background: theme.surface,
-        border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        border: `1px solid ${theme.border}`,
         boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
         padding: 10,
         maxHeight: 320,
@@ -104,7 +102,6 @@ function FilterableHead({
   headRef: React.RefObject<HTMLTableCellElement | null>;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const startX = useRef(0);
   const startW = useRef(width);
 
@@ -139,15 +136,15 @@ function FilterableHead({
       style={{
         width, minWidth: width, maxWidth: width,
         background: theme.surfaceVariant,
-        borderRight: `${inShell ? 1 : 2}px solid ${theme.border}`,
-        borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+        borderRight: `1px solid ${theme.border}`,
+        borderBottom: `1px solid ${theme.border}`,
       }}
     >
       <button
         onClick={onToggleFilter}
         className="flex items-center gap-1 w-full text-left"
         style={{
-          fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+          fontFamily: ('var(--ob-font-mono)'),
           fontSize: 9,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
@@ -171,7 +168,6 @@ function FilterableHead({
 // ─── Color Dot Picker ────────────────────────────────────────
 function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const [open, setOpen] = useState(false);
 
   return (
@@ -182,7 +178,7 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
         style={{
           width: 36,
           height: 36,
-          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+          border: `1px solid ${theme.border}`,
           background: `${value}33`,
           display: 'inline-flex',
           alignItems: 'center',
@@ -191,7 +187,7 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
           cursor: 'pointer',
         }}
       >
-        <div style={{ width: 18, height: 18, background: value, border: `${inShell ? 1 : 2}px solid ${theme.border}` }} />
+        <div style={{ width: 18, height: 18, background: value, border: `1px solid ${theme.border}` }} />
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -200,8 +196,8 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
           style={{
             maxWidth: 240,
             background: theme.surface,
-            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
             color: theme.ink,
             boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 0,
@@ -213,8 +209,8 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
             style={{
               padding: '10px 12px',
               background: theme.surfaceVariant,
-              borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              borderBottom: `1px solid ${theme.border}`,
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 10,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -259,7 +255,6 @@ function TagTypePills({
   getName: (slug: string) => string;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       {tagTypes.map((t) => {
@@ -276,8 +271,8 @@ function TagTypePills({
               padding: '6px 10px',
               background: isActive ? theme.accent : theme.surfaceVariant,
               color: isActive ? theme.onAccent : theme.ink2,
-              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              border: `1px solid ${theme.border}`,
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 9,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -311,7 +306,6 @@ function TagTypesModal({
   onOpenChange: (v: boolean) => void;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const queryClient = useQueryClient();
   const { tagTypes } = useTagTypes();
   const [newName, setNewName] = useState('');
@@ -372,7 +366,7 @@ function TagTypesModal({
   };
 
   const labelStyle: React.CSSProperties = {
-    fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+    fontFamily: ('var(--ob-font-mono)'),
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -384,10 +378,10 @@ function TagTypesModal({
   const inputStyle: React.CSSProperties = {
     width: '100%',
     background: theme.surfaceVariant,
-    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    border: `1px solid ${theme.border}`,
     padding: '6px 8px',
     color: theme.ink,
-    fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+    fontFamily: ('var(--ob-font-sans)'),
     fontSize: 12,
     outline: 'none',
     height: 32,
@@ -400,10 +394,10 @@ function TagTypesModal({
         style={{
           maxWidth: 480,
           background: theme.surface,
-          border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-          borderRadius: inShell ? 16 : 0,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 16,
           color: theme.ink,
-          boxShadow: inShell ? 'var(--ob-shadow-modal, var(--ob-shadow-card))' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          boxShadow: 'var(--ob-shadow-modal, var(--ob-shadow-card))',
           padding: 0,
           gap: 0,
           display: 'block',
@@ -416,13 +410,13 @@ function TagTypesModal({
             gap: 8,
             padding: '10px 12px',
             background: theme.surfaceVariant,
-            borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            borderBottom: `1px solid ${theme.border}`,
           }}
         >
           <IconSettings size={14} style={{ color: theme.accent }} />
           <span
             style={{
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 11,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
@@ -466,7 +460,7 @@ function TagTypesModal({
                 justifyContent: 'center',
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
                 cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
                 opacity: !newName.trim() || createMutation.isPending ? 0.5 : 1,
                 flexShrink: 0,
@@ -486,7 +480,7 @@ function TagTypesModal({
                 style={{
                   padding: '8px 10px',
                   background: theme.surfaceVariant,
-                  border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                  border: `1px solid ${theme.border}`,
                 }}
               >
                 {editingId === tt.id ? (
@@ -521,8 +515,8 @@ function TagTypesModal({
                     <span style={{ width: 24, textAlign: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                       <TagTypeIcon emoji={tt.emoji} size={16} color={theme.ink2} />
                     </span>
-                    <div style={{ width: 14, height: 14, background: tt.color || '#94A3B8', border: `${inShell ? 1 : 2}px solid ${theme.border}`, flexShrink: 0 }} />
-                    <span style={{ fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 12, color: theme.ink, flex: 1 }}>{tt.name}</span>
+                    <div style={{ width: 14, height: 14, background: tt.color || '#94A3B8', border: `1px solid ${theme.border}`, flexShrink: 0 }} />
+                    <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 12, color: theme.ink, flex: 1 }}>{tt.name}</span>
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => {
@@ -556,7 +550,6 @@ function TagTypesModal({
 // ─── Main Tags Page ──────────────────────────────────────────
 export default function TagsPage() {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const queryClient = useQueryClient();
   const { tagTypes, getEmoji, getName, getColor } = useTagTypes();
   const [createOpen, setCreateOpen] = useState(false);
@@ -742,12 +735,12 @@ export default function TagsPage() {
   }, []);
 
   const cellBorder: React.CSSProperties = {
-    borderRight: `${inShell ? 1 : 2}px solid ${theme.border}`,
-    borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    borderRight: `1px solid ${theme.border}`,
+    borderBottom: `1px solid ${theme.border}`,
   };
 
   const labelStyle: React.CSSProperties = {
-    fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+    fontFamily: ('var(--ob-font-mono)'),
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -759,16 +752,16 @@ export default function TagsPage() {
   const modalInputStyle: React.CSSProperties = {
     width: '100%',
     background: theme.surfaceVariant,
-    border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+    border: `1px solid ${theme.border}`,
     padding: '8px 10px',
     color: theme.ink,
-    fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+    fontFamily: ('var(--ob-font-sans)'),
     fontSize: 12,
     outline: 'none',
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1, ...(inShell ? { flex: 1, minWidth: 0 } : {}) }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1, ...({ flex: 1, minWidth: 0 }) }}>
 
       <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
         {/* Toolbar */}
@@ -777,7 +770,7 @@ export default function TagsPage() {
             <IconTag size={18} style={{ color: theme.accent }} />
             <span
               style={{
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 10,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -795,7 +788,7 @@ export default function TagsPage() {
                 setAliasFilter('');
               }}
               style={{
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 9,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
@@ -811,7 +804,7 @@ export default function TagsPage() {
           <button
             onClick={() => setCreateOpen(true)}
             className="px-press"
-            style={inShell ? obsidianToolbarBtn(theme, true) : pixelToolbarBtn(theme, true)}
+            style={obsidianToolbarBtn(theme, true)}
           >
             <IconPlus size={12} />
             Add Tag
@@ -819,7 +812,7 @@ export default function TagsPage() {
           <button
             onClick={() => setTypesOpen(true)}
             className="px-press"
-            style={inShell ? obsidianToolbarBtn(theme, false) : pixelToolbarBtn(theme, false)}
+            style={obsidianToolbarBtn(theme, false)}
           >
             <IconPencil size={12} />
             Edit Tags
@@ -832,7 +825,7 @@ export default function TagsPage() {
             style={{
               textAlign: 'center',
               padding: '32px 0',
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 10,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
@@ -851,7 +844,7 @@ export default function TagsPage() {
                 width: 48,
                 height: 48,
                 background: theme.surfaceVariant,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
                 color: theme.ink3,
                 marginBottom: 12,
               }}
@@ -860,7 +853,7 @@ export default function TagsPage() {
             </div>
             <p
               style={{
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 10,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -870,7 +863,7 @@ export default function TagsPage() {
               {hasAnyFilter ? 'Nessun tag corrisponde ai filtri' : 'Nessun tag creato'}
             </p>
             {!hasAnyFilter && (
-              <p style={{ fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 11, color: theme.ink3, marginTop: 6 }}>
+              <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3, marginTop: 6 }}>
                 Crea il primo tag per organizzare le tue tiles
               </p>
             )}
@@ -879,7 +872,7 @@ export default function TagsPage() {
           <div
             style={{
               background: theme.surface,
-              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
               boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
               display: 'flex',
               flexDirection: 'column',
@@ -900,8 +893,8 @@ export default function TagsPage() {
                         minWidth: 96,
                         maxWidth: 96,
                         background: theme.surfaceVariant,
-                        borderRight: `${inShell ? 1 : 2}px solid ${theme.border}`,
-                        borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                        borderRight: `1px solid ${theme.border}`,
+                        borderBottom: `1px solid ${theme.border}`,
                       }}
                     />
                   </TableRow>
@@ -937,10 +930,10 @@ export default function TagsPage() {
                               height: 28,
                               width: '100%',
                               background: theme.surfaceVariant,
-                              border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                              border: `1px solid ${theme.border}`,
                               padding: '0 6px',
                               color: theme.ink,
-                              fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                              fontFamily: ('var(--ob-font-sans)'),
                               fontSize: 12,
                               outline: 'none',
                             }}
@@ -948,7 +941,7 @@ export default function TagsPage() {
                         ) : (
                           <span
                             style={{
-                              fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                              fontFamily: ('var(--ob-font-sans)'),
                               fontSize: 12,
                               color: theme.ink,
                               display: 'block',
@@ -983,7 +976,7 @@ export default function TagsPage() {
                           <TagTypeIcon emoji={getEmoji(tag.tag_type || 'topic')} size={14} color={getColor(tag.tag_type || 'topic') || '#94A3B8'} />
                           <span
                             style={{
-                              fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                              fontFamily: ('var(--ob-font-sans)'),
                               fontSize: 12,
                               color: theme.ink2,
                               flex: 1,
@@ -1018,7 +1011,7 @@ export default function TagsPage() {
                         {tag.aliases && tag.aliases.length > 0 ? (
                           <span
                             style={{
-                              fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                              fontFamily: ('var(--ob-font-sans)'),
                               fontSize: 12,
                               color: theme.ink2,
                               display: 'block',
@@ -1030,7 +1023,7 @@ export default function TagsPage() {
                             {tag.aliases.join(', ')}
                           </span>
                         ) : (
-                          <span style={{ color: theme.ink3, fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 12 }}>—</span>
+                          <span style={{ color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: 12 }}>—</span>
                         )}
                       </TableCell>
 
@@ -1039,7 +1032,7 @@ export default function TagsPage() {
                         {tag.is_root ? (
                           <span
                             style={{
-                              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                              fontFamily: ('var(--ob-font-mono)'),
                               fontSize: 9,
                               letterSpacing: '0.08em',
                               textTransform: 'uppercase',
@@ -1086,8 +1079,8 @@ export default function TagsPage() {
           style={{
             maxWidth: 480,
             background: theme.surface,
-            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
             color: theme.ink,
             boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 0,
@@ -1102,13 +1095,13 @@ export default function TagsPage() {
               gap: 8,
               padding: '10px 12px',
               background: theme.surfaceVariant,
-              borderBottom: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderBottom: `1px solid ${theme.border}`,
             }}
           >
             <IconTag size={14} style={{ color: theme.accent }} />
             <span
               style={{
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 11,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
@@ -1151,7 +1144,7 @@ export default function TagsPage() {
               justifyContent: 'flex-end',
               gap: 8,
               padding: 12,
-              borderTop: `${inShell ? 1 : 2}px solid ${theme.border}`,
+              borderTop: `1px solid ${theme.border}`,
               background: theme.surfaceVariant,
             }}
           >
@@ -1165,8 +1158,8 @@ export default function TagsPage() {
                 padding: '0 12px',
                 background: theme.surface,
                 color: theme.ink2,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                border: `1px solid ${theme.border}`,
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 9,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -1187,8 +1180,8 @@ export default function TagsPage() {
                 padding: '0 12px',
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
-                fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+                border: `1px solid ${theme.border}`,
+                fontFamily: ('var(--ob-font-mono)'),
                 fontSize: 9,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -1215,7 +1208,7 @@ export default function TagsPage() {
             zIndex: 9999,
             width: 180,
             background: theme.surface,
-            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            border: `1px solid ${theme.border}`,
             boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 4,
           }}
@@ -1236,12 +1229,12 @@ export default function TagsPage() {
                   background: isActive ? theme.surfaceVariant : 'transparent',
                   border: `2px solid ${isActive ? theme.border : 'transparent'}`,
                   cursor: 'pointer',
-                  fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                  fontFamily: ('var(--ob-font-sans)'),
                   fontSize: 12,
                   color: theme.ink2,
                 }}
               >
-                <div style={{ width: 12, height: 12, background: t.color || '#94A3B8', border: `${inShell ? 1 : 2}px solid ${theme.border}`, flexShrink: 0 }} />
+                <div style={{ width: 12, height: 12, background: t.color || '#94A3B8', border: `1px solid ${theme.border}`, flexShrink: 0 }} />
                 <TagTypeIcon emoji={t.emoji} size={14} color={theme.ink2} />
                 <span style={{ flex: 1 }}>{t.name}</span>
                 {isActive && <IconCheck size={12} style={{ color: theme.accent }} />}
@@ -1263,14 +1256,14 @@ export default function TagsPage() {
             zIndex: 9999,
             width: 240,
             background: theme.surface,
-            border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+            border: `1px solid ${theme.border}`,
             boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
             padding: 10,
           }}
         >
           <label
             style={{
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -1283,7 +1276,7 @@ export default function TagsPage() {
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 132, overflowY: 'auto', marginBottom: 8 }}>
             {editAliasesList.length === 0 ? (
-              <span style={{ fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 11, color: theme.ink3 }}>
+              <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3 }}>
                 Nessun alias
               </span>
             ) : (
@@ -1291,7 +1284,7 @@ export default function TagsPage() {
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <span
                     style={{
-                      fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                      fontFamily: ('var(--ob-font-sans)'),
                       fontSize: 12,
                       color: theme.ink2,
                       flex: 1,
@@ -1325,10 +1318,10 @@ export default function TagsPage() {
               style={{
                 flex: 1,
                 background: theme.surfaceVariant,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
                 padding: '6px 8px',
                 color: theme.ink,
-                fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                fontFamily: ('var(--ob-font-sans)'),
                 fontSize: 12,
                 outline: 'none',
               }}
@@ -1341,7 +1334,7 @@ export default function TagsPage() {
                 height: 28,
                 background: newAliasInput.trim() ? theme.accent : theme.surfaceVariant,
                 color: newAliasInput.trim() ? theme.onAccent : theme.ink3,
-                border: `${inShell ? 1 : 2}px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
                 cursor: newAliasInput.trim() ? 'pointer' : 'not-allowed',
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -1363,7 +1356,7 @@ export default function TagsPage() {
         <div style={{ width: 168, display: 'flex', flexDirection: 'column', gap: 2 }}>
           <label
             style={{
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -1395,7 +1388,7 @@ export default function TagsPage() {
                   background: active ? theme.surfaceVariant : 'transparent',
                   border: `2px solid ${active ? theme.border : 'transparent'}`,
                   cursor: 'pointer',
-                  fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'),
+                  fontFamily: ('var(--ob-font-sans)'),
                   fontSize: 12,
                   color: theme.ink2,
                 }}
@@ -1415,7 +1408,7 @@ export default function TagsPage() {
         <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label
             style={{
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -1424,7 +1417,7 @@ export default function TagsPage() {
           >
             Cerca nel nome
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `${inShell ? 1 : 2}px solid ${theme.border}`, padding: '6px 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `1px solid ${theme.border}`, padding: '6px 8px' }}>
             <IconSearch size={12} style={{ color: theme.ink3, flexShrink: 0 }} />
             <input
               type="text"
@@ -1432,7 +1425,7 @@ export default function TagsPage() {
               onChange={(e) => setNameFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 11 }}
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: 11 }}
             />
             {nameFilter && (
               <button onClick={() => setNameFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>
@@ -1447,7 +1440,7 @@ export default function TagsPage() {
         <div style={{ width: 200, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <label
             style={{
-              fontFamily: (inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)'),
+              fontFamily: ('var(--ob-font-mono)'),
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -1456,7 +1449,7 @@ export default function TagsPage() {
           >
             Cerca negli alias
           </label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `${inShell ? 1 : 2}px solid ${theme.border}`, padding: '6px 8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: theme.surfaceVariant, border: `1px solid ${theme.border}`, padding: '6px 8px' }}>
             <IconSearch size={12} style={{ color: theme.ink3, flexShrink: 0 }} />
             <input
               type="text"
@@ -1464,7 +1457,7 @@ export default function TagsPage() {
               onChange={(e) => setAliasFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: (inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)'), fontSize: 11 }}
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: 11 }}
             />
             {aliasFilter && (
               <button onClick={() => setAliasFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>

@@ -12,7 +12,6 @@ import {
 } from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
@@ -110,13 +109,12 @@ export function StagingPanel({
 }: Props) {
   const theme = usePixelTheme();
   // Strutturali per il restyle nativo Obsidian (colori già dal theme in shell).
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
-  const headFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)';
-  const bodyFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
-  const headTransform: 'none' | 'uppercase' = inShell ? 'none' : 'uppercase';
-  const headWeight = inShell ? 600 : 400;
-  const radius = inShell ? 8 : 0;
+  const bW = 1;
+  const headFont = 'var(--ob-font-sans)';
+  const bodyFont = 'var(--ob-font-sans)';
+  const headTransform: 'none' | 'uppercase' = 'none';
+  const headWeight = 600;
+  const radius = 8;
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -283,7 +281,7 @@ export function StagingPanel({
             height: TILE_H,
             borderRadius: radius,
             border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${theme.border}`,
-            boxShadow: isSelected ? `0 0 0 ${inShell ? 2 : 3}px ${theme.accent}` : 'none',
+            boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : 'none',
           }}
           title={t.title || 'Senza titolo'}
         >
@@ -333,12 +331,12 @@ export function StagingPanel({
               height: 16,
               background: theme.accent,
               color: theme.onAccent,
-              border: `${bW}px solid ${inShell ? 'transparent' : theme.border}`,
-              borderRadius: inShell ? 6 : 0,
+              border: `${bW}px solid transparent`,
+              borderRadius: 6,
               fontFamily: headFont,
-              fontSize: inShell ? 9 : 8,
+              fontSize: 9,
               fontWeight: headWeight,
-              letterSpacing: inShell ? 0.2 : '0.08em',
+              letterSpacing: 0.2,
               textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
@@ -387,7 +385,7 @@ export function StagingPanel({
         </button>
         {tiles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
-            <span style={{ fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
+            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -440,16 +438,16 @@ export function StagingPanel({
         <span
           style={{
             fontFamily: headFont,
-            fontSize: inShell ? 13 : 10,
+            fontSize: 13,
             fontWeight: headWeight,
-            letterSpacing: inShell ? 0 : '0.1em',
+            letterSpacing: 0,
             textTransform: headTransform,
             color: theme.ink,
           }}
         >
           Staging
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)', fontSize: inShell ? 11 : 9, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 11, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
           {tiles.length}
         </span>
       </div>
@@ -482,9 +480,9 @@ export function StagingPanel({
               border: 'none',
               color: theme.ink2,
               fontFamily: headFont,
-              fontSize: inShell ? 11.5 : 9,
+              fontSize: 11.5,
               fontWeight: headWeight,
-              letterSpacing: inShell ? 0 : '0.06em',
+              letterSpacing: 0,
               textTransform: headTransform,
               cursor: 'pointer',
             }}
@@ -504,8 +502,8 @@ export function StagingPanel({
                 zIndex: 9999,
                 background: theme.surface,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: inShell ? 10 : 0,
-                boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                borderRadius: 10,
+                boxShadow: 'var(--ob-shadow-card)',
                 padding: 4,
               }}
             >
@@ -517,9 +515,9 @@ export function StagingPanel({
                     width: '100%',
                     textAlign: 'left',
                     padding: '6px 10px',
-                    borderRadius: inShell ? 6 : 0,
+                    borderRadius: 6,
                     background: groupBy === opt ? theme.surfaceVariant : 'transparent',
-                    border: `${bW}px solid ${groupBy === opt && !inShell ? theme.border : 'transparent'}`,
+                    border: `${bW}px solid transparent`,
                     color: groupBy === opt ? theme.ink : theme.ink2,
                     fontFamily: bodyFont,
                     fontSize: 12,
@@ -561,7 +559,7 @@ export function StagingPanel({
           <p
             style={{
               fontFamily: bodyFont,
-              fontSize: inShell ? 12 : 11,
+              fontSize: 12,
               color: theme.ink3,
               textAlign: 'center',
               padding: '24px 8px',
@@ -588,9 +586,9 @@ export function StagingPanel({
                     gap: 6,
                     marginBottom: 4,
                     fontFamily: headFont,
-                    fontSize: inShell ? 11 : 9,
+                    fontSize: 11,
                     fontWeight: headWeight,
-                    letterSpacing: inShell ? 0 : '0.1em',
+                    letterSpacing: 0,
                     textTransform: headTransform,
                     color: theme.ink3,
                   }}

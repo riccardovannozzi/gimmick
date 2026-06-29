@@ -9,7 +9,6 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { TextEditor } from './TextEditor';
 
 const TILE_W = 130;
@@ -119,14 +118,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onTileDragMove, onTileDragEnd,
 }: CanvasBoardProps) {
   const theme = usePixelTheme();
-  // Obsidian (shell): card/box arrotondati + hairline 1px + font Geist; arcade:
-  // angoli vivi + bordo 2px + font pixel. Costanti riusate nel codice D3 sotto.
-  const inShell = isObsidianShellEnabled();
-  const RX = inShell ? 12 : 0;        // card / group / clip corner radius
-  const RX_SEL = inShell ? 14 : 0;    // selection ring radius
-  const RX_BADGE = inShell ? 4 : 0;   // footer action/type badge radius
-  const SW = inShell ? 1 : 2;         // card hairline stroke width
-  const labelFont = inShell ? 'var(--ob-font-mono), ui-monospace, monospace' : 'var(--font-pixel-head), ui-monospace, monospace';
+  // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
+  // nel codice D3 sotto.
+  const RX = 12;        // card / group / clip corner radius
+  const RX_SEL = 14;    // selection ring radius
+  const RX_BADGE = 4;   // footer action/type badge radius
+  const SW = 1;         // card hairline stroke width
+  const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
   // overlayInnerRef gets a CSS transform that mirrors the D3 zoom/pan, so
@@ -827,9 +825,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const badge = g.append('g').attr('class', 'flow-badge').style('cursor', 'pointer');
       badge.append('rect')
         .attr('x', x).attr('y', y)
-        .attr('width', w).attr('height', h).attr('rx', inShell ? 7 : 0)
+        .attr('width', w).attr('height', h).attr('rx', 7)
         .attr('fill', theme.accent)
-        .attr('stroke', inShell ? 'none' : theme.border).attr('stroke-width', SW);
+        .attr('stroke', 'none').attr('stroke-width', SW);
       badge.append('text')
         .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
         .attr('text-anchor', 'middle')

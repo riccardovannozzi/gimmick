@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconPlus, IconX } from '@tabler/icons-react';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { Contact } from '@/types/flow';
 
 interface Props {
@@ -23,10 +22,9 @@ interface Props {
  */
 export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
-  const sansFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
-  const monoFont = inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)';
+  const bW = 1;
+  const sansFont = 'var(--ob-font-sans)';
+  const monoFont = 'var(--ob-font-mono)';
   const { contacts, create } = useContacts();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(autoOpen);
@@ -109,14 +107,14 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             justifyContent: 'space-between',
             gap: 8,
             padding: '0 10px',
-            height: inShell ? 36 : 30,
-            background: inShell ? theme.surface : theme.surfaceVariant,
+            height: 36,
+            background: theme.surface,
             color: theme.ink,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: inShell ? 10 : 0,
+            borderRadius: 10,
             cursor: 'pointer',
             fontFamily: sansFont,
-            fontSize: inShell ? 13 : 12,
+            fontSize: 13,
           }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -161,14 +159,14 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
           placeholder="Cerca contatto…"
           style={{
             width: '100%',
-            background: inShell ? theme.surface : theme.surfaceVariant,
+            background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: inShell ? 10 : 0,
+            borderRadius: 10,
             padding: '0 10px',
-            height: inShell ? 36 : 30,
+            height: 36,
             color: theme.ink,
             fontFamily: sansFont,
-            fontSize: inShell ? 13 : 12,
+            fontSize: 13,
             outline: 'none',
           }}
         />
@@ -185,8 +183,8 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             zIndex: 50,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
-            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 256,
             overflowY: 'auto',
@@ -216,11 +214,11 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
                   gap: 8,
                   width: '100%',
                   padding: '6px 8px',
-                  height: inShell ? 34 : 30,
+                  height: 34,
                   textAlign: 'left',
-                  borderRadius: inShell ? 6 : 0,
+                  borderRadius: 6,
                   background: isActive ? theme.surfaceVariant : 'transparent',
-                  border: `${bW}px solid ${isActive && !inShell ? theme.border : 'transparent'}`,
+                  border: `${bW}px solid transparent`,
                   color: isActive ? theme.ink : theme.ink2,
                   fontFamily: sansFont,
                   fontSize: 12,
@@ -275,7 +273,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
                 color: theme.accent,
                 border: 'none',
                 borderTop: `${bW}px solid ${theme.border}`,
-                marginTop: inShell ? 2 : 0,
+                marginTop: 2,
                 fontFamily: monoFont,
                 fontSize: 9,
                 letterSpacing: '0.06em',

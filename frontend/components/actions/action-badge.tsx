@@ -3,7 +3,6 @@
 import { IconBolt, IconArrowUp, IconClock, IconCalendar } from '@tabler/icons-react';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { readableOn } from '@/lib/palette';
 
 /** Action-type → icon. `none` (NOTES) renders nothing by design. */
@@ -28,15 +27,12 @@ interface ActionBadgeProps {
 }
 
 /**
- * Pixel-style action badge — single source of truth shared by every tile
- * surface (Chrono columns, Calendar events, Kanban, Staging, Canvas) and the
- * Actions settings modal. The look (hard pixel square, 2 px theme border)
- * mirrors the preview in the settings modal so "personalizzare l'azione"
- * means seeing the exact same chip everywhere.
+ * Action badge (Obsidian) — single source of truth shared by every tile
+ * surface (Chrono columns, Calendar events, Kanban, Staging, Canvas): chip con
+ * hairline 1px + raggio morbido proporzionale, icona azione su colore palette.
  */
 export function ActionBadge({ actionKey, size = 16, color, keepSpace }: ActionBadgeProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
   const actionColors = useActionColors();
   const Icon = ACTION_ICON[actionKey];
   if (!Icon) {
@@ -50,9 +46,8 @@ export function ActionBadge({ actionKey, size = 16, color, keepSpace }: ActionBa
         width: size,
         height: size,
         background: bg,
-        // Obsidian: hairline + raggio morbido proporzionale; arcade: quadratino 2px.
-        border: inShell ? `1px solid ${theme.border}` : `2px solid ${theme.border}`,
-        borderRadius: inShell ? Math.max(3, Math.round(size * 0.28)) : 0,
+        border: `1px solid ${theme.border}`,
+        borderRadius: Math.max(3, Math.round(size * 0.28)),
         display: 'inline-flex',
         alignItems: 'center',
         justifyContent: 'center',

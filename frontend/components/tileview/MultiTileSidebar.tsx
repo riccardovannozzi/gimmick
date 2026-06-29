@@ -14,7 +14,6 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType, StatusShape } from '@/types';
 
@@ -50,8 +49,7 @@ interface Props {
 
 export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['tiles-calendar'], onClearSelection }: Props) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
+  const bW = 1;
   const queryClient = useQueryClient();
   const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
@@ -148,7 +146,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
   const labelStyle: React.CSSProperties = {
-    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+    fontFamily: 'var(--ob-font-mono)',
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -196,7 +194,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div
               style={{
-                fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+                fontFamily: 'var(--ob-font-mono)',
                 fontSize: 10,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
@@ -212,7 +210,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+                  fontFamily: 'var(--ob-font-mono)',
                   fontSize: 8,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
@@ -243,7 +241,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                     key={opt.key}
                     onClick={() => setAction(opt)}
                     disabled={saving}
-                    style={inShell ? {
+                    style={{
                       flex: 1,
                       display: 'inline-flex',
                       alignItems: 'center',
@@ -263,45 +261,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                       opacity: saving ? 0.6 : 1,
                       position: 'relative',
                       boxShadow: 'none',
-                    } : {
-                      flex: 1,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 6,
-                      height: 30,
-                      background: isActive ? theme.accent : theme.surfaceVariant,
-                      color: isActive ? theme.onAccent : theme.ink2,
-                      border: `2px solid ${theme.border}`,
-                      fontFamily: 'var(--font-pixel-head)',
-                      fontSize: 9,
-                      letterSpacing: '0.06em',
-                      textTransform: 'uppercase',
-                      cursor: saving ? 'not-allowed' : 'pointer',
-                      opacity: saving ? 0.6 : 1,
-                      position: 'relative',
-                      boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
                     }}
                   >
-                    {inShell ? (
+                    {(
                       <OptIcon size={14} color={isActive ? theme.accent : theme.ink2} />
-                    ) : (
-                      <div
-                        style={{
-                          width: 12,
-                          height: 12,
-                          background: actionColor,
-                          border: `2px solid ${isActive ? theme.onAccent : theme.border}`,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <OptIcon size={8} color={readableOn(actionColor)} />
-                      </div>
                     )}
-                    {inShell ? ({ 'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Scadenza', 'ALL DAY': 'Giornata', 'TIMED': 'A orario' } as Record<string, string>)[opt.label] ?? opt.label : opt.label}
+                    {({ 'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Scadenza', 'ALL DAY': 'Giornata', 'TIMED': 'A orario' } as Record<string, string>)[opt.label] ?? opt.label}
                   </button>
                 );
               };
@@ -328,14 +293,14 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                 placeholder={dateMixed ? 'Misto' : ''}
                 style={{
                   width: '100%',
-                  background: inShell ? theme.surface : theme.surfaceVariant,
+                  background: theme.surface,
                   border: `${bW}px solid ${theme.border}`,
-                  borderRadius: inShell ? 10 : 0,
-                  padding: inShell ? '0 10px' : '6px 8px',
-                  height: inShell ? 36 : undefined,
+                  borderRadius: 10,
+                  padding: '0 10px',
+                  height: 36,
                   color: theme.ink,
-                  fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
-                  fontSize: inShell ? 13 : 12,
+                  fontFamily: 'var(--ob-font-sans)',
+                  fontSize: 13,
                   outline: 'none',
                   colorScheme: theme.mode,
                 }}
@@ -367,7 +332,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
           <div
             style={{
-              fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+              fontFamily: 'var(--ob-font-sans)',
               fontSize: 11,
               fontStyle: 'italic',
               color: theme.ink3,
@@ -394,8 +359,7 @@ function MixedTypeIconPicker({
   disabled?: boolean;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
+  const bW = 1;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -419,7 +383,7 @@ function MixedTypeIconPicker({
   }, [open]);
 
   const labelStyle: React.CSSProperties = {
-    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+    fontFamily: 'var(--ob-font-mono)',
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -434,11 +398,11 @@ function MixedTypeIconPicker({
     width: '100%',
     padding: '6px 8px',
     textAlign: 'left',
-    borderRadius: inShell ? 6 : 0,
+    borderRadius: 6,
     background: active ? theme.surfaceVariant : 'transparent',
-    border: `${bW}px solid ${active && !inShell ? theme.border : 'transparent'}`,
+    border: `${bW}px solid transparent`,
     color: active ? theme.ink : theme.ink2,
-    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+    fontFamily: 'var(--ob-font-sans)',
     fontSize: 12,
     cursor: 'pointer',
   });
@@ -457,14 +421,14 @@ function MixedTypeIconPicker({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: current?.color ? `${current.color}40` : (inShell ? theme.surface : theme.surfaceVariant),
+          background: current?.color ? `${current.color}40` : (theme.surface),
           border: `${bW}px solid ${theme.border}`,
-          borderRadius: inShell ? 10 : 0,
+          borderRadius: 10,
           padding: '0 10px',
-          height: inShell ? 36 : 30,
+          height: 36,
           color: theme.ink,
-          fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
-          fontSize: inShell ? 13 : 12,
+          fontFamily: 'var(--ob-font-sans)',
+          fontSize: 13,
           cursor: disabled ? 'not-allowed' : 'pointer',
           textAlign: 'left',
           opacity: disabled ? 0.6 : 1,
@@ -480,7 +444,7 @@ function MixedTypeIconPicker({
                 height: 18,
                 background: current.color || theme.surfaceVariant,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: inShell ? 5 : 0,
+                borderRadius: 5,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -506,8 +470,8 @@ function MixedTypeIconPicker({
             zIndex: 9999,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
-            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 192,
             overflowY: 'auto',
@@ -529,7 +493,7 @@ function MixedTypeIconPicker({
                       height: 18,
                       background: icon.color || theme.surfaceVariant,
                       border: `${bW}px solid ${theme.border}`,
-                      borderRadius: inShell ? 5 : 0,
+                      borderRadius: 5,
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -560,8 +524,7 @@ function MixedStatusPicker({
   disabled?: boolean;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const bW = inShell ? 1 : 2;
+  const bW = 1;
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
@@ -584,7 +547,7 @@ function MixedStatusPicker({
   }, [open]);
 
   const labelStyle: React.CSSProperties = {
-    fontFamily: inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)',
+    fontFamily: 'var(--ob-font-mono)',
     fontSize: 9,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
@@ -599,11 +562,11 @@ function MixedStatusPicker({
     width: '100%',
     padding: '6px 8px',
     textAlign: 'left',
-    borderRadius: inShell ? 6 : 0,
+    borderRadius: 6,
     background: active ? theme.surfaceVariant : 'transparent',
-    border: `${bW}px solid ${active && !inShell ? theme.border : 'transparent'}`,
+    border: `${bW}px solid transparent`,
     color: active ? theme.ink : theme.ink2,
-    fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
+    fontFamily: 'var(--ob-font-sans)',
     fontSize: 12,
     cursor: 'pointer',
   });
@@ -622,14 +585,14 @@ function MixedStatusPicker({
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: inShell ? theme.surface : theme.surfaceVariant,
+          background: theme.surface,
           border: `${bW}px solid ${theme.border}`,
-          borderRadius: inShell ? 10 : 0,
+          borderRadius: 10,
           padding: '0 10px',
-          height: inShell ? 36 : 30,
+          height: 36,
           color: theme.ink,
-          fontFamily: inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)',
-          fontSize: inShell ? 13 : 12,
+          fontFamily: 'var(--ob-font-sans)',
+          fontSize: 13,
           cursor: disabled ? 'not-allowed' : 'pointer',
           textAlign: 'left',
           opacity: disabled ? 0.6 : 1,
@@ -656,8 +619,8 @@ function MixedStatusPicker({
             zIndex: 9999,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: inShell ? 12 : 0,
-            boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 192,
             overflowY: 'auto',

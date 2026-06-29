@@ -3,8 +3,7 @@
 import { useState } from 'react';
 import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { pixelToolbarBtn, obsidianToolbarBtn } from '@/lib/pixel-toolbar';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
+import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
 
 function ToolbarToggle({ icon, label, active, onClick }: {
@@ -14,10 +13,9 @@ function ToolbarToggle({ icon, label, active, onClick }: {
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const style = inShell ? obsidianToolbarBtn(theme, active) : pixelToolbarBtn(theme, active);
+  const style = obsidianToolbarBtn(theme, active);
   return (
-    <button onClick={onClick} className={inShell ? undefined : 'px-press'} style={style} title={label}>
+    <button onClick={onClick} style={style} title={label}>
       {icon}
       {label}
     </button>
@@ -30,10 +28,9 @@ function ToolbarButton({ icon, label, onClick }: {
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  const style = inShell ? obsidianToolbarBtn(theme, false) : pixelToolbarBtn(theme, false);
+  const style = obsidianToolbarBtn(theme, false);
   return (
-    <button onClick={onClick} className={inShell ? undefined : 'px-press'} style={style} title={label}>
+    <button onClick={onClick} style={style} title={label}>
       {icon}
       {label}
     </button>
@@ -59,14 +56,12 @@ interface CanvasTopbarProps {
 
 export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
-  const inShell = isObsidianShellEnabled();
-  // Strutturali (font/bordi/raggi). I colori arrivano già da theme (Obsidian in shell).
-  const chipBorderW = inShell ? 1 : 2;
-  const chipFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-head)';
-  const chipFontSize = inShell ? 11.5 : 8;
-  const chipRadius = inShell ? 8 : 0;
-  const chipTransform: 'none' | 'uppercase' = inShell ? 'none' : 'uppercase';
-  const chipWeight = inShell ? 600 : 400;
+  const chipBorderW = 1;
+  const chipFont = 'var(--ob-font-sans)';
+  const chipFontSize = 11.5;
+  const chipRadius = 8;
+  const chipTransform: 'none' | 'uppercase' = 'none';
+  const chipWeight = 600;
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
@@ -121,15 +116,15 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
                 height: 30,
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `${chipBorderW}px solid ${inShell ? 'transparent' : theme.onAccent}`,
+                border: `${chipBorderW}px solid transparent`,
                 borderRadius: chipRadius,
                 fontFamily: chipFont,
                 fontSize: chipFontSize,
                 fontWeight: chipWeight,
-                letterSpacing: inShell ? 0 : '0.08em',
+                letterSpacing: 0,
                 textTransform: chipTransform,
                 flexShrink: 0,
-                boxShadow: inShell ? 'none' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.mode === 'dark' ? theme.shadowColor : theme.surface}`,
+                boxShadow: 'none',
               }}
               title={`Canvas corrente: ${tag.name}`}
             >
@@ -145,13 +140,10 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
           const isDropTarget = dropTargetId === pt.id && draggingId !== pt.id;
           const draggingIdx = draggingId ? otherPinned.findIndex((t) => t.id === draggingId) : -1;
           const insertAfter = draggingIdx !== -1 && draggingIdx < idx;
-          // Stesso "swap ink/surface in base al mode" di pixelToolbarBtn.
-          const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
-          const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
-          // In shell: chip neutro Obsidian (surface-2 + hairline); arcade: swap pixel.
-          const chipBg = inShell ? theme.surfaceVariant : darkSlot;
-          const chipFg = inShell ? theme.ink2 : lightSlot;
-          const chipBorderCol = inShell ? theme.border : lightSlot;
+          // Chip neutro Obsidian (surface-2 + hairline).
+          const chipBg = theme.surfaceVariant;
+          const chipFg = theme.ink2;
+          const chipBorderCol = theme.border;
           return (
           <div
             key={pt.id}
@@ -192,7 +184,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               fontFamily: chipFont,
               fontSize: chipFontSize,
               fontWeight: chipWeight,
-              letterSpacing: inShell ? 0 : '0.08em',
+              letterSpacing: 0,
               textTransform: chipTransform,
               flexShrink: 0,
               cursor: 'grab',
@@ -234,7 +226,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
                 justifyContent: 'center',
                 background: theme.surface,
                 border: `${chipBorderW}px solid ${theme.border}`,
-                borderRadius: inShell ? 5 : 0,
+                borderRadius: 5,
                 color: '#E24B4A',
                 cursor: 'pointer',
               }}

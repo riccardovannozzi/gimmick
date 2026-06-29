@@ -7,8 +7,7 @@ import * as d3 from 'd3';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { pixelToolbarBtn, pixelSegmentedBtn, pixelSegmentedContainer, obsidianToolbarBtn, obsidianSegmentedBtn, obsidianSegmentedContainer } from '@/lib/pixel-toolbar';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
+import { obsidianToolbarBtn, obsidianSegmentedBtn, obsidianSegmentedContainer } from '@/lib/pixel-toolbar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
@@ -95,7 +94,6 @@ export default function GraphPage() {
   const theme = usePixelTheme();
   // Migrazione Obsidian (Fase 9): nello shell la pagina vive nel ViewContainer
   // → niente <Header/> di pagina e root che cresce. Restyle token D3 rimandato.
-  const inShell = isObsidianShellEnabled();
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -1245,11 +1243,11 @@ export default function GraphPage() {
     && (!tagGraph || (tagGraph.nodes as TagNode[]).length === 0);
 
   // Strutturali per il restyle nativo Obsidian (colori già dal theme in shell).
-  const bW = inShell ? 1 : 2;
-  const headFont = inShell ? 'var(--ob-font-mono)' : 'var(--font-pixel-head)';
-  const bodyFont = inShell ? 'var(--ob-font-sans)' : 'var(--font-pixel-body)';
+  const bW = 1;
+  const headFont = 'var(--ob-font-mono)';
+  const bodyFont = 'var(--ob-font-sans)';
   const pillBtn = (active: boolean): React.CSSProperties =>
-    inShell ? obsidianToolbarBtn(theme, active) : pixelToolbarBtn(theme, active);
+    obsidianToolbarBtn(theme, active);
   const popupContainer: React.CSSProperties = {
     position: 'absolute',
     top: '100%',
@@ -1258,16 +1256,11 @@ export default function GraphPage() {
     zIndex: 50,
     background: theme.surface,
     border: `${bW}px solid ${theme.border}`,
-    borderRadius: inShell ? 12 : 0,
-    boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    borderRadius: 12,
+    boxShadow: 'var(--ob-shadow-card)',
     padding: 4,
   };
   const popupItem = (active: boolean): React.CSSProperties => {
-    // Stesso swap ink/surface per mode di pixel-toolbar.ts: in dark mode
-    // theme.ink è brillante (white/yellow/pink) → invertiamo per avere
-    // sempre bg scuro + testo chiaro sull'item selezionato.
-    const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
-    const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
     return {
       display: 'flex',
       alignItems: 'center',
@@ -1275,10 +1268,10 @@ export default function GraphPage() {
       width: '100%',
       padding: '6px 8px',
       textAlign: 'left',
-      borderRadius: inShell ? 6 : 0,
-      background: active ? (inShell ? theme.surfaceVariant : darkSlot) : 'transparent',
-      border: `${bW}px solid ${active && !inShell ? theme.border : 'transparent'}`,
-      color: active ? (inShell ? theme.ink : lightSlot) : theme.ink2,
+      borderRadius: 6,
+      background: active ? theme.surfaceVariant : 'transparent',
+      border: `${bW}px solid transparent`,
+      color: active ? theme.ink : theme.ink2,
       fontWeight: active ? 600 : 400,
       fontFamily: bodyFont,
       fontSize: 12,
@@ -1287,7 +1280,7 @@ export default function GraphPage() {
   };
 
   return (
-    <div className={cn('flex flex-col h-full', inShell && 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
+    <div className={cn('flex flex-col h-full', 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
 
       {/* Toolbar */}
       <div
@@ -1302,17 +1295,17 @@ export default function GraphPage() {
         }}
       >
         {/* Mode toggle (segmented) */}
-        <div style={inShell ? obsidianSegmentedContainer(theme) : pixelSegmentedContainer(theme)}>
+        <div style={obsidianSegmentedContainer(theme)}>
           <button
             onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-            style={inShell ? obsidianSegmentedBtn(theme, toolbarMode === 'navigate') : pixelSegmentedBtn(theme, toolbarMode === 'navigate')}
+            style={obsidianSegmentedBtn(theme, toolbarMode === 'navigate')}
           >
             <IconEye size={12} />
             Navigate
           </button>
           <button
             onClick={() => setToolbarMode('edit')}
-            style={inShell ? obsidianSegmentedBtn(theme, toolbarMode === 'edit') : pixelSegmentedBtn(theme, toolbarMode === 'edit')}
+            style={obsidianSegmentedBtn(theme, toolbarMode === 'edit')}
           >
             <IconSettings2 size={12} />
             Edit Tag
@@ -1363,8 +1356,8 @@ export default function GraphPage() {
                           style={{
                             width: 12,
                             height: 12,
-                            border: `${inShell ? 1.5 : 2}px solid ${clr}`,
-                            borderRadius: inShell ? 4 : 0,
+                            border: `1.5px solid ${clr}`,
+                            borderRadius: 4,
                             background: active ? clr : 'transparent',
                           }}
                         />
@@ -2042,8 +2035,8 @@ export default function GraphPage() {
                   zIndex: 50,
                   background: theme.surface,
                   border: `${bW}px solid ${theme.border}`,
-                  borderRadius: inShell ? 12 : 0,
-                  boxShadow: inShell ? 'var(--ob-shadow-card)' : `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  borderRadius: 12,
+                  boxShadow: 'var(--ob-shadow-card)',
                   padding: 4,
                   minWidth: 200,
                 }}
