@@ -16,7 +16,11 @@ export function useStatuses() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['statuses'],
-    queryFn: () => statusesApi.list(),
+    queryFn: async () => {
+      const res = await statusesApi.list();
+      if (!res.success) throw new Error(res.error || 'Errore caricamento stati');
+      return res;
+    },
     staleTime: 5 * 60 * 1000,
     enabled: !!user,
   });

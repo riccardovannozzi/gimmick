@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KanbanView, type Lane, type CardData } from '@/components/views/kanban';
 import { kanbanApi, tilesApi, tagsApi } from '@/lib/api';
+import { invalidateTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -79,7 +80,14 @@ export function KanbanLive() {
   const selectTile = useTileSelectionStore((s) => s.select);
 
   const { data: columnsData } = useQuery({ queryKey: ['kanban-columns'], queryFn: () => kanbanApi.listColumns() });
-  const { data: tilesData, isLoading } = useQuery({ queryKey: ['tiles-kanban'], queryFn: () => tilesApi.list({ limit: 100 }) });
+  const { data: tilesData, isLoading } = useQuery({
+    queryKey: ['tiles-kanban'],
+    queryFn: async () => {
+      const res = await tilesApi.list({ limit: 100 });
+      if (!res.success) throw new Error('Errore caricamento tiles');
+      return res;
+    },
+  });
   const { data: tagsData } = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list() });
 
   const columns = useMemo<KanbanColumn[]>(() => columnsData?.data ?? [], [columnsData]);
@@ -105,10 +113,7 @@ export function KanbanLive() {
   const tileMutation = useMutation({
     mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
       tilesApi.update(params.id, params.updates),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tiles-kanban'] });
-      queryClient.invalidateQueries({ queryKey: ['kanban-columns'] });
-    },
+    onSuccess: () => invalidateTileCaches(queryClient, ['kanban-columns']),
     onError: () => toast.error('Errore spostamento tile'),
   });
 
@@ -119,6 +124,7 @@ export function KanbanLive() {
       if (!tile || !col) return;
 
       const updates: Record<string, unknown> = {};
+      let tagChanged = false;
       for (const f of col.filters) {
         switch (f.type) {
           case 'action_type':
@@ -142,13 +148,17 @@ export function KanbanLive() {
             break;
           case 'tag':
             if (!tile.tags?.some((t) => t.id === f.value)) {
-              await tagsApi.tagTiles(f.value, [tile.id]);
-              queryClient.invalidateQueries({ queryKey: ['tiles-kanban'] });
+              // Transazionale: se il tagging fallisce non spostiamo la card,
+              // così non "salta" colonna senza che il tag sia stato applicato.
+              const r = await tagsApi.tagTiles(f.value, [tile.id]);
+              if (!r.success) { toast.error('Errore applicazione tag'); return; }
+              tagChanged = true;
             }
             break;
         }
       }
       if (Object.keys(updates).length > 0) tileMutation.mutate({ id: tile.id, updates });
+      if (tagChanged) invalidateTileCaches(queryClient, ['tags', 'kanban-columns']);
     },
     [allTiles, columns, doneStatusId, queryClient, tileMutation],
   );
@@ -156,10 +166,10 @@ export function KanbanLive() {
   const handleAddTile = useCallback(async () => {
     try {
       const res = await tilesApi.create({ title: 'New tile' });
-      const newTile = res?.data;
-      if (!newTile) return;
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newTile = res.data;
       if (rootTagId) await tagsApi.tagTiles(rootTagId, [newTile.id]);
-      await queryClient.invalidateQueries({ queryKey: ['tiles-kanban'] });
+      invalidateTileCaches(queryClient, ['tags']);
       selectTile(newTile.id);
     } catch {
       toast.error('Errore creazione tile');

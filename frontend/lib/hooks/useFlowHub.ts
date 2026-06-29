@@ -18,6 +18,7 @@ export function useFlowHub(filter: FlowHubFilter) {
     queryKey: ['flow-hub', filter],
     queryFn: async (): Promise<FlowHubItem[]> => {
       const res = await flowApi.hub(filter);
+      if (!res.success) throw new Error(res.error || 'Errore caricamento FlowHub');
       return (res.data as FlowHubItem[]) ?? [];
     },
     refetchInterval: 30_000,

@@ -32,6 +32,7 @@ import {
 } from '@/components/views/chrono';
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
+import { invalidateTileCaches } from '@/lib/tile-cache';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
@@ -164,12 +165,20 @@ export function ChronoLive() {
 
   const { data: eventsData } = useQuery({
     queryKey: ['calendar-events', range.start, range.end],
-    queryFn: () => calendarApi.events(range.start, range.end),
+    queryFn: async () => {
+      const res = await calendarApi.events(range.start, range.end);
+      if (!res.success) throw new Error(res.error || 'Errore caricamento eventi');
+      return res;
+    },
     staleTime: 2 * 60 * 1000,
   });
   const { data: allTilesData, isLoading } = useQuery({
     queryKey: ['tiles-calendar'],
-    queryFn: () => tilesApi.list({ limit: 100 }),
+    queryFn: async () => {
+      const res = await tilesApi.list({ limit: 100 });
+      if (!res.success) throw new Error('Errore caricamento tiles');
+      return res;
+    },
     staleTime: 60_000,
   });
   const { data: tagsData } = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list() });
@@ -204,7 +213,12 @@ export function ChronoLive() {
       return { ...old, data: old.data.map((t) => (t.id === id ? { ...t, start_at, end_at, all_day: false } : t)) };
     });
     calendarApi.reschedule(id, start_at, end_at)
-      .then(() => queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] }))
+      .then(() => {
+        // Re-valida anche calendar-events: se il server normalizza date/durata
+        // diversamente dall'ottimistico, la griglia si riallinea subito.
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      })
       .catch(() => {
         toast.error('Errore spostamento evento');
         queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
@@ -217,12 +231,11 @@ export function ChronoLive() {
     const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
     calendarApi.schedule({ tile_id: tileId, start_at, end_at })
       .then(() => {
-        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
-        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+        invalidateTileCaches(queryClient);
         toast.success('Tile schedulata');
       })
       .catch(() => toast.error('Errore schedulazione'));
-  }, [fracToISO, queryClient, range]);
+  }, [fracToISO, queryClient]);
 
   // Click su slot vuoto → crea un evento timed (1h) e lo apre nell'Inspector.
   const handleCreateAt = useCallback(async (dayIndex: number, s: number) => {
@@ -230,16 +243,70 @@ export function ChronoLive() {
     const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
     try {
       const res = await calendarApi.createEvent({ title: 'Nuovo evento', start_at, end_at });
-      const t = res?.data;
+      if (!res.success || !res.data) { toast.error('Errore creazione evento'); return; }
+      const t = res.data;
       const rootTag = (tagsData?.data ?? []).find((tg) => tg.is_root);
-      if (t && rootTag) await tagsApi.tagTiles(rootTag.id, [t.id]);
-      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
-      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
-      if (t) selectTile(t.id);
+      if (rootTag) await tagsApi.tagTiles(rootTag.id, [t.id]);
+      invalidateTileCaches(queryClient, ['tags']);
+      selectTile(t.id);
     } catch {
       toast.error('Errore creazione evento');
     }
-  }, [fracToISO, queryClient, range, tagsData, selectTile]);
+  }, [fracToISO, queryClient, tagsData, selectTile]);
+
+  // Drop di un evento timed sulla lane "tutto il dì" → diventa all-day.
+  const handleEventToAllDay = useCallback((id: string, dayIndex: number) => {
+    const start_at = fracToISO(dayIndex, 0);
+    // Optimistic: marca subito l'evento come all-day nella settimana corrente.
+    queryClient.setQueryData(['calendar-events', range.start, range.end], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === id ? { ...t, start_at, end_at: start_at, all_day: true } : t)) };
+    });
+    calendarApi.updateEvent(id, { all_day: true, start_at, end_at: start_at })
+      .then(() => {
+        // Re-valida anche calendar-events: se il server normalizza date/durata
+        // diversamente dall'ottimistico, la griglia si riallinea subito.
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      })
+      .catch(() => {
+        toast.error('Errore conversione in tutto il dì');
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      });
+  }, [fracToISO, queryClient, range]);
+
+  // Drop di un evento all-day sulla griglia oraria → torna timed (all_day: false).
+  const handleEventToTimed = useCallback((id: string, dayIndex: number, s: number, e: number) => {
+    const start_at = fracToISO(dayIndex, s);
+    const end_at = fracToISO(dayIndex, e);
+    queryClient.setQueryData(['calendar-events', range.start, range.end], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === id ? { ...t, start_at, end_at, all_day: false } : t)) };
+    });
+    calendarApi.updateEvent(id, { all_day: false, start_at, end_at })
+      .then(() => {
+        // Re-valida anche calendar-events: se il server normalizza date/durata
+        // diversamente dall'ottimistico, la griglia si riallinea subito.
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      })
+      .catch(() => {
+        toast.error('Errore conversione evento');
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      });
+  }, [fracToISO, queryClient, range]);
+
+  // Drop di una tile Notes/Todo sulla lane "tutto il dì" → schedulata all-day.
+  const handleScheduleAllDayTile = useCallback((tileId: string, dayIndex: number) => {
+    const start_at = fracToISO(dayIndex, 0);
+    calendarApi.schedule({ tile_id: tileId, start_at, end_at: start_at })
+      .then(() => calendarApi.updateEvent(tileId, { all_day: true, start_at, end_at: start_at }))
+      .then(() => {
+        invalidateTileCaches(queryClient);
+        toast.success('Tile schedulata (tutto il dì)');
+      })
+      .catch(() => toast.error('Errore schedulazione'));
+  }, [fracToISO, queryClient]);
 
   // ─── Menu contestuale (tasto destro): Copia · Incolla · Apri flow · Elimina ──
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -278,8 +345,8 @@ export function ChronoLive() {
     if (!source) { toast.error('Niente da incollare'); return; }
     try {
       const res = await tilesApi.create({ title: source.title || 'Copia' });
-      const newId = res?.data?.id;
-      if (!newId) return;
+      if (!res.success || !res.data?.id) { toast.error('Errore incolla'); return; }
+      const newId = res.data.id;
       if (source.action_type) {
         try { await tilesApi.update(newId, { action_type: source.action_type }); } catch { /* non bloccante */ }
       }
@@ -290,14 +357,13 @@ export function ChronoLive() {
         const end_at = fracToISO(slot.dayIndex, Math.min(slot.startFrac + 1, 24));
         await calendarApi.schedule({ tile_id: newId, start_at, end_at });
       }
-      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
-      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      invalidateTileCaches(queryClient, ['tags']);
       selectTile(newId);
       toast.success('Tile incollata');
     } catch {
       toast.error('Errore incolla');
     }
-  }, [clipboardId, menu, allTiles, events, tagsData, fracToISO, queryClient, range, selectTile]);
+  }, [clipboardId, menu, allTiles, events, tagsData, fracToISO, queryClient, selectTile]);
 
   const handleOpenFlow = useCallback(() => {
     if (!menu) return;
@@ -311,16 +377,15 @@ export function ChronoLive() {
     const id = menu.tileId;
     setMenu(null);
     try {
-      await tilesApi.delete(id);
+      const res = await tilesApi.delete(id);
+      if (!res.success) { toast.error('Errore eliminazione'); return; }
       if (selectedTileId === id) clearSelection();
-      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
-      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
-      queryClient.invalidateQueries({ queryKey: ['flow-hub', 'tiles'] });
+      invalidateTileCaches(queryClient, ['tags', 'flow-hub']);
       toast.success('Tile eliminata');
     } catch {
       toast.error('Errore eliminazione');
     }
-  }, [menu, selectedTileId, clearSelection, queryClient, range]);
+  }, [menu, selectedTileId, clearSelection, queryClient]);
 
   const calendar = useMemo<ChronoCalendar>(() => {
     const days = Array.from({ length: 7 }, (_, i) => {
@@ -391,18 +456,21 @@ export function ChronoLive() {
       onEventContextMenu: openEventMenu,
       onEventReschedule: handleEventReschedule,
       onScheduleTile: handleScheduleTile,
+      onEventToAllDay: handleEventToAllDay,
+      onEventToTimed: handleEventToTimed,
+      onScheduleAllDayTile: handleScheduleAllDayTile,
       onCreateAt: handleCreateAt,
     };
-  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleCreateAt]);
+  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, handleCreateAt]);
 
   const handleAddTile = useCallback(async () => {
     try {
       const res = await tilesApi.create({ title: 'New tile' });
-      const newTile = res?.data;
-      if (!newTile) return;
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newTile = res.data;
       const rootTag = (tagsData?.data ?? []).find((t) => t.is_root);
       if (rootTag) await tagsApi.tagTiles(rootTag.id, [newTile.id]);
-      await queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      invalidateTileCaches(queryClient, ['tags']);
       selectTile(newTile.id);
     } catch {
       toast.error('Errore creazione tile');

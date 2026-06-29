@@ -19,7 +19,11 @@ export default function DashboardLayout({
   const theme = usePixelTheme();
   const router = useRouter();
   const pathname = usePathname();
-  const { user, isLoading, isInitialized } = useAuthStore();
+  // Selettori atomici: evitano il re-render del layout (e dello shell) ad ogni
+  // cambiamento non correlato nell'auth store.
+  const user = useAuthStore((s) => s.user);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const isInitialized = useAuthStore((s) => s.isInitialized);
   const chatOpen = useChatStore((s) => s.open);
   const setChatOpen = useChatStore((s) => s.setOpen);
   const fetchTypeIcons = useTypeIcons((s) => s.fetchAll);

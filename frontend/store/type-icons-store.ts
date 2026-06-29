@@ -36,6 +36,12 @@ export const useTypeIcons = create<TypeIconsState>()((set, get) => ({
         typeIconsApi.list(),
         typeIconsApi.getAssignments(),
       ]);
+      // Su errore NON marcare loaded:true, altrimenti l'effetto in layout.tsx
+      // non ritenta più e le icone-tipo restano vuote per tutta la sessione.
+      if (!iconsRes.success || !assignRes.success) {
+        set({ loading: false });
+        return;
+      }
       const icons: TypeIcon[] = (iconsRes.data || []).map((si) => ({
         id: si.id,
         name: si.name,

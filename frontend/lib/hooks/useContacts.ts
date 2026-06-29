@@ -25,6 +25,7 @@ export function useContacts(opts?: { archived?: boolean }) {
     queryKey: key,
     queryFn: async (): Promise<Contact[]> => {
       const res = await contactsApi.list({ archived });
+      if (!res.success) throw new Error(res.error || 'Errore caricamento contatti');
       return (res.data as Contact[]) ?? [];
     },
   });

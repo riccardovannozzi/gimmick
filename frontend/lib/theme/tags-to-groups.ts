@@ -27,6 +27,8 @@ export interface TagTypeMeta {
   slug: string;
   name?: string;
   color?: string;
+  /** Emoji scelta dall'utente per il tag-type: usata come icona del gruppo. */
+  emoji?: string;
 }
 
 export interface TagsToGroupsResult {
@@ -57,8 +59,9 @@ export function tagsToSidebarGroups(
         .map((t) => ({ id: t.id, name: t.name, pinned: t.is_pinned }));
       return {
         id: slug,
-        name: (meta?.name ?? slug).toUpperCase(),
+        name: meta?.name ?? slug,
         icon: TAG_TYPE_ICON[slug] ?? 'tags',
+        emoji: meta?.emoji || undefined,
         color: meta?.color,
         defaultOpen: true,
         children,

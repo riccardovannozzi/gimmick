@@ -447,6 +447,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
         await tagsApi.tagTiles(tag.id, [tileId]);
       }
       onChanged();
+      // I conteggi/gruppi della Sidebar sinistra derivano da ['tags']: senza
+      // questa invalidazione usage_count e appartenenza tile→tag restano stale.
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
     } catch (err) {
       console.error('Tag toggle failed:', err);
       // Revert on error

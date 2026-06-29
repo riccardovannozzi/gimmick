@@ -137,6 +137,13 @@
   padding: 2px 8px; border-radius: 7px;
 }
 .ob-sb__seg { margin-bottom: 10px; }
+/* I tab Tutti/Pinned occupano l'intera larghezza della sidebar, con angoli
+   meno arrotondati (no pill). */
+.ob-sb__seg .ob-seg { display: flex; width: 100%; border-radius: var(--ob-radius-md, 8px); }
+.ob-sb__seg .ob-seg-item { flex: 1; border-radius: 6px; padding: 6px 10px; }
+/* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
+.ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 11.5px; font-weight: 500; color: var(--ob-subtle); }
+.ob-sb__expand:hover { color: var(--ob-text); }
 .ob-sb-group { margin-bottom: 1px; }
 .ob-sb-group__head {
   display: flex; align-items: center; gap: 8px;
@@ -151,6 +158,7 @@
 .ob-sb-group__head:hover { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
 .ob-sb-group__chev { color: var(--ob-subtle); display: inline-flex; transition: transform 140ms ease-out; }
 .ob-sb-group__chev--open { transform: rotate(90deg); }
+.ob-sb-group__glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
 .ob-sb-group__name { font-size: 13px; font-weight: 600; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-group__kids { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--ob-line); }
 .ob-sb-child {

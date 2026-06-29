@@ -23,6 +23,7 @@ import { TilesView, type TileRow } from '@/components/views/tiles';
 import { useFilterStore } from '@/store/filter-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { tilesApi, tagsApi } from '@/lib/api';
+import { invalidateTileCaches } from '@/lib/tile-cache';
 import type { Spark, Tile } from '@/types';
 
 function toAction(t: Tile): 'timed' | 'allday' | 'notes' {
@@ -83,7 +84,13 @@ export function TilesLive() {
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['tiles'],
-    queryFn: ({ pageParam = 1 }) => tilesApi.list({ page: pageParam, limit: 50 }),
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await tilesApi.list({ page: pageParam, limit: 50 });
+      // L'API client ritorna {success:false} invece di lanciare: senza questo
+      // throw React Query tratterebbe l'errore come successo (lista vuota, niente retry).
+      if (!res.success) throw new Error('Errore caricamento tiles');
+      return res;
+    },
     getNextPageParam: (lastPage) => {
       if (!lastPage.pagination) return undefined;
       const { page: p, totalPages } = lastPage.pagination;
@@ -122,11 +129,11 @@ export function TilesLive() {
   const handleAddTile = useCallback(async () => {
     try {
       const res = await tilesApi.create({ title: 'New tile' });
-      const newTile = res?.data;
-      if (!newTile) return;
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newTile = res.data;
       const rootTag = (tagsResult?.data ?? []).find((t) => t.is_root);
       if (rootTag) await tagsApi.tagTiles(rootTag.id, [newTile.id]);
-      await queryClient.invalidateQueries({ queryKey: ['tiles'] });
+      invalidateTileCaches(queryClient, ['tags']);
       selectTile(newTile.id);
     } catch {
       toast.error('Errore creazione tile');

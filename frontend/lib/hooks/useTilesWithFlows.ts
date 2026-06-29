@@ -17,6 +17,7 @@ export function useTilesWithFlows() {
     queryKey: ['flow-hub', 'tiles'],
     queryFn: async () => {
       const res = await flowApi.tilesWithFlows();
+      if (!res.success) throw new Error(res.error || 'Errore caricamento flow');
       return res.data?.tile_ids ?? [];
     },
     staleTime: 30_000,

@@ -219,6 +219,12 @@ export interface ChronoCalendar {
   onEventReschedule?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
   /** Drop di una tile (Notes/Todo) su uno slot del calendario → schedulazione timed. */
   onScheduleTile?: (tileId: string, dayIndex: number, startFrac: number) => void;
+  /** Drop di un evento timed sulla lane "tutto il dì" → diventa all-day. */
+  onEventToAllDay?: (id: string, dayIndex: number) => void;
+  /** Drop di un evento all-day sulla griglia oraria → diventa timed. */
+  onEventToTimed?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
+  /** Drop di una tile (Notes/Todo) sulla lane "tutto il dì" → schedulata all-day. */
+  onScheduleAllDayTile?: (tileId: string, dayIndex: number) => void;
   /** Click su uno slot vuoto della griglia → crea un evento timed lì. */
   onCreateAt?: (dayIndex: number, startFrac: number) => void;
   /** Modalità vista corrente. Default 'week'. */
@@ -286,12 +292,13 @@ function layoutOverlaps(evs: ChronoTimed[]): Map<ChronoTimed, { col: number; col
 }
 
 function DayColumn({
-  dayIndex, isToday, timed, selectedId, onEventClick, onEventContextMenu, onEventReschedule, onScheduleTile, onCreateAt,
+  dayIndex, isToday, timed, selectedId, onEventClick, onEventContextMenu, onEventReschedule, onEventToTimed, onScheduleTile, onCreateAt,
 }: {
   dayIndex: number; isToday: boolean; timed: ChronoTimed[]; selectedId?: string;
   onEventClick?: (id: string) => void;
   onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void;
   onEventReschedule?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
+  onEventToTimed?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
   onScheduleTile?: (tileId: string, dayIndex: number, startFrac: number) => void;
   onCreateAt?: (dayIndex: number, startFrac: number) => void;
 }) {
@@ -304,7 +311,7 @@ function DayColumn({
   // Now-line position (only on today).
   const now = new Date();
   const nowFrac = now.getHours() + now.getMinutes() / 60;
-  const dropEnabled = !!onEventReschedule || !!onScheduleTile;
+  const dropEnabled = !!onEventReschedule || !!onScheduleTile || !!onEventToTimed;
 
   // Convert a viewport Y to a snapped start fraction within this column.
   const yToStart = (clientY: number, grabFrac = 0): number => {
@@ -317,12 +324,14 @@ function DayColumn({
     e.preventDefault();
     setDragOver(false);
     const evRaw = e.dataTransfer.getData('application/x-chrono-event');
-    if (evRaw && onEventReschedule) {
+    if (evRaw) {
       try {
-        const { id, dur, grab } = JSON.parse(evRaw) as { id: string; dur: number; grab: number };
+        const { id, dur, grab, allDay } = JSON.parse(evRaw) as { id: string; dur: number; grab: number; allDay?: boolean };
         let s = yToStart(e.clientY, grab);
         s = Math.max(START, Math.min(s, END + 1 - dur));
-        onEventReschedule(id, dayIndex, s, s + dur);
+        // Evento all-day trascinato sulla griglia → riconversione a timed.
+        if (allDay && onEventToTimed) onEventToTimed(id, dayIndex, s, s + dur);
+        else if (onEventReschedule) onEventReschedule(id, dayIndex, s, s + dur);
       } catch { /* ignore malformed payload */ }
       return;
     }
@@ -465,6 +474,62 @@ function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { ce
   );
 }
 
+function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }) {
+  const [dragOver, setDragOver] = React.useState(false);
+  const items = cal.allday.filter((a) => a.day === dayIndex);
+  const dropEnabled = !!cal.onEventToAllDay || !!cal.onScheduleAllDayTile;
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const evRaw = e.dataTransfer.getData('application/x-chrono-event');
+    if (evRaw && cal.onEventToAllDay) {
+      try {
+        const { id } = JSON.parse(evRaw) as { id: string };
+        if (id) cal.onEventToAllDay(id, dayIndex);
+      } catch { /* payload malformato */ }
+      return;
+    }
+    const tileId = e.dataTransfer.getData('application/x-chrono-tile');
+    if (tileId && cal.onScheduleAllDayTile) cal.onScheduleAllDayTile(tileId, dayIndex);
+  };
+
+  return (
+    <div
+      className={cn('ob-chrono__allday-cell', dayIndex === 0 && 'ob-chrono__allday-cell--first', dayIndex === cal.todayIndex && 'ob-chrono__allday-cell--today', dragOver && 'ob-chrono__allday-cell--dragover')}
+      onDragOver={dropEnabled ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dragOver) setDragOver(true); } : undefined}
+      onDragLeave={dropEnabled ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); } : undefined}
+      onDrop={dropEnabled ? handleDrop : undefined}
+    >
+      {items.map((a, j) => {
+        const click = cal.onEventClick && a.id ? () => cal.onEventClick!(a.id!) : undefined;
+        const ctx = cal.onEventContextMenu && a.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); cal.onEventContextMenu!(ev, a.id!); } : undefined;
+        const draggable = !!cal.onEventToTimed && !!a.id;
+        return (
+          <div
+            key={a.id ?? j}
+            className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
+            style={{ ['--ev-c' as string]: KIND_COLOR[a.kind] }}
+            onClick={click}
+            onContextMenu={ctx}
+            draggable={draggable}
+            onDragStart={draggable ? (de) => {
+              de.dataTransfer.effectAllowed = 'move';
+              // `allDay: true` segnala alla colonna di riconvertire l'evento a timed.
+              de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: a.id, dur: 1, grab: 0, allDay: true }));
+            } : undefined}
+            role={click ? 'button' : undefined}
+            tabIndex={click ? 0 : undefined}
+          >
+            <span className={cn('ob-chrono__allday-dot', a.kind === 'deadline' && 'ob-chrono__allday-dot--sq')} />
+            <span className="ob-chrono__allday-title">{a.title}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function Calendar({ cal }: { cal: ChronoCalendar }) {
   const view = cal.view ?? 'week';
   return (
@@ -504,31 +569,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
       {/* All-day lane */}
       <div className="ob-chrono__allday">
         <div className="ob-chrono__allday-label"><span>TUTTO IL DÌ</span></div>
-        {cal.days.map((_, i) => {
-          const items = cal.allday.filter((a) => a.day === i);
-          return (
-            <div key={i} className={cn('ob-chrono__allday-cell', i === 0 && 'ob-chrono__allday-cell--first', i === cal.todayIndex && 'ob-chrono__allday-cell--today')}>
-              {items.map((a, j) => {
-                const click = cal.onEventClick && a.id ? () => cal.onEventClick!(a.id!) : undefined;
-                const ctx = cal.onEventContextMenu && a.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); cal.onEventContextMenu!(ev, a.id!); } : undefined;
-                return (
-                  <div
-                    key={a.id ?? j}
-                    className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
-                    style={{ ['--ev-c' as string]: KIND_COLOR[a.kind] }}
-                    onClick={click}
-                    onContextMenu={ctx}
-                    role={click ? 'button' : undefined}
-                    tabIndex={click ? 0 : undefined}
-                  >
-                    <span className={cn('ob-chrono__allday-dot', a.kind === 'deadline' && 'ob-chrono__allday-dot--sq')} />
-                    <span className="ob-chrono__allday-title">{a.title}</span>
-                  </div>
-                );
-              })}
-            </div>
-          );
-        })}
+        {cal.days.map((_, i) => <AllDayCell key={i} dayIndex={i} cal={cal} />)}
       </div>
 
       {/* Time grid */}
@@ -551,6 +592,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
               onEventClick={cal.onEventClick}
               onEventContextMenu={cal.onEventContextMenu}
               onEventReschedule={cal.onEventReschedule}
+              onEventToTimed={cal.onEventToTimed}
               onScheduleTile={cal.onScheduleTile}
               onCreateAt={cal.onCreateAt}
             />
