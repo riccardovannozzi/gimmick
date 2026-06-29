@@ -11,12 +11,14 @@
  *   - navigazione settimana (prec/oggi/succ), click card/evento → Inspector
  *   - "Tile" → crea + apre dettaglio
  *
- * GAP (vedi MIGRATION_PLAN.md): vista mese, drag-drop/reschedule, creazione
- * evento da slot e modale evento restano nella pagina arcade; la griglia
- * Obsidian mostra le ore 07–20 (eventi fuori range sono clampati). Editing nel
- * TileSidebar (Inspector).
+ * Drag-drop: trascina un evento timed per spostarlo (giorno + ora, snap 15');
+ * trascina una card Notes/Todo su uno slot per schedularla come evento (1h).
+ * GAP rimanenti: vista mese, creazione evento da slot vuoto (click), resize
+ * evento, sort/filter colonne. Griglia 07–20 (eventi fuori range clampati).
+ * Editing nel TileSidebar (Inspector).
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -25,10 +27,25 @@ import {
   type ChronoCalendar,
   type ChronoTimed,
   type ChronoAllDay,
+  type MonthCell,
+  type MonthEvent,
 } from '@/components/views/chrono';
+import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
+import { useTileClipboardStore } from '@/store/tile-clipboard-store';
+import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useFlowOpenStore } from '@/store/flow-modal-store';
 import type { Tile } from '@/types';
+
+/** Stato del menu contestuale (tasto destro). `slot` presente → la tile è un
+ *  evento timed del calendario: "Incolla" schedula lì la copia. */
+interface ChronoMenu {
+  x: number;
+  y: number;
+  tileId: string;
+  slot?: { dayIndex: number; startFrac: number };
+}
 
 const SPARK_MAP: Record<string, 'voice' | 'text' | 'file' | 'photo'> = {
   audio_recording: 'voice',
@@ -50,6 +67,7 @@ function toColTile(t: Tile): ColTile {
     actionColor: isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     checklist: checklist.length ? checklist : undefined,
+    createdAt: t.created_at,
   };
 }
 
@@ -72,18 +90,50 @@ function frac(iso: string): number {
   return d.getHours() + d.getMinutes() / 60;
 }
 
+function dateKey(d: Date): string {
+  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+/** Riferimento temporale dell'evento (deadline → end, altrimenti start). */
+function eventRefIso(t: Tile): string | undefined {
+  return t.action_type === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+}
+
 export function ChronoLive() {
   const queryClient = useQueryClient();
+  const [view, setView] = useState<'week' | 'month'>('week');
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
+  const clearSelection = useTileSelectionStore((s) => s.clear);
+  const clipboardId = useTileClipboardStore((s) => s.tileId);
+  const copyTile = useTileClipboardStore((s) => s.copy);
+  const openFlow = useFlowOpenStore((s) => s.open);
+  const tilesWithFlows = useTilesWithFlows();
+  const [menu, setMenu] = useState<ChronoMenu | null>(null);
 
   const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset]);
+  // Mese target: primo giorno + lunedì della griglia (6×7) che lo contiene.
+  const monthInfo = useMemo(() => {
+    const now = new Date();
+    const first = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+    const dow = first.getDay();
+    const diffToMon = dow === 0 ? -6 : 1 - dow;
+    const gridStart = new Date(first.getFullYear(), first.getMonth(), 1 + diffToMon);
+    return { first, gridStart };
+  }, [monthOffset]);
+
   const range = useMemo(() => {
+    if (view === 'month') {
+      const s = monthInfo.gridStart;
+      const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 41, 23, 59, 59);
+      return { start: s.toISOString(), end: e.toISOString() };
+    }
     const start = new Date(weekStart);
     const end = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6, 23, 59, 59);
     return { start: start.toISOString(), end: end.toISOString() };
-  }, [weekStart]);
+  }, [view, weekStart, monthInfo]);
 
   const { data: eventsData } = useQuery({
     queryKey: ['calendar-events', range.start, range.end],
@@ -109,6 +159,142 @@ export function ChronoLive() {
     [allTiles],
   );
 
+  // dayIndex (0=lun) + fraction of hour → ISO assoluto nella settimana mostrata.
+  const fracToISO = useCallback((dayIndex: number, frac: number) => {
+    const h = Math.floor(frac);
+    const m = Math.round((frac - h) * 60);
+    const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + dayIndex, h, m);
+    return d.toISOString();
+  }, [weekStart]);
+
+  // Drag-drop di un evento timed: aggiorna start/end (durata preservata dalla view).
+  const handleEventReschedule = useCallback((id: string, dayIndex: number, s: number, e: number) => {
+    const start_at = fracToISO(dayIndex, s);
+    const end_at = fracToISO(dayIndex, e);
+    // Optimistic: sposta subito l'evento nella cache della settimana corrente.
+    queryClient.setQueryData(['calendar-events', range.start, range.end], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === id ? { ...t, start_at, end_at, all_day: false } : t)) };
+    });
+    calendarApi.reschedule(id, start_at, end_at)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] }))
+      .catch(() => {
+        toast.error('Errore spostamento evento');
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      });
+  }, [fracToISO, queryClient, range]);
+
+  // Drop di una tile Notes/Todo su uno slot → la schedula come evento timed (1h).
+  const handleScheduleTile = useCallback((tileId: string, dayIndex: number, s: number) => {
+    const start_at = fracToISO(dayIndex, s);
+    const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
+    calendarApi.schedule({ tile_id: tileId, start_at, end_at })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+        queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+        toast.success('Tile schedulata');
+      })
+      .catch(() => toast.error('Errore schedulazione'));
+  }, [fracToISO, queryClient, range]);
+
+  // Click su slot vuoto → crea un evento timed (1h) e lo apre nell'Inspector.
+  const handleCreateAt = useCallback(async (dayIndex: number, s: number) => {
+    const start_at = fracToISO(dayIndex, s);
+    const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
+    try {
+      const res = await calendarApi.createEvent({ title: 'Nuovo evento', start_at, end_at });
+      const t = res?.data;
+      const rootTag = (tagsData?.data ?? []).find((tg) => tg.is_root);
+      if (t && rootTag) await tagsApi.tagTiles(rootTag.id, [t.id]);
+      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      if (t) selectTile(t.id);
+    } catch {
+      toast.error('Errore creazione evento');
+    }
+  }, [fracToISO, queryClient, range, tagsData, selectTile]);
+
+  // ─── Menu contestuale (tasto destro): Copia · Incolla · Apri flow · Elimina ──
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  // Chiusura con Esc finché il menu è aperto.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
+
+  const openCardMenu = useCallback((e: React.MouseEvent, tileId: string) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, tileId });
+  }, []);
+
+  const openEventMenu = useCallback((e: React.MouseEvent, tileId: string, slot?: { dayIndex: number; startFrac: number }) => {
+    setMenu({ x: e.clientX, y: e.clientY, tileId, slot });
+  }, []);
+
+  const handleCopy = useCallback(() => {
+    if (!menu) return;
+    copyTile(menu.tileId);
+    setMenu(null);
+    toast.success('Tile copiata');
+  }, [menu, copyTile]);
+
+  // Incolla: duplica la tile copiata. Se il menu è stato aperto su un evento del
+  // calendario (slot presente), la copia viene schedulata in quella fascia.
+  const handlePaste = useCallback(async () => {
+    if (!clipboardId) return;
+    const slot = menu?.slot;
+    setMenu(null);
+    const source = [...allTiles, ...events].find((t) => t.id === clipboardId);
+    if (!source) { toast.error('Niente da incollare'); return; }
+    try {
+      const res = await tilesApi.create({ title: source.title || 'Copia' });
+      const newId = res?.data?.id;
+      if (!newId) return;
+      if (source.action_type) {
+        try { await tilesApi.update(newId, { action_type: source.action_type }); } catch { /* non bloccante */ }
+      }
+      const rootTag = (tagsData?.data ?? []).find((tg) => tg.is_root);
+      if (rootTag) await tagsApi.tagTiles(rootTag.id, [newId]);
+      if (slot) {
+        const start_at = fracToISO(slot.dayIndex, slot.startFrac);
+        const end_at = fracToISO(slot.dayIndex, Math.min(slot.startFrac + 1, 24));
+        await calendarApi.schedule({ tile_id: newId, start_at, end_at });
+      }
+      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      selectTile(newId);
+      toast.success('Tile incollata');
+    } catch {
+      toast.error('Errore incolla');
+    }
+  }, [clipboardId, menu, allTiles, events, tagsData, fracToISO, queryClient, range, selectTile]);
+
+  const handleOpenFlow = useCallback(() => {
+    if (!menu) return;
+    const id = menu.tileId;
+    setMenu(null);
+    openFlow(id);
+  }, [menu, openFlow]);
+
+  const handleDelete = useCallback(async () => {
+    if (!menu) return;
+    const id = menu.tileId;
+    setMenu(null);
+    try {
+      await tilesApi.delete(id);
+      if (selectedTileId === id) clearSelection();
+      queryClient.invalidateQueries({ queryKey: ['calendar-events', range.start, range.end] });
+      queryClient.invalidateQueries({ queryKey: ['tiles-calendar'] });
+      queryClient.invalidateQueries({ queryKey: ['flow-hub', 'tiles'] });
+      toast.success('Tile eliminata');
+    } catch {
+      toast.error('Errore eliminazione');
+    }
+  }, [menu, selectedTileId, clearSelection, queryClient, range]);
+
   const calendar = useMemo<ChronoCalendar>(() => {
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
@@ -116,7 +302,7 @@ export function ChronoLive() {
     });
     const todayIndex = dayIndexFrom(new Date().toISOString(), weekStart);
     const end = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
-    const rangeLabel = `${weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    const weekRangeLabel = `${weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
     const timed: ChronoTimed[] = [];
     const allday: ChronoAllDay[] = [];
@@ -140,18 +326,46 @@ export function ChronoLive() {
       }
     }
 
+    // ── Celle del mese (6×7) — usate quando view === 'month' ──
+    let month: MonthCell[] | undefined;
+    let monthRangeLabel = '';
+    if (view === 'month') {
+      const gs = monthInfo.gridStart;
+      const todayK = dateKey(new Date());
+      month = Array.from({ length: 42 }, (_, i) => {
+        const d = new Date(gs.getFullYear(), gs.getMonth(), gs.getDate() + i);
+        const key = dateKey(d);
+        const cellEvents: MonthEvent[] = events
+          .filter((t) => { const ref = eventRefIso(t); return ref && dateKey(new Date(ref)) === key; })
+          .map((t) => ({
+            id: t.id,
+            title: t.title || 'Senza titolo',
+            kind: t.action_type === 'deadline' ? 'deadline' : t.all_day ? 'allday' : 'timed',
+          }));
+        return { key, num: d.getDate(), inMonth: d.getMonth() === monthInfo.first.getMonth(), isToday: key === todayK, events: cellEvents };
+      });
+      monthRangeLabel = monthInfo.first.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
+    }
+
     return {
       days,
       todayIndex: todayIndex >= 0 && todayIndex <= 6 ? todayIndex : -1,
-      rangeLabel,
+      rangeLabel: view === 'month' ? monthRangeLabel : weekRangeLabel,
       timed,
       allday,
-      onPrev: () => setWeekOffset((w) => w - 1),
-      onNext: () => setWeekOffset((w) => w + 1),
-      onToday: () => setWeekOffset(0),
+      month,
+      view,
+      onViewChange: setView,
+      onPrev: () => (view === 'month' ? setMonthOffset((m) => m - 1) : setWeekOffset((w) => w - 1)),
+      onNext: () => (view === 'month' ? setMonthOffset((m) => m + 1) : setWeekOffset((w) => w + 1)),
+      onToday: () => (view === 'month' ? setMonthOffset(0) : setWeekOffset(0)),
       onEventClick: (id) => selectTile(id),
+      onEventContextMenu: openEventMenu,
+      onEventReschedule: handleEventReschedule,
+      onScheduleTile: handleScheduleTile,
+      onCreateAt: handleCreateAt,
     };
-  }, [events, weekStart, selectTile]);
+  }, [events, weekStart, view, monthInfo, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleCreateAt]);
 
   const handleAddTile = useCallback(async () => {
     try {
@@ -186,14 +400,51 @@ export function ChronoLive() {
   }
 
   return (
-    <ChronoView
-      notes={notes}
-      todos={todos}
-      calendar={calendar}
-      selectedId={selectedTileId ?? undefined}
-      onCardClick={(id) => selectTile(id)}
-      onAddTile={handleAddTile}
-      meta={`${calendar.allday.length + calendar.timed.length} eventi`}
-    />
+    <>
+      <ChronoView
+        notes={notes}
+        todos={todos}
+        calendar={calendar}
+        selectedId={selectedTileId ?? undefined}
+        onCardClick={(id) => selectTile(id)}
+        onCardContextMenu={openCardMenu}
+        onAddTile={handleAddTile}
+        meta={`${calendar.allday.length + calendar.timed.length} eventi`}
+      />
+      {menu && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Backdrop: click o tasto destro fuori → chiude. */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={closeMenu}
+            onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
+          />
+          <div
+            className="ob-ctx"
+            style={{
+              top: Math.min(menu.y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - 180),
+              left: Math.min(menu.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 196),
+            }}
+          >
+            <button type="button" className="ob-ctx__item" onClick={handleCopy}>
+              <Icon name="copy" size={14} /> Copia
+            </button>
+            <button type="button" className="ob-ctx__item" onClick={handlePaste} disabled={!clipboardId}>
+              <Icon name="paste" size={14} /> Incolla
+            </button>
+            {tilesWithFlows.has(menu.tileId) && (
+              <button type="button" className="ob-ctx__item" onClick={handleOpenFlow}>
+                <Icon name="flow" size={14} /> Apri flow
+              </button>
+            )}
+            <div className="ob-ctx__sep" />
+            <button type="button" className="ob-ctx__item ob-ctx__item--danger" onClick={handleDelete}>
+              <Icon name="trash" size={14} /> Elimina
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
   );
 }

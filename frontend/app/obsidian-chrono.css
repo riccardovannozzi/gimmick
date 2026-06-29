@@ -46,9 +46,39 @@
 
 /* tile card */
 .ob-chrono__card { border-radius: 8px; padding: 9px 10px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+/* ── Vista Mese ── */
+.ob-chrono__month { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
+.ob-chrono__month-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--ob-line); position: sticky; top: 0; background: var(--ob-surface); z-index: 1; }
+.ob-chrono__month-dow { padding: 7px 8px; font-family: var(--ob-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-subtle); text-align: left; }
+.ob-chrono__month-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(84px, 1fr); }
+.ob-chrono__month-cell { border-right: 1px solid var(--ob-line); border-bottom: 1px solid var(--ob-line); padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
+.ob-chrono__month-cell:nth-child(7n) { border-right: none; }
+.ob-chrono__month-cell--out { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-chrono__month-cell--out .ob-chrono__month-num { color: var(--ob-faint); }
+.ob-chrono__month-cell--today { background: var(--ob-today-bg); }
+.ob-chrono__month-num { font-family: var(--ob-font-sans); font-size: 12px; font-weight: 600; color: var(--ob-muted); }
+.ob-chrono__month-cell--today .ob-chrono__month-num { color: var(--ob-accent); }
+.ob-chrono__month-evs { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ob-chrono__month-ev { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 5px; border-radius: 5px; background: color-mix(in srgb, var(--ev-c) 14%, transparent); }
+.ob-chrono__month-ev-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ev-c); flex-shrink: 0; }
+.ob-chrono__month-ev-title { font-family: var(--ob-font-sans); font-size: 11px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__month-more { font-family: var(--ob-font-sans); font-size: 10px; color: var(--ob-subtle); padding-left: 4px; }
+
+.ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; }
+.ob-chrono__colsearch:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
 .ob-chrono__card--clickable { cursor: pointer; }
 .ob-chrono__card--active { box-shadow: 0 0 0 2px var(--ob-accent); }
+.ob-chrono__card--draggable { cursor: grab; }
+.ob-chrono__card--draggable:active { cursor: grabbing; }
 .ob-chrono__event--clickable { cursor: pointer; }
+/* Drag-drop reschedule: maniglia + feedback colonna bersaglio. */
+.ob-chrono__event--draggable { cursor: grab; }
+.ob-chrono__event--draggable:active { cursor: grabbing; }
+.ob-chrono__daycol--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 35%, transparent); }
+.ob-chrono__daycol--creatable { cursor: cell; }
+/* Maniglia di resize in basso all'evento (cambia la durata). */
+.ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 6px 6px; }
+.ob-chrono__event-resize:hover { background: color-mix(in srgb, var(--ev-c) 45%, transparent); }
 .ob-chrono__card-title { font-size: 12px; line-height: 15px; font-weight: 500; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-chrono__card-bars { display: flex; gap: 3px; }
 .ob-chrono__card-bar { flex: 1; height: 4px; border-radius: 2px; background: var(--ob-line-2); }
@@ -104,12 +134,24 @@
 .ob-chrono__daycol--first { border-left: none; }
 .ob-chrono__daycol--today { background: var(--ob-today-bg); }
 .ob-chrono__gridline { position: absolute; left: 0; right: 0; border-top: 1px solid var(--ob-grid-line); }
-.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: 5px; overflow: hidden; display: flex; background: color-mix(in srgb, var(--ev-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+/* Sfondo OPACO (mix con la surface, non transparent) così gli eventi affiancati
+   in caso di sovrapposizione non si vedono in trasparenza l'uno sull'altro. */
+.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: 5px; overflow: hidden; display: flex; background: color-mix(in srgb, var(--ev-c) 16%, var(--ob-surface)); border: 1px solid color-mix(in srgb, var(--ev-c) 38%, var(--ob-surface)); }
 .ob-chrono__event--tall { flex-direction: column; padding: 3px 6px; gap: 1px; }
 .ob-chrono__event--tiny { flex-direction: row; align-items: center; padding: 2px 6px; gap: 5px; }
-.ob-chrono__event-title { font-size: 10.5px; font-weight: 600; color: var(--ob-text); line-height: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ob-chrono__event--tiny .ob-chrono__event-title { flex: 1; }
+.ob-chrono__event-title { font-size: 10.5px; font-weight: 600; color: var(--ob-text); line-height: 13px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; word-break: break-word; }
+/* Negli eventi bassi (tiny) c'è spazio per una sola riga: troncamento inline. */
+.ob-chrono__event--tiny .ob-chrono__event-title { flex: 1; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .ob-chrono__event-time { font-size: 9px; font-family: var(--ob-font-mono); color: var(--ev-c); flex-shrink: 0; }
 [data-theme='dark'] .ob-chrono__event-time { color: var(--ob-muted); }
 .ob-chrono__now { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid var(--ob-accent); z-index: 5; }
 .ob-chrono__now-dot { position: absolute; left: -3px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-accent); }
+
+/* ── Menu contestuale (tasto destro su card/evento): Copia · Incolla · Apri flow · Elimina ── */
+.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 8px; box-shadow: var(--ob-shadow-card); }
+.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: 6px; cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; line-height: 1.2; }
+.ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
+.ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
+.ob-ctx__item--danger { color: var(--ob-error); }
+.ob-ctx__item--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-error) 14%, transparent); }
+.ob-ctx__sep { height: 1px; margin: 4px 2px; background: var(--ob-line); }

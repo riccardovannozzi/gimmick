@@ -47,18 +47,24 @@ export interface ColTile {
   spark?: SparkType;
   amber?: boolean;
   checklist?: boolean[];
+  /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
+  createdAt?: string;
 }
 
-function TileCard({ t, onClick, active }: { t: ColTile; onClick?: () => void; active?: boolean }) {
+function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
+  const canDrag = !!schedulable && !!t.id;
   return (
     <div
-      className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable')}
+      className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable')}
       style={{ ['--card-c' as string]: cardC }}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      draggable={canDrag}
+      onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
       <div className="ob-chrono__card-title">{t.title}</div>
       {t.checklist && (
@@ -81,37 +87,77 @@ function TileCard({ t, onClick, active }: { t: ColTile; onClick?: () => void; ac
   );
 }
 
+const SORT_LABELS = ['Ordina: manuale', 'Ordina: A→Z', 'Ordina: recenti'] as const;
+
 function Column({
-  icon, iconColor, label, tiles, empty, onCardClick, selectedId,
+  icon, iconColor, label, tiles, empty, onCardClick, selectedId, schedulable, onCardContextMenu,
 }: {
   icon: ShellIconName; iconColor: string; label: string; tiles: ColTile[]; empty: string;
-  onCardClick?: (id: string) => void; selectedId?: string;
+  onCardClick?: (id: string) => void; selectedId?: string; schedulable?: boolean;
+  onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
 }) {
+  const [sort, setSort] = React.useState(0); // 0 manuale · 1 A→Z · 2 recenti
+  const [searchOpen, setSearchOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+
+  const shown = React.useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let list = q ? tiles.filter((t) => t.title.toLowerCase().includes(q)) : tiles;
+    if (sort === 1) list = [...list].sort((a, b) => a.title.localeCompare(b.title));
+    else if (sort === 2) list = [...list].sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
+    return list;
+  }, [tiles, query, sort]);
+
   return (
     <div className="ob-chrono__col">
       <div className="ob-chrono__colhead">
         <span className="ob-chrono__colhead-collapse"><Icon name="collapse" size={13} /></span>
         <span className="ob-chrono__colhead-icon" style={{ color: iconColor }}><Icon name={icon} size={14} /></span>
         <span className="ob-chrono__colhead-label">{label}</span>
-        <span className="ob-chrono__colhead-count">{tiles.length}</span>
+        <span className="ob-chrono__colhead-count">{shown.length}</span>
         <div style={{ flex: 1 }} />
         <div className="ob-chrono__colhead-btns">
-          <button type="button" className="ob-chrono__colhead-btn" aria-label="Ordina"><Icon name="sort" size={12} /></button>
-          <button type="button" className="ob-chrono__colhead-btn" aria-label="Filtra"><Icon name="filter" size={12} /></button>
-          <button type="button" className="ob-chrono__colhead-btn" aria-label="Raggruppa"><Icon name="group" size={12} /></button>
+          <button
+            type="button"
+            className="ob-chrono__colhead-btn"
+            aria-label={SORT_LABELS[sort]}
+            title={SORT_LABELS[sort]}
+            style={sort !== 0 ? { color: 'var(--ob-accent)' } : undefined}
+            onClick={() => setSort((s) => (s + 1) % 3)}
+          ><Icon name="sort" size={12} /></button>
+          <button
+            type="button"
+            className="ob-chrono__colhead-btn"
+            aria-label="Filtra"
+            title="Filtra per titolo"
+            style={searchOpen || query ? { color: 'var(--ob-accent)' } : undefined}
+            onClick={() => setSearchOpen((o) => { const n = !o; if (!n) setQuery(''); return n; })}
+          ><Icon name="filter" size={12} /></button>
         </div>
       </div>
+      {searchOpen && (
+        <input
+          className="ob-chrono__colsearch"
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Escape') { setQuery(''); setSearchOpen(false); } }}
+          placeholder="Filtra…"
+        />
+      )}
       <div className="ob-chrono__colbody ob-scroll">
-        {tiles.length
-          ? tiles.map((t, i) => (
+        {shown.length
+          ? shown.map((t, i) => (
               <TileCard
                 key={t.id ?? i}
                 t={t}
                 active={!!t.id && t.id === selectedId}
                 onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
+                schedulable={schedulable}
+                onContextMenu={onCardContextMenu && t.id ? (e) => onCardContextMenu(e, t.id!) : undefined}
               />
             ))
-          : <span className="ob-chrono__empty">{empty}</span>}
+          : <span className="ob-chrono__empty">{query ? 'Nessun risultato' : empty}</span>}
       </div>
     </div>
   );
@@ -124,6 +170,8 @@ const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 export interface ChronoDay { dow: string; num: number }
 export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string }
 export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string }
+export interface MonthEvent { id?: string; title: string; kind: EventKind }
+export interface MonthCell { key: string; num: number; inMonth: boolean; isToday: boolean; events: MonthEvent[] }
 export interface ChronoCalendar {
   days: ChronoDay[];
   /** Index of "today" in `days`, or -1 if the current week is not shown. */
@@ -135,7 +183,24 @@ export interface ChronoCalendar {
   onNext?: () => void;
   onToday?: () => void;
   onEventClick?: (id: string) => void;
+  /** Tasto destro su un evento → menu contestuale. Per gli eventi timed passa
+   *  lo slot (giorno + fascia) così "Incolla" può schedulare lì la copia. */
+  onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void;
+  /** Drag-drop di un evento timed: nuovo giorno + nuova fascia oraria (snap 15'). */
+  onEventReschedule?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
+  /** Drop di una tile (Notes/Todo) su uno slot del calendario → schedulazione timed. */
+  onScheduleTile?: (tileId: string, dayIndex: number, startFrac: number) => void;
+  /** Click su uno slot vuoto della griglia → crea un evento timed lì. */
+  onCreateAt?: (dayIndex: number, startFrac: number) => void;
+  /** Modalità vista corrente. Default 'week'. */
+  view?: 'week' | 'month';
+  onViewChange?: (v: 'week' | 'month') => void;
+  /** Celle del mese (6×7 = 42) quando view === 'month'. */
+  month?: MonthCell[];
 }
+
+const SNAP = 0.25; // 15 minuti
+function snapFrac(v: number): number { return Math.round(v / SNAP) * SNAP; }
 
 // Static demo (preview route, no props).
 const DEMO_CALENDAR: ChronoCalendar = {
@@ -158,43 +223,166 @@ const DEMO_CALENDAR: ChronoCalendar = {
   ],
 };
 
-function fmt(v: number): string {
-  const hh = Math.floor(v);
-  const mm = Math.round((v - hh) * 60);
-  return `${hh < 10 ? '0' + hh : hh}:${mm < 10 ? '0' + mm : mm}`;
-}
 function eventColor(e: ChronoTimed): string {
   return e.amber ? 'var(--ob-warning)' : KIND_COLOR[e.kind];
 }
 
+/**
+ * Layout a colonne per eventi che si sovrappongono nello stesso giorno.
+ * Cluster di eventi mutuamente sovrapposti → assegnazione greedy delle colonne
+ * (algoritmo classico dei calendari). Ritorna col/cols per ciascun evento.
+ */
+function layoutOverlaps(evs: ChronoTimed[]): Map<ChronoTimed, { col: number; cols: number }> {
+  const res = new Map<ChronoTimed, { col: number; cols: number }>();
+  const sorted = [...evs].sort((a, b) => a.s - b.s || a.e - b.e);
+  let cluster: ChronoTimed[] = [];
+  let clusterEnd = -Infinity;
+  const flush = () => {
+    const colEnds: number[] = []; // fine dell'ultimo evento per colonna
+    for (const ev of cluster) {
+      let c = colEnds.findIndex((end) => ev.s >= end);
+      if (c === -1) { c = colEnds.length; colEnds.push(ev.e); } else { colEnds[c] = ev.e; }
+      res.set(ev, { col: c, cols: 0 });
+    }
+    for (const ev of cluster) res.get(ev)!.cols = colEnds.length;
+    cluster = []; clusterEnd = -Infinity;
+  };
+  for (const ev of sorted) {
+    if (cluster.length && ev.s >= clusterEnd) flush();
+    cluster.push(ev);
+    clusterEnd = Math.max(clusterEnd, ev.e);
+  }
+  flush();
+  return res;
+}
+
 function DayColumn({
-  dayIndex, isToday, timed, onEventClick,
-}: { dayIndex: number; isToday: boolean; timed: ChronoTimed[]; onEventClick?: (id: string) => void }) {
+  dayIndex, isToday, timed, onEventClick, onEventContextMenu, onEventReschedule, onScheduleTile, onCreateAt,
+}: {
+  dayIndex: number; isToday: boolean; timed: ChronoTimed[];
+  onEventClick?: (id: string) => void;
+  onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void;
+  onEventReschedule?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
+  onScheduleTile?: (tileId: string, dayIndex: number, startFrac: number) => void;
+  onCreateAt?: (dayIndex: number, startFrac: number) => void;
+}) {
+  const colRef = React.useRef<HTMLDivElement>(null);
+  const [dragOver, setDragOver] = React.useState(false);
+  // Resize in corso: id evento + nuova fine (frazione) in anteprima.
+  const [resize, setResize] = React.useState<{ id: string; s: number; startE: number; startY: number; curE: number } | null>(null);
   const evs = timed.filter((e) => e.day === dayIndex);
+  const layout = layoutOverlaps(evs);
   // Now-line position (only on today).
   const now = new Date();
   const nowFrac = now.getHours() + now.getMinutes() / 60;
+  const dropEnabled = !!onEventReschedule || !!onScheduleTile;
+
+  // Convert a viewport Y to a snapped start fraction within this column.
+  const yToStart = (clientY: number, grabFrac = 0): number => {
+    const rect = colRef.current!.getBoundingClientRect();
+    const s = START + (clientY - rect.top) / H - grabFrac;
+    return snapFrac(s);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const evRaw = e.dataTransfer.getData('application/x-chrono-event');
+    if (evRaw && onEventReschedule) {
+      try {
+        const { id, dur, grab } = JSON.parse(evRaw) as { id: string; dur: number; grab: number };
+        let s = yToStart(e.clientY, grab);
+        s = Math.max(START, Math.min(s, END + 1 - dur));
+        onEventReschedule(id, dayIndex, s, s + dur);
+      } catch { /* ignore malformed payload */ }
+      return;
+    }
+    const tileId = e.dataTransfer.getData('application/x-chrono-tile');
+    if (tileId && onScheduleTile) {
+      let s = yToStart(e.clientY, 0);
+      s = Math.max(START, Math.min(s, END));
+      onScheduleTile(tileId, dayIndex, s);
+    }
+  };
+
   return (
-    <div className={cn('ob-chrono__daycol', dayIndex === 0 && 'ob-chrono__daycol--first', isToday && 'ob-chrono__daycol--today')}>
+    <div
+      ref={colRef}
+      className={cn('ob-chrono__daycol', dayIndex === 0 && 'ob-chrono__daycol--first', isToday && 'ob-chrono__daycol--today', dragOver && 'ob-chrono__daycol--dragover', onCreateAt && 'ob-chrono__daycol--creatable')}
+      onDragOver={dropEnabled ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dragOver) setDragOver(true); } : undefined}
+      onDragLeave={dropEnabled ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); } : undefined}
+      onDrop={dropEnabled ? handleDrop : undefined}
+      onClick={onCreateAt ? (e) => {
+        // Solo click su area vuota (non su un evento) → crea.
+        if ((e.target as HTMLElement).closest('.ob-chrono__event')) return;
+        const s = Math.max(START, Math.min(yToStart(e.clientY), END));
+        onCreateAt(dayIndex, s);
+      } : undefined}
+    >
       {HOURS.map((_, k) => <div key={k} className="ob-chrono__gridline" style={{ top: k * H }} />)}
       {evs.map((e, j) => {
+        const previewE = resize && resize.id === e.id ? resize.curE : e.e;
         const s = Math.max(e.s, START);
-        const eend = Math.min(e.e, END + 1);
+        const eend = Math.min(previewE, END + 1);
         const top = (s - START) * H + 1;
         const height = Math.max((eend - s) * H - 3, 20);
         const tiny = height < 34;
-        const click = onEventClick && e.id ? () => onEventClick(e.id!) : undefined;
+        const click = onEventClick && e.id ? (ev: React.MouseEvent) => { ev.stopPropagation(); onEventClick(e.id!); } : undefined;
+        const ctx = onEventContextMenu && e.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEventContextMenu(ev, e.id!, { dayIndex, startFrac: Math.max(e.s, START) }); } : undefined;
+        const draggable = !!onEventReschedule && !!e.id;
+        const resizable = draggable && !tiny;
+        // Posizionamento orizzontale per gestire le sovrapposizioni (colonne).
+        const lay = layout.get(e) ?? { col: 0, cols: 1 };
+        const left = `calc(${(lay.col / lay.cols) * 100}% + 3px)`;
+        const width = `calc(${100 / lay.cols}% - 6px)`;
         return (
           <div
             key={e.id ?? j}
-            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable')}
-            style={{ top, height, ['--ev-c' as string]: eventColor(e) }}
+            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable')}
+            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e) }}
             onClick={click}
+            onContextMenu={ctx}
             role={click ? 'button' : undefined}
             tabIndex={click ? 0 : undefined}
+            draggable={draggable && !resize}
+            onDragStart={draggable ? (de) => {
+              const r = (de.currentTarget as HTMLElement).getBoundingClientRect();
+              const grab = (de.clientY - r.top) / H; // ore "afferrate" dentro l'evento
+              de.dataTransfer.effectAllowed = 'move';
+              de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: e.id, dur: Math.max(e.e - e.s, SNAP), grab }));
+            } : undefined}
           >
             <span className="ob-chrono__event-title">{e.title}</span>
-            <span className="ob-chrono__event-time">{tiny ? fmt(e.s) : `${fmt(e.s)}–${fmt(e.e)}`}</span>
+            {resizable && (
+              <div
+                className="ob-chrono__event-resize"
+                draggable={false}
+                onClick={(ce) => ce.stopPropagation()}
+                onPointerDown={(pe) => {
+                  pe.stopPropagation();
+                  pe.preventDefault();
+                  (pe.currentTarget as HTMLElement).setPointerCapture(pe.pointerId);
+                  setResize({ id: e.id!, s: e.s, startE: e.e, startY: pe.clientY, curE: e.e });
+                }}
+                onPointerMove={(pe) => {
+                  setResize((r) => {
+                    if (!r || r.id !== e.id) return r;
+                    let ne = snapFrac(r.startE + (pe.clientY - r.startY) / H);
+                    ne = Math.max(r.s + SNAP, Math.min(ne, END + 1));
+                    return { ...r, curE: ne };
+                  });
+                }}
+                onPointerUp={(pe) => {
+                  (pe.currentTarget as HTMLElement).releasePointerCapture(pe.pointerId);
+                  setResize((r) => {
+                    if (r && r.id === e.id && Math.abs(r.curE - e.e) > 0.001 && onEventReschedule) {
+                      onEventReschedule(e.id!, dayIndex, e.s, r.curE);
+                    }
+                    return null;
+                  });
+                }}
+              />
+            )}
           </div>
         );
       })}
@@ -207,7 +395,49 @@ function DayColumn({
   );
 }
 
+const MONTH_DOW = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+
+function MonthGrid({ cells, onEventClick, onEventContextMenu }: { cells: MonthCell[]; onEventClick?: (id: string) => void; onEventContextMenu?: (e: React.MouseEvent, id: string, slot?: { dayIndex: number; startFrac: number }) => void }) {
+  return (
+    <div className="ob-chrono__month ob-scroll">
+      <div className="ob-chrono__month-head">
+        {MONTH_DOW.map((d) => <div key={d} className="ob-chrono__month-dow">{d}</div>)}
+      </div>
+      <div className="ob-chrono__month-grid">
+        {cells.map((c) => (
+          <div key={c.key} className={cn('ob-chrono__month-cell', !c.inMonth && 'ob-chrono__month-cell--out', c.isToday && 'ob-chrono__month-cell--today')}>
+            <div className="ob-chrono__month-num">{c.num}</div>
+            <div className="ob-chrono__month-evs">
+              {c.events.slice(0, 3).map((e, i) => {
+                const click = onEventClick && e.id ? () => onEventClick(e.id!) : undefined;
+                const ctx = onEventContextMenu && e.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEventContextMenu(ev, e.id!); } : undefined;
+                return (
+                  <div
+                    key={e.id ?? i}
+                    className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable')}
+                    style={{ ['--ev-c' as string]: KIND_COLOR[e.kind] }}
+                    onClick={click}
+                    onContextMenu={ctx}
+                    title={e.title}
+                    role={click ? 'button' : undefined}
+                    tabIndex={click ? 0 : undefined}
+                  >
+                    <span className="ob-chrono__month-ev-dot" />
+                    <span className="ob-chrono__month-ev-title">{e.title}</span>
+                  </div>
+                );
+              })}
+              {c.events.length > 3 && <div className="ob-chrono__month-more">+{c.events.length - 3}</div>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Calendar({ cal }: { cal: ChronoCalendar }) {
+  const view = cal.view ?? 'week';
   return (
     <div className="ob-chrono__cal">
       {/* Calendar header */}
@@ -217,16 +447,20 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
         <span className="ob-chrono__cal-range">{cal.rangeLabel}</span>
         <div style={{ flex: 1 }} />
         <div className="ob-chrono__cal-seg">
-          <button type="button" className="ob-chrono__cal-seg-item ob-chrono__cal-seg-item--active">Week</button>
-          <button type="button" className="ob-chrono__cal-seg-item">Month</button>
+          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'week' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('week')}>Week</button>
+          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'month' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('month')}>Month</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 4 }}>
-          <button type="button" className="ob-chrono__cal-nav" aria-label="Settimana precedente" onClick={cal.onPrev}><Icon name="chevL" size={14} /></button>
+          <button type="button" className="ob-chrono__cal-nav" aria-label="Periodo precedente" onClick={cal.onPrev}><Icon name="chevL" size={14} /></button>
           <button type="button" className="ob-chrono__cal-today" onClick={cal.onToday}>Oggi</button>
-          <button type="button" className="ob-chrono__cal-nav" aria-label="Settimana successiva" onClick={cal.onNext}><Icon name="chevR" size={14} /></button>
+          <button type="button" className="ob-chrono__cal-nav" aria-label="Periodo successivo" onClick={cal.onNext}><Icon name="chevR" size={14} /></button>
         </div>
       </div>
 
+      {view === 'month' && cal.month ? (
+        <MonthGrid cells={cal.month} onEventClick={cal.onEventClick} onEventContextMenu={cal.onEventContextMenu} />
+      ) : (
+      <>
       {/* Day header */}
       <div className="ob-chrono__dayhead">
         <div className="ob-chrono__gutter-sp" />
@@ -247,12 +481,14 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
             <div key={i} className={cn('ob-chrono__allday-cell', i === 0 && 'ob-chrono__allday-cell--first', i === cal.todayIndex && 'ob-chrono__allday-cell--today')}>
               {items.map((a, j) => {
                 const click = cal.onEventClick && a.id ? () => cal.onEventClick!(a.id!) : undefined;
+                const ctx = cal.onEventContextMenu && a.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); cal.onEventContextMenu!(ev, a.id!); } : undefined;
                 return (
                   <div
                     key={a.id ?? j}
                     className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable')}
                     style={{ ['--ev-c' as string]: KIND_COLOR[a.kind] }}
                     onClick={click}
+                    onContextMenu={ctx}
                     role={click ? 'button' : undefined}
                     tabIndex={click ? 0 : undefined}
                   >
@@ -277,10 +513,22 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
         </div>
         <div className="ob-chrono__grid-days" style={{ height: HOURS.length * H }}>
           {cal.days.map((_, i) => (
-            <DayColumn key={i} dayIndex={i} isToday={i === cal.todayIndex} timed={cal.timed} onEventClick={cal.onEventClick} />
+            <DayColumn
+              key={i}
+              dayIndex={i}
+              isToday={i === cal.todayIndex}
+              timed={cal.timed}
+              onEventClick={cal.onEventClick}
+              onEventContextMenu={cal.onEventContextMenu}
+              onEventReschedule={cal.onEventReschedule}
+              onScheduleTile={cal.onScheduleTile}
+              onCreateAt={cal.onCreateAt}
+            />
           ))}
         </div>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -303,12 +551,14 @@ export interface ChronoViewProps {
   calendar?: ChronoCalendar;
   selectedId?: string;
   onCardClick?: (id: string) => void;
+  /** Tasto destro su una card delle colonne Notes/Todo → menu contestuale. */
+  onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
   onAddTile?: () => void;
   meta?: React.ReactNode;
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onAddTile, meta,
+  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onAddTile, meta,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
@@ -334,8 +584,8 @@ export function ChronoView({
 
       {/* Body */}
       <div className="ob-chrono__body">
-        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} />
-        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} />
+        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} />
+        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} />
         <Calendar cal={calendar} />
       </div>
     </div>

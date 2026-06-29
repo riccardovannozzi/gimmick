@@ -22,6 +22,7 @@ import {
   IconArrowsSort, IconFilter, IconCategory,
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
   IconSend,
+  IconCopy, IconClipboard, IconTrash,
   type IconProps as TablerIconProps,
 } from '@tabler/icons-react';
 
@@ -37,7 +38,8 @@ export type ShellIconName =
   | 'tiles' | 'canvas' | 'kanban' | 'panopticon'
   | 'sort' | 'filter' | 'group'
   | 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file'
-  | 'send';
+  | 'send'
+  | 'copy' | 'paste' | 'trash';
 
 const MAP: Record<ShellIconName, React.ComponentType<TablerIconProps>> = {
   search: IconSearch, sparkles: IconSparkles, bell: IconBell, gear: IconSettings,
@@ -52,6 +54,7 @@ const MAP: Record<ShellIconName, React.ComponentType<TablerIconProps>> = {
   sort: IconArrowsSort, filter: IconFilter, group: IconCategory,
   photo: IconCamera, video: IconVideo, gallery: IconPhoto, text: IconAlignLeft, voice: IconMicrophone, file: IconPaperclip,
   send: IconSend,
+  copy: IconCopy, paste: IconClipboard, trash: IconTrash,
 };
 
 export interface IconProps extends Omit<TablerIconProps, 'ref'> {
