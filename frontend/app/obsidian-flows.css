@@ -20,6 +20,10 @@
   border: 1px solid color-mix(in srgb, var(--st-c) 26%, transparent);
   cursor: pointer;
 }
+.ob-flows__filter:hover { background: color-mix(in srgb, var(--st-c) 18%, transparent); }
+/* Filtro disattivato: lane nascosta → aspetto spento/desaturato. */
+.ob-flows__filter--off { color: var(--ob-subtle); background: transparent; border-color: var(--ob-line-2); opacity: 0.55; }
+.ob-flows__filter--off:hover { opacity: 0.8; background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
 .ob-flows__filter-icon { display: inline-flex; }
 .ob-flows__div { width: 1px; height: 22px; background: var(--ob-line-2); }
 
@@ -28,7 +32,7 @@
 
 /* ── Lane ── */
 .ob-flows__lane {
-  width: 290px; flex-shrink: 0;
+  flex: 1 1 0; min-width: 300px;
   display: flex; flex-direction: column;
   background: #f4f3f6;
   border: 1px solid var(--ob-line);
@@ -46,19 +50,27 @@
 .ob-flows__lane-body { flex: 1; overflow-y: auto; padding: 4px 10px 12px; }
 .ob-flows__empty { padding: 24px 0; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--ob-faint); }
 
-/* ── Flow card ── */
-.ob-flows__card { background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 12px; padding: 13px 14px; margin-bottom: 10px; }
-.ob-flows__card-top { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 11px; }
-.ob-flows__card-main { flex: 1; min-width: 0; }
-.ob-flows__card-tag { font-family: var(--ob-font-mono); font-size: 10px; font-weight: 600; color: var(--ob-accent); margin-bottom: 5px; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ── Flow card (riga orizzontale a piena larghezza) ──
+   Layout in una riga che usa lo spazio della lane allargata; in lane strette
+   gli elementi vanno a capo (flex-wrap). I giorni di ritardo sono in un badge
+   prominente color-coded per gravità. */
+.ob-flows__card { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 12px; padding: 12px 14px; margin-bottom: 10px; }
+.ob-flows__card-badge { width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--st-c) 16%, transparent); display: flex; align-items: center; justify-content: center; color: var(--st-c); flex-shrink: 0; }
+.ob-flows__card-main { flex: 1 1 200px; min-width: 0; }
+.ob-flows__card-tag { font-family: var(--ob-font-mono); font-size: 10px; font-weight: 600; color: var(--ob-accent); margin-bottom: 3px; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-flows__card-title { font-size: 14px; font-weight: 600; color: var(--ob-text); line-height: 1.3; }
-.ob-flows__card-badge { width: 26px; height: 26px; border-radius: 50%; background: color-mix(in srgb, var(--st-c) 16%, transparent); display: flex; align-items: center; justify-content: center; color: var(--st-c); flex-shrink: 0; }
-.ob-flows__card-action { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--ob-surface-2); border-radius: 9px; margin-bottom: 10px; }
+.ob-flows__card-action { display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 0; padding: 7px 10px; background: var(--ob-surface-2); border-radius: 9px; }
 .ob-flows__card-action-text { font-size: 12px; color: var(--ob-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-flows__card-arrow { color: var(--ob-faint); display: inline-flex; flex-shrink: 0; }
 .ob-flows__card-who { display: flex; align-items: center; gap: 5px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 7px; padding: 3px 8px; flex-shrink: 0; }
 .ob-flows__card-who-icon { color: var(--ob-subtle); display: inline-flex; }
 .ob-flows__card-who-name { font-size: 11px; font-weight: 600; color: var(--ob-muted); white-space: nowrap; }
-.ob-flows__card-foot { display: flex; align-items: center; }
-.ob-flows__card-ago { font-size: 11px; color: var(--ob-subtle); flex: 1; }
+.ob-flows__card-meta { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
 .ob-flows__card-date { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+
+/* Badge "giorni di ritardo" — la cosa più evidente della card. */
+.ob-flows__card-delay { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-family: var(--ob-font-mono); font-size: 11.5px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.ob-flows__card-delay--none { color: var(--ob-subtle); background: color-mix(in srgb, var(--ob-text) 6%, transparent); }
+.ob-flows__card-delay--low { color: var(--ob-muted); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
+.ob-flows__card-delay--mid { color: var(--ob-warning); background: color-mix(in srgb, var(--ob-warning) 16%, transparent); border: 1px solid color-mix(in srgb, var(--ob-warning) 32%, transparent); }
+.ob-flows__card-delay--high { color: var(--ob-error); background: color-mix(in srgb, var(--ob-error) 16%, transparent); border: 1px solid color-mix(in srgb, var(--ob-error) 38%, transparent); }

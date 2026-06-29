@@ -9,6 +9,7 @@
  */
 import * as React from 'react';
 import * as TablerIcons from '@tabler/icons-react';
+import { IconPin, IconPinFilled } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/primitives';
 import { Icon, type ShellIconName } from './icons';
@@ -49,6 +50,10 @@ export interface SidebarProps {
   onFilterChange?: (value: string) => void;
   /** Label for the "pinned" segment (e.g. "Pinned · 2"). */
   pinnedLabel?: string;
+  /** Toggle pin su un tag (figlio). `pinned` = nuovo stato desiderato. */
+  onTogglePin?: (tagId: string, pinned: boolean) => void;
+  /** Apri il tag selezionato nel Canvas. */
+  onOpenCanvas?: (tagId: string) => void;
 }
 
 export function Sidebar({
@@ -59,6 +64,8 @@ export function Sidebar({
   filter = 'all',
   onFilterChange,
   pinnedLabel = 'Pinned',
+  onTogglePin,
+  onOpenCanvas,
 }: SidebarProps) {
   const [open, setOpen] = React.useState<Record<string, boolean>>(() =>
     Object.fromEntries(groups.map((g) => [g.id, g.defaultOpen ?? false])),
@@ -98,7 +105,9 @@ export function Sidebar({
 
       {groups.map((g) => {
         const isOpen = open[g.id];
-        const kids = g.children ?? [];
+        // Filtro "Pinned": mostra solo i tag pinnati (e nascondi i gruppi vuoti).
+        const kids = (g.children ?? []).filter((c) => filter !== 'pinned' || c.pinned);
+        if (filter === 'pinned' && kids.length === 0) return null;
         // Il tag-type salva il glyph come nome Tabler in `emoji`; se risolvibile
         // ha la priorità, altrimenti si usa il glyph dello shell `g.icon`.
         const Glyph = g.emoji ? TablerMap[g.emoji] : undefined;
@@ -122,15 +131,38 @@ export function Sidebar({
                 {kids.map((c) => {
                   const isActive = c.id === activeChildId;
                   return (
-                    <button
-                      key={c.id}
-                      type="button"
-                      className={cn('ob-sb-child', isActive && 'ob-sb-child--active')}
-                      onClick={() => onSelectChild?.(c.id)}
-                    >
-                      <span className="ob-sb-child__name">{c.name}</span>
-                      {c.pinned && <span className="ob-sb-child__pin"><Icon name="pin" size={12} /></span>}
-                    </button>
+                    <div key={c.id} className={cn('ob-sb-child', isActive && 'ob-sb-child--active')}>
+                      <button
+                        type="button"
+                        className="ob-sb-child__main"
+                        onClick={() => onSelectChild?.(c.id)}
+                      >
+                        <span className="ob-sb-child__name">{c.name}</span>
+                      </button>
+                      <div className="ob-sb-child__actions">
+                        {onTogglePin && (
+                          <button
+                            type="button"
+                            className={cn('ob-sb-child__act', c.pinned && 'ob-sb-child__act--on')}
+                            title={c.pinned ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                            aria-pressed={!!c.pinned}
+                            onClick={(e) => { e.stopPropagation(); onTogglePin(c.id, !c.pinned); }}
+                          >
+                            {c.pinned ? <IconPinFilled size={13} /> : <IconPin size={13} />}
+                          </button>
+                        )}
+                        {onOpenCanvas && (
+                          <button
+                            type="button"
+                            className="ob-sb-child__act"
+                            title="Apri nel Canvas"
+                            onClick={(e) => { e.stopPropagation(); onOpenCanvas(c.id); }}
+                          >
+                            <Icon name="canvas" size={13} />
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   );
                 })}
               </div>

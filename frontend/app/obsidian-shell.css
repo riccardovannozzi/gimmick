@@ -161,19 +161,30 @@
 .ob-sb-group__glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
 .ob-sb-group__name { font-size: 13px; font-weight: 600; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-group__kids { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--ob-line); }
+/* Riga tag: contenitore (nome cliccabile + azioni pin/canvas su hover). */
 .ob-sb-child {
-  display: flex; align-items: center; gap: 7px;
-  padding: 6px 9px; border-radius: 7px;
-  cursor: pointer;
-  background: transparent; border: none; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 2px;
+  padding: 0 5px 0 9px; border-radius: 7px;
   transition: background-color 120ms ease-out;
 }
 .ob-sb-child:hover:not(.ob-sb-child--active) { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
 .ob-sb-child--active { background: var(--ob-accent-soft); }
+.ob-sb-child__main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 6px 0; background: transparent; border: none; cursor: pointer; text-align: left; }
 .ob-sb-child__name { font-size: 13px; font-weight: 500; color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: 600; }
-.ob-sb-child__pin { color: var(--ob-subtle); display: inline-flex; }
-.ob-sb-child--active .ob-sb-child__pin { color: var(--ob-accent); }
+.ob-sb-child__actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; }
+.ob-sb-child__act {
+  width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ob-subtle); background: transparent; border: none; cursor: pointer;
+  opacity: 0; transition: opacity 120ms ease-out, color 120ms ease-out, background-color 120ms ease-out;
+}
+.ob-sb-child:hover .ob-sb-child__act,
+.ob-sb-child:focus-within .ob-sb-child__act { opacity: 1; }
+.ob-sb-child__act:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 6%, transparent); }
+/* Pin attivo: sempre visibile e in accent, anche senza hover. */
+.ob-sb-child__act--on { opacity: 1; color: var(--ob-accent); }
+.ob-sb-child__act--on:hover { color: var(--ob-accent); }
 
 /* ── ViewContainer ── */
 .ob-view { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--ob-canvas); overflow: hidden; }

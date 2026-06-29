@@ -19,9 +19,10 @@
  */
 import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell, Sidebar, Inspector, type ViewId } from '@/components/shell';
 import { tagsApi } from '@/lib/api';
+import { prefetchView } from '@/lib/view-prefetch';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { useChatStore } from '@/store/chat-store';
@@ -57,6 +58,7 @@ export interface ObsidianShellProps {
 export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const queryClient = useQueryClient();
   const { mode } = useObsidianTheme();
 
   const user = useAuthStore((s) => s.user);
@@ -78,7 +80,64 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     [tagsData?.data, tagTypes],
   );
 
-  const activeView: ViewId = PATH_TO_VIEW[pathname ?? ''] ?? 'tiles';
+  // Navigazione ottimistica: il tab attivo deriva dal pathname, che si aggiorna
+  // solo a transizione completata → il clic sembrava "non rispondere". Teniamo
+  // una vista ottimistica che evidenzia subito il tab cliccato, mentre la rotta
+  // carica in background (useTransition), e la azzeriamo quando il pathname
+  // raggiunge la destinazione.
+  const derivedView: ViewId = PATH_TO_VIEW[pathname ?? ''] ?? 'tiles';
+  const [optimisticView, setOptimisticView] = React.useState<ViewId | null>(null);
+  const [, startTransition] = React.useTransition();
+  const activeView = optimisticView ?? derivedView;
+
+  React.useEffect(() => {
+    if (optimisticView && derivedView === optimisticView) setOptimisticView(null);
+  }, [derivedView, optimisticView]);
+
+  // Prefetch di tutte le rotte delle viste al mount: il cambio pagina diventa
+  // istantaneo (bundle + payload RSC già pronti) invece di caricare on-click.
+  React.useEffect(() => {
+    for (const path of Object.values(VIEW_TO_PATH)) router.prefetch(path);
+  }, [router]);
+
+  const handleViewChange = React.useCallback((v: ViewId) => {
+    if (v === activeView) return;
+    setOptimisticView(v); // feedback immediato sul tab
+    startTransition(() => router.push(VIEW_TO_PATH[v]));
+  }, [activeView, router]);
+
+  // Hover su un tab → prefetch dei dati della vista: al clic il contenuto è
+  // spesso già in cache (niente spinner), oltre alla rotta già prefetchata.
+  const handleHoverView = React.useCallback((v: ViewId) => {
+    router.prefetch(VIEW_TO_PATH[v]);
+    prefetchView(queryClient, v);
+  }, [router, queryClient]);
+
+  // Filtro Sidebar (Tutti / Pinned).
+  const [tagFilter, setTagFilter] = React.useState('all');
+
+  // Pin/unpin di un tag: aggiornamento ottimistico della cache ['tags'].
+  const handleTogglePin = React.useCallback((tagId: string, pinned: boolean) => {
+    queryClient.setQueryData(['tags'], (old: { data?: Tag[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === tagId ? { ...t, is_pinned: pinned } : t)) };
+    });
+    tagsApi.update(tagId, { is_pinned: pinned })
+      .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
+  }, [queryClient]);
+
+  // Apri il tag nel Canvas (con navigazione ottimistica come i tab).
+  const handleOpenCanvas = React.useCallback((tagId: string) => {
+    setOptimisticView('canvas');
+    startTransition(() => router.push(`/canvas?tag=${tagId}`));
+  }, [router]);
+
+  // Conteggio pinnati per l'etichetta del segmento.
+  const pinnedCount = React.useMemo(
+    () => ((tagsData?.data ?? []) as Tag[]).filter((t) => t.is_pinned && !t.is_root).length,
+    [tagsData],
+  );
+
   // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
   // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
   const pageOwnsInspector = activeView === 'canvas' || activeView === 'panopticon';
@@ -93,9 +152,10 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       mode={mode}
       fill
       activeView={activeView}
-      onViewChange={(v) => router.push(VIEW_TO_PATH[v])}
+      onViewChange={handleViewChange}
       header={{
         userInitials,
+        onHoverView: handleHoverView,
         onAsk: () => setChatOpen(true),
         onBell: () => router.push('/tiles'),
         onSettings: () => router.push('/settings'),
@@ -107,6 +167,11 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
           count={count}
           activeChildId={activeChildId}
           onSelectChild={(id) => selectOnly(id)}
+          filter={tagFilter}
+          onFilterChange={setTagFilter}
+          pinnedLabel={pinnedCount > 0 ? `Pinned · ${pinnedCount}` : 'Pinned'}
+          onTogglePin={handleTogglePin}
+          onOpenCanvas={handleOpenCanvas}
         />
       }
       inspector={

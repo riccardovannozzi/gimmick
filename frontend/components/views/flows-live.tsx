@@ -39,6 +39,7 @@ function toFlow(item: FlowHubItem) {
     who: isSelf ? 'IO' : item.contact?.name ?? '—',
     ago: ago(item),
     date: shortDate(item),
+    delayDays: item.days_since_activity,
     tileId: item.tile_id,
     nodeId: item.id,
   };

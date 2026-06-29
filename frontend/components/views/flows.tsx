@@ -9,7 +9,8 @@
  * shell's ViewContainer with `hideToolbar`.
  */
 import * as React from 'react';
-import { IconCheck, IconHourglass, IconArrowBackUp, IconX, IconArrowRight } from '@tabler/icons-react';
+import { IconCheck, IconHourglass, IconArrowBackUp, IconX, IconArrowRight, IconClock, IconAlertTriangle } from '@tabler/icons-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon } from '@/components/shell';
@@ -30,9 +31,20 @@ export interface Flow {
   who: string;
   ago: string;
   date: string;
+  /** Giorni dall'ultima attività = ritardo del flusso (evidenziato sulla card). */
+  delayDays?: number;
   /** Presenti quando la vista è collegata ai dati reali (deep-link al canvas). */
   tileId?: string;
   nodeId?: string;
+}
+
+/** Gravità del ritardo per colorare il badge: più giorni fermi → più attenzione. */
+type DelaySeverity = 'none' | 'low' | 'mid' | 'high';
+function delaySeverity(days?: number): DelaySeverity {
+  if (days == null || days <= 0) return 'none';
+  if (days < 7) return 'low';
+  if (days < 30) return 'mid';
+  return 'high';
 }
 export interface FlowLane {
   label: string;
@@ -63,6 +75,10 @@ const LANES: FlowLane[] = [
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 function FlowCard({ flow, state, onOpen }: { flow: Flow; state: FlowState; onOpen?: () => void }) {
   const s = STATE[state];
+  const sev = delaySeverity(flow.delayDays);
+  const delayText = flow.delayDays != null
+    ? (flow.delayDays <= 0 ? 'oggi' : `${flow.delayDays}g`)
+    : flow.ago;
   return (
     <div
       className="ob-flows__card"
@@ -81,12 +97,10 @@ function FlowCard({ flow, state, onOpen }: { flow: Flow; state: FlowState; onOpe
           : undefined
       }
     >
-      <div className="ob-flows__card-top">
-        <div className="ob-flows__card-main">
-          <div className="ob-flows__card-tag">{flow.tag}</div>
-          <div className="ob-flows__card-title">{flow.title}</div>
-        </div>
-        <span className="ob-flows__card-badge"><s.Icon size={14} stroke={1.6} /></span>
+      <span className="ob-flows__card-badge"><s.Icon size={14} stroke={1.6} /></span>
+      <div className="ob-flows__card-main">
+        <div className="ob-flows__card-tag">{flow.tag}</div>
+        <div className="ob-flows__card-title">{flow.title}</div>
       </div>
       <div className="ob-flows__card-action">
         <span className="ob-flows__card-action-text">{flow.action}</span>
@@ -96,8 +110,13 @@ function FlowCard({ flow, state, onOpen }: { flow: Flow; state: FlowState; onOpe
           <span className="ob-flows__card-who-name">{flow.who}</span>
         </span>
       </div>
-      <div className="ob-flows__card-foot">
-        <span className="ob-flows__card-ago">{flow.ago}</span>
+      <div className="ob-flows__card-meta">
+        <span className={cn('ob-flows__card-delay', `ob-flows__card-delay--${sev}`)} title="Giorni dall'ultima attività">
+          {sev === 'high'
+            ? <IconAlertTriangle size={12} stroke={1.9} />
+            : <IconClock size={12} stroke={1.8} />}
+          {delayText}
+        </span>
         <span className="ob-flows__card-date">{flow.date}</span>
       </div>
     </div>
@@ -141,7 +160,27 @@ export interface FlowsViewProps {
   onOpenFlow?: (tileId: string, nodeId: string) => void;
 }
 
+const ALL_STATES: FlowState[] = ['wait', 'undo', 'done', 'stop'];
+
 export function FlowsView({ lanes = LANES, onOpenFlow }: FlowsViewProps) {
+  // Filtri per stato: ogni pulsante mostra/nasconde la lane corrispondente.
+  // Tutti attivi di default. Cliccare un solo filtro quando tutti sono attivi
+  // isola quello stato (comportamento "focus"); ulteriori click fanno toggle.
+  const [active, setActive] = React.useState<Set<FlowState>>(() => new Set(ALL_STATES));
+
+  const toggle = (st: FlowState) => {
+    setActive((prev) => {
+      const allOn = prev.size === ALL_STATES.length;
+      if (allOn) return new Set([st]); // isola lo stato cliccato
+      const next = new Set(prev);
+      if (next.has(st)) next.delete(st); else next.add(st);
+      // Se si svuota, torna a mostrarli tutti (evita board vuota involontaria).
+      return next.size === 0 ? new Set(ALL_STATES) : next;
+    });
+  };
+
+  const visibleLanes = lanes.filter((l) => active.has(l.state));
+
   return (
     <div className="ob-flows">
       {/* Toolbar / header */}
@@ -154,8 +193,17 @@ export function FlowsView({ lanes = LANES, onOpenFlow }: FlowsViewProps) {
         <div style={{ flex: 1 }} />
         {(['done', 'wait', 'undo', 'stop'] as FlowState[]).map((st) => {
           const s = STATE[st];
+          const isOn = active.has(st);
           return (
-            <button key={st} type="button" className="ob-flows__filter" style={{ ['--st-c' as string]: s.color }}>
+            <button
+              key={st}
+              type="button"
+              className={cn('ob-flows__filter', !isOn && 'ob-flows__filter--off')}
+              style={{ ['--st-c' as string]: s.color }}
+              onClick={() => toggle(st)}
+              aria-pressed={isOn}
+              title={isOn ? `Nascondi ${s.label}` : `Mostra ${s.label}`}
+            >
               <span className="ob-flows__filter-icon"><s.Icon size={13} stroke={1.6} /></span>
               {s.label}
             </button>
@@ -167,7 +215,7 @@ export function FlowsView({ lanes = LANES, onOpenFlow }: FlowsViewProps) {
 
       {/* Board */}
       <div className="ob-flows__board ob-scroll">
-        {lanes.map((l) => <Lane key={l.label} lane={l} onOpenFlow={onOpenFlow} />)}
+        {visibleLanes.map((l) => <Lane key={l.label} lane={l} onOpenFlow={onOpenFlow} />)}
       </div>
     </div>
   );

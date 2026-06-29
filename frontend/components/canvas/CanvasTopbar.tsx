@@ -62,6 +62,18 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
   const chipRadius = 8;
   const chipTransform: 'none' | 'uppercase' = 'none';
   const chipWeight = 600;
+  // Forma "linguetta": angoli superiori arrotondati, base piatta, allineata in
+  // basso alla barra così poggia sulla linea inferiore (tab-strip). Niente
+  // overlap verticale: eviterebbe lo scroll ma con overflow-x:auto il browser
+  // mostrerebbe una scrollbar verticale (overflow-y diventa auto).
+  const tabShape = {
+    height: 32,
+    alignSelf: 'flex-end' as const,
+    borderTopLeftRadius: chipRadius,
+    borderTopRightRadius: chipRadius,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  };
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
@@ -104,7 +116,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
     >
       <div
         className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflowX: 'auto' }}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: 3, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
       >
         {tag && (
           <>
@@ -112,12 +124,11 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '0 12px',
-                height: 30,
+                padding: '0 14px',
+                ...tabShape,
                 background: theme.accent,
                 color: theme.onAccent,
                 border: `${chipBorderW}px solid transparent`,
-                borderRadius: chipRadius,
                 fontFamily: chipFont,
                 fontSize: chipFontSize,
                 fontWeight: chipWeight,
@@ -130,9 +141,6 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
             >
               {tag.name}
             </div>
-            {otherPinned.length > 0 && (
-              <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px', flexShrink: 0 }} />
-            )}
           </>
         )}
         {otherPinned.map((pt, idx) => {
@@ -175,12 +183,12 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               position: 'relative',
               display: 'inline-flex',
               alignItems: 'center',
-              padding: '0 12px',
-              height: 30,
+              padding: '0 26px 0 14px',
+              ...tabShape,
               background: chipBg,
               color: chipFg,
               border: `${chipBorderW}px solid ${chipBorderCol}`,
-              borderRadius: chipRadius,
+              borderBottom: 'none',
               fontFamily: chipFont,
               fontSize: chipFontSize,
               fontWeight: chipWeight,

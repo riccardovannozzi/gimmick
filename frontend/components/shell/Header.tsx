@@ -22,6 +22,8 @@ export interface HeaderProps {
   /** Active view tab. */
   activeView?: ViewId;
   onViewChange?: (id: ViewId) => void;
+  /** Hover su un tab → prefetch dei dati della vista (navigazione più rapida). */
+  onHoverView?: (id: ViewId) => void;
   leftViews?: ViewTab[];
   rightViews?: ViewTab[];
   userInitials?: string;
@@ -35,6 +37,7 @@ export function Header({
   appName = 'Gimmick',
   activeView,
   onViewChange,
+  onHoverView,
   leftViews = DEFAULT_LEFT_VIEWS,
   rightViews = DEFAULT_RIGHT_VIEWS,
   userInitials = 'RI',
@@ -52,6 +55,8 @@ export function Header({
         className={cn('ob-tab', isActive && 'ob-tab--active')}
         aria-current={isActive ? 'page' : undefined}
         onClick={() => onViewChange?.(t.id)}
+        onMouseEnter={() => onHoverView?.(t.id)}
+        onFocus={() => onHoverView?.(t.id)}
       >
         <span className="ob-tab__icon"><Icon name={t.icon} size={16} /></span>
         {t.label}
