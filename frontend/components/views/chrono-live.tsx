@@ -140,6 +140,9 @@ export function ChronoLive() {
   const openFlow = useFlowOpenStore((s) => s.open);
   const tilesWithFlows = useTilesWithFlows();
   const [menu, setMenu] = useState<ChronoMenu | null>(null);
+  // Modalità "posiziona tile": armata dal pulsante +Tile, attiva il click-to-create
+  // sugli slot vuoti della griglia.
+  const [addArmed, setAddArmed] = useState(false);
 
   const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset]);
   // Mese target: primo giorno + lunedì della griglia (6×7) che lo contiene.
@@ -327,6 +330,14 @@ export function ChronoLive() {
     return () => window.removeEventListener('keydown', onKey);
   }, [menu]);
 
+  // Esc disarma la modalità "posiziona tile".
+  useEffect(() => {
+    if (!addArmed) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setAddArmed(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [addArmed]);
+
   const openCardMenu = useCallback((e: React.MouseEvent, tileId: string) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, tileId });
@@ -394,6 +405,34 @@ export function ChronoLive() {
       toast.error('Errore eliminazione');
     }
   }, [menu, selectedTileId, clearSelection, queryClient]);
+
+  // "+Tile" non crea più subito una tile in NOTES: arma la modalità
+  // "posiziona sul calendario". Il click su uno slot vuoto della griglia crea
+  // la tile schedulata in quella fascia (vedi handleCreateAt).
+  const handleAddTile = useCallback(() => {
+    setAddArmed((a) => !a);
+  }, []);
+
+  // Click su uno slot vuoto della griglia mentre +Tile è armato: crea la tile,
+  // la schedula come evento timed (1h) in quella fascia, poi disarma.
+  const handleCreateAt = useCallback(async (dayIndex: number, s: number) => {
+    setAddArmed(false);
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newId = res.data.id;
+      const rootTag = (tagsData?.data ?? []).find((t) => t.is_root);
+      if (rootTag) await tagsApi.tagTiles(rootTag.id, [newId]);
+      const start_at = fracToISO(dayIndex, s);
+      const end_at = fracToISO(dayIndex, Math.min(s + 1, 24));
+      await calendarApi.schedule({ tile_id: newId, start_at, end_at });
+      invalidateTileCaches(queryClient, ['tags']);
+      selectTile(newId);
+      toast.success('Tile creata');
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tagsData, selectTile, fracToISO]);
 
   const calendar = useMemo<ChronoCalendar>(() => {
     const days = Array.from({ length: 7 }, (_, i) => {
@@ -467,22 +506,9 @@ export function ChronoLive() {
       onEventToAllDay: handleEventToAllDay,
       onEventToTimed: handleEventToTimed,
       onScheduleAllDayTile: handleScheduleAllDayTile,
+      onCreateAt: addArmed ? handleCreateAt : undefined,
     };
-  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile]);
-
-  const handleAddTile = useCallback(async () => {
-    try {
-      const res = await tilesApi.create({ title: 'New tile' });
-      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
-      const newTile = res.data;
-      const rootTag = (tagsData?.data ?? []).find((t) => t.is_root);
-      if (rootTag) await tagsApi.tagTiles(rootTag.id, [newTile.id]);
-      invalidateTileCaches(queryClient, ['tags']);
-      selectTile(newTile.id);
-    } catch {
-      toast.error('Errore creazione tile');
-    }
-  }, [queryClient, tagsData, selectTile]);
+  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt]);
 
   if (isLoading) {
     return (
@@ -513,7 +539,7 @@ export function ChronoLive() {
         onCardContextMenu={openCardMenu}
         onMoveToColumn={handleMoveToColumn}
         onAddTile={handleAddTile}
-        meta={`${calendar.allday.length + calendar.timed.length} eventi`}
+        addArmed={addArmed}
       />
       {menu && typeof document !== 'undefined' && createPortal(
         <>

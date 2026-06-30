@@ -110,19 +110,31 @@ export function PixelThemeProvider({
   }, [setAll]);
 
   const theme = useMemo(() => buildPixelTheme(settings), [settings]);
+  // Con lo shell Obsidian attivo, lo sfondo/foreground del wrapper full-height
+  // devono seguire i token Obsidian (non la palette arcade): altrimenti al
+  // reload (F5) si vede un flash con il vecchio bg cream/peach arcade prima che
+  // lo shell dipinga sopra. Il mode default è 'dark', quindi anche al primo
+  // paint il colore è già quello giusto.
+  const { mode: obMode } = useObsidianTheme();
+  const obWrap = useMemo(
+    () => (isObsidianShellEnabled() ? buildObsidianPixelTheme(obMode) : null),
+    [obMode],
+  );
+  const wrapBg = obWrap ? obWrap.bg1 : theme.bg1;
+  const wrapInk = obWrap ? obWrap.ink : theme.ink;
   return (
     <Ctx.Provider value={{ theme, settings, setSetting, setAll, reset }}>
       <div
         // suppressHydrationWarning: the bg/colors flip post-hydration when
         // localStorage settings load. The change is purely visual.
         suppressHydrationWarning
-        className={theme.scanlines ? 'px-scanlines' : undefined}
+        className={!obWrap && theme.scanlines ? 'px-scanlines' : undefined}
         style={{
           ...themeCssVars(theme),
-          backgroundColor: theme.bg1, color: theme.ink,
+          backgroundColor: wrapBg, color: wrapInk,
           minHeight: '100vh',
           fontFamily: 'var(--font-pixel-body), ui-monospace, monospace',
-          ...backgroundCSS(theme.backgroundId, theme),
+          ...(obWrap ? {} : backgroundCSS(theme.backgroundId, theme)),
         }}
       >
         {hydrated || !storageKey ? children : <div style={{ visibility: 'hidden' }}>{children}</div>}

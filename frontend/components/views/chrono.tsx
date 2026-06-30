@@ -16,8 +16,6 @@
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/primitives';
-import { Beniamino } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
 
 // ─── Tokens for semantic event kinds ──────────────────────────────────────────
@@ -650,31 +648,28 @@ export interface ChronoViewProps {
   /** Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo →
    *  aggiorna action_type e deschedula. */
   onMoveToColumn?: (tileId: string, actionType: 'none' | 'anytime') => void;
+  /** Toggle: arma/disarma la modalità "posiziona tile" sul calendario. */
   onAddTile?: () => void;
-  meta?: React.ReactNode;
+  /** Modalità "posiziona tile" attiva: il pulsante +Tile resta evidenziato. */
+  addArmed?: boolean;
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, meta,
+  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
-      {/* Header */}
-      <div className="ob-chrono__header">
-        <span className="ob-chrono__header-mascot"><Beniamino name="kron" size={26} title="" /></span>
-        <div>
-          <div className="ob-chrono__header-title">Chrono</div>
-          <div className="ob-chrono__header-sub">Kron scandisce i giorni e le scadenze</div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <div className="ob-chrono__header-meta">
-          <span className="ob-chrono__header-meta-dot" />{meta ?? '2 scadenze questa settimana'}
-        </div>
-      </div>
-
       {/* Toolbar */}
       <div className="ob-chrono__toolbar">
-        <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>Tile</Button>
+        <button
+          type="button"
+          className={cn('ob-chrono__add-tile', addArmed && 'ob-chrono__add-tile--armed')}
+          onClick={onAddTile}
+          aria-pressed={addArmed}
+          title={addArmed ? 'Clicca sul calendario per posizionare la tile (Esc per annullare)' : 'Posiziona una nuova tile sul calendario'}
+        >
+          <Icon name="plus" size={13} />Tile
+        </button>
         <div style={{ flex: 1 }} />
         <span className="ob-chrono__toolbar-meta">GIMMICK · {notes.length + todos.length} tile</span>
       </div>

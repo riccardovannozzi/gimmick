@@ -29,6 +29,30 @@
 .ob-chrono__toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
 .ob-chrono__toolbar-meta { font-size: 11px; color: var(--ob-subtle); }
 
+/* Pulsante "+Tile": neutro a riposo, violaceo in hover e quando armato (modalità posizionamento). */
+.ob-chrono__add-tile {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ob-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 6px 12px;
+  border-radius: var(--ob-radius-control, 8px);
+  border: 1px solid var(--ob-line-2);
+  background: var(--ob-surface);
+  color: var(--ob-text);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.ob-chrono__add-tile:hover,
+.ob-chrono__add-tile--armed {
+  background: var(--ob-accent-soft);
+  color: var(--ob-accent);
+  border-color: color-mix(in srgb, var(--ob-accent) 35%, transparent);
+}
+
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
 /* ── COLONNA NOTES / TODO ── */
