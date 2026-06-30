@@ -21,7 +21,7 @@ import { expandWithLLM } from './llm-expansion.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
 
 export type FindParams = {
   query: string;
@@ -38,13 +38,13 @@ export type FindParams = {
   limit?: number;
 };
 
-export type MatchedSpark = {
+type MatchedSpark = {
   id: string;
   excerpt: string;
   score: number;
 };
 
-export type FindTileResult = {
+type FindTileResult = {
   id: string;
   title: string | null;
   description: string | null;
@@ -57,7 +57,7 @@ export type FindTileResult = {
   matching_sparks: MatchedSpark[];
 };
 
-export type FindSparkResult = {
+type FindSparkResult = {
   id: string;
   tile_id: string | null;
   excerpt: string;

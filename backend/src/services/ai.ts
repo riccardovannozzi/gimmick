@@ -651,7 +651,7 @@ async function semanticSearch(input: Record<string, unknown>, userId: string): P
     if (error) return JSON.stringify({ error: error.message });
 
     return JSON.stringify({ sparks: data || [], count: data?.length ?? 0, query });
-  } catch (err) {
+  } catch {
     return JSON.stringify({ error: 'Semantic search failed' });
   }
 }

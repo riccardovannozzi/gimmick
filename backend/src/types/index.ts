@@ -39,16 +39,8 @@ export interface Tile {
   sparks?: Spark[];
 }
 
-// Create tile DTO
-export interface CreateTileDto {
-  title?: string;
-  start_at?: string;
-  end_at?: string;
-  is_event?: boolean;
-}
-
 // AI indexing status
-export type AiStatus = 'pending' | 'processing' | 'completed' | 'failed';
+type AiStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 // Structured spark metadata (stored in JSONB)
 export interface SparkMetadata {
@@ -84,26 +76,6 @@ export interface Spark {
   updated_at: string;
 }
 
-// Create spark DTO
-export interface CreateSparkDto {
-  type: SparkType;
-  tile_id?: string;
-  content?: string;
-  storage_path?: string;
-  thumbnail_path?: string;
-  file_name?: string;
-  mime_type?: string;
-  file_size?: number;
-  duration?: number;
-  metadata?: Record<string, unknown>;
-}
-
-// Update spark DTO
-export interface UpdateSparkDto {
-  content?: string;
-  metadata?: Record<string, unknown>;
-}
-
 // Tag type entity (dynamic, user-managed)
 export interface TagTypeEntity {
   id: string;
@@ -130,38 +102,3 @@ export interface Tag {
   created_at: string;
 }
 
-// Tag relation (weighted edge in the co-occurrence graph)
-export interface TagRelation {
-  id: string;
-  user_id: string;
-  tag_from: string;
-  tag_to: string;
-  weight: number;
-  relation_type?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// API Response
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-}
-
-// Pagination
-export interface PaginationParams {
-  page?: number;
-  limit?: number;
-}
-
-export interface PaginatedResponse<T> {
-  data: T[];
-  pagination: {
-    page: number;
-    limit: number;
-    total: number;
-    totalPages: number;
-  };
-}

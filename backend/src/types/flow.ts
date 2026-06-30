@@ -12,6 +12,7 @@ export type FlowNodeState = 'active' | 'done' | 'wait' | 'undo' | 'stop';
 
 export type ContactKind = 'person' | 'company' | 'professional' | 'institution' | 'other';
 
+/** @public Canonical mirror of frontend/types/flow.ts — kept in sync intentionally. */
 export interface Contact {
   id: string;
   user_id: string;
@@ -31,6 +32,7 @@ export interface Contact {
   updated_at: string;
 }
 
+/** @public Canonical mirror of frontend/types/flow.ts — kept in sync intentionally. */
 export interface FlowNode {
   id: string;
   user_id: string;
@@ -55,7 +57,7 @@ export interface FlowNode {
   updated_at: string;
 }
 
-/** @deprecated The DAG model has been replaced by a linear list ordered by
+/** @public @deprecated The DAG model has been replaced by a linear list ordered by
  *  `FlowNode.sort_order`. The `flow_edges` table still exists in the DB for
  *  rollback safety but the API no longer reads or writes it. */
 export interface FlowEdge {
@@ -67,12 +69,13 @@ export interface FlowEdge {
   created_at: string;
 }
 
-/** Flow data for a tile — just an ordered list of nodes now. The old `edges`
+/** @public Flow data for a tile — just an ordered list of nodes now. The old `edges`
  *  field is gone after migration 030. */
 export interface FlowGraph {
   nodes: FlowNode[];
 }
 
+/** @public Canonical mirror of frontend/types/flow.ts — kept in sync intentionally. */
 export interface FlowHubItem extends FlowNode {
   /** The tile the node belongs to, plus its primary (first non-root) tag. */
   tile: { id: string; title: string; tag: { name: string } | null };

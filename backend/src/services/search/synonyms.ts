@@ -9,7 +9,7 @@
  * observed query failures in the find logs (queries that returned 0 results
  * even though matching content existed).
  */
-export const DOMAIN_SYNONYMS: Record<string, string[]> = {
+const DOMAIN_SYNONYMS: Record<string, string[]> = {
   // ── GTD / produttività ──
   'appunto': ['nota', 'memo', 'promemoria'],
   'nota': ['appunto', 'memo', 'promemoria'],

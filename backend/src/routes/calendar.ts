@@ -46,6 +46,30 @@ const aiFilterSchema = z.object({
   end: z.coerce.date().optional(),
 });
 
+// Row shapes for the Supabase joins used in this module
+type CalendarTag = { id: string; name: string; tag_type: string };
+type CalendarTileRow = Tile & {
+  sparks?: { count: number }[];
+  tile_tags?: { tag_id: string; tags: CalendarTag | null }[];
+};
+
+type SparkContentRow = {
+  content?: string | null;
+  file_name?: string | null;
+  metadata?: { summary?: string; extracted_text?: string } | null;
+};
+type AiFilterEventRow = {
+  id: string;
+  title: string | null;
+  start_at: string | null;
+  end_at: string | null;
+  sparks?: SparkContentRow[];
+};
+type DetectTileInput = {
+  title?: string | null;
+  sparks?: SparkContentRow[];
+};
+
 /**
  * GET /api/calendar/events
  * List events in a date range, optionally filtered by tag
@@ -86,30 +110,36 @@ calendarRouter.get(
       if (deadlinesRes.error) throw deadlinesRes.error;
 
       const seen = new Set<string>();
-      const merged = [...(eventsRes.data || []), ...(deadlinesRes.data || [])].filter((t: any) => {
+      const rows = [
+        ...(eventsRes.data || []),
+        ...(deadlinesRes.data || []),
+      ] as unknown as CalendarTileRow[];
+      const merged = rows.filter((t) => {
         if (seen.has(t.id)) return false;
         seen.add(t.id);
         return true;
       });
 
-      let events = merged.map((tile: any) => ({
+      let events = merged.map((tile) => ({
         ...tile,
         spark_count: tile.sparks?.[0]?.count || 0,
         sparks: undefined,
-        tags: (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean),
+        tags: (tile.tile_tags || [])
+          .map((tt) => tt.tags)
+          .filter((t): t is CalendarTag => Boolean(t)),
         tile_tags: undefined,
       }));
 
       // Sort by effective date (deadlines by end_at, events by start_at)
-      events.sort((a: any, b: any) => {
+      events.sort((a, b) => {
         const ad = a.action_type === 'deadline' ? (a.end_at || a.start_at) : (a.start_at || a.end_at);
         const bd = b.action_type === 'deadline' ? (b.end_at || b.start_at) : (b.start_at || b.end_at);
-        return new Date(ad).getTime() - new Date(bd).getTime();
+        return new Date(ad ?? '').getTime() - new Date(bd ?? '').getTime();
       });
 
       if (tag_id) {
-        events = events.filter((e: any) =>
-          e.tags.some((t: any) => t.id === tag_id)
+        events = events.filter((e) =>
+          e.tags.some((t) => t.id === tag_id)
         );
       }
 
@@ -383,9 +413,10 @@ calendarRouter.post(
         return;
       }
 
-      const eventSummaries = events.map((e: any, i: number) => {
+      const rows = events as unknown as AiFilterEventRow[];
+      const eventSummaries = rows.map((e, i) => {
         const sparkTexts = (e.sparks || [])
-          .map((s: any) => s.content || s.file_name || s.metadata?.summary || '')
+          .map((s) => s.content || s.file_name || s.metadata?.summary || '')
           .filter(Boolean)
           .join('; ');
         return `[${i}] "${e.title || 'Senza titolo'}" (${e.start_at}) ${sparkTexts}`.trim();
@@ -405,9 +436,9 @@ calendarRouter.post(
       const indices: number[] = match ? JSON.parse(match[0]) : [];
 
       const filtered = indices
-        .filter((i) => i >= 0 && i < events.length)
+        .filter((i) => i >= 0 && i < rows.length)
         .map((i) => {
-          const e = events[i] as any;
+          const e = rows[i];
           return { ...e, sparks: undefined };
         });
 
@@ -421,7 +452,7 @@ calendarRouter.post(
 /**
  * AI date/time detection from tile content (used by schedule endpoint)
  */
-async function detectDateTimeFromTile(tile: any): Promise<{ start_at: string; end_at?: string } | null> {
+async function detectDateTimeFromTile(tile: DetectTileInput): Promise<{ start_at: string; end_at?: string } | null> {
   const textParts: string[] = [];
   if (tile.title) textParts.push(`Titolo: ${tile.title}`);
 
