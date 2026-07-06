@@ -512,6 +512,29 @@ async function getTileSparks(input: Record<string, unknown>, userId: string): Pr
   return JSON.stringify({ tile: tile.title, sparks: data, count: data?.length ?? 0 });
 }
 
+/**
+ * Riscrive un testo secondo un'istruzione (azioni AI dell'editor markdown).
+ * Usata da POST /api/ai/rewrite. Ritorna SOLO il testo riscritto (Markdown),
+ * conservando la lingua originale. Su testo vuoto/errore ritorna l'originale.
+ */
+export async function rewriteText(text: string, instruction: string): Promise<string> {
+  const response = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 2000,
+    system:
+      "Sei un assistente di scrittura integrato in un editor di testo. " +
+      "Riscrivi il testo dell'utente seguendo l'istruzione fornita. " +
+      "Regole ferree: rispondi SOLO con il testo riscritto, senza preamboli, " +
+      "virgolette di apertura/chiusura, commenti o spiegazioni; mantieni la " +
+      "lingua originale del testo; conserva la formattazione Markdown dove sensato.",
+    messages: [
+      { role: 'user', content: `Istruzione: ${instruction}\n\nTesto:\n${text}` },
+    ],
+  });
+  const out = response.content[0]?.type === 'text' ? response.content[0].text.trim() : '';
+  return out || text;
+}
+
 async function expandQueryBilingual(query: string): Promise<string> {
   try {
     const response = await anthropic.messages.create({

@@ -29,10 +29,13 @@ import {
   type ChronoAllDay,
   type MonthCell,
   type MonthEvent,
+  type ChronoColorMode,
 } from '@/components/views/chrono';
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
+import { useTagTypes } from '@/store/tag-types-store';
+import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
@@ -144,6 +147,37 @@ export function ChronoLive() {
   // sugli slot vuoti della griglia.
   const [addArmed, setAddArmed] = useState(false);
 
+  // Colorazione dei tile: per Tag (colore del tag_type) o per Tipo (type-icon).
+  // Persistita in localStorage; init 'tag' per evitare mismatch di idratazione.
+  const [colorMode, setColorMode] = useState<ChronoColorMode>('tag');
+  useEffect(() => {
+    const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
+    if (s === 'tag' || s === 'type') setColorMode(s);
+  }, []);
+  const toggleColorMode = useCallback(() => {
+    setColorMode((m) => {
+      const next: ChronoColorMode = m === 'tag' ? 'type' : 'tag';
+      try { window.localStorage.setItem('chrono-color-mode', next); } catch { /* storage non disponibile */ }
+      return next;
+    });
+  }, []);
+
+  // Sorgenti colore (definite nei settings): colore del tag_type e del type-icon.
+  const { getColor: getTagTypeColor } = useTagTypes();
+  const { getIconForTile, loaded: typeIconsLoaded, fetchAll: fetchTypeIcons } = useTypeIcons();
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons); // riabbona il render agli assegnamenti
+  useEffect(() => { if (!typeIconsLoaded) fetchTypeIcons(); }, [typeIconsLoaded, fetchTypeIcons]);
+
+  /** Colore pieno (hex) del tile secondo la modalità corrente, o null se assente. */
+  const colorOf = useCallback((t: Tile): string | undefined => {
+    if (colorMode === 'type') {
+      return getIconForTile(t.id)?.color ?? undefined;
+    }
+    const tag = t.tags?.find((tg) => !tg.is_root);
+    return tag?.tag_type ? (getTagTypeColor(tag.tag_type) ?? undefined) : undefined;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons]);
+
   const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset]);
   // Mese target: primo giorno + lunedì della griglia (6×7) che lo contiene.
   const monthInfo = useMemo(() => {
@@ -190,12 +224,12 @@ export function ChronoLive() {
   const allTiles = useMemo<Tile[]>(() => allTilesData?.data ?? [], [allTilesData]);
 
   const notes = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'none').map(toColTile),
-    [allTiles],
+    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
+    [allTiles, colorOf],
   );
   const todos = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'anytime').map(toColTile),
-    [allTiles],
+    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
+    [allTiles, colorOf],
   );
 
   // dayIndex (0=lun) + fraction of hour → ISO assoluto nella settimana mostrata.
@@ -434,6 +468,44 @@ export function ChronoLive() {
     }
   }, [queryClient, tagsData, selectTile, fracToISO]);
 
+  // Doppio click su una cella vuota della lane "tutto il dì": crea la tile e la
+  // schedula come evento all-day in quel giorno. Sempre attivo (indipendente da +Tile).
+  const handleDblCreateAllDay = useCallback(async (dayIndex: number) => {
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newId = res.data.id;
+      const rootTag = (tagsData?.data ?? []).find((t) => t.is_root);
+      if (rootTag) await tagsApi.tagTiles(rootTag.id, [newId]);
+      const start_at = fracToISO(dayIndex, 0);
+      await calendarApi.schedule({ tile_id: newId, start_at, end_at: start_at });
+      await calendarApi.updateEvent(newId, { all_day: true, start_at, end_at: start_at });
+      invalidateTileCaches(queryClient, ['tags']);
+      selectTile(newId);
+      toast.success('Tile creata');
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tagsData, selectTile, fracToISO]);
+
+  // Doppio click su area vuota di Notes/Todo: crea la tile con l'action_type
+  // della colonna ('none' = Notes, 'anytime' = Todo). Non schedula: resta in colonna.
+  const handleCreateColumnTile = useCallback(async (actionType: 'none' | 'anytime') => {
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
+      const newId = res.data.id;
+      await tilesApi.update(newId, { action_type: actionType });
+      const rootTag = (tagsData?.data ?? []).find((t) => t.is_root);
+      if (rootTag) await tagsApi.tagTiles(rootTag.id, [newId]);
+      invalidateTileCaches(queryClient, ['tags']);
+      selectTile(newId);
+      toast.success(actionType === 'none' ? 'Nota creata' : 'Task creato');
+    } catch {
+      toast.error('Errore creazione tile');
+    }
+  }, [queryClient, tagsData, selectTile]);
+
   const calendar = useMemo<ChronoCalendar>(() => {
     const days = Array.from({ length: 7 }, (_, i) => {
       const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
@@ -457,11 +529,12 @@ export function ChronoLive() {
           title: t.title || 'Senza titolo',
           kind: t.action_type === 'deadline' ? 'deadline' : 'allday',
           id: t.id,
+          color: colorOf(t),
         });
       } else {
         const s = frac(refIso);
         const e = t.end_at ? frac(t.end_at) : s + 1;
-        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id });
+        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id, color: colorOf(t) });
       }
     }
 
@@ -480,6 +553,7 @@ export function ChronoLive() {
             id: t.id,
             title: t.title || 'Senza titolo',
             kind: t.action_type === 'deadline' ? 'deadline' : t.all_day ? 'allday' : 'timed',
+            color: colorOf(t),
           }));
         return { key, num: d.getDate(), inMonth: d.getMonth() === monthInfo.first.getMonth(), isToday: key === todayK, events: cellEvents };
       });
@@ -507,8 +581,12 @@ export function ChronoLive() {
       onEventToTimed: handleEventToTimed,
       onScheduleAllDayTile: handleScheduleAllDayTile,
       onCreateAt: addArmed ? handleCreateAt : undefined,
+      // Doppio click su slot vuoto → crea (solo quando +Tile non è armato, così
+      // un doppio click in modalità armata non crea due tile).
+      onDblCreateAt: addArmed ? undefined : handleCreateAt,
+      onDblCreateAllDay: addArmed ? undefined : handleDblCreateAllDay,
     };
-  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt]);
+  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf]);
 
   if (isLoading) {
     return (
@@ -540,6 +618,9 @@ export function ChronoLive() {
         onMoveToColumn={handleMoveToColumn}
         onAddTile={handleAddTile}
         addArmed={addArmed}
+        onCreateColumnTile={handleCreateColumnTile}
+        colorMode={colorMode}
+        onToggleColorMode={toggleColorMode}
       />
       {menu && typeof document !== 'undefined' && createPortal(
         <>

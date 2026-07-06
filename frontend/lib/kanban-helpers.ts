@@ -47,7 +47,6 @@ export function tileMatchesFilters(
   tile: Tile,
   filters: KanbanFilter[],
   typeTileIcons: Record<string, string>,
-  doneStatusId: string | undefined,
 ): boolean {
   if (filters.length === 0) return true;
 
@@ -68,7 +67,7 @@ export function tileMatchesFilters(
         case 'tag':
           return tile.tags?.some((t) => t.id === f.value) ?? false;
         case 'completion': {
-          const done = !!doneStatusId && tile.status_id === doneStatusId;
+          const done = !!tile.is_completed;
           return f.value === 'completed' ? done : !done;
         }
         case 'status':

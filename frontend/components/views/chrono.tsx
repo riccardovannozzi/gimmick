@@ -16,7 +16,11 @@
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
+import { readableOn } from '@/lib/palette';
 import { Icon, type ShellIconName } from '@/components/shell';
+
+/** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
+export type ChronoColorMode = 'tag' | 'type';
 
 // ─── Tokens for semantic event kinds ──────────────────────────────────────────
 type EventKind = 'timed' | 'allday' | 'deadline' | 'anytime';
@@ -47,15 +51,21 @@ export interface ColTile {
   checklist?: boolean[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
+  /** Colore pieno (hex) del tag/tipo quando la colorazione è attiva; riempie lo
+   *  sfondo della card e il testo si adatta al contrasto (readableOn). */
+  bg?: string;
 }
 
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
   const canDrag = !!schedulable && !!t.id;
+  // Sfondo pieno colorato: testo readable (chiaro su scuro / scuro su chiaro).
+  const ink = t.bg ? readableOn(t.bg) : undefined;
+  const inkStyle = ink ? { color: ink } : undefined;
   return (
     <div
       className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable')}
-      style={{ ['--card-c' as string]: cardC }}
+      style={{ ['--card-c' as string]: t.bg ?? cardC, ...(t.bg ? { background: t.bg, borderColor: t.bg } : {}) }}
       onClick={onClick}
       onContextMenu={onContextMenu}
       role={onClick ? 'button' : undefined}
@@ -64,7 +74,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
-      <div className="ob-chrono__card-title">{t.title}</div>
+      <div className="ob-chrono__card-title" style={inkStyle}>{t.title}</div>
       {t.checklist && (
         <div className="ob-chrono__card-bars">
           {t.checklist.map((d, i) => <div key={i} className={cn('ob-chrono__card-bar', d && 'ob-chrono__card-bar--on')} />)}
@@ -72,14 +82,14 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       )}
       <div className="ob-chrono__card-foot">
         <span className={cn('ob-chrono__card-dot', t.deadline && 'ob-chrono__card-dot--sq')} style={{ ['--action-c' as string]: t.actionColor }} />
-        <span className="ob-chrono__card-action">{t.actionLabel}</span>
+        <span className="ob-chrono__card-action" style={inkStyle}>{t.actionLabel}</span>
         <div style={{ flex: 1 }} />
         {t.spark && (
-          <span className="ob-chrono__card-spark" style={{ color: SPARK_COLOR[t.spark] }}>
+          <span className="ob-chrono__card-spark" style={{ color: ink ?? SPARK_COLOR[t.spark] }}>
             <Icon name={t.spark} size={13} />
           </span>
         )}
-        <span className="ob-chrono__card-tag"><Icon name="tags" size={13} /></span>
+        <span className="ob-chrono__card-tag" style={inkStyle}><Icon name="tags" size={13} /></span>
       </div>
     </div>
   );
@@ -89,7 +99,7 @@ const SORT_LABELS = ['Ordina: manuale', 'Ordina: A→Z', 'Ordina: recenti'] as c
 
 function Column({
   icon, iconColor, label, tiles, empty, onCardClick, selectedId, schedulable, onCardContextMenu,
-  dropActionType, onDropTile,
+  dropActionType, onDropTile, onCreateTile,
 }: {
   icon: ShellIconName; iconColor: string; label: string; tiles: ColTile[]; empty: string;
   onCardClick?: (id: string) => void; selectedId?: string; schedulable?: boolean;
@@ -97,6 +107,8 @@ function Column({
   /** action_type assegnato a un tile droppato qui ('none' = Notes, 'anytime' = Todo). */
   dropActionType?: 'none' | 'anytime';
   onDropTile?: (tileId: string, actionType: 'none' | 'anytime') => void;
+  /** Doppio click su area vuota della colonna → crea una tile con questo action_type. */
+  onCreateTile?: (actionType: 'none' | 'anytime') => void;
 }) {
   const [sort, setSort] = React.useState(0); // 0 manuale · 1 A→Z · 2 recenti
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -107,6 +119,7 @@ function Column({
   // Drop dalla griglia calendario o da un'altra colonna: legge l'id del tile dal
   // payload evento (JSON) o card (stringa) e ne aggiorna le proprietà.
   const canDrop = !!onDropTile && !!dropActionType;
+  const canCreate = !!onCreateTile && !!dropActionType;
   const dropProps = canDrop ? {
     onDragOver: (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dragOver) setDragOver(true); },
     onDragLeave: (e: React.DragEvent) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); },
@@ -192,7 +205,15 @@ function Column({
           placeholder="Filtra…"
         />
       )}
-      <div className="ob-chrono__colbody ob-scroll">
+      <div
+        className="ob-chrono__colbody ob-scroll"
+        onDoubleClick={canCreate ? (e) => {
+          // Solo doppio click su area vuota (non su una card) → crea.
+          if ((e.target as HTMLElement).closest('.ob-chrono__card')) return;
+          onCreateTile!(dropActionType!);
+        } : undefined}
+        title={canCreate ? 'Doppio click per creare una tile' : undefined}
+      >
         {shown.length
           ? shown.map((t, i) => (
               <TileCard
@@ -215,9 +236,9 @@ const H = 44, START = 7, END = 20;
 const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 
 export interface ChronoDay { dow: string; num: number }
-export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string }
-export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string }
-export interface MonthEvent { id?: string; title: string; kind: EventKind }
+export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string }
+export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string }
+export interface MonthEvent { id?: string; title: string; kind: EventKind; color?: string }
 export interface MonthCell { key: string; num: number; inMonth: boolean; isToday: boolean; events: MonthEvent[] }
 export interface ChronoCalendar {
   days: ChronoDay[];
@@ -247,6 +268,11 @@ export interface ChronoCalendar {
   onScheduleAllDayTile?: (tileId: string, dayIndex: number) => void;
   /** Click su uno slot vuoto della griglia → crea un evento timed lì. */
   onCreateAt?: (dayIndex: number, startFrac: number) => void;
+  /** Doppio click su uno slot vuoto della griglia → crea un evento timed lì
+   *  (sempre attivo, indipendente dalla modalità "posiziona tile"). */
+  onDblCreateAt?: (dayIndex: number, startFrac: number) => void;
+  /** Doppio click su una cella vuota della lane "tutto il dì" → crea un evento all-day lì. */
+  onDblCreateAllDay?: (dayIndex: number) => void;
   /** Modalità vista corrente. Default 'week'. */
   view?: 'week' | 'month';
   onViewChange?: (v: 'week' | 'month') => void;
@@ -279,7 +305,7 @@ const DEMO_CALENDAR: ChronoCalendar = {
 };
 
 function eventColor(e: ChronoTimed): string {
-  return e.amber ? 'var(--ob-warning)' : KIND_COLOR[e.kind];
+  return e.color ?? (e.amber ? 'var(--ob-warning)' : KIND_COLOR[e.kind]);
 }
 
 /**
@@ -312,7 +338,7 @@ function layoutOverlaps(evs: ChronoTimed[]): Map<ChronoTimed, { col: number; col
 }
 
 function DayColumn({
-  dayIndex, isToday, timed, selectedId, onEventClick, onEventContextMenu, onEventReschedule, onEventToTimed, onScheduleTile, onCreateAt,
+  dayIndex, isToday, timed, selectedId, onEventClick, onEventContextMenu, onEventReschedule, onEventToTimed, onScheduleTile, onCreateAt, onDblCreateAt,
 }: {
   dayIndex: number; isToday: boolean; timed: ChronoTimed[]; selectedId?: string;
   onEventClick?: (id: string) => void;
@@ -321,6 +347,7 @@ function DayColumn({
   onEventToTimed?: (id: string, dayIndex: number, startFrac: number, endFrac: number) => void;
   onScheduleTile?: (tileId: string, dayIndex: number, startFrac: number) => void;
   onCreateAt?: (dayIndex: number, startFrac: number) => void;
+  onDblCreateAt?: (dayIndex: number, startFrac: number) => void;
 }) {
   const colRef = React.useRef<HTMLDivElement>(null);
   const [dragOver, setDragOver] = React.useState(false);
@@ -376,6 +403,12 @@ function DayColumn({
         const s = Math.max(START, Math.min(yToStart(e.clientY), END));
         onCreateAt(dayIndex, s);
       } : undefined}
+      onDoubleClick={onDblCreateAt ? (e) => {
+        // Solo doppio click su area vuota (non su un evento) → crea.
+        if ((e.target as HTMLElement).closest('.ob-chrono__event')) return;
+        const s = Math.max(START, Math.min(yToStart(e.clientY), END));
+        onDblCreateAt(dayIndex, s);
+      } : undefined}
     >
       {HOURS.map((_, k) => <div key={k} className="ob-chrono__gridline" style={{ top: k * H }} />)}
       {evs.map((e, j) => {
@@ -397,7 +430,7 @@ function DayColumn({
           <div
             key={e.id ?? j}
             className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active')}
-            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e) }}
+            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e), ...(e.color ? { background: e.color, borderColor: e.color, color: readableOn(e.color) } : {}) }}
             onClick={click}
             onContextMenu={ctx}
             role={click ? 'button' : undefined}
@@ -410,7 +443,7 @@ function DayColumn({
               de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: e.id, dur: Math.max(e.e - e.s, SNAP), grab }));
             } : undefined}
           >
-            <span className="ob-chrono__event-title">{e.title}</span>
+            <span className="ob-chrono__event-title" style={e.color ? { color: readableOn(e.color) } : undefined}>{e.title}</span>
             {resizable && (
               <div
                 className="ob-chrono__event-resize"
@@ -473,7 +506,7 @@ function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { ce
                   <div
                     key={e.id ?? i}
                     className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable', !!e.id && e.id === selectedId && 'ob-chrono__month-ev--active')}
-                    style={{ ['--ev-c' as string]: KIND_COLOR[e.kind] }}
+                    style={{ ['--ev-c' as string]: e.color ?? KIND_COLOR[e.kind] }}
                     onClick={click}
                     onContextMenu={ctx}
                     title={e.title}
@@ -520,6 +553,11 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
       onDragOver={dropEnabled ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!dragOver) setDragOver(true); } : undefined}
       onDragLeave={dropEnabled ? (e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOver(false); } : undefined}
       onDrop={dropEnabled ? handleDrop : undefined}
+      onDoubleClick={cal.onDblCreateAllDay ? (e) => {
+        // Solo doppio click su area vuota (non su un pill esistente) → crea.
+        if ((e.target as HTMLElement).closest('.ob-chrono__allday-pill')) return;
+        cal.onDblCreateAllDay!(dayIndex);
+      } : undefined}
     >
       {items.map((a, j) => {
         const click = cal.onEventClick && a.id ? () => cal.onEventClick!(a.id!) : undefined;
@@ -529,7 +567,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
           <div
             key={a.id ?? j}
             className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
-            style={{ ['--ev-c' as string]: KIND_COLOR[a.kind] }}
+            style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind], ...(a.color ? { background: a.color, borderColor: a.color } : {}) }}
             onClick={click}
             onContextMenu={ctx}
             draggable={draggable}
@@ -542,7 +580,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
             tabIndex={click ? 0 : undefined}
           >
             <span className={cn('ob-chrono__allday-dot', a.kind === 'deadline' && 'ob-chrono__allday-dot--sq')} />
-            <span className="ob-chrono__allday-title">{a.title}</span>
+            <span className="ob-chrono__allday-title" style={a.color ? { color: readableOn(a.color) } : undefined}>{a.title}</span>
           </div>
         );
       })}
@@ -615,6 +653,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
               onEventToTimed={cal.onEventToTimed}
               onScheduleTile={cal.onScheduleTile}
               onCreateAt={cal.onCreateAt}
+              onDblCreateAt={cal.onDblCreateAt}
             />
           ))}
         </div>
@@ -652,10 +691,16 @@ export interface ChronoViewProps {
   onAddTile?: () => void;
   /** Modalità "posiziona tile" attiva: il pulsante +Tile resta evidenziato. */
   addArmed?: boolean;
+  /** Doppio click su area vuota di Notes/Todo → crea una tile con quell'action_type. */
+  onCreateColumnTile?: (actionType: 'none' | 'anytime') => void;
+  /** Modalità colorazione tile attiva ('tag' | 'type'); se assente, il toggle è nascosto. */
+  colorMode?: ChronoColorMode;
+  /** Toggle della modalità colorazione (alterna tag ⇄ type). */
+  onToggleColorMode?: () => void;
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed,
+  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onToggleColorMode,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
@@ -670,14 +715,26 @@ export function ChronoView({
         >
           <Icon name="plus" size={13} />Tile
         </button>
+        {colorMode && onToggleColorMode && (
+          <button
+            type="button"
+            className="ob-chrono__colormode"
+            onClick={onToggleColorMode}
+            aria-pressed={colorMode === 'type'}
+            title={colorMode === 'tag' ? 'Colore dei tile: per Tag — clicca per passare a Tipo' : 'Colore dei tile: per Tipo — clicca per passare a Tag'}
+          >
+            <Icon name={colorMode === 'tag' ? 'tags' : 'sparkles'} size={13} />
+            {colorMode === 'tag' ? 'By Tag' : 'By Type'}
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         <span className="ob-chrono__toolbar-meta">GIMMICK · {notes.length + todos.length} tile</span>
       </div>
 
       {/* Body */}
       <div className="ob-chrono__body">
-        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="none" onDropTile={onMoveToColumn} />
-        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="anytime" onDropTile={onMoveToColumn} />
+        <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="none" onDropTile={onMoveToColumn} onCreateTile={onCreateColumnTile} />
+        <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="anytime" onDropTile={onMoveToColumn} onCreateTile={onCreateColumnTile} />
         <Calendar cal={calendar} />
       </div>
     </div>

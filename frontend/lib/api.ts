@@ -348,6 +348,17 @@ export const subtasksApi = {
   },
 };
 
+// ============ AI API ============
+export const aiApi = {
+  /** Riscrive un testo (o porzione) secondo un'istruzione. Ritorna il testo riscritto (Markdown). */
+  async rewrite(text: string, instruction: string) {
+    return apiRequest<{ result: string }>('/api/ai/rewrite', {
+      method: 'POST',
+      body: JSON.stringify({ text, instruction }),
+    });
+  },
+};
+
 // ============ Chat API ============
 export const chatApi = {
   async send(

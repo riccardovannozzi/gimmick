@@ -53,6 +53,31 @@
   border-color: color-mix(in srgb, var(--ob-accent) 35%, transparent);
 }
 
+/* Toggle a due stati "By Tag / By Type": colora lo sfondo dei tile in base al
+ * colore (definito nei settings) del tag o del tipo. */
+.ob-chrono__colormode {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ob-font-sans);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 6px 12px;
+  border-radius: var(--ob-radius-control, 8px);
+  border: 1px solid var(--ob-line-2);
+  background: var(--ob-surface);
+  color: var(--ob-text);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.ob-chrono__colormode:hover,
+.ob-chrono__colormode[aria-pressed='true'] {
+  background: var(--ob-accent-soft);
+  color: var(--ob-accent);
+  border-color: color-mix(in srgb, var(--ob-accent) 35%, transparent);
+}
+
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
 /* ── COLONNA NOTES / TODO ── */

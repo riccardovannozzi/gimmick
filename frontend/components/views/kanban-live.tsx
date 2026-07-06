@@ -22,7 +22,6 @@ import { KanbanView, type Lane, type CardData } from '@/components/views/kanban'
 import { kanbanApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
-import { useStatuses } from '@/store/statuses-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { tileMatchesFilters, sortTiles, tileDateField } from '@/lib/kanban-helpers';
 import { getDayKey, formatDay } from '@/lib/tile-helpers';
@@ -75,7 +74,6 @@ function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: s
 export function KanbanLive() {
   const queryClient = useQueryClient();
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
-  const { doneStatusId } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
 
@@ -98,7 +96,7 @@ export function KanbanLive() {
   const lanes = useMemo<Lane[]>(
     () =>
       columns.map((col) => {
-        const matched = allTiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons, doneStatusId));
+        const matched = allTiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
         const sorted = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
         return {
           id: col.id,
@@ -107,7 +105,7 @@ export function KanbanLive() {
           groups: groupByDay(sorted, col.sort_by, rootTagId),
         };
       }),
-    [columns, allTiles, typeTileIcons, doneStatusId, rootTagId],
+    [columns, allTiles, typeTileIcons, rootTagId],
   );
 
   const tileMutation = useMutation({
@@ -141,7 +139,7 @@ export function KanbanLive() {
             }
             break;
           case 'completion':
-            if (doneStatusId) updates.status_id = f.value === 'completed' ? doneStatusId : null;
+            updates.is_completed = f.value === 'completed';
             break;
           case 'status':
             updates.status_id = f.value;
@@ -160,7 +158,7 @@ export function KanbanLive() {
       if (Object.keys(updates).length > 0) tileMutation.mutate({ id: tile.id, updates });
       if (tagChanged) invalidateTileCaches(queryClient, ['tags', 'kanban-columns']);
     },
-    [allTiles, columns, doneStatusId, queryClient, tileMutation],
+    [allTiles, columns, queryClient, tileMutation],
   );
 
   const handleAddTile = useCallback(async () => {

@@ -7,7 +7,7 @@ import { IconPlus, IconTrash, IconTag, IconPencil, IconCheck, IconX, IconSetting
 import * as TablerIcons from '@tabler/icons-react';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { toast } from 'sonner';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import {
   Table,
   TableBody,
@@ -205,20 +205,22 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
             display: 'block',
           }}
         >
-          <div
-            style={{
-              padding: '10px 12px',
-              background: theme.surfaceVariant,
-              borderBottom: `1px solid ${theme.border}`,
-              fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: theme.ink,
-            }}
-          >
-            Scegli colore
-          </div>
+          <DialogTitle asChild>
+            <div
+              style={{
+                padding: '10px 12px',
+                background: theme.surfaceVariant,
+                borderBottom: `1px solid ${theme.border}`,
+                fontFamily: ('var(--ob-font-mono)'),
+                fontSize: 10,
+                letterSpacing: '0.08em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+              }}
+            >
+              Scegli colore
+            </div>
+          </DialogTitle>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, padding: 10 }}>
             {GIMMICK_PALETTE.map((c) => (
               <button
@@ -414,17 +416,19 @@ function TagTypesModal({
           }}
         >
           <IconSettings size={14} style={{ color: theme.accent }} />
-          <span
-            style={{
-              fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 11,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: theme.ink,
-            }}
-          >
-            Tipi Tag
-          </span>
+          <DialogTitle asChild>
+            <span
+              style={{
+                fontFamily: ('var(--ob-font-mono)'),
+                fontSize: 11,
+                letterSpacing: '0.1em',
+                textTransform: 'uppercase',
+                color: theme.ink,
+              }}
+            >
+              Tipi Tag
+            </span>
+          </DialogTitle>
         </div>
 
         <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1099,17 +1103,19 @@ export default function TagsPage() {
             }}
           >
             <IconTag size={14} style={{ color: theme.accent }} />
-            <span
-              style={{
-                fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 11,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
-                color: theme.ink,
-              }}
-            >
-              Nuovo Tag
-            </span>
+            <DialogTitle asChild>
+              <span
+                style={{
+                  fontFamily: ('var(--ob-font-mono)'),
+                  fontSize: 11,
+                  letterSpacing: '0.1em',
+                  textTransform: 'uppercase',
+                  color: theme.ink,
+                }}
+              >
+                Nuovo Tag
+              </span>
+            </DialogTitle>
           </div>
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div>

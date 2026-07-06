@@ -11,11 +11,10 @@ import {
 import * as TablerIcons from '@tabler/icons-react';
 import { tilesApi } from '@/lib/api';
 import { useTypeIcons } from '@/store/type-icons-store';
-import { useStatuses } from '@/store/statuses-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
 import { readableOn } from '@/lib/palette';
-import type { Tile, ActionType, StatusShape } from '@/types';
+import type { Tile, ActionType } from '@/types';
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
 
@@ -51,7 +50,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const theme = usePixelTheme();
   const bW = 1;
   const queryClient = useQueryClient();
-  const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
   const { icons: typeIcons, tileIcons, assignIcon } = useTypeIcons();
 
@@ -73,9 +71,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
     return days[0];
   })();
   const dateMixed = showDate && !dateValue;
-
-  const allStatusSame = tiles.length > 0 && tiles.every((t) => (t.status_id || null) === (tiles[0].status_id || null));
-  const commonStatusId: string | null = allStatusSame ? (tiles[0]?.status_id || null) : null;
 
   const allIconsSame = tiles.length > 0 && tiles.every((t) => (tileIcons[t.id] || '') === (tileIcons[tiles[0].id] || ''));
   const commonIconId: string | null = allIconsSame ? (tileIcons[tiles[0]?.id] || null) : null;
@@ -142,7 +137,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
     }
   };
 
-  const setStatus = (id: string | null) => bulkUpdate({ status_id: id });
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
   const labelStyle: React.CSSProperties = {
@@ -315,17 +309,6 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
               currentId={commonIconId}
               mixed={!allIconsSame}
               onChange={setIcon}
-              disabled={saving}
-            />
-          )}
-
-          {/* Status */}
-          {allStatuses.length > 0 && (
-            <MixedStatusPicker
-              statuses={allStatuses}
-              value={commonStatusId}
-              mixed={!allStatusSame}
-              onChange={setStatus}
               disabled={saving}
             />
           )}
@@ -514,132 +497,3 @@ function MixedTypeIconPicker({
   );
 }
 
-function MixedStatusPicker({
-  statuses, value, mixed, onChange, disabled,
-}: {
-  statuses: { id: string; name: string; shape: string }[];
-  value: string | null;
-  mixed: boolean;
-  onChange: (id: string | null) => void;
-  disabled?: boolean;
-}) {
-  const theme = usePixelTheme();
-  const bW = 1;
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
-  const selected = !mixed && value ? statuses.find((p) => p.id === value) || null : null;
-
-  useEffect(() => {
-    if (!open) return;
-    if (triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-    const handler = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (dropRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    borderRadius: 6,
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `${bW}px solid transparent`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
-
-  return (
-    <div>
-      <label style={labelStyle}>
-        Status {mixed && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
-      </label>
-      <button
-        ref={triggerRef}
-        onClick={() => setOpen(!open)}
-        disabled={disabled}
-        style={{
-          width: '100%',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          background: theme.surface,
-          border: `${bW}px solid ${theme.border}`,
-          borderRadius: 10,
-          padding: '0 10px',
-          height: 36,
-          color: theme.ink,
-          fontFamily: 'var(--ob-font-sans)',
-          fontSize: 13,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          textAlign: 'left',
-          opacity: disabled ? 0.6 : 1,
-          position: 'relative',
-          overflow: 'hidden',
-        }}
-      >
-        {mixed ? (
-          <span style={{ color: '#F5A623', flex: 1, fontSize: 11 }}>Misto</span>
-        ) : selected ? (
-          <span style={{ position: 'relative', zIndex: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selected.name}</span>
-        ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Nessuno</span>
-        )}
-      </button>
-      {open && dropPos && createPortal(
-        <div
-          ref={dropRef}
-          className="fixed"
-          style={{
-            top: dropPos.top,
-            left: dropPos.left,
-            width: dropPos.width,
-            zIndex: 9999,
-            background: theme.surface,
-            border: `${bW}px solid ${theme.border}`,
-            borderRadius: 12,
-            boxShadow: 'var(--ob-shadow-card)',
-            padding: 4,
-            maxHeight: 192,
-            overflowY: 'auto',
-          }}
-        >
-          {statuses.map((p) => {
-            const isSel = !mixed && value === p.id;
-            return (
-              <button key={p.id} onClick={() => { onChange(p.id); setOpen(false); }} style={popupItem(isSel)}>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-              </button>
-            );
-          })}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
-// Suppress unused-shape-type warning while keeping the type meaningful for future renderers
-type _MaybeUsed = StatusShape;

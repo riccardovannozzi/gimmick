@@ -6,7 +6,6 @@
  * Porta nativamente nelle Settings Obsidian i pannelli di gestione che prima
  * vivevano solo nei modali arcade (raggiungibili dalla ArcadeSettingsPage):
  *   - Colori azioni   → useActionColorsQuery (settings 'action_colors')
- *   - Statuses        → statusesApi (forma per status di sistema)
  *   - Tipi (icone)    → useTypeIcons (CRUD type icons)
  *
  * Componenti self-contained (usano store/api direttamente) — vengono montati
@@ -14,17 +13,14 @@
  * hook dati qui. Stile via classi `ob-settings__*` + primitive Obsidian.
  */
 import * as React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import * as TablerIcons from '@tabler/icons-react';
 import { IconArrowUp, IconBolt, IconClock, IconCalendar, IconPlus, IconTrash } from '@tabler/icons-react';
 import { Select, Field, IconButton, Button } from '@/components/primitives';
 import { useActionColorsQuery } from '@/store/action-colors-store';
 import { useTypeIcons } from '@/store/type-icons-store';
-import { statusesApi } from '@/lib/api';
-import { StatusPreview, SHAPE_LABELS, ALL_SHAPES } from '@/components/statuses/status-preview';
 import { readableOn } from '@/lib/palette';
-import type { ActionType, Status } from '@/types';
+import type { ActionType } from '@/types';
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>;
 
@@ -95,48 +91,6 @@ function AzioniCard() {
           </div>
         );
       })}
-    </Card>
-  );
-}
-
-// ─── Statuses (forma) ─────────────────────────────────────────────────────────
-function StatusesCard() {
-  const queryClient = useQueryClient();
-  const { data } = useQuery({ queryKey: ['statuses'], queryFn: () => statusesApi.list() });
-  const statuses = (data?.data || []) as Status[];
-
-  const update = useMutation({
-    mutationFn: ({ id, shape }: { id: string; shape: string }) => statusesApi.update(id, { shape }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['statuses'] }); toast.success('Status aggiornato'); },
-    onError: () => toast.error('Errore aggiornamento'),
-  });
-
-  const shapeOptions = ALL_SHAPES.map((s) => ({ value: s, label: SHAPE_LABELS[s] }));
-
-  if (statuses.length === 0) {
-    return <Card title="STATUSES"><div className="ob-settings__row-sub" style={{ padding: '4px 2px' }}>Nessuno status.</div></Card>;
-  }
-
-  return (
-    <Card title="STATUSES">
-      {statuses.map((s) => (
-        <div className="ob-settings__row" key={s.id}>
-          <span className="ob-settings__row-icon" style={{ background: 'transparent', border: 'none', padding: 0 }}>
-            <StatusPreview shape={s.shape} size={30} />
-          </span>
-          <div className="ob-settings__row-main">
-            <div className="ob-settings__row-label" style={{ textTransform: 'capitalize' }}>{s.name}</div>
-            {s.name === 'done' && <div className="ob-settings__row-sub">Applicato al completamento</div>}
-          </div>
-          <div style={{ minWidth: 140 }}>
-            <Select
-              options={shapeOptions}
-              value={s.shape}
-              onChange={(e) => update.mutate({ id: s.id, shape: e.target.value })}
-            />
-          </div>
-        </div>
-      ))}
     </Card>
   );
 }
@@ -237,9 +191,8 @@ export function PersonalizzazionePanel() {
   return (
     <>
       <h1 className="ob-settings__h1">Personalizzazione</h1>
-      <p className="ob-settings__lead">Colori delle azioni, forme degli status e tipi (icone) dei tile.</p>
+      <p className="ob-settings__lead">Colori delle azioni e tipi (icone) dei tile.</p>
       <AzioniCard />
-      <StatusesCard />
       <TipiCard />
     </>
   );
