@@ -566,7 +566,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
         return (
           <div
             key={a.id ?? j}
-            className={cn('ob-chrono__allday-pill', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
+            className={cn('ob-chrono__allday-pill', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
             style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind], ...(a.color ? { background: a.color, borderColor: a.color } : {}) }}
             onClick={click}
             onContextMenu={ctx}
@@ -579,7 +579,6 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
             role={click ? 'button' : undefined}
             tabIndex={click ? 0 : undefined}
           >
-            <span className={cn('ob-chrono__allday-dot', a.kind === 'deadline' && 'ob-chrono__allday-dot--sq')} />
             <span className="ob-chrono__allday-title" style={a.color ? { color: readableOn(a.color) } : undefined}>{a.title}</span>
           </div>
         );
@@ -626,7 +625,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
 
       {/* All-day lane */}
       <div className="ob-chrono__allday">
-        <div className="ob-chrono__allday-label"><span>TUTTO IL DÌ</span></div>
+        <div className="ob-chrono__allday-label"><span>ALL DAY</span></div>
         {cal.days.map((_, i) => <AllDayCell key={i} dayIndex={i} cal={cal} />)}
       </div>
 
@@ -693,14 +692,14 @@ export interface ChronoViewProps {
   addArmed?: boolean;
   /** Doppio click su area vuota di Notes/Todo → crea una tile con quell'action_type. */
   onCreateColumnTile?: (actionType: 'none' | 'anytime') => void;
-  /** Modalità colorazione tile attiva ('tag' | 'type'); se assente, il toggle è nascosto. */
+  /** Modalità colorazione tile attiva ('tag' | 'type'); se assente, il controllo è nascosto. */
   colorMode?: ChronoColorMode;
-  /** Toggle della modalità colorazione (alterna tag ⇄ type). */
-  onToggleColorMode?: () => void;
+  /** Imposta la modalità colorazione (segmented By Tag / By Type). */
+  onSetColorMode?: (mode: ChronoColorMode) => void;
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onToggleColorMode,
+  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onSetColorMode,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
@@ -715,17 +714,11 @@ export function ChronoView({
         >
           <Icon name="plus" size={13} />Tile
         </button>
-        {colorMode && onToggleColorMode && (
-          <button
-            type="button"
-            className="ob-chrono__colormode"
-            onClick={onToggleColorMode}
-            aria-pressed={colorMode === 'type'}
-            title={colorMode === 'tag' ? 'Colore dei tile: per Tag — clicca per passare a Tipo' : 'Colore dei tile: per Tipo — clicca per passare a Tag'}
-          >
-            <Icon name={colorMode === 'tag' ? 'tags' : 'sparkles'} size={13} />
-            {colorMode === 'tag' ? 'By Tag' : 'By Type'}
-          </button>
+        {colorMode && onSetColorMode && (
+          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag o per Tipo">
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'tag' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('tag')}>By Tag</button>
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'type' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('type')}>By Type</button>
+          </div>
         )}
         <div style={{ flex: 1 }} />
         <span className="ob-chrono__toolbar-meta">GIMMICK · {notes.length + todos.length} tile</span>

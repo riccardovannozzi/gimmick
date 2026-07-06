@@ -154,12 +154,9 @@ export function ChronoLive() {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
     if (s === 'tag' || s === 'type') setColorMode(s);
   }, []);
-  const toggleColorMode = useCallback(() => {
-    setColorMode((m) => {
-      const next: ChronoColorMode = m === 'tag' ? 'type' : 'tag';
-      try { window.localStorage.setItem('chrono-color-mode', next); } catch { /* storage non disponibile */ }
-      return next;
-    });
+  const selectColorMode = useCallback((m: ChronoColorMode) => {
+    setColorMode(m);
+    try { window.localStorage.setItem('chrono-color-mode', m); } catch { /* storage non disponibile */ }
   }, []);
 
   // Sorgenti colore (definite nei settings): colore del tag_type e del type-icon.
@@ -620,7 +617,7 @@ export function ChronoLive() {
         addArmed={addArmed}
         onCreateColumnTile={handleCreateColumnTile}
         colorMode={colorMode}
-        onToggleColorMode={toggleColorMode}
+        onSetColorMode={selectColorMode}
       />
       {menu && typeof document !== 'undefined' && createPortal(
         <>
