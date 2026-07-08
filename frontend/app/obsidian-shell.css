@@ -141,6 +141,14 @@
    meno arrotondati (no pill). */
 .ob-sb__seg .ob-seg { display: flex; width: 100%; border-radius: var(--ob-radius-md, 8px); }
 .ob-sb__seg .ob-seg-item { flex: 1; border-radius: 6px; padding: 6px 10px; }
+/* Ricerca tag: input con icona a sinistra e clear a destra. */
+.ob-sb__search { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
+.ob-sb__search-icon { position: absolute; left: 9px; color: var(--ob-subtle); pointer-events: none; }
+.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-md, 8px); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; outline: none; transition: border-color 0.12s ease; }
+.ob-sb__search-input::placeholder { color: var(--ob-subtle); }
+.ob-sb__search-input:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
+.ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 5px; background: transparent; color: var(--ob-subtle); font-size: 15px; line-height: 1; cursor: pointer; }
+.ob-sb__search-clear:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
 /* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
 .ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 11.5px; font-weight: 500; color: var(--ob-subtle); }
 .ob-sb__expand:hover { color: var(--ob-text); }

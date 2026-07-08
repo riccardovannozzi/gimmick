@@ -70,6 +70,9 @@ export function Sidebar({
   const [open, setOpen] = React.useState<Record<string, boolean>>(() =>
     Object.fromEntries(groups.map((g) => [g.id, g.defaultOpen ?? false])),
   );
+  // Ricerca testuale: filtra gruppi e tag per nome.
+  const [query, setQuery] = React.useState('');
+  const q = query.trim().toLowerCase();
 
   const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
@@ -98,16 +101,37 @@ export function Sidebar({
         />
       </div>
 
+      <div className="ob-sb__search">
+        <Icon name="search" size={14} className="ob-sb__search-icon" />
+        <input
+          type="text"
+          className="ob-sb__search-input"
+          placeholder="Cerca tag…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          aria-label="Cerca tag"
+        />
+        {query && (
+          <button type="button" className="ob-sb__search-clear" onClick={() => setQuery('')} aria-label="Cancella ricerca">×</button>
+        )}
+      </div>
+
       <button type="button" className="ob-sb__expand" onClick={toggleAll}>
         <Icon name="sort" size={13} />
         {allOpen ? 'Comprimi tutto' : 'Espandi tutto'}
       </button>
 
       {groups.map((g) => {
-        const isOpen = open[g.id];
         // Filtro "Pinned": mostra solo i tag pinnati (e nascondi i gruppi vuoti).
-        const kids = (g.children ?? []).filter((c) => filter !== 'pinned' || c.pinned);
+        let kids = (g.children ?? []).filter((c) => filter !== 'pinned' || c.pinned);
+        // Ricerca: se il nome del gruppo combacia mostra tutti i suoi tag,
+        // altrimenti solo i tag che combaciano; nascondi i gruppi senza match.
+        const groupMatches = q !== '' && g.name.toLowerCase().includes(q);
+        if (q && !groupMatches) kids = kids.filter((c) => c.name.toLowerCase().includes(q));
         if (filter === 'pinned' && kids.length === 0) return null;
+        if (q && kids.length === 0 && !groupMatches) return null;
+        // Durante la ricerca i gruppi con match sono sempre espansi.
+        const isOpen = q ? true : open[g.id];
         // Il tag-type salva il glyph come nome Tabler in `emoji`; se risolvibile
         // ha la priorità, altrimenti si usa il glyph dello shell `g.icon`.
         const Glyph = g.emoji ? TablerMap[g.emoji] : undefined;
