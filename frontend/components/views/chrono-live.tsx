@@ -30,6 +30,7 @@ import {
   type MonthCell,
   type MonthEvent,
   type ChronoColorMode,
+  type ChronoCalView,
 } from '@/components/views/chrono';
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
@@ -109,10 +110,10 @@ function mondayOf(offsetWeeks: number): Date {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon + offsetWeeks * 7);
 }
 
-function dayIndexFrom(iso: string, weekStart: Date): number {
+function dayIndexFrom(iso: string, gridStart: Date): number {
   const d = new Date(iso);
   const a = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const b = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate());
+  const b = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate());
   return Math.round((a.getTime() - b.getTime()) / 86400000);
 }
 
@@ -132,9 +133,19 @@ function eventRefIso(t: Tile): string | undefined {
 
 export function ChronoLive() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<'week' | 'month'>('week');
+  const [view, setViewState] = useState<ChronoCalView>('week');
+  const [dayOffset, setDayOffset] = useState(0); // per le viste day / 3day (in giorni)
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
+  // Vista calendario persistita (init 'week' per evitare mismatch di idratazione).
+  useEffect(() => {
+    const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-cal-view') : null;
+    if (s === 'day' || s === '3day' || s === 'week' || s === 'month') setViewState(s);
+  }, []);
+  const setView = useCallback((v: ChronoCalView) => {
+    setViewState(v);
+    try { window.localStorage.setItem('chrono-cal-view', v); } catch { /* storage non disponibile */ }
+  }, []);
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
   const clearSelection = useTileSelectionStore((s) => s.clear);
@@ -175,7 +186,14 @@ export function ChronoLive() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons]);
 
-  const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset]);
+  // Numero di colonne-giorno per la vista corrente (month gestito a parte).
+  const dayCount = view === 'day' ? 1 : view === '3day' ? 3 : 7;
+  // Primo giorno visibile: lunedì della settimana (week) oppure oggi+offset (day/3day).
+  const gridStart = useMemo(() => {
+    if (view === 'week') return mondayOf(weekOffset);
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+  }, [view, weekOffset, dayOffset]);
   // Mese target: primo giorno + lunedì della griglia (6×7) che lo contiene.
   const monthInfo = useMemo(() => {
     const now = new Date();
@@ -192,10 +210,10 @@ export function ChronoLive() {
       const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 41, 23, 59, 59);
       return { start: s.toISOString(), end: e.toISOString() };
     }
-    const start = new Date(weekStart);
-    const end = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6, 23, 59, 59);
-    return { start: start.toISOString(), end: end.toISOString() };
-  }, [view, weekStart, monthInfo]);
+    const s = gridStart;
+    const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + (dayCount - 1), 23, 59, 59);
+    return { start: s.toISOString(), end: e.toISOString() };
+  }, [view, gridStart, dayCount, monthInfo]);
 
   const { data: eventsData } = useQuery({
     queryKey: ['calendar-events', range.start, range.end],
@@ -229,13 +247,13 @@ export function ChronoLive() {
     [allTiles, colorOf],
   );
 
-  // dayIndex (0=lun) + fraction of hour → ISO assoluto nella settimana mostrata.
+  // dayIndex (0 = prima colonna) + frazione d'ora → ISO assoluto nel periodo mostrato.
   const fracToISO = useCallback((dayIndex: number, frac: number) => {
     const h = Math.floor(frac);
     const m = Math.round((frac - h) * 60);
-    const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + dayIndex, h, m);
+    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + dayIndex, h, m);
     return d.toISOString();
-  }, [weekStart]);
+  }, [gridStart]);
 
   // Drag-drop di un evento timed: aggiorna start/end (durata preservata dalla view).
   const handleEventReschedule = useCallback((id: string, dayIndex: number, s: number, e: number) => {
@@ -504,13 +522,15 @@ export function ChronoLive() {
   }, [queryClient, tagsData, selectTile]);
 
   const calendar = useMemo<ChronoCalendar>(() => {
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+    const days = Array.from({ length: dayCount }, (_, i) => {
+      const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
       return { dow: d.toLocaleDateString('it-IT', { weekday: 'short' }), num: d.getDate() };
     });
-    const todayIndex = dayIndexFrom(new Date().toISOString(), weekStart);
-    const end = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + 6);
-    const weekRangeLabel = `${weekStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    const todayIndex = dayIndexFrom(new Date().toISOString(), gridStart);
+    const gridEnd = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + (dayCount - 1));
+    const dayRangeLabel = dayCount === 1
+      ? gridStart.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+      : `${gridStart.toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })} – ${gridEnd.toLocaleDateString('it-IT', { day: 'numeric', month: 'short', year: 'numeric' })}`;
 
     const timed: ChronoTimed[] = [];
     const allday: ChronoAllDay[] = [];
@@ -518,8 +538,8 @@ export function ChronoLive() {
       const isAllDay = !!t.all_day || t.action_type === 'deadline';
       const refIso = t.action_type === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
       if (!refIso) continue;
-      const day = dayIndexFrom(refIso, weekStart);
-      if (day < 0 || day > 6) continue;
+      const day = dayIndexFrom(refIso, gridStart);
+      if (day < 0 || day >= dayCount) continue;
       if (isAllDay) {
         allday.push({
           day,
@@ -557,19 +577,32 @@ export function ChronoLive() {
       monthRangeLabel = monthInfo.first.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
     }
 
+    // Navigazione per vista: month → mesi, week → settimane, day/3day → giorni
+    // (passo pari al numero di colonne mostrate).
+    const step = (dir: -1 | 1) => {
+      if (view === 'month') setMonthOffset((m) => m + dir);
+      else if (view === 'week') setWeekOffset((w) => w + dir);
+      else setDayOffset((o) => o + dir * dayCount);
+    };
+    const goToday = () => {
+      if (view === 'month') setMonthOffset(0);
+      else if (view === 'week') setWeekOffset(0);
+      else setDayOffset(0);
+    };
+
     return {
       days,
-      todayIndex: todayIndex >= 0 && todayIndex <= 6 ? todayIndex : -1,
+      todayIndex: todayIndex >= 0 && todayIndex < dayCount ? todayIndex : -1,
       selectedId: selectedTileId ?? undefined,
-      rangeLabel: view === 'month' ? monthRangeLabel : weekRangeLabel,
+      rangeLabel: view === 'month' ? monthRangeLabel : dayRangeLabel,
       timed,
       allday,
       month,
       view,
       onViewChange: setView,
-      onPrev: () => (view === 'month' ? setMonthOffset((m) => m - 1) : setWeekOffset((w) => w - 1)),
-      onNext: () => (view === 'month' ? setMonthOffset((m) => m + 1) : setWeekOffset((w) => w + 1)),
-      onToday: () => (view === 'month' ? setMonthOffset(0) : setWeekOffset(0)),
+      onPrev: () => step(-1),
+      onNext: () => step(1),
+      onToday: goToday,
       onEventClick: (id) => selectTile(id),
       onEventContextMenu: openEventMenu,
       onEventReschedule: handleEventReschedule,
@@ -583,7 +616,7 @@ export function ChronoLive() {
       onDblCreateAt: addArmed ? undefined : handleCreateAt,
       onDblCreateAllDay: addArmed ? undefined : handleDblCreateAllDay,
     };
-  }, [events, weekStart, view, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf]);
+  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf]);
 
   if (isLoading) {
     return (

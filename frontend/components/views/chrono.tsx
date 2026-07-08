@@ -235,6 +235,8 @@ function Column({
 const H = 44, START = 7, END = 20;
 const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 
+/** Modalità del calendario: 1 giorno, 3 giorni, settimana, mese. */
+export type ChronoCalView = 'day' | '3day' | 'week' | 'month';
 export interface ChronoDay { dow: string; num: number }
 export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string }
 export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string }
@@ -274,8 +276,8 @@ export interface ChronoCalendar {
   /** Doppio click su una cella vuota della lane "tutto il dì" → crea un evento all-day lì. */
   onDblCreateAllDay?: (dayIndex: number) => void;
   /** Modalità vista corrente. Default 'week'. */
-  view?: 'week' | 'month';
-  onViewChange?: (v: 'week' | 'month') => void;
+  view?: ChronoCalView;
+  onViewChange?: (v: ChronoCalView) => void;
   /** Celle del mese (6×7 = 42) quando view === 'month'. */
   month?: MonthCell[];
 }
@@ -598,6 +600,8 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
         <span className="ob-chrono__cal-range">{cal.rangeLabel}</span>
         <div style={{ flex: 1 }} />
         <div className="ob-chrono__cal-seg">
+          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'day' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('day')}>Day</button>
+          <button type="button" className={cn('ob-chrono__cal-seg-item', view === '3day' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('3day')}>3 Days</button>
           <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'week' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('week')}>Week</button>
           <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'month' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('month')}>Month</button>
         </div>
