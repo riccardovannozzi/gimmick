@@ -1015,7 +1015,19 @@ export function TileSidebar({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
     enabled: !!tileId,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    // Tornando sulla finestra riprende i dati freschi (es. modifiche fatte
+    // altrove mentre la sidebar restava aperta).
+    refetchOnWindowFocus: true,
+    // Mentre l'AI sta indicizzando qualche spark, i campi del tile (titolo,
+    // descrizione, tag) vengono generati lato server: fai polling veloce finché
+    // resta pendente, così la sidebar si aggiorna in tempo reale. A regime
+    // (nessuna indicizzazione) niente polling.
+    refetchInterval: (query) => {
+      const t = query.state.data?.data as (Tile & { sparks?: Spark[] }) | undefined;
+      const indexing = (t?.sparks ?? []).some((s) => s.ai_status === 'pending' || s.ai_status === 'processing');
+      return indexing ? 4_000 : false;
+    },
   });
 
   const tile = data?.data;
