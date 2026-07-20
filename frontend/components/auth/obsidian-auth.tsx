@@ -3,9 +3,9 @@
 /**
  * Gimmick · Obsidian — Scaffold per le pagine di autenticazione (Fase 10).
  *
- * Card centrata + campi/bottone in stile Obsidian (token --ob, Geist). Usato dai
- * branch `isObsidianShellEnabled()` delle pagine (auth) per restyle senza
- * duplicare la logica dei form (react-hook-form resta nelle pagine).
+ * Card centrata + campi/bottone in stile Obsidian (token --ob, Geist). Usato
+ * dalle pagine (auth) per il restyle senza duplicare la logica dei form
+ * (react-hook-form resta nelle pagine).
  */
 import * as React from 'react';
 import Link from 'next/link';
