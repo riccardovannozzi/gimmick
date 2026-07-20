@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox } from '@tabler/icons-react';
-import { Header } from '@/components/layout/header';
 import { usePixelTheme } from '@/components/pixel';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
@@ -21,6 +20,9 @@ import type { Tag, Tile } from '@/types';
 
 export default function CanvasPage() {
   const theme = usePixelTheme();
+  // Migrazione Obsidian (Fase 8): dentro lo shell la pagina vive nel
+  // ViewContainer → niente <Header/> di pagina (lo shell ne ha già uno) e il
+  // root cresce nel body flex. Il restyle dei token D3 interni è rimandato.
   const searchParams = useSearchParams();
   const router = useRouter();
   const tagId = searchParams.get('tag');
@@ -33,6 +35,9 @@ export default function CanvasPage() {
 
   const [textMode, setTextMode] = useState(false);
   const [tileMode, setTileMode] = useState(false);
+  // Tile copiata in attesa di posizionamento: quando valorizzata, il prossimo
+  // click sul canvas piazza una COPIA di questo tile nel punto scelto.
+  const [copySource, setCopySource] = useState<string | null>(null);
   const [imageMode, setImageMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -443,30 +448,48 @@ export default function CanvasPage() {
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
 
   // Add new tile at position
+  // Click sul canvas in modalità +Tile (nuova) o "incolla copia" (copySource).
+  // È l'unico punto che crea+posiziona un tile via click: senza una delle due
+  // modalità attive il click non inserisce nulla.
   const handleAddTileAt = useCallback(async (x: number, y: number) => {
     if (!tagId) return;
+    // Guardia: crea SOLO se una modalità di inserimento è armata (+Tile o Copia).
+    // Un click "nudo" sullo sfondo non deve mai aggiungere un tile.
+    if (!tileMode && !copySource) return;
+    const sourceId = copySource;
     setTileMode(false);
+    setCopySource(null);
     try {
-      const res = await tilesApi.create({ title: 'Nuovo tile' });
+      const source = sourceId ? tiles.find((t) => t.id === sourceId) : null;
+      const res = await tilesApi.create({ title: source ? source.title : 'Nuovo tile' });
       const newId = res?.data?.id;
-      if (newId) {
-        // Assign tag
-        const tag = tags.find((t: Tag) => t.id === tagId);
-        if (tag) await tagsApi.tagTiles(tag.id, [newId]);
-        // Save position
-        const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
-        const newLayout = [...currentLayout, { tile_id: newId, x, y }];
-        queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
-        canvasApi.saveLayout(tagId, newLayout);
-        // Refresh tiles + tags (sidebar count)
-        queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
-        queryClient.invalidateQueries({ queryKey: ['tags'] });
-        // Open sidebar
-        setSelectedTileId(newId);
-        setSidebarOpen(true);
+      if (!newId) return;
+      // In copia: replica i metadati del sorgente (non lo scheduling/evento).
+      if (source) {
+        const updates: Parameters<typeof tilesApi.update>[1] = {};
+        if (source.action_type) updates.action_type = source.action_type;
+        if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
+        if (source.status_id) updates.status_id = source.status_id;
+        if (Object.keys(updates).length > 0) {
+          try { await tilesApi.update(newId, updates); } catch { /* non bloccante */ }
+        }
       }
+      // Assign tag
+      const tag = tags.find((t: Tag) => t.id === tagId);
+      if (tag) await tagsApi.tagTiles(tag.id, [newId]);
+      // Save position
+      const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
+      const newLayout = [...currentLayout, { tile_id: newId, x, y }];
+      queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
+      canvasApi.saveLayout(tagId, newLayout);
+      // Refresh tiles + tags (sidebar count)
+      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
+      // Open sidebar
+      setSelectedTileId(newId);
+      setSidebarOpen(true);
     } catch { /* ignore */ }
-  }, [tagId, tags, queryClient]);
+  }, [tagId, tags, tiles, tileMode, copySource, queryClient]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -559,6 +582,16 @@ export default function CanvasPage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedIds.length, clearSelection]);
 
+  // Esc disarma le modalità di inserimento (+Tile / incolla copia).
+  useEffect(() => {
+    if (!tileMode && !copySource) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setTileMode(false); setCopySource(null); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [tileMode, copySource]);
+
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
     const tileIds = selectedTileIds;
@@ -625,44 +658,20 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tileCtx, tagId, queryClient]);
 
-  const handleDuplicateTile = useCallback(async () => {
-    if (!tileCtx || !tagId) return;
-    const sourceId = tileCtx.tileId;
+  // "Copia": memorizza il tile sorgente ed entra in modalità posizionamento —
+  // la copia viene creata al click sul punto target (vedi handleAddTileAt),
+  // non automaticamente. Disattiva +Tile per evitare modalità in conflitto.
+  const handleCopyTile = useCallback(() => {
+    if (!tileCtx) return;
+    setCopySource(tileCtx.tileId);
+    setTileMode(false);
+    setTextMode(false);
+    setImageMode(false);
     setTileCtx(null);
-    const source = tiles.find((t) => t.id === sourceId);
-    if (!source) return;
-    try {
-      const res = await tilesApi.create({ title: source.title });
-      const newId = res?.data?.id;
-      if (!newId) return;
-      // Copy metadata (except scheduling/event fields — a duplicate shouldn't clone a calendar slot)
-      const updates: Parameters<typeof tilesApi.update>[1] = {};
-      if (source.action_type) updates.action_type = source.action_type;
-      if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
-      if (source.status_id) updates.status_id = source.status_id;
-      if (Object.keys(updates).length > 0) {
-        try { await tilesApi.update(newId, updates); } catch { /* ignore */ }
-      }
-      // Assign same tag as current canvas
-      await tagsApi.tagTiles(tagId, [newId]);
-      // Place near the original (offset so it's visible but not overlapping)
-      const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
-      const sourcePos = currentLayout.find((p: { tile_id: string; x: number; y: number }) => p.tile_id === sourceId);
-      const offsetX = (sourcePos?.x ?? 0) + 40;
-      const offsetY = (sourcePos?.y ?? 0) + 40;
-      const newLayout = [...currentLayout, { tile_id: newId, x: offsetX, y: offsetY }];
-      queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
-      canvasApi.saveLayout(tagId, newLayout);
-      queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
-      queryClient.invalidateQueries({ queryKey: ['tags'] });
-      setSelectedTileId(newId);
-      setSidebarOpen(true);
-    } catch { /* ignore */ }
-  }, [tileCtx, tagId, tiles, queryClient]);
+  }, [tileCtx]);
 
   return (
-    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
-      <Header title="Canvas" />
+    <div className={`flex flex-col h-full flex-1 min-w-0`} style={{ background: theme.bg1 }}>
 
       {tagId && tag ? (
         <div className="flex flex-1 overflow-hidden">
@@ -711,9 +720,9 @@ export default function CanvasPage() {
             textMode={textMode}
             tileMode={tileMode}
             imageMode={imageMode}
-            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); }}
-            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); }}
-            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); }}
+            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setCopySource(null); }}
+            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setCopySource(null); }}
+            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setCopySource(null); }}
             onFit={handleFit}
             onZoom100={handleZoom100}
             pinnedTags={pinnedTags}
@@ -731,7 +740,7 @@ export default function CanvasPage() {
           <div
             ref={canvasWrapperRef}
             className="flex-1 relative overflow-hidden"
-            style={{ cursor: (textMode || tileMode || imageMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || copySource) ? 'crosshair' : undefined }}
             onDragOver={(e) => {
               // Allow drops only when a staging tile is being dragged.
               if (!e.dataTransfer.types.includes('text/x-canvas-tile-id')) return;
@@ -768,7 +777,7 @@ export default function CanvasPage() {
               moveEnabled={true}
               linkEnabled={true}
               textMode={textMode}
-              tileMode={tileMode}
+              tileMode={tileMode || !!copySource}
               imageMode={imageMode}
               onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
@@ -890,8 +899,9 @@ export default function CanvasPage() {
                     top, left, width: menuW,
                     zIndex: 9999,
                     background: theme.surface,
-                    border: `2px solid ${theme.border}`,
-                    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                    border: `1px solid ${theme.border}`,
+                    boxShadow: 'var(--ob-shadow-card)',
+                    borderRadius: 12,
                     padding: 4,
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
@@ -899,17 +909,17 @@ export default function CanvasPage() {
                   <div
                     style={{
                       padding: '6px 10px',
-                      fontFamily: 'var(--font-pixel-head)',
+                      fontFamily: 'var(--ob-font-mono)',
                       fontSize: 9,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       color: theme.ink3,
-                      borderBottom: `2px solid ${theme.border}`,
+                      borderBottom: `1px solid ${theme.border}`,
                     }}
                   >
                     {selectedIds.length} elementi
                     {tbCount > 0 && tileCount > 0 && (
-                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: 'var(--font-pixel-body)', fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
+                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
                   <button
@@ -928,7 +938,7 @@ export default function CanvasPage() {
                       cursor: groupAllowed ? 'pointer' : 'not-allowed',
                       color: groupAllowed ? theme.ink2 : theme.ink3,
                       opacity: groupAllowed ? 1 : 0.4,
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: ('var(--ob-font-sans)'),
                       fontSize: 12,
                     }}
                   >
@@ -948,7 +958,7 @@ export default function CanvasPage() {
                       border: 'none',
                       cursor: 'pointer',
                       color: '#E24B4A',
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: ('var(--ob-font-sans)'),
                       fontSize: 12,
                     }}
                   >
@@ -977,7 +987,7 @@ export default function CanvasPage() {
                 border: 'none',
                 cursor: 'pointer',
                 color: theme.ink2,
-                fontFamily: 'var(--font-pixel-body)',
+                fontFamily: ('var(--ob-font-sans)'),
                 fontSize: 12,
               };
               const dangerItem: React.CSSProperties = { ...menuItem, color: '#E24B4A' };
@@ -992,7 +1002,7 @@ export default function CanvasPage() {
                       zIndex: 9999,
                       width: 184,
                       background: theme.surface,
-                      border: `2px solid ${theme.border}`,
+                      border: `1px solid ${theme.border}`,
                       boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                       padding: 4,
                     }}
@@ -1002,12 +1012,12 @@ export default function CanvasPage() {
                         <div
                           style={{
                             padding: '6px 10px',
-                            fontFamily: 'var(--font-pixel-head)',
+                            fontFamily: 'var(--ob-font-mono)',
                             fontSize: 9,
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             color: theme.ink3,
-                            borderBottom: `2px solid ${theme.border}`,
+                            borderBottom: `1px solid ${theme.border}`,
                           }}
                         >
                           {selectedIds.length} selezionati
@@ -1025,7 +1035,7 @@ export default function CanvasPage() {
                           <IconTrash size={14} />
                           Elimina {selectedIds.length} elementi
                         </button>
-                        <div style={{ margin: '4px 0', borderTop: `2px solid ${theme.border}` }} />
+                        <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                       </>
                     )}
                     {tileCtx.inGroup && (
@@ -1034,9 +1044,9 @@ export default function CanvasPage() {
                         Ungroup
                       </button>
                     )}
-                    <button onClick={handleDuplicateTile} style={menuItem}>
+                    <button onClick={handleCopyTile} style={menuItem}>
                       <IconCopy size={14} />
-                      Duplica
+                      Copia
                     </button>
                     <button
                       onClick={() => {
@@ -1089,8 +1099,9 @@ export default function CanvasPage() {
                   zIndex: 9999,
                   width: 168,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: 'var(--ob-shadow-card)',
+                  borderRadius: 12,
                   padding: 4,
                 }}
               >
@@ -1107,7 +1118,7 @@ export default function CanvasPage() {
                     border: 'none',
                     cursor: 'pointer',
                     color: '#E24B4A',
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: ('var(--ob-font-sans)'),
                     fontSize: 12,
                   }}
                 >
@@ -1131,8 +1142,9 @@ export default function CanvasPage() {
                   zIndex: 9999,
                   width: 168,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: 'var(--ob-shadow-card)',
+                  borderRadius: 12,
                   padding: 4,
                 }}
               >
@@ -1149,7 +1161,7 @@ export default function CanvasPage() {
                     border: 'none',
                     cursor: 'pointer',
                     color: '#E24B4A',
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: ('var(--ob-font-sans)'),
                     fontSize: 12,
                   }}
                 >
@@ -1194,7 +1206,8 @@ export default function CanvasPage() {
                 width: 56,
                 height: 56,
                 background: theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 14,
                 color: theme.ink3,
               }}
             >
@@ -1202,7 +1215,7 @@ export default function CanvasPage() {
             </div>
             <p
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: 'var(--ob-font-mono)',
                 fontSize: 10,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
@@ -1212,7 +1225,7 @@ export default function CanvasPage() {
             >
               Seleziona un tag dalla sidebar
             </p>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3, margin: 0 }}>
               per aprire la lavagna
             </p>
           </div>

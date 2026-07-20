@@ -1,8 +1,11 @@
 'use client';
 
 import { create } from 'zustand';
-import { MASCOTS } from '@/lib/mascots';
+import { BENIAMINO_NAMES } from '@/components/mascot/sprites';
 import { settingsApi } from '@/lib/api';
+
+/** Lista degli id dei beniamini (source of truth: il set Obsidian). */
+const MASCOT_IDS: string[] = [...BENIAMINO_NAMES];
 
 /**
  * Card Roster settings — per `/MASCOT.md` § "Settings · Mascot preferences".
@@ -116,7 +119,7 @@ interface PersistedShape {
 
 function defaultSettings(): MascotSettings {
   return {
-    enabled: MASCOTS.map((m) => m.id),  // all 10 on by default
+    enabled: [...MASCOT_IDS],  // all 10 on by default
     frequency: 'normal',
     animations: true,
     dialog: true,
@@ -271,7 +274,7 @@ export const useCardRoster = create<CardRosterState>((set, get) => {
     },
 
     enableAll: () => {
-      const settings = { ...get().settings, enabled: MASCOTS.map((m) => m.id) };
+      const settings = { ...get().settings, enabled: [...MASCOT_IDS] };
       persistAll({ settings, configs: get().configs });
       set({ settings });
     },

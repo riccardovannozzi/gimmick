@@ -6,6 +6,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { useAuthStore } from '@/store/auth-store';
 import { ActionColorsContext, useActionColorsQuery } from '@/store/action-colors-store';
 import { PixelThemeProvider, usePixelSettings, type PixelSettings } from '@/components/pixel';
+import { ObsidianThemeProvider } from '@/lib/theme/obsidian-provider';
 import { settingsApi } from '@/lib/api';
 
 const PIXEL_SETTINGS_KEY = 'pixel_settings';
@@ -100,10 +101,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <QueryClientProvider client={queryClient}>
       <AuthInitializer>
         <ActionColorsProvider>
-          <PixelThemeProvider storageKey={PIXEL_SETTINGS_KEY}>
-            <PixelSettingsServerSync />
-            {children}
-          </PixelThemeProvider>
+          <ObsidianThemeProvider>
+            <PixelThemeProvider storageKey={PIXEL_SETTINGS_KEY}>
+              <PixelSettingsServerSync />
+              {children}
+            </PixelThemeProvider>
+          </ObsidianThemeProvider>
         </ActionColorsProvider>
         <Toaster position="top-right" />
       </AuthInitializer>

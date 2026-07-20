@@ -84,7 +84,7 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
+      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
         Caricamento...
       </p>
     );
@@ -95,8 +95,8 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
       {subtasks.length === 0 && (
         <p
           style={{
-            fontFamily: 'var(--font-pixel-head)',
-            fontSize: 9,
+            fontFamily: 'var(--ob-font-mono)',
+            fontSize: 11,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink3,
@@ -139,19 +139,21 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 6,
-          padding: '6px 8px',
+          padding: '9px 8px',
           background: 'transparent',
-          color: theme.ink3,
-          border: `2px dashed ${theme.border}`,
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 9,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
+          color: theme.ink2,
+          border: `1px dashed ${theme.border}`,
+          borderRadius: 10,
+          fontFamily: 'var(--ob-font-sans)',
+          fontSize: 12.5,
+          fontWeight: 600,
+          letterSpacing: 0,
+          textTransform: 'none',
           cursor: addMutation.isPending ? 'not-allowed' : 'pointer',
           opacity: addMutation.isPending ? 0.4 : 1,
         }}
       >
-        <IconPlus size={11} />
+        <IconPlus size={14} />
         Aggiungi elemento
       </button>
     </div>
@@ -212,12 +214,13 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
       onDrop={(e) => { e.preventDefault(); onDragEnd(); }}
       className="group"
       style={{
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
-        padding: 8,
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 10,
+        padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
-        borderTopWidth: isDropTarget ? 4 : 2,
+        borderTopWidth: isDropTarget ? (2) : (1),
         borderTopColor: isDropTarget ? theme.accent : theme.border,
       }}
     >
@@ -241,7 +244,8 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             alignItems: 'center',
             justifyContent: 'center',
             background: subtask.is_done ? theme.accent : 'transparent',
-            border: `2px solid ${subtask.is_done ? theme.border : theme.ink3}`,
+            border: `1.5px solid ${subtask.is_done ? (theme.accent) : theme.ink3}`,
+            borderRadius: 5,
             cursor: 'pointer',
             marginTop: 2,
           }}
@@ -263,7 +267,7 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             minWidth: 0,
             background: 'transparent',
             color: subtask.is_done ? theme.ink3 : theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
+            fontFamily: 'var(--ob-font-sans)',
             fontSize: 12,
             lineHeight: 1.3,
             resize: 'none',
@@ -301,7 +305,8 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             padding: 2,
             background: confirmDelete ? '#E24B4A' : 'transparent',
             color: confirmDelete ? '#FFFFFF' : theme.ink3,
-            border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+            border: confirmDelete ? `1px solid ${theme.border}` : 'none',
+            borderRadius: 5,
             cursor: 'pointer',
             display: 'inline-flex',
             ...(confirmDelete ? { opacity: 1 } : {}),

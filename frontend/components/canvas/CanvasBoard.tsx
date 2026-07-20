@@ -118,6 +118,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onTileDragMove, onTileDragEnd,
 }: CanvasBoardProps) {
   const theme = usePixelTheme();
+  // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
+  // nel codice D3 sotto.
+  const RX = 12;        // card / group / clip corner radius
+  const RX_SEL = 14;    // selection ring radius
+  const RX_BADGE = 4;   // footer action/type badge radius
+  const SW = 1;         // card hairline stroke width
+  const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
   const svgRef = useRef<SVGSVGElement>(null);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
   // overlayInnerRef gets a CSS transform that mirrors the D3 zoom/pan, so
@@ -488,7 +495,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const b = getGroupBounds(grp, nodes);
         if (!b) return;
         const gw = groupsBg.append('g');
-        gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', 0)
+        gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
           .attr('fill', theme.surface).attr('stroke', 'none')
           .style('cursor', moveRef.current ? 'grab' : 'default')
           .call((() => {
@@ -624,10 +631,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
     // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
-    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 0)
+    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
       .attr('fill', (d) => d.typeColor ? d.typeColor + 'CC' : theme.surface)
       .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : theme.border)
-      .attr('stroke-width', 2)
+      .attr('stroke-width', SW)
       .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
     // Status shape overlay (uses SVG <pattern> elements under the hood)
@@ -641,7 +648,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const o = 0.2;
       const pid = `cpat-${patIdx++}`;
       const clip = g.append('clipPath').attr('id', `${pid}-clip`);
-      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', 0);
+      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX);
       const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
       switch (d.statusShape) {
         case 'diagonal_ltr': {
@@ -790,9 +797,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const actionColor = getColor(d.actionType);
       g.append('rect')
         .attr('x', 6).attr('y', TILE_H - 22)
-        .attr('width', 16).attr('height', 16)
+        .attr('width', 16).attr('height', 16).attr('rx', RX_BADGE)
         .attr('fill', actionColor)
-        .attr('stroke', theme.border).attr('stroke-width', 2);
+        .attr('stroke', theme.border).attr('stroke-width', SW);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
@@ -818,13 +825,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const badge = g.append('g').attr('class', 'flow-badge').style('cursor', 'pointer');
       badge.append('rect')
         .attr('x', x).attr('y', y)
-        .attr('width', w).attr('height', h)
+        .attr('width', w).attr('height', h).attr('rx', 7)
         .attr('fill', theme.accent)
-        .attr('stroke', theme.border).attr('stroke-width', 2);
+        .attr('stroke', 'none').attr('stroke-width', SW);
       badge.append('text')
         .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
         .attr('text-anchor', 'middle')
-        .attr('font-family', 'var(--font-pixel-head), ui-monospace, monospace')
+        .attr('font-family', labelFont)
         .attr('font-size', 8).attr('font-weight', 700)
         .attr('fill', theme.onAccent)
         .style('letter-spacing', '0.08em')
@@ -849,7 +856,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (!IconComp) return;
       const g = d3.select(this);
       const typeBg = d.typeColor || theme.surfaceVariant;
-      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', 0).attr('fill', typeBg);
+      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', RX_BADGE).attr('fill', typeBg);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(typeBg) }));
@@ -862,7 +869,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
-      .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', 0)
+      .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', RX_SEL)
       .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
       .style('pointer-events', 'none')
       .attr('opacity', (d) => selectedIdsRef.current.includes((d as CanvasNode).id) ? 1 : 0);
@@ -1054,12 +1061,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Background
         g.append('rect')
-          .attr('width', tw).attr('height', th).attr('rx', 0)
-          .attr('fill', theme.surface).attr('stroke', theme.border).attr('stroke-width', 2);
+          .attr('width', tw).attr('height', th).attr('rx', RX)
+          .attr('fill', theme.surface).attr('stroke', theme.border).attr('stroke-width', SW);
 
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
-          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', 0)
+          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', RX_SEL)
           .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
           .style('pointer-events', 'none')
           .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);

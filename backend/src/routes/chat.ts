@@ -9,6 +9,9 @@ import type { AuthenticatedRequest } from '../types/index.js';
 
 export const chatRouter = Router();
 
+// Shape of errors thrown by the AI/HTTP SDKs we call here
+type ApiError = { status?: number; message?: string; error?: { message?: string } };
+
 // All routes require authentication
 chatRouter.use(authenticate);
 
@@ -50,10 +53,11 @@ chatRouter.post(
         success: true,
         data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as ApiError;
       console.error('Chat error:', error);
 
-      if (error?.status === 401) {
+      if (err.status === 401) {
         res.status(500).json({
           success: false,
           error: 'AI service authentication failed. Check API key configuration.',
@@ -61,7 +65,7 @@ chatRouter.post(
         return;
       }
 
-      if (error?.status === 429) {
+      if (err.status === 429) {
         res.status(429).json({
           success: false,
           error: 'AI rate limit reached. Please try again in a moment.',
@@ -69,8 +73,8 @@ chatRouter.post(
         return;
       }
 
-      const errorMessage = error?.message || error?.error?.message || 'Failed to process chat message';
-      console.error('Chat error details:', error?.message, error?.status, error?.error);
+      const errorMessage = err.message || err.error?.message || 'Failed to process chat message';
+      console.error('Chat error details:', err.message, err.status, err.error);
       res.status(500).json({
         success: false,
         error: errorMessage,
@@ -123,9 +127,9 @@ chatRouter.post(
         success: true,
         data: { transcript, reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
       });
-    } catch (error: any) {
+    } catch (error) {
       console.error('Voice chat error:', error);
-      const errorMessage = error?.message || 'Failed to process voice message';
+      const errorMessage = (error as ApiError).message || 'Failed to process voice message';
       res.status(500).json({
         success: false,
         error: errorMessage,
@@ -168,7 +172,7 @@ chatRouter.post(
         'Content-Length': buffer.length.toString(),
       });
       res.send(buffer);
-    } catch (error: any) {
+    } catch (error) {
       console.error('TTS error:', error);
       res.status(500).json({ success: false, error: 'TTS failed' });
     }

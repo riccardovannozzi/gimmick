@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:920},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tileColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tint&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;tint&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Nodi&quot;}}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      navigate: S('<path d="M13.5 2.5 8.6 13.5l-1.5-4.6-4.6-1.5z"/>'),
+      edit: S('<path d="M9.5 3.2 12.8 6.5 6 13.3l-3.3.6.6-3.3z"/>'),
+      filter: S('<path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2v-5.2z"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      zin: S('<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 13.5 13.5M7 5.2v3.6M5.2 7h3.6"/>'),
+      zout: S('<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 13.5 13.5M5.2 7h3.6"/>'),
+      fit: S('<path d="M2.6 5.5V3.4a.8.8 0 0 1 .8-.8h2.1M10.5 2.6h2.1a.8.8 0 0 1 .8.8v2.1M13.4 10.5v2.1a.8.8 0 0 1-.8.8h-2.1M5.5 13.4H3.4a.8.8 0 0 1-.8-.8v-2.1"/>'),
+      sliders: S('<path d="M3 4.5h7M12 4.5h1M3 11.5h1M6 11.5h7"/><circle cx="11" cy="4.5" r="1.5"/><circle cx="5" cy="11.5" r="1.5"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tokens() {
+    const dark = (this.props.mode || 'light') === 'dark';
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const base = dark ? {
+      page: '#0c0a12', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#242424',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)', dot: 'rgba(255,255,255,0.06)', edge: 'rgba(255,255,255,0.16)',
+      node: { blue: '#6E9BF2', grey: '#7c7c86', green: '#74D6A2', red: '#F08D89', amber: '#E7C25E', violet: '#AB9FF2' }
+    } : {
+      page: '#e7e6ea', canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', head: '#fbfbfc',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#b4b1bd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', dot: 'rgba(24,20,38,0.09)', edge: 'rgba(24,20,38,0.14)',
+      node: { blue: '#4F86EE', grey: '#a8a6b0', green: '#3FAE72', red: '#E0544F', amber: '#C99220', violet: '#7C5CCB' }
+    };
+    base.accent = acc.a; base.accentInk = acc.ink; base.accentSoft = acc.soft; base.dark = dark;
+    return base;
+  }
+
+  buildGraph(W, H) {
+    let seed = 20260627;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+    const gauss = () => (rnd() + rnd() + rnd() - 1.5) / 1.5;
+    const cx = W * 0.46, cy = H * 0.5;
+    const types = [['blue', 0.4], ['grey', 0.3], ['green', 0.12], ['amber', 0.1], ['red', 0.08]];
+    const pickType = () => { let r = rnd(); for (const [t, p] of types) { if ((r -= p) <= 0) return t; } return 'blue'; };
+    const clampX = (x) => Math.max(26, Math.min(W - 26, x));
+    const clampY = (y) => Math.max(22, Math.min(H - 22, y));
+    const hubsDef = [
+      { name: 'GOLFO DEL SOLE', t: 'violet', ang: -0.5, dist: 0.30, n: 52 },
+      { name: 'ORTANO MARE', t: 'blue', ang: 0.55, dist: 0.40, n: 44 },
+      { name: 'MONEY', t: 'green', ang: 1.65, dist: 0.34, n: 24 },
+      { name: 'FAMIGLIA', t: 'amber', ang: 2.55, dist: 0.40, n: 30 },
+      { name: 'CONTRATTI', t: 'red', ang: 3.4, dist: 0.32, n: 20 },
+      { name: 'CASA', t: 'grey', ang: 4.25, dist: 0.42, n: 34 },
+      { name: 'IDEE', t: 'violet', ang: 5.2, dist: 0.30, n: 26 }
+    ];
+    const R = Math.min(W, H);
+    const nodes = [], edges = [], hubs = [];
+    // super hub
+    hubs.push({ x: cx, y: cy, r: 17, t: 'violet', name: 'GIMMICK', label: true });
+    hubsDef.forEach((hd) => {
+      const hx = clampX(cx + Math.cos(hd.ang) * hd.dist * R);
+      const hy = clampY(cy + Math.sin(hd.ang) * hd.dist * R * 0.86);
+      const hub = { x: hx, y: hy, r: 11, t: hd.t, name: hd.name, label: true };
+      hubs.push(hub);
+      edges.push({ x1: cx, y1: cy, x2: hx, y2: hy, hub: true });
+      for (let i = 0; i < hd.n; i++) {
+        const a = rnd() * Math.PI * 2;
+        const dd = (0.12 + Math.abs(gauss()) * 0.9) * 0.16 * R;
+        const nx = clampX(hx + Math.cos(a) * dd);
+        const ny = clampY(hy + Math.sin(a) * dd);
+        const sub = rnd() < 0.08;
+        const n = { x: nx, y: ny, r: sub ? 7 + rnd() * 3 : 3 + rnd() * 3, t: rnd() < 0.6 ? hd.t : pickType(), sq: rnd() < 0.34 };
+        nodes.push(n);
+        edges.push({ x1: hx, y1: hy, x2: nx, y2: ny });
+        if (sub) { const m = 2 + Math.floor(rnd() * 4); for (let k = 0; k < m; k++) { const a2 = rnd() * Math.PI * 2; const d2 = 14 + rnd() * 30; const mx = clampX(nx + Math.cos(a2) * d2); const my = clampY(ny + Math.sin(a2) * d2); nodes.push({ x: mx, y: my, r: 3 + rnd() * 2, t: rnd() < 0.5 ? n.t : pickType(), sq: rnd() < 0.34 }); edges.push({ x1: nx, y1: ny, x2: mx, y2: my }); } }
+      }
+    });
+    // dense core around super-hub
+    for (let i = 0; i < 34; i++) {
+      const a = rnd() * Math.PI * 2; const dd = 16 + Math.abs(gauss()) * 46;
+      const nx = clampX(cx + Math.cos(a) * dd), ny = clampY(cy + Math.sin(a) * dd);
+      nodes.push({ x: nx, y: ny, r: 3 + rnd() * 3, t: pickType(), sq: rnd() < 0.34 });
+      edges.push({ x1: cx, y1: cy, x2: nx, y2: ny });
+    }
+    return { nodes, edges, hubs };
+  }
+
+  graphSvg(T, W, H) {
+    const h = React.createElement;
+    const g = this.buildGraph(W, H);
+    const solid = (this.props.tileColor || 'tint') === 'solid';
+    const NS = 'http://www.w3.org/2000/svg';
+    const edgeEls = g.edges.map((e, i) => h('line', { key: 'e' + i, x1: e.x1, y1: e.y1, x2: e.x2, y2: e.y2, stroke: T.edge, strokeWidth: e.hub ? 1.1 : 0.6 }));
+    const nodeEls = g.nodes.map((n, i) => {
+      const col = T.node[n.t];
+      const fill = solid ? col : col + (T.dark ? '5a' : '4d');
+      const stroke = solid ? (T.dark ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.7)') : col;
+      if (n.sq) { const s = n.r * 1.8; return h('rect', { key: 'n' + i, x: n.x - s / 2, y: n.y - s / 2, width: s, height: s, rx: 2.2, fill: fill, stroke: stroke, strokeWidth: 1 }); }
+      return h('circle', { key: 'n' + i, cx: n.x, cy: n.y, r: n.r, fill: fill, stroke: stroke, strokeWidth: 1 });
+    });
+    const hubEls = [];
+    g.hubs.forEach((hb, i) => {
+      const col = T.node[hb.t];
+      hubEls.push(h('circle', { key: 'h' + i, cx: hb.x, cy: hb.y, r: hb.r, fill: T.dark ? col + '33' : col + '26', stroke: col, strokeWidth: 1.6 }));
+      hubEls.push(h('circle', { key: 'hc' + i, cx: hb.x, cy: hb.y, r: Math.max(2.4, hb.r * 0.26), fill: col }));
+    });
+    const labelEls = g.hubs.map((hb, i) => h('g', { key: 'l' + i },
+      h('rect', { x: hb.x - (hb.name.length * 3.1 + 7), y: hb.y + hb.r + 4, width: hb.name.length * 6.2 + 14, height: 16, rx: 4, fill: T.dark ? 'rgba(20,20,20,0.82)' : 'rgba(255,255,255,0.86)', stroke: T.line }),
+      h('text', { x: hb.x, y: hb.y + hb.r + 15, textAnchor: 'middle', fill: T.text, style: { fontSize: '9px', fontWeight: 700, letterSpacing: '0.06em', fontFamily: "'Geist',sans-serif" } }, hb.name)));
+    return h('svg', { width: W, height: H, viewBox: '0 0 ' + W + ' ' + H, xmlns: NS, style: { display: 'block' } },
+      h('g', {}, edgeEls), h('g', {}, nodeEls), h('g', {}, hubEls), h('g', {}, labelEls));
+  }
+
+  view() {
+    const h = React.createElement;
+    const T = this.tokens();
+    const W = 1318, GW = W, GH = 736;
+
+    // toolbar
+    const seg = h('div', { style: { display: 'flex', gap: '2px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '9px', padding: '2px' } },
+      [['navigate', 'Navigate', true], ['edit', 'Edit tag', false]].map((it) => h('div', { key: it[1], style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 600, color: it[2] ? T.accentInk : T.muted, background: it[2] ? T.accent : 'transparent', cursor: 'default' } }, this.glyph(it[0], 13, it[2] ? T.accentInk : T.subtle), it[1])));
+    const dd = (icon, label) => h('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: '7px', height: '32px', padding: '0 12px', borderRadius: '9px', fontSize: '12px', fontWeight: 600, color: T.muted, background: T.surface, border: '1px solid ' + T.line2, cursor: 'default' } }, this.glyph(icon, 13, T.subtle), label, this.glyph('chevD', 12, T.subtle));
+    const toolbar = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '10px', padding: '0 16px', background: T.head, borderBottom: '1px solid ' + T.line2 } },
+      seg, h('div', { style: { width: '1px', height: '22px', background: T.line2, margin: '0 2px' } }), dd('filter', 'Filtri'), dd('tag', 'Tag'),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, '248 tile · 38 tag'));
+
+    // zoom controls
+    const zBtn = (icon, top) => h('div', { key: icon, style: { width: '34px', height: '34px', borderRadius: '9px', background: T.surface, border: '1px solid ' + T.line2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted, boxShadow: T.dark ? 'none' : '0 1px 2px rgba(24,20,38,0.05)' } }, this.glyph(icon, 15));
+    const zoom = h('div', { style: { position: 'absolute', left: '16px', bottom: '16px', display: 'flex', flexDirection: 'column', gap: '7px' } }, zBtn('zin'), zBtn('zout'), zBtn('fit'), zBtn('sliders'));
+    const legend = h('div', { style: { position: 'absolute', right: '16px', bottom: '16px', display: 'flex', flexDirection: 'column', gap: '7px', background: T.dark ? 'rgba(20,20,20,0.78)' : 'rgba(255,255,255,0.86)', border: '1px solid ' + T.line, borderRadius: '10px', padding: '11px 13px' } },
+      [['blue', 'Evento'], ['green', 'Programmato'], ['red', 'Scadenza'], ['grey', 'Nota'], ['amber', 'File']].map((r) => h('div', { key: r[0], style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+        h('span', { style: { width: '8px', height: '8px', borderRadius: '50%', background: T.node[r[0]] } }), h('span', { style: { fontSize: '11px', fontWeight: 500, color: T.muted } }, r[1]))));
+
+    const canvas = h('div', { style: { flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden', background: T.canvas, backgroundImage: 'radial-gradient(' + T.dot + ' 1.3px, transparent 1.3px)', backgroundSize: '22px 22px' } },
+      h('div', { style: { position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, this.graphSvg(T, GW, GH)),
+      zoom, legend);
+
+    const header = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '26px', height: '26px' }, dangerouslySetInnerHTML: { __html: this.flockySvg(T) } })),
+      h('div', {}, h('div', { style: { fontSize: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Panopticon'),
+        h('div', { style: { fontSize: '11px', color: T.subtle, marginTop: '1px' } }, 'Flocky vede l\u2019intero grafo dei tile dall\u2019alto')),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontSize: '11px', color: T.subtle } }, 'GIMMICK · vista a grafo'));
+
+    const win = h('div', { style: { width: '1320px', height: '840px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.12)'), borderRadius: '16px', overflow: 'hidden', boxShadow: '0 30px 70px -36px rgba(0,0,0,0.45)' } },
+      header, toolbar, canvas);
+
+    return h('div', { style: { minHeight: '100%', background: T.page, fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '40px', display: 'flex', justifyContent: 'center' } }, win);
+  }
+
+  flockySvg(T) {
+    return '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#E0B341;--m2:#EF6A6A;--mascot-ink:' + (T.dark ? '#1b1822' : '#26212f') + ';"><circle cx="42" cy="17" r="5" fill="var(--m2)"/><circle cx="50" cy="13" r="5" fill="var(--m2)"/><circle cx="58" cy="17" r="5" fill="var(--m2)"/><ellipse cx="48" cy="50" rx="26" ry="28" fill="var(--m1)"/><circle cx="42" cy="42" r="4.5" fill="var(--mascot-ink)"/><circle cx="56" cy="42" r="4.5" fill="var(--mascot-ink)"/><path d="M44 52 l8 0 l-4 8 z" fill="var(--m2)"/><line x1="40" y1="76" x2="40" y2="87" stroke="var(--m2)" stroke-width="3" stroke-linecap="round"/><line x1="56" y1="76" x2="56" y2="87" stroke="var(--m2)" stroke-width="3" stroke-linecap="round"/></svg>';
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

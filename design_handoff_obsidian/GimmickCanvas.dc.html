@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;} html,body{margin:0;}
+  .gm-scroll::-webkit-scrollbar{width:9px;height:9px;}
+  .gm-scroll::-webkit-scrollbar-thumb{background:rgba(128,128,140,0.3);border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+  .gm-scroll::-webkit-scrollbar-track{background:transparent;}
+</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:920},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tileColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tint&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;tint&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tile&quot;}}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      tile: S('<rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      image: S('<rect x="2.2" y="3.4" width="11.6" height="9.2" rx="1.6"/><circle cx="6" cy="6.6" r="1.3"/><path d="M2.6 11.5 6 8.6l2.4 2 2.4-2.4 2.4 2.4"/>'),
+      fit: S('<path d="M2.6 5.5V3.4a.8.8 0 0 1 .8-.8h2.1M10.5 2.6h2.1a.8.8 0 0 1 .8.8v2.1M13.4 10.5v2.1a.8.8 0 0 1-.8.8h-2.1M5.5 13.4H3.4a.8.8 0 0 1-.8-.8v-2.1"/>'),
+      collapse: S('<rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M6.2 3v10"/>'),
+      sort: S('<path d="M4 4v8M4 12l-2-2M4 12l2-2M11 12V4M11 4l-2 2M11 4l2 2"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      plus: S('<path d="M8 3.5v9M3.5 8h9"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      doc: S('<path d="M4 2.6h5.4L12.6 5.8V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.2 2.6v3.2h3.2"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tokens() {
+    const dark = (this.props.mode || 'light') === 'dark';
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const base = dark ? {
+      page: '#0c0a12', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#242424', stage: '#121212', stageHead: '#1b1b1b',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#4a4a4a',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)', dot: 'rgba(255,255,255,0.07)', edge: 'rgba(255,255,255,0.32)',
+      cap: { photo: '#7AA7F5', file: '#E7C25E', voice: '#F08D89', doc: '#74D6A2' }
+    } : {
+      page: '#e7e6ea', canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', head: '#fbfbfc', stage: '#faf9fb', stageHead: '#f3f2f6',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', dot: 'rgba(24,20,38,0.10)', edge: 'rgba(24,20,38,0.32)',
+      cap: { photo: '#4F86EE', file: '#C99220', voice: '#E0544F', doc: '#3FAE72' }
+    };
+    base.accent = acc.a; base.accentInk = acc.ink; base.accentSoft = acc.soft; base.dark = dark;
+    return base;
+  }
+  readable(hex) { let x = hex.replace('#', ''); const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4, 6), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#1b1923' : '#ffffff'; }
+  fillFor(c, T) {
+    const solid = (this.props.tileColor || 'tint') === 'solid';
+    if (solid) { const ink = this.readable(c); return { solid: true, bg: c, border: '1px solid transparent', title: ink, tick: ink, sub: ink === '#ffffff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)' }; }
+    const tint = T.dark ? '2b' : '1c';
+    return { solid: false, bg: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30'), title: T.text, tick: c, sub: T.dark ? T.muted : c };
+  }
+
+  capColor(T, icon) { return ({ photo: T.cap.photo, image: T.cap.photo, file: T.cap.file, doc: T.cap.doc, text: T.cap.doc, voice: T.cap.voice })[icon] || T.accent; }
+
+  // ---------- shared spark row (chip-icona + conteggio) ----------
+  sparkRow(T, caps, meta, cs) {
+    const h = React.createElement;
+    const ink = cs.solid ? cs.title : null;
+    const chipBg = (col) => cs.solid ? (ink === '#ffffff' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)') : col + (T.dark ? '2e' : '1c');
+    const chipIcon = (col) => cs.solid ? ink : col;
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px' } },
+      caps.map((ic, i) => { const col = this.capColor(T, ic); return h('div', { key: i, style: { width: '20px', height: '20px', borderRadius: '6px', background: chipBg(col), display: 'flex', alignItems: 'center', justifyContent: 'center', color: chipIcon(col) } }, this.glyph(ic, 12)); }),
+      h('div', { style: { flex: 1 } }),
+      meta ? h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: cs.sub } }, meta) : null
+    );
+  }
+
+  // ---------- shared card chrome ----------
+  cardChrome(T, c, sel) {
+    const s = this.fillFor(c, T);
+    return {
+      background: s.bg,
+      border: sel ? '2px solid ' + T.accent : s.border,
+      borderLeft: sel ? '2px solid ' + T.accent : s.border,
+      borderRadius: '9px', _cs: s
+    };
+  }
+
+  // ---------- canvas node ----------
+  node(T, n) {
+    const h = React.createElement;
+    const c = n.tagColor === 'amber' ? T.cap.file : T.accent;
+    const ch = this.cardChrome(T, c, n.sel);
+    return h('div', { key: n.title, style: {
+      position: 'absolute', left: n.x + 'px', top: n.y + 'px', width: n.w + 'px',
+      background: ch.background, border: ch.border, borderLeft: ch.borderLeft, borderRadius: ch.borderRadius,
+      padding: '11px 12px', boxShadow: T.dark ? 'none' : '0 1px 2px rgba(24,20,38,0.04)', zIndex: 2
+    } },
+      h('div', { style: { fontSize: '12.5px', lineHeight: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: ch._cs.title } }, n.title),
+      n.caps ? this.sparkRow(T, n.caps, n.meta, ch._cs) : null
+    );
+  }
+
+  edges(T, nodes, links) {
+    const h = React.createElement;
+    const byId = {}; nodes.forEach((n) => byId[n.id] = n);
+    const paths = links.map((l, i) => {
+      const a = byId[l.from], b = byId[l.to];
+      const sx = a.x + a.w, sy = a.y + (l.sy || 32), tx = b.x, ty = b.y + (l.ty || 32);
+      const mx = (sx + tx) / 2;
+      const d = 'M' + sx + ',' + sy + ' C' + (sx + 40) + ',' + sy + ' ' + (tx - 40) + ',' + ty + ' ' + tx + ',' + ty;
+      return h('path', { key: i, d: d, fill: 'none', stroke: T.edge, strokeWidth: 1.3, strokeDasharray: '4 4' });
+    });
+    return h('svg', { width: '1180', height: '880', style: { position: 'absolute', top: 0, left: 0, overflow: 'visible', zIndex: 1 } }, paths);
+  }
+
+  // ---------- staging tile (stesso schema dei nodi canvas) ----------
+  stageTile(T, t) {
+    const h = React.createElement;
+    const c = t.tagColor === 'amber' ? T.cap.file : T.accent;
+    const ch = this.cardChrome(T, c, t.sel);
+    return h('div', { key: t.title, style: { background: ch.background, border: ch.border, borderLeft: ch.borderLeft, borderRadius: ch.borderRadius, padding: '11px 12px', cursor: 'default' } },
+      h('div', { style: { fontSize: '12.5px', lineHeight: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: ch._cs.title, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, t.title),
+      this.sparkRow(T, t.caps, t.meta, ch._cs)
+    );
+  }
+
+  toolBtn(T, icon, label, primary) {
+    const h = React.createElement;
+    return h('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: '7px', height: '30px', padding: '0 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, cursor: 'default', color: primary ? T.text : T.muted, background: T.surface, border: '1px solid ' + T.line2 } }, this.glyph(icon, 13, primary ? T.accent : T.subtle), label);
+  }
+
+  view() {
+    const h = React.createElement;
+    const T = this.tokens();
+
+    // ----- staging panel -----
+    const stageHead = h('div', { style: { height: '46px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 14px', background: T.stageHead, borderBottom: '1px solid ' + T.line } },
+      this.glyph('collapse', 15, T.muted),
+      h('span', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.16em', color: T.text } }, 'STAGING'),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', fontWeight: 600, color: T.accentInk, background: T.accent, borderRadius: '6px', padding: '1px 7px' } }, '4'));
+    const groupRow = h('div', { style: { height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '0 14px', borderBottom: '1px solid ' + T.line } },
+      h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.12em', color: T.subtle, flex: 1 } }, 'NESSUN GRUPPO'),
+      this.glyph('chevD', 12, T.subtle), this.glyph('sort', 12, T.subtle));
+    const stageTiles = [
+      { title: 'OM/meeting Le Ville OM', caps: ['photo'], meta: '1' },
+      { title: 'OM inviare foto ad Ilaria', caps: ['file'], meta: '1', tagColor: 'amber' },
+      { title: 'GDS/meeting VP ville 2026', caps: ['photo', 'doc'], meta: '2', sel: true },
+      { title: 'Restyling Tabellina Prezzi…', caps: ['file'], meta: '1', tagColor: 'amber' }
+    ];
+    const stage = h('div', { style: { width: '228px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.stage, borderRight: '1px solid ' + T.line2, overflow: 'hidden' } },
+      stageHead, groupRow,
+      h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', padding: '12px', display: 'flex', flexDirection: 'column', gap: '9px' } }, stageTiles.map((t) => this.stageTile(T, t))));
+
+    // ----- toolbar -----
+    const tab = (label, active) => h('div', { key: label, style: {
+      display: 'flex', alignItems: 'center', gap: '7px', alignSelf: 'flex-end',
+      height: active ? '40px' : '34px', padding: '0 15px', cursor: 'default',
+      fontSize: '12px', fontWeight: 600, color: active ? T.accent : T.muted,
+      background: active ? T.canvas : 'transparent',
+      borderTop: '1px solid ' + (active ? T.line2 : 'transparent'),
+      borderLeft: '1px solid ' + (active ? T.line2 : 'transparent'),
+      borderRight: '1px solid ' + (active ? T.line2 : 'transparent'),
+      borderBottom: '1px solid ' + (active ? T.canvas : 'transparent'),
+      borderTopLeftRadius: '9px', borderTopRightRadius: '9px',
+      marginBottom: '-1px', position: 'relative', zIndex: active ? 3 : 1
+    } },
+      h('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: active ? T.accent : T.faint } }), label);
+    const toolbar = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'flex-end', gap: '2px', padding: '0 14px', background: T.head, borderBottom: '1px solid ' + T.line2, position: 'relative', zIndex: 2 } },
+      tab('OM le ville 26/27', true), tab('GDS_Report', false), tab('OM Report', false),
+      h('div', { style: { flex: 1, alignSelf: 'stretch' } }),
+      h('div', { style: { alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '8px' } },
+        this.toolBtn(T, 'tile', 'Tile', false), this.toolBtn(T, 'text', 'Testo', false), this.toolBtn(T, 'image', 'Image', false),
+        h('div', { style: { width: '1px', height: '22px', background: T.line2, margin: '0 2px' } }),
+        this.toolBtn(T, 'fit', 'Fit', false),
+        h('div', { style: { display: 'flex', alignItems: 'center', height: '30px', padding: '0 12px', borderRadius: '8px', fontFamily: "'Geist Mono',monospace", fontSize: '12px', fontWeight: 600, color: T.muted, background: T.surface, border: '1px solid ' + T.line2 } }, '100%')));
+
+    // ----- canvas graph -----
+    const nodes = [
+      { id: 'dafare', title: 'Da fare', x: 70, y: 150, w: 150 },
+      { id: 'rendering', title: 'Rendering', x: 350, y: 60, w: 160, caps: ['image'], meta: '4' },
+      { id: 'excel', title: 'Excel raccolta dati', x: 350, y: 230, w: 160, caps: ['file'], meta: '4' },
+      { id: 'ppt', title: 'PPT di sintesi', x: 600, y: 230, w: 160, caps: ['doc'], meta: '1' },
+      { id: 'prog', title: 'Programmazione lavori', x: 450, y: 410, w: 175, caps: ['text'], meta: '2' },
+      { id: 'contratti', title: 'Contratti', x: 450, y: 590, w: 165 },
+      { id: 'contr1', title: 'Contratto contractor: OM/Ciesse', x: 700, y: 520, w: 175, caps: ['file'], meta: '5', tagColor: 'amber' },
+      { id: 'contr2', title: 'Contratto: Subappaltatori Ciesse', x: 700, y: 670, w: 175, caps: ['file'], meta: '2', tagColor: 'amber' }
+    ];
+    const links = [
+      { from: 'dafare', to: 'rendering', sy: 45, ty: 32 },
+      { from: 'dafare', to: 'excel', sy: 45, ty: 32 },
+      { from: 'excel', to: 'ppt', sy: 32, ty: 32 },
+      { from: 'contratti', to: 'contr1', sy: 32, ty: 32 },
+      { from: 'contratti', to: 'contr2', sy: 32, ty: 32 }
+    ];
+    const board = h('div', { className: 'gm-scroll', style: { flex: 1, minWidth: 0, overflow: 'auto', background: T.canvas, backgroundImage: 'radial-gradient(' + T.dot + ' 1.4px, transparent 1.4px)', backgroundSize: '22px 22px', backgroundPosition: '-1px -1px' } },
+      h('div', { style: { position: 'relative', width: '1180px', height: '880px' } }, this.edges(T, nodes, links), nodes.map((n) => this.node(T, n))));
+
+    // ----- header -----
+    const header = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '26px', height: '26px' }, dangerouslySetInnerHTML: { __html: this.surferSvg(T) } })),
+      h('div', {}, h('div', { style: { fontSize: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Canvas'),
+        h('div', { style: { fontSize: '11px', color: T.subtle, marginTop: '1px' } }, 'Surfer dispone i tile nello spazio')),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontSize: '11px', color: T.subtle } }, 'GIMMICK · 8 tile sul canvas'));
+
+    const win = h('div', { style: { width: '1320px', height: '840px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.12)'), borderRadius: '16px', overflow: 'hidden', boxShadow: '0 30px 70px -36px rgba(0,0,0,0.45)' } },
+      header,
+      h('div', { style: { flex: 1, display: 'flex', minHeight: 0 } }, stage,
+        h('div', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' } }, toolbar, board)));
+
+    return h('div', { style: { minHeight: '100%', background: T.page, fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '40px', display: 'flex', justifyContent: 'center' } }, win);
+  }
+
+  surferSvg(T) {
+    return '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#5B8DEF;--m2:#E87DA0;--mascot-ink:' + (T.dark ? '#1b1822' : '#26212f') + ';"><ellipse cx="48" cy="78" rx="40" ry="9" fill="var(--m2)"/><rect x="14" y="40" width="24" height="7" rx="3.5" fill="var(--m1)" transform="rotate(-18 26 43)"/><rect x="58" y="40" width="24" height="7" rx="3.5" fill="var(--m1)" transform="rotate(18 70 43)"/><rect x="34" y="32" width="28" height="32" rx="14" fill="var(--m1)"/><circle cx="48" cy="24" r="13" fill="var(--m1)"/><circle cx="44" cy="23" r="3.5" fill="var(--mascot-ink)"/><circle cx="54" cy="23" r="3.5" fill="var(--mascot-ink)"/><rect x="43" y="30" width="10" height="3" rx="1.5" fill="var(--m2)"/></svg>';
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

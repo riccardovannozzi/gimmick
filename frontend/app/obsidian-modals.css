@@ -1,0 +1,52 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — Modals (Icon picker + Color picker).
+
+   Two tag modals: "Icona del tag" (search · categories · icon grid · preview)
+   and "Colore sfondo" (full Airtable palette, 10 families × 4 tints + none).
+   Reference: GimmickModals.dc.html. The palette hexes are the system's, unchanged.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* ── Backdrop (preview only) ── */
+.ob-mbackdrop { position: relative; display: flex; align-items: center; justify-content: center; padding: 34px; border-radius: 14px; overflow: hidden; background: var(--ob-canvas); }
+.ob-mbackdrop::before { content: ''; position: absolute; inset: 0; background: rgba(24, 20, 38, 0.32); }
+[data-theme='dark'] .ob-mbackdrop::before { background: rgba(0, 0, 0, 0.55); }
+.ob-mbackdrop > * { position: relative; }
+
+/* ── Modal card ── */
+.ob-mcard { background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 14px; box-shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.5); overflow: hidden; }
+.ob-mcard__header { display: flex; align-items: center; gap: 10px; padding: 15px 16px; border-bottom: 1px solid var(--ob-line); }
+.ob-mcard__title { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); flex: 1; }
+.ob-mcard__close { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); border: 1px solid var(--ob-line); background: transparent; cursor: pointer; }
+.ob-mcard__close:hover { color: var(--ob-text); }
+.ob-mcard__footer { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-top: 1px solid var(--ob-line); }
+.ob-mcard__cancel { padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; color: var(--ob-muted); border: 1px solid var(--ob-line-2); background: transparent; cursor: pointer; }
+.ob-mcard__save { padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--ob-accent-ink); background: var(--ob-accent); border: none; cursor: pointer; }
+
+/* tag preview (footer) */
+.ob-mcard__preview { display: flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 8px; }
+.ob-mcard__preview--tint { background: color-mix(in srgb, var(--pv-c) 16%, transparent); border: 1px solid color-mix(in srgb, var(--pv-c) 28%, transparent); }
+.ob-mcard__preview-icon { display: inline-flex; }
+.ob-mcard__preview-name { font-size: 13px; font-weight: 600; }
+
+/* ── Icon modal ── */
+.ob-mico__search { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: 9px; margin: 14px 16px 12px; color: var(--ob-subtle); font-size: 13px; }
+.ob-mico__search-icon { display: inline-flex; }
+.ob-mico__chips { display: flex; gap: 6px; padding: 0 16px 14px; flex-wrap: wrap; }
+.ob-mico__chip { padding: 5px 11px; border-radius: 7px; font-size: 12px; font-weight: 600; color: var(--ob-muted); background: var(--ob-surface-2); border: 1px solid var(--ob-line); cursor: pointer; }
+.ob-mico__chip--active { color: var(--ob-accent); background: var(--ob-accent-soft); border-color: transparent; }
+.ob-mico__grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; padding: 0 16px 16px; max-height: 236px; overflow: hidden; }
+.ob-mico__cell { aspect-ratio: 1; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: 1px solid var(--ob-line); cursor: pointer; transition: background-color 120ms ease-out; }
+.ob-mico__cell:hover:not(.ob-mico__cell--on) { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
+.ob-mico__cell--on { color: var(--ob-accent); background: var(--ob-accent-soft); border-color: var(--ob-accent); }
+
+/* ── Color modal ── */
+.ob-mcol__intro { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px 12px; }
+.ob-mcol__intro-label { font-size: 11px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-subtle); }
+.ob-mcol__intro-hex { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-muted); }
+.ob-mcol__grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; padding: 0 16px 16px; }
+.ob-mcol__sw { width: 100%; aspect-ratio: 1; border-radius: 7px; display: flex; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.05); cursor: pointer; }
+.ob-mcol__sw--on { box-shadow: 0 0 0 2px var(--ob-surface), 0 0 0 4px var(--ob-accent); }
+.ob-mcol__none { display: flex; align-items: center; gap: 9px; margin: 0 16px 12px; padding: 8px 11px; border-radius: 9px; border: 1px solid var(--ob-line-2); background: transparent; cursor: pointer; width: calc(100% - 32px); }
+.ob-mcol__none-sw { width: 20px; height: 20px; border-radius: 6px; border: 1px solid var(--ob-line-2); background: transparent; position: relative; overflow: hidden; flex-shrink: 0; }
+.ob-mcol__none-sw::after { content: ''; position: absolute; left: -2px; top: 9px; width: 26px; height: 1.4px; background: var(--ob-faint); transform: rotate(-45deg); }
+.ob-mcol__none-label { font-size: 12.5px; font-weight: 500; color: var(--ob-muted); }

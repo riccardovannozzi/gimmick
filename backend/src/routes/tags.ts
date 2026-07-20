@@ -4,7 +4,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
-import type { AuthenticatedRequest, Tag } from '../types/index.js';
+import type { AuthenticatedRequest, Tag, Tile } from '../types/index.js';
 import { updateTagWeights, getTagGraph, getRelatedTags } from '../services/tagGraph.js';
 
 export const tagsRouter = Router();
@@ -452,14 +452,22 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
 
     if (error) throw error;
 
-    const tiles = (data?.map((row: any) => row.tiles).filter(Boolean) || []).map((tile: any) => {
-      const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
-      const subtasks = subtasksRaw
-        .slice()
-        .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-        .map((s: any) => ({ is_done: !!s.is_done }));
-      return { ...tile, subtasks, tile_subtasks: undefined };
-    });
+    type SubtaskRow = { is_done: boolean | null; sort_order: number | null };
+    type TileWithSubtasks = Tile & { tile_subtasks?: SubtaskRow[] };
+    type TileTagRow = { tile_id: string; tiles: TileWithSubtasks | null };
+
+    const rows = (data ?? []) as unknown as TileTagRow[];
+    const tiles = rows
+      .map((row) => row.tiles)
+      .filter((t): t is TileWithSubtasks => Boolean(t))
+      .map((tile) => {
+        const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+        const subtasks = subtasksRaw
+          .slice()
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((s) => ({ is_done: !!s.is_done }));
+        return { ...tile, subtasks, tile_subtasks: undefined };
+      });
     res.json({ success: true, data: tiles });
   } catch (error) {
     next(error);

@@ -11,12 +11,17 @@ interface TimePickerProps {
   value: string; // "HH:MM"
   onChange: (time: string) => void;
   label?: string;
+  /** Optional leading icon node (e.g. a clock) shown before the value. */
+  icon?: React.ReactNode;
   compact?: boolean; // smaller trigger for table cells
   borderless?: boolean; // no border/bg for inline use
+  noBorder?: boolean; // keeps bg + size ma senza bordo visibile (cella dentro un container)
 }
 
-export function TimePicker({ value, onChange, label, compact, borderless }: TimePickerProps) {
+export function TimePicker({ value, onChange, label, icon, compact, borderless, noBorder }: TimePickerProps) {
   const theme = usePixelTheme();
+  const monoFont = 'var(--ob-font-mono)';
+  const sansFont = 'var(--ob-font-sans)';
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -71,7 +76,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
         border: 'none',
         cursor: 'pointer',
         textAlign: 'left',
-        fontFamily: 'var(--font-pixel-body)',
+        fontFamily: sansFont,
         fontSize: 11,
         color: theme.ink3,
       }
@@ -79,22 +84,24 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
         display: 'inline-flex',
         alignItems: 'center',
         gap: 4,
-        padding: compact ? '0 8px' : '6px 8px',
-        height: compact ? 30 : 'auto',
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        padding: compact ? '0 10px' : '6px 8px',
+        height: compact ? 36 : 'auto',
+        background: theme.surface,
+        border: `1px solid ${noBorder ? 'transparent' : theme.border}`,
+        borderRadius: 10,
         cursor: 'pointer',
         textAlign: 'left',
-        fontFamily: 'var(--font-pixel-body)',
-        fontSize: compact ? 11 : 12,
+        fontFamily: sansFont,
+        fontSize: compact ? 13 : 12,
         color: theme.ink,
       };
 
   const gridBtn = (active: boolean): React.CSSProperties => ({
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink,
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    fontFamily: 'var(--font-pixel-body)',
+    border: `1px solid transparent`,
+    borderRadius: 7,
+    fontFamily: sansFont,
     fontSize: 11,
     fontWeight: 600,
     cursor: 'pointer',
@@ -103,10 +110,11 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
   return (
     <>
       <button ref={triggerRef} onClick={() => setOpen(!open)} style={triggerStyle}>
+        {icon && <span style={{ display: 'inline-flex', color: theme.ink3, flexShrink: 0 }}>{icon}</span>}
         {label && (
           <span
             style={{
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: monoFont,
               fontSize: 9,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
@@ -128,8 +136,9 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             left: pos.left,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 8,
           }}
         >
@@ -138,7 +147,7 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             <div>
               <span
                 style={{
-                  fontFamily: 'var(--font-pixel-head)',
+                  fontFamily: monoFont,
                   fontSize: 9,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
@@ -164,13 +173,13 @@ export function TimePicker({ value, onChange, label, compact, borderless }: Time
             </div>
 
             {/* Separator */}
-            <div style={{ width: 2, background: theme.border, alignSelf: 'stretch' }} />
+            <div style={{ width: 1, background: theme.border, alignSelf: 'stretch' }} />
 
             {/* Minutes column */}
             <div>
               <span
                 style={{
-                  fontFamily: 'var(--font-pixel-head)',
+                  fontFamily: monoFont,
                   fontSize: 9,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',

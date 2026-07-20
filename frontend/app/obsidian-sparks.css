@@ -1,0 +1,139 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Gimmick · Obsidian — Sparks list view (buffer / triage).
+
+   Filterable list: Nome · Tipo · Data · Dim. · AI · Azioni, with per-type
+   filter chips and column sorting. Reference: GimmickBuffer.dc.html.
+   Type colors come from the canonical `--ob-type-*` scale. The per-type tint
+   uses a local `--badge-c` so light/dark text contrast can be theme-switched.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.ob-sparks { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); --ob-sparks-grid: minmax(0, 1fr) 108px 120px 88px 64px 78px; }
+
+/* ── Toolbar ── */
+.ob-sparks__toolbar {
+  height: 60px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 0 20px;
+  background: var(--ob-head);
+  border-bottom: 1px solid var(--ob-line);
+}
+.ob-sparks__brand { display: flex; align-items: center; gap: 9px; }
+.ob-sparks__brand-icon { color: var(--ob-accent); display: inline-flex; }
+.ob-sparks__brand-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-sparks__brand-count { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-subtle); }
+.ob-sparks__search { width: 220px; background: var(--ob-surface-2); border-color: var(--ob-line); }
+.ob-sparks__typefilter {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 13px;
+  border-radius: 9px;
+  border: 1px solid var(--ob-line-2);
+  background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--ob-muted);
+  cursor: pointer;
+}
+.ob-sparks__typefilter-icon { color: var(--ob-subtle); display: inline-flex; }
+
+/* ── Filter chips ── */
+.ob-sparks__chips {
+  height: 50px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 20px;
+  background: var(--ob-head);
+  border-bottom: 1px solid var(--ob-line);
+  overflow-x: auto;
+}
+.ob-sparks__chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 32px; padding: 0 12px;
+  border-radius: 9px;
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line);
+  color: var(--ob-muted);
+  font-size: 12.5px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-sparks__chip:hover { border-color: var(--ob-line-2); }
+.ob-sparks__chip-icon { color: var(--ob-subtle); display: inline-flex; }
+.ob-sparks__chip-count { font-family: var(--ob-font-mono); font-size: 11px; font-weight: 600; color: var(--ob-subtle); opacity: 0.8; }
+/* active — accent ("Tutti") */
+.ob-sparks__chip--accent { background: var(--ob-accent-soft); border-color: transparent; color: var(--ob-accent); }
+.ob-sparks__chip--accent .ob-sparks__chip-icon { color: var(--ob-accent); }
+.ob-sparks__chip--accent .ob-sparks__chip-count { color: inherit; }
+/* active — typed */
+.ob-sparks__chip--type {
+  background: color-mix(in srgb, var(--badge-c) 13%, transparent);
+  border-color: color-mix(in srgb, var(--badge-c) 28%, transparent);
+  color: var(--badge-c);
+}
+.ob-sparks__chip--type .ob-sparks__chip-icon { color: var(--badge-c); }
+.ob-sparks__chip--type .ob-sparks__chip-count { color: inherit; }
+[data-theme='dark'] .ob-sparks__chip--type { color: var(--ob-text); }
+
+/* ── Table ── */
+.ob-sparks__scroll { flex: 1; min-height: 0; overflow-y: auto; }
+.ob-sparks__head {
+  display: grid;
+  grid-template-columns: var(--ob-sparks-grid);
+  align-items: center;
+  height: 40px;
+  padding: 0 20px;
+  background: var(--ob-head);
+  border-bottom: 1px solid var(--ob-line-2);
+  position: sticky; top: 0; z-index: 2;
+}
+.ob-sparks__hcell { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.ob-sparks__hcell--center { justify-content: center; }
+.ob-sparks__hcell--sortable { cursor: pointer; background: none; border: none; padding: 0; font: inherit; }
+.ob-sparks__hlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-subtle); }
+.ob-sparks__hcell--active .ob-sparks__hlabel { color: var(--ob-accent); }
+.ob-sparks__hsort { color: var(--ob-accent); display: inline-flex; }
+
+.ob-sparks__row {
+  display: grid;
+  grid-template-columns: var(--ob-sparks-grid);
+  align-items: center;
+  min-height: 50px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--ob-line);
+  transition: background-color 120ms ease-out;
+}
+.ob-sparks__row:last-child { border-bottom: none; }
+.ob-sparks__row:hover { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
+.ob-sparks__row--clickable { cursor: pointer; }
+.ob-sparks__cell { display: flex; align-items: center; min-width: 0; }
+.ob-sparks__cell--center { justify-content: center; }
+
+.ob-sparks__name { font-family: var(--ob-font-mono); font-size: 13px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-sparks__date { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-muted); }
+.ob-sparks__dim { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-muted); }
+.ob-sparks__dim--empty { color: var(--ob-faint); }
+
+/* type badge */
+.ob-sparks__type {
+  display: inline-flex; align-items: center; gap: 6px;
+  border-radius: 7px; padding: 3px 9px;
+  background: color-mix(in srgb, var(--badge-c) 13%, transparent);
+  border: 1px solid color-mix(in srgb, var(--badge-c) 26%, transparent);
+}
+.ob-sparks__type-icon { color: var(--badge-c); display: inline-flex; }
+.ob-sparks__type-name { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--badge-c); }
+[data-theme='dark'] .ob-sparks__type-name { color: var(--ob-text); }
+
+/* AI cell */
+.ob-sparks__ai { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--ob-line-2); }
+.ob-sparks__ai--on { border: none; background: var(--ob-type-text); color: #fff; display: flex; align-items: center; justify-content: center; }
+
+/* row delete */
+.ob-sparks__del {
+  width: 28px; height: 28px; border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--ob-faint);
+  border: 1px solid var(--ob-line);
+  background: transparent;
+  cursor: pointer;
+  transition: color 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out;
+}
+.ob-sparks__del:hover { color: var(--ob-error); border-color: color-mix(in srgb, var(--ob-error) 35%, transparent); background: color-mix(in srgb, var(--ob-error) 9%, transparent); }
+
+.ob-sparks__empty { padding: 40px; text-align: center; font-size: 13px; color: var(--ob-subtle); }

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;} html,body{margin:0;}
+  .gm-scroll::-webkit-scrollbar{width:9px;height:9px;}
+  .gm-scroll::-webkit-scrollbar-thumb{background:rgba(128,128,140,0.3);border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+  .gm-scroll::-webkit-scrollbar-track{background:transparent;}
+</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:920},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tileColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tint&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;tint&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tile&quot;}}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      todo: S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+      calendar: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      chevL: S('<path d="M10 4 6 8l4 4"/>'),
+      chevR: S('<path d="M6 4l4 4-4 4"/>'),
+      collapse: S('<rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M6.2 3v10"/><path d="M11 6.4 9.2 8l1.8 1.6"/>'),
+      sort: S('<path d="M4 4v8M4 12l-2-2M4 12l2-2M11 12V4M11 4l-2 2M11 4l2 2"/>'),
+      filter: S('<path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2v-5.2z"/>'),
+      group: S('<path d="M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.6 4.5h.01M2.6 8h.01M2.6 11.5h.01"/>'),
+      plus: S('<path d="M8 3.5v9M3.5 8h9"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  readable(hex) { let x = hex.replace('#', ''); const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4, 6), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#1b1923' : '#ffffff'; }
+
+  // color treatment for an event / tile, driven by the tileColor tweak
+  fillFor(c, T) {
+    const solid = (this.props.tileColor || 'tint') === 'solid';
+    if (solid) {
+      const ink = this.readable(c);
+      const dim = ink === '#ffffff' ? 'rgba(255,255,255,0.82)' : 'rgba(0,0,0,0.58)';
+      const track = ink === '#ffffff' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.16)';
+      return { solid: true, wrap: { background: c, border: '1px solid transparent' }, title: ink, meta: dim, on: ink, track };
+    }
+    const tint = T.dark ? '2b' : '1c';
+    return { solid: false, wrap: { background: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30') }, title: T.text, meta: T.dark ? T.muted : c, on: c, track: T.line2 };
+  }
+
+  tokens() {
+    const dark = (this.props.mode || 'light') === 'dark';
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const base = dark ? {
+      page: '#0c0a12', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#242424',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#4a4a4a',
+      line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)', gridLine: 'rgba(255,255,255,0.05)',
+      todayBg: 'rgba(171,159,242,0.07)',
+      timed: '#74D6A2', allday: '#7AA7F5', deadline: '#F08D89', anytime: '#9aa0ad', notes: '#8b8b94', amber: '#E7C25E'
+    } : {
+      page: '#e7e6ea', canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', head: '#fbfbfc',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', gridLine: 'rgba(24,20,38,0.06)',
+      todayBg: 'rgba(124,92,203,0.05)',
+      timed: '#3FAE72', allday: '#4F86EE', deadline: '#E0544F', anytime: '#7e8694', notes: '#8a8694', amber: '#C99220'
+    };
+    base.accent = acc.a; base.accentInk = acc.ink; base.accentSoft = acc.soft; base.dark = dark;
+    return base;
+  }
+
+  // ---------- column header ----------
+  colHeader(T, icon, iconColor, label, count) {
+    const h = React.createElement;
+    const iconBtn = (n, on) => h('div', { key: n, style: { width: '22px', height: '22px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: on ? T.accent : T.subtle, cursor: 'default' } }, this.glyph(n, 12));
+    return h('div', { style: { height: '38px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '7px', padding: '0 8px', background: T.head, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '20px', height: '20px', borderRadius: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.subtle } }, this.glyph('collapse', 13)),
+      this.glyph(icon, 14, iconColor),
+      h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: T.text } }, label),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, count),
+      h('div', { style: { flex: 1 } }),
+      h('div', { style: { display: 'flex', gap: '1px' } }, iconBtn('sort', false), iconBtn('filter', false), iconBtn('group', false))
+    );
+  }
+
+  // ---------- tile card (quiet) ----------
+  tileCard(T, t) {
+    const h = React.createElement;
+    const sparkMap = { voice: T.deadline, text: T.timed, file: T.amber, photo: T.allday };
+    const tagColor = t.tagColor === 'amber' ? T.amber : T.accent;
+    const s = this.fillFor(tagColor, T);
+    return h('div', { key: t.title, style: Object.assign({ borderRadius: '8px', padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: '9px', cursor: 'default', overflow: 'hidden' }, s.wrap) },
+      h('div', { style: { fontSize: '12px', lineHeight: '15px', fontWeight: 500, color: s.title, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, t.title),
+      t.checklist ? h('div', { style: { display: 'flex', gap: '3px' } }, t.checklist.map((d, i) => h('div', { key: i, style: { flex: 1, height: '4px', borderRadius: '2px', background: d ? (s.solid ? s.on : T.timed) : s.track } }))) : null,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('span', { style: { width: '6px', height: '6px', borderRadius: t.action === 'deadline' ? '2px' : '50%', background: s.solid ? s.on : t.actionColor, flexShrink: 0 } }),
+        h('span', { style: { fontSize: '10px', fontWeight: 600, color: s.solid ? s.meta : T.muted } }, t.actionLabel),
+        h('div', { style: { flex: 1 } }),
+        t.spark ? this.glyph(t.spark, 13, s.solid ? s.on : sparkMap[t.spark]) : null,
+        h('div', { style: { width: '13px', height: '13px', color: s.solid ? s.on : tagColor } }, this.glyph('tag', 13))
+      )
+    );
+  }
+
+  column(T, width, icon, iconColor, label, tiles, emptyLabel) {
+    const h = React.createElement;
+    return h('div', { style: { width: width + 'px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, borderRight: '1px solid ' + T.line, overflow: 'hidden' } },
+      this.colHeader(T, icon, iconColor, label, tiles.length),
+      h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', padding: '9px', display: 'flex', flexDirection: 'column', gap: '8px' } },
+        tiles.length ? tiles.map((t) => this.tileCard(T, t)) : h('span', { style: { fontSize: '11px', color: T.subtle, padding: '4px' } }, emptyLabel))
+    );
+  }
+
+  // ---------- calendar ----------
+  calendar(T) {
+    const h = React.createElement;
+    const H = 44, START = 7, END = 20;
+    const days = [['lun', 22], ['mar', 23], ['mer', 24], ['gio', 25], ['ven', 26], ['sab', 27], ['dom', 28]];
+    const todayIdx = 4;
+    const hours = []; for (let x = START; x <= END; x++) hours.push(x);
+
+    // events: {day, s, e, title, kind}
+    const EV = [
+      { day: 2, s: 18, e: 18.5, title: 'Proloco Marras e Renai', kind: 'timed' },
+      { day: 2, s: 18.5, e: 19.5, title: 'Progetto Cameretta', kind: 'timed' },
+      { day: 4, s: 12.25, e: 13.25, title: 'GDS/bisdomini', kind: 'timed', amber: true },
+      { day: 4, s: 17, e: 18, title: 'Audio e incontro con Marco', kind: 'timed' }
+    ];
+    const ALLDAY = [
+      { day: 3, title: 'Aruba — certificato', kind: 'deadline' },
+      { day: 3, title: 'Contatto isibrix.it', kind: 'allday' },
+      { day: 4, title: 'Incontro su IA', kind: 'allday' }
+    ];
+    const kindColor = (k) => ({ timed: T.timed, allday: T.allday, deadline: T.deadline, anytime: T.anytime })[k];
+
+    // header
+    const dayHead = h('div', { style: { display: 'flex', height: '46px', flexShrink: 0, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '52px', flexShrink: 0, borderRight: '1px solid ' + T.line } }),
+      days.map((d, i) => h('div', { key: i, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1px', borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, background: i === todayIdx ? T.todayBg : 'transparent' } },
+        h('span', { style: { fontSize: '10px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === todayIdx ? T.accent : T.subtle } }, d[0]),
+        h('span', { style: { fontSize: '16px', fontWeight: 600, fontFamily: "'Geist Mono',monospace", color: i === todayIdx ? T.accent : T.text } }, d[1])
+      ))
+    );
+
+    // all-day row
+    const allDayRow = h('div', { style: { display: 'flex', minHeight: '34px', flexShrink: 0, borderBottom: '1px solid ' + T.line2, background: T.head } },
+      h('div', { style: { width: '52px', flexShrink: 0, borderRight: '1px solid ' + T.line, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 6px' } }, h('span', { style: { fontSize: '8px', fontWeight: 600, letterSpacing: '0.04em', color: T.subtle, textAlign: 'right', lineHeight: 1.1 } }, 'TUTTO IL DÌ')),
+      days.map((d, i) => {
+        const items = ALLDAY.filter((a) => a.day === i);
+        return h('div', { key: i, style: { flex: 1, borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, padding: '4px', display: 'flex', flexDirection: 'column', gap: '3px', background: i === todayIdx ? T.todayBg : 'transparent', minWidth: 0 } },
+          items.map((a, j) => {
+            const c = kindColor(a.kind);
+            const s = this.fillFor(c, T);
+            return h('div', { key: j, style: Object.assign({ display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '5px', padding: '3px 6px', minWidth: 0, overflow: 'hidden' }, s.wrap) },
+              h('span', { style: { width: '5px', height: '5px', borderRadius: a.kind === 'deadline' ? '1px' : '50%', background: s.solid ? s.on : c, flexShrink: 0 } }),
+              h('span', { style: { fontSize: '10px', fontWeight: 500, color: s.title, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, a.title));
+          }));
+      })
+    );
+
+    // time grid body
+    const gutter = h('div', { style: { width: '52px', flexShrink: 0, position: 'relative', borderRight: '1px solid ' + T.line } },
+      hours.map((x, i) => h('div', { key: x, style: { position: 'absolute', top: (i * H - 6) + 'px', right: '6px', fontSize: '10px', fontFamily: "'Geist Mono',monospace", color: T.subtle } }, i === 0 ? '' : (x < 10 ? '0' + x : x) + ':00')));
+
+    const fmt = (v) => { const hh = Math.floor(v); const mm = Math.round((v - hh) * 60); return (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm); };
+    const dayCol = (i) => {
+      const evs = EV.filter((e) => e.day === i);
+      const lines = hours.map((x, k) => h('div', { key: k, style: { position: 'absolute', top: (k * H) + 'px', left: 0, right: 0, borderTop: '1px solid ' + T.gridLine } }));
+      const blocks = evs.map((e, j) => {
+        const c = e.amber ? T.amber : kindColor(e.kind);
+        const top = (e.s - START) * H, height = Math.max((e.e - e.s) * H - 3, 20);
+        const tiny = height < 34;
+        const s = this.fillFor(c, T);
+        return h('div', { key: j, style: Object.assign({ position: 'absolute', top: (top + 1) + 'px', left: '3px', right: '3px', height: height + 'px', borderRadius: '5px', padding: tiny ? '2px 6px' : '3px 6px', overflow: 'hidden', display: 'flex', flexDirection: tiny ? 'row' : 'column', alignItems: tiny ? 'center' : 'stretch', gap: tiny ? '5px' : '1px' }, s.wrap) },
+          h('span', { style: { fontSize: '10.5px', fontWeight: 600, color: s.title, lineHeight: '13px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: tiny ? 1 : 'none' } }, e.title),
+          h('span', { style: { fontSize: '9px', fontFamily: "'Geist Mono',monospace", color: s.meta, flexShrink: 0 } }, tiny ? fmt(e.s) : fmt(e.s) + '–' + fmt(e.e)));
+      });
+      const now = i === todayIdx ? h('div', { style: { position: 'absolute', top: ((14.5 - START) * H) + 'px', left: 0, right: 0, height: '0', borderTop: '1.5px solid ' + T.accent, zIndex: 5 } }, h('div', { style: { position: 'absolute', left: '-3px', top: '-3.5px', width: '7px', height: '7px', borderRadius: '50%', background: T.accent } })) : null;
+      return h('div', { key: i, style: { flex: 1, position: 'relative', borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, background: i === todayIdx ? T.todayBg : 'transparent', minWidth: 0 } }, lines, blocks, now);
+    };
+
+    const body = h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', display: 'flex' } },
+      gutter,
+      h('div', { style: { flex: 1, display: 'flex', position: 'relative', height: (hours.length * H) + 'px' } }, days.map((d, i) => dayCol(i))));
+
+    // calendar header
+    const seg = h('div', { style: { display: 'flex', gap: '2px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '8px', padding: '2px' } },
+      ['Week', 'Month'].map((m, i) => h('div', { key: m, style: { padding: '5px 12px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, letterSpacing: '0.02em', color: i === 0 ? T.accent : T.muted, background: i === 0 ? T.accentSoft : 'transparent', cursor: 'default' } }, m)));
+    const navBtn = (n) => h('div', { style: { width: '26px', height: '26px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted, cursor: 'default' } }, this.glyph(n, 14));
+    const calHead = h('div', { style: { height: '44px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 12px', background: T.head, borderBottom: '1px solid ' + T.line } },
+      this.glyph('calendar', 15, T.muted),
+      h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: T.text } }, 'CALENDARIO'),
+      h('span', { style: { fontSize: '13px', color: T.muted } }, '22 – 28 giugno 2026'),
+      h('div', { style: { flex: 1 } }),
+      seg,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '4px' } }, navBtn('chevL'),
+        h('div', { style: { padding: '5px 12px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, color: T.text, border: '1px solid ' + T.line2, cursor: 'default' } }, 'Oggi'),
+        navBtn('chevR'))
+    );
+
+    return h('div', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: T.canvas, overflow: 'hidden' } }, calHead, dayHead, allDayRow, body);
+  }
+
+  splitter(T) {
+    return React.createElement('div', { style: { width: '1px', flexShrink: 0, background: T.line2 } });
+  }
+
+  view() {
+    const h = React.createElement;
+    const T = this.tokens();
+    const notes = [
+      { title: 'Marco al tramonto mediterraneo, foto e nota', action: 'none', actionLabel: 'Notes', actionColor: T.notes, spark: 'photo' },
+      { title: 'Appuntamento con Marco Guerrieri', action: 'none', actionLabel: 'Notes', actionColor: T.notes, spark: 'voice' },
+      { title: 'Incontro con Bania Piccardi sul preventivo', action: 'none', actionLabel: 'Notes', actionColor: T.notes, spark: 'voice' }
+    ];
+    const todos = [
+      { title: 'Revoca certificato digitale Aruba', action: 'anytime', actionLabel: 'To do', actionColor: T.anytime, spark: 'file', checklist: [true, true, false] },
+      { title: 'Preparare brief Teleport per Marco', action: 'anytime', actionLabel: 'To do', actionColor: T.anytime, spark: 'text', checklist: [true, false, false, false] },
+      { title: 'Lista materiali cucina Ortano', action: 'anytime', actionLabel: 'To do', actionColor: T.anytime, checklist: [false, false] }
+    ];
+
+    // top toolbar
+    const toolbar = h('div', { style: { height: '40px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 12px', background: T.head, borderBottom: '1px solid ' + T.line2 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', height: '28px', padding: '0 12px', borderRadius: '8px', background: T.accent, color: T.accentInk, fontSize: '12px', fontWeight: 600, cursor: 'default' } }, this.glyph('plus', 13), 'Tile'),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontSize: '11px', color: T.subtle } }, 'GIMMICK · 400 tile'));
+
+    // app header with Kron
+    const header = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '26px', height: '26px' }, dangerouslySetInnerHTML: { __html: this.kronSvg(T) } })),
+      h('div', {}, h('div', { style: { fontSize: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Chrono'),
+        h('div', { style: { fontSize: '11px', color: T.subtle, marginTop: '1px' } }, 'Kron scandisce i giorni e le scadenze')),
+      h('div', { style: { flex: 1 } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: T.muted } },
+        h('span', { style: { width: '7px', height: '7px', borderRadius: '50%', background: T.deadline } }), '2 scadenze questa settimana'));
+
+    const win = h('div', { style: { width: '1320px', height: '840px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.12)'), borderRadius: '16px', overflow: 'hidden', boxShadow: '0 30px 70px -36px rgba(0,0,0,0.45)' } },
+      header, toolbar,
+      h('div', { style: { flex: 1, display: 'flex', minHeight: 0 } },
+        this.column(T, 210, 'note', T.notes, 'NOTES', notes, 'Nessun appunto'),
+        this.column(T, 210, 'todo', T.anytime, 'TODO', todos, 'Nessun task'),
+        this.calendar(T)));
+
+    return h('div', { style: { minHeight: '100%', background: T.page, fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '40px', display: 'flex', justifyContent: 'center' } }, win);
+  }
+
+  kronSvg(T) {
+    return '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#7C8AA8;--m2:#5B8DEF;--mascot-ink:' + (T.dark ? '#1b1822' : '#26212f') + ';"><rect x="30" y="6" width="12" height="8" rx="3" fill="var(--m2)" transform="rotate(-20 36 10)"/><rect x="54" y="6" width="12" height="8" rx="3" fill="var(--m2)" transform="rotate(20 60 10)"/><circle cx="48" cy="42" r="30" fill="var(--m1)"/><circle cx="48" cy="42" r="22" fill="#fff" opacity="0.16"/><line x1="48" y1="42" x2="48" y2="26" stroke="var(--mascot-ink)" stroke-width="4" stroke-linecap="round"/><line x1="48" y1="42" x2="60" y2="48" stroke="var(--mascot-ink)" stroke-width="4" stroke-linecap="round"/><circle cx="48" cy="42" r="3.5" fill="var(--mascot-ink)"/><rect x="38" y="70" width="7" height="16" rx="3.5" fill="var(--m1)"/><rect x="51" y="70" width="7" height="16" rx="3.5" fill="var(--m1)"/></svg>';
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

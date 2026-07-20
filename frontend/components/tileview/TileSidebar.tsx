@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconArrowUp, IconMaximize, IconX } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox, IconSearch, IconWand, IconCheck } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
-import { useStatuses } from '@/store/statuses-store';
 import { cn } from '@/lib/utils';
 import { usePixelTheme, usePixelSettings } from '@/components/pixel';
 import { resolveCaptureStyle } from '@/lib/pixel-theme';
@@ -16,7 +15,6 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { readableOn } from '@/lib/palette';
-import type { StatusShape } from '@/types';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import { FlowCardList } from '@/components/flow/FlowCardList';
@@ -42,6 +40,57 @@ const SPARK_ICONS: Record<string, typeof IconFile> = {
 };
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; className?: string; color?: string }>>;
+
+// ─── Flag-aware style helpers (Obsidian nativo in shell, pixel arcade fuori) ──
+// I colori arrivano già dal PixelTheme mappato sui token Obsidian quando lo
+// shell è attivo; qui cambiamo la STRUTTURA (font Geist, hairline 1px + raggi,
+// niente uppercase pixel né ombre dure).
+type PT = ReturnType<typeof usePixelTheme>;
+
+/** Eyebrow/section label (TITOLO, AZIONE, …). */
+function obLabel(theme: PT): React.CSSProperties {
+  return {
+    fontFamily: 'var(--ob-font-mono)',
+    fontSize: 10.5,
+    fontWeight: 700,
+    letterSpacing: '0.08em',
+    textTransform: 'uppercase',
+    color: theme.ink3,
+    display: 'block',
+    marginBottom: 6,
+  };
+}
+
+/** Field / select trigger box (input, dropdown trigger). */
+function obField(theme: PT): React.CSSProperties {
+  return {
+    background: theme.surface,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 10,
+    color: theme.ink,
+    fontFamily: 'var(--ob-font-sans)',
+    fontSize: 13.5,
+  };
+}
+
+/** Dropdown row. */
+function obPopupRow(theme: PT, active: boolean): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+    padding: '6px 8px',
+    textAlign: 'left',
+    borderRadius: 6,
+    background: active ? theme.surfaceVariant : 'transparent',
+    border: `1px solid transparent`,
+    color: active ? theme.ink : theme.ink2,
+    fontFamily: 'var(--ob-font-sans)',
+    fontSize: 12,
+    cursor: 'pointer',
+  };
+}
 
 function TypeIconPicker({ tileId }: { tileId: string }) {
   const theme = usePixelTheme();
@@ -71,48 +120,24 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 
   if (icons.length === 0) return null;
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
+  const labelStyle = obLabel(theme);
+  const popupItem = (active: boolean): React.CSSProperties => obPopupRow(theme, active);
 
   return (
     <div style={{ position: 'relative' }}>
-      <label style={labelStyle}>Type</label>
+      <label style={labelStyle}>{'Tipo'}</label>
       <button
         ref={triggerRef}
         onClick={() => setOpen(!open)}
         style={{
+          ...obField(theme),
           width: '100%',
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: current?.color ? `${current.color}40` : theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
-          height: 30,
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
+          background: current?.color ? `${current.color}40` : (theme.surface),
+          padding: '0 10px',
+          height: 36,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -124,7 +149,8 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 width: 18,
                 height: 18,
                 background: current?.color || theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 5,
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -136,8 +162,9 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona tipo...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Seleziona tipo...</span>
         )}
+        {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
       {open && dropPos && createPortal(
         <div
@@ -149,10 +176,11 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             width: dropPos.width,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
-            maxHeight: 192,
+            maxHeight:192,
             overflowY: 'auto',
           }}
         >
@@ -178,7 +206,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                       width: 18,
                       height: 18,
                       background: icon.color || theme.surfaceVariant,
-                      border: `2px solid ${theme.border}`,
+                      border: `1px solid ${theme.border}`,
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -202,155 +230,6 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
   );
 }
 
-function InlineStatusSvg({ shape, color }: { shape: StatusShape; color: string }) {
-  const o = 0.35;
-  switch (shape) {
-    case 'solid': return null;
-    case 'diagonal_ltr': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><defs><pattern id={`pp-ltr-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={70} height={20} rx={2} fill={`url(#pp-ltr-${color.replace('#','')})`} /></svg>;
-    case 'diagonal_rtl': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><defs><pattern id={`pp-rtl-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={10} height={10} patternTransform="rotate(-60)"><line x1={0} y1={0} x2={0} y2={10} stroke={color} strokeWidth={5} strokeOpacity={o} /></pattern></defs><rect x={5} y={5} width={70} height={20} rx={2} fill={`url(#pp-rtl-${color.replace('#','')})`} /></svg>;
-    case 'vertical': return <svg className="absolute inset-0 w-full h-full"><defs><pattern id={`pp-vert-${color.replace('#','')}`} patternUnits="userSpaceOnUse" width={16} height={20}><line x1={8} y1={0} x2={8} y2={20} stroke={color} strokeWidth={6} strokeOpacity={o} /></pattern></defs><rect width="100%" height="100%" fill={`url(#pp-vert-${color.replace('#','')})`} /></svg>;
-    case 'bubble': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><circle cx={14} cy={12} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.08} /><circle cx={28} cy={14} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={42} cy={13} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.05} /><circle cx={56} cy={15} r={5} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o + 0.05} /><circle cx={68} cy={13} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.08} /><circle cx={20} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.05} /><circle cx={36} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.1} /><circle cx={50} cy={22} r={4} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o} /><circle cx={64} cy={20} r={3} fill="none" stroke={color} strokeWidth={1.5} strokeOpacity={o - 0.1} /></svg>;
-    case 'cross': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><line x1={10} y1={10} x2={70} y2={20} stroke={color} strokeWidth={4} strokeOpacity={o + 0.2} strokeLinecap="round" /><line x1={70} y1={10} x2={10} y2={20} stroke={color} strokeWidth={4} strokeOpacity={o + 0.2} strokeLinecap="round" /></svg>;
-    case 'hourglass': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><path d="M5,4 L15,4 L10,10 L15,16 L5,16 L10,10 Z" fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" /></svg>;
-    case 'pause_bars': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><rect x={6.5} y={4} width={2.5} height={12} rx={0.5} fill={color} /><rect x={11} y={4} width={2.5} height={12} rx={0.5} fill={color} /></svg>;
-    case 'lock': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 20 20" preserveAspectRatio="xMidYMid meet"><path d="M7,10 V7 a3,3 0 0 1 6,0 V10" fill="none" stroke={color} strokeWidth={1.6} strokeLinecap="round" /><rect x={5} y={10} width={10} height={7} rx={1} fill={color} /></svg>;
-    case 'shade': return <svg className="absolute inset-0 w-full h-full" viewBox="0 0 80 30" preserveAspectRatio="none"><rect width={80} height={30} fill="#000000" opacity={0.5} /></svg>;
-    default: return null;
-  }
-}
-
-function StatusPickerField({ statuses, value, onChange }: {
-  statuses: { id: string; name: string; shape: string }[];
-  value: string | null;
-  onChange: (id: string | null) => void;
-}) {
-  const theme = usePixelTheme();
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const dropRef = useRef<HTMLDivElement>(null);
-  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
-
-  const selected = statuses.find((p) => p.id === value) || null;
-
-  useEffect(() => {
-    if (!open) return;
-    if (triggerRef.current) {
-      const r = triggerRef.current.getBoundingClientRect();
-      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
-    }
-    const handler = (e: MouseEvent) => {
-      if (triggerRef.current?.contains(e.target as Node)) return;
-      if (dropRef.current?.contains(e.target as Node)) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
-  const swatch: React.CSSProperties = {
-    width: 18,
-    height: 18,
-    overflow: 'hidden',
-    flexShrink: 0,
-    position: 'relative',
-    background: theme.surfaceVariant,
-    border: `2px solid ${theme.border}`,
-  };
-  const popupItem = (active: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
-    cursor: 'pointer',
-  });
-
-  return (
-    <div>
-      <label style={labelStyle}>Status</label>
-      <button
-        ref={triggerRef}
-        onClick={() => setOpen(!open)}
-        style={{
-          width: '100%',
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 8,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
-          height: 30,
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
-          cursor: 'pointer',
-          textAlign: 'left',
-        }}
-      >
-        {selected ? (
-          <>
-            <div style={swatch}>
-              <InlineStatusSvg shape={selected.shape as StatusShape} color={theme.ink2} />
-            </div>
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{selected.name}</span>
-          </>
-        ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Seleziona status...</span>
-        )}
-      </button>
-      {open && dropPos && createPortal(
-        <div
-          ref={dropRef}
-          className="fixed"
-          style={{
-            top: dropPos.top,
-            left: dropPos.left,
-            width: dropPos.width,
-            zIndex: 9999,
-            background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-            padding: 4,
-            maxHeight: 192,
-            overflowY: 'auto',
-          }}
-        >
-          {statuses.map((p) => {
-            const isSelected = value === p.id;
-            return (
-              <button key={p.id} onClick={() => { onChange(p.id); setOpen(false); }} style={popupItem(isSelected)}>
-                <div style={swatch}>
-                  <InlineStatusSvg shape={p.shape as StatusShape} color={theme.ink2} />
-                </div>
-                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</span>
-                {isSelected && (
-                  <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                )}
-              </button>
-            );
-          })}
-        </div>,
-        document.body
-      )}
-    </div>
-  );
-}
-
 function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; size?: number }) {
   if (emoji.startsWith('Icon')) {
     const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
@@ -360,14 +239,55 @@ function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; si
   return <span className="rounded-full shrink-0" style={{ width: size * 0.55, height: size * 0.55, backgroundColor: color }} />;
 }
 
-function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = [] }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient>; invalidateKeys?: string[] }) {
+/** Range dei segni diacritici combinanti (U+0300–U+036F), rimossi per il match. */
+const COMBINING_MARKS = /[̀-ͯ]/g;
+
+/** Normalizza per il match locale: minuscolo, senza accenti. */
+function normText(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(COMBINING_MARKS, '');
+}
+
+/**
+ * Match locale "bacchetta magica": assegna un punteggio a ciascun tag in base a
+ * quanto il suo nome/alias compare nel testo del tile (titolo + sparks). Nome
+ * intero presente → punteggio alto; altrimenti overlap di parole (≥3 caratteri).
+ * Restituisce i tag con punteggio > 0 ordinati per rilevanza (root esclusi).
+ */
+function suggestTagsFromText(text: string, tags: Tag[], rootIds: Set<string>): Tag[] {
+  const t = normText(text);
+  if (!t.trim()) return [];
+  const textTokens = new Set(t.split(/[^a-z0-9]+/).filter((w) => w.length >= 3));
+  const scored: { tag: Tag; score: number }[] = [];
+  for (const tag of tags) {
+    if (rootIds.has(tag.id)) continue;
+    const names = [tag.name, ...(tag.aliases ?? [])].map(normText).filter(Boolean);
+    let score = 0;
+    for (const n of names) {
+      if (t.includes(n)) {
+        score += Math.max(2, n.length / 3); // nome/alias intero presente nel testo
+      } else {
+        for (const tok of n.split(/[^a-z0-9]+/)) {
+          if (tok.length >= 3 && textTokens.has(tok)) score += 1;
+        }
+      }
+    }
+    if (score > 0) scored.push({ tag, score });
+  }
+  return scored.sort((a, b) => b.score - a.score).map((s) => s.tag);
+}
+
+function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = [], suggestText = '' }: { tileId: string; tileTags: { id: string; name: string; tag_type?: string }[]; onChanged: () => void; queryClient: ReturnType<typeof useQueryClient>; invalidateKeys?: string[]; suggestText?: string }) {
   const theme = usePixelTheme();
   const [open, setOpen] = useState(false);
   const [toggling, setToggling] = useState<string | null>(null);
   const { getColor: getTypeColor, getEmoji: getTypeEmoji } = useTagTypes();
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  // Ricerca testuale + modalità "suggerimenti dal testo" (bacchetta magica).
+  const [query, setQuery] = useState('');
+  const [suggestActive, setSuggestActive] = useState(false);
 
   // Position dropdown and handle outside clicks
   useEffect(() => {
@@ -391,8 +311,36 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
     staleTime: 60_000,
   });
   const allTags: Tag[] = (tagsData as { data?: Tag[] })?.data || [];
-  const rootTagIds = new Set(allTags.filter((t) => t.is_root).map((t) => t.id));
+  const rootTagIds = useMemo(() => new Set(allTags.filter((t) => t.is_root).map((t) => t.id)), [allTags]);
   const selectedTag = tileTags.find((t) => !rootTagIds.has(t.id)) || tileTags[0] || null;
+
+  // Suggerimenti "bacchetta magica": tag esistenti ricavati dal testo del tile.
+  const suggested = useMemo(
+    () => suggestTagsFromText(suggestText, allTags, rootTagIds),
+    [suggestText, allTags, rootTagIds],
+  );
+
+  // Lista mostrata nel dropdown: suggerimenti (se attivi) → filtro testo → tutti.
+  const visibleTags = useMemo(() => {
+    if (suggestActive) return suggested;
+    const q = normText(query.trim());
+    if (!q) return allTags;
+    return allTags.filter((t) =>
+      [t.name, ...(t.aliases ?? [])].some((n) => normText(n).includes(q)),
+    );
+  }, [suggestActive, suggested, query, allTags]);
+
+  // Alla chiusura azzera ricerca e modalità suggerimenti; all'apertura mette a
+  // fuoco l'input di ricerca.
+  useEffect(() => {
+    if (!open) {
+      setQuery('');
+      setSuggestActive(false);
+    } else {
+      const id = requestAnimationFrame(() => searchRef.current?.focus());
+      return () => cancelAnimationFrame(id);
+    }
+  }, [open]);
 
   // Optimistic update helper: patch tag in all cached tile queries
   const optimisticUpdateTag = (newTag: { id: string; name: string; tag_type?: string } | null) => {
@@ -439,6 +387,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
         await tagsApi.tagTiles(tag.id, [tileId]);
       }
       onChanged();
+      // I conteggi/gruppi della Sidebar sinistra derivano da ['tags']: senza
+      // questa invalidazione usage_count e appartenenza tile→tag restano stale.
+      queryClient.invalidateQueries({ queryKey: ['tags'] });
     } catch (err) {
       console.error('Tag toggle failed:', err);
       // Revert on error
@@ -448,27 +399,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
     }
   };
 
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
+  const labelStyle = obLabel(theme);
   const popupItem = (active: boolean, busy: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '6px 8px',
-    textAlign: 'left',
-    background: active ? theme.surfaceVariant : 'transparent',
-    border: `2px solid ${active ? theme.border : 'transparent'}`,
-    color: active ? theme.ink : theme.ink2,
-    fontFamily: 'var(--font-pixel-body)',
-    fontSize: 12,
+    ...obPopupRow(theme, active),
     cursor: busy ? 'not-allowed' : 'pointer',
     opacity: busy ? 0.5 : 1,
   });
@@ -479,17 +412,16 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
       <div
         ref={triggerRef}
         style={{
+          ...obField(theme),
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          height: 30,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          padding: '0 8px',
+          height: 36,
+          // TAG: in shell usa il tinta accent-soft come da design.
+          background: `${theme.accent}1f`,
+          color: theme.accent,
+          padding: '0 10px',
           cursor: 'pointer',
-          color: theme.ink,
-          fontFamily: 'var(--font-pixel-body)',
-          fontSize: 12,
         }}
         onClick={() => setOpen(!open)}
       >
@@ -516,17 +448,56 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             width: dropPos.width,
             zIndex: 9999,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
-            maxHeight: 256,
+            maxHeight:256,
             overflowY: 'auto',
           }}
         >
+          {/* Riga di ricerca: input + bacchetta magica + pulisci. */}
+          <div style={{ position: 'relative', marginBottom: 4 }}>
+            <IconSearch size={14} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }} />
+            <input
+              ref={searchRef}
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setSuggestActive(false); }}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') { setOpen(false); }
+                else if (e.key === 'Enter' && visibleTags.length > 0) { e.preventDefault(); handleSelect(visibleTags[0]); }
+              }}
+              placeholder={suggestActive ? 'Suggeriti dal testo' : 'Cerca tag...'}
+              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12, outline: 'none' }}
+            />
+            {/* Bacchetta magica: propone tag esistenti ricavati dal testo del tile. */}
+            <button
+              type="button"
+              title={suggestText.trim() ? 'Suggerisci tag dal testo' : 'Nessun testo da cui suggerire'}
+              disabled={!suggestText.trim()}
+              onClick={() => { setQuery(''); setSuggestActive(true); }}
+              style={{ position: 'absolute', right: (suggestActive || query) ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: suggestActive ? `${theme.accent}2a` : 'transparent', color: suggestActive ? theme.accent : theme.ink3, cursor: suggestText.trim() ? 'pointer' : 'not-allowed', opacity: suggestText.trim() ? 1 : 0.4 }}
+            >
+              <IconWand size={14} />
+            </button>
+            {/* Pulisci: azzera ricerca e suggerimenti. */}
+            {(suggestActive || query) && (
+              <button
+                type="button"
+                title="Pulisci"
+                onClick={() => { setQuery(''); setSuggestActive(false); searchRef.current?.focus(); }}
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: theme.ink3, cursor: 'pointer' }}
+              >
+                <IconX size={14} />
+              </button>
+            )}
+          </div>
           {allTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+          ) : visibleTags.length === 0 ? (
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
           ) : (
-            allTags.map((tag) => {
+            visibleTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
               const busy = toggling === tag.id;
               const c = getTypeColor(tag.tag_type || 'topic') || theme.ink3;
@@ -597,14 +568,16 @@ function SparkEditor({
   const mediaWrap: React.CSSProperties = {
     overflow: 'hidden',
     background: theme.surfaceVariant,
-    border: `2px solid ${theme.border}`,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 12,
     position: 'relative',
   };
   const overlayBtn = (danger: boolean): React.CSSProperties => ({
     padding: 4,
     background: danger ? '#E24B4A' : theme.surface,
     color: danger ? '#FFFFFF' : theme.ink2,
-    border: `2px solid ${theme.border}`,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 6,
     cursor: 'pointer',
     display: 'inline-flex',
   });
@@ -614,8 +587,9 @@ function SparkEditor({
       <div
         className="group"
         style={{
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
+          background: theme.surface,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 12,
           padding: '10px 12px',
           position: 'relative',
           height: 128,
@@ -625,15 +599,7 @@ function SparkEditor({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4, flexShrink: 0 }}>
           <IconFileText size={11} style={{ color: theme.ink3 }} />
-          <span
-            style={{
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: theme.ink3,
-            }}
-          >
+          <span style={obLabel(theme)}>
             Testo
           </span>
         </div>
@@ -664,7 +630,8 @@ function SparkEditor({
               padding: 2,
               background: theme.surface,
               color: theme.ink2,
-              border: `2px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 6,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -678,7 +645,8 @@ function SparkEditor({
               padding: 2,
               background: confirmDelete ? '#E24B4A' : theme.surface,
               color: confirmDelete ? '#FFFFFF' : theme.ink2,
-              border: `2px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 6,
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -690,11 +658,14 @@ function SparkEditor({
         <MarkdownEditorModal
           open={textModalOpen}
           initialValue={editText}
+          autoSave
           onSave={(md) => {
+            // Salvataggio in tempo reale: aggiorna la preview e persiste lo
+            // spark a ogni modifica (debounce nella modale). Non chiude: la
+            // chiusura è affidata al bottone X.
             setEditText(md);
             textDirty.current = false;
             onUpdateText(md);
-            setTextModalOpen(false);
           }}
           onCancel={() => setTextModalOpen(false)}
           title="Modifica testo"
@@ -732,7 +703,7 @@ function SparkEditor({
               padding: 8,
               background: theme.accent,
               color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
               display: 'inline-flex',
               cursor: 'pointer',
             }}
@@ -769,7 +740,7 @@ function SparkEditor({
             padding: '4px 8px',
           }}
         >
-          <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {spark.file_name}
           </span>
         </div>
@@ -794,7 +765,8 @@ function SparkEditor({
           className="group"
           style={{
             background: theme.surfaceVariant,
-            border: `2px solid ${theme.border}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
             overflow: 'hidden',
             position: 'relative',
             cursor: 'zoom-in',
@@ -815,14 +787,14 @@ function SparkEditor({
               alignItems: 'center',
               gap: 6,
               padding: '4px 8px',
-              borderTop: `2px solid ${theme.border}`,
+              borderTop: `1px solid ${theme.border}`,
               background: theme.surface,
             }}
           >
             <IconFileText size={11} style={{ color: theme.ink2, flexShrink: 0 }} />
             <span
               style={{
-                fontFamily: 'var(--font-pixel-body)',
+                fontFamily: 'var(--ob-font-sans)',
                 fontSize: 10,
                 color: theme.ink2,
                 overflow: 'hidden',
@@ -863,8 +835,9 @@ function SparkEditor({
             <div
               style={{
                 background: theme.surface,
-                border: `2px solid ${theme.border}`,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                border: `1px solid ${theme.border}`,
+                borderRadius: 16,
+                boxShadow: 'var(--ob-shadow-modal, var(--ob-shadow-card))',
                 display: 'flex',
                 flexDirection: 'column',
                 overflow: 'hidden',
@@ -879,7 +852,7 @@ function SparkEditor({
                   alignItems: 'center',
                   gap: 8,
                   padding: '10px 14px',
-                  borderBottom: `2px solid ${theme.border}`,
+                  borderBottom: `1px solid ${theme.border}`,
                   background: theme.surfaceVariant,
                   flexShrink: 0,
                 }}
@@ -887,10 +860,11 @@ function SparkEditor({
                 <IconFileText size={14} style={{ color: theme.ink2, flexShrink: 0 }} />
                 <span
                   style={{
-                    fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 11,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: 'var(--ob-font-sans)',
+                    fontSize: 13.5,
+                    fontWeight: 600,
+                    letterSpacing: 0,
+                    textTransform: 'none',
                     color: theme.ink,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -939,8 +913,9 @@ function SparkEditor({
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
       className="group"
       style={{
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 12,
         padding: '8px 10px',
         display: 'flex',
         alignItems: 'center',
@@ -954,8 +929,9 @@ function SparkEditor({
         style={{
           width: 36,
           height: 36,
-          background: theme.surface,
-          border: `2px solid ${theme.border}`,
+          background: theme.surfaceVariant,
+          border: `1px solid ${theme.border}`,
+          borderRadius: 9,
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -964,7 +940,7 @@ function SparkEditor({
       >
         <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
         {spark.file_name || spark.type}
       </span>
       {signedUrl && (
@@ -977,7 +953,7 @@ function SparkEditor({
           padding: 2,
           background: confirmDelete ? '#E24B4A' : 'transparent',
           color: confirmDelete ? '#FFFFFF' : theme.ink3,
-          border: confirmDelete ? `2px solid ${theme.border}` : 'none',
+          border: confirmDelete ? `1px solid ${theme.border}` : 'none',
           cursor: 'pointer',
           display: 'inline-flex',
           flexShrink: 0,
@@ -1034,13 +1010,24 @@ export function TileSidebar({
   const theme = usePixelTheme();
   const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
-  const { statuses: allStatuses } = useStatuses();
   const actionColors = useActionColors();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
     enabled: !!tileId,
-    staleTime: 30_000,
+    staleTime: 10_000,
+    // Tornando sulla finestra riprende i dati freschi (es. modifiche fatte
+    // altrove mentre la sidebar restava aperta).
+    refetchOnWindowFocus: true,
+    // Mentre l'AI sta indicizzando qualche spark, i campi del tile (titolo,
+    // descrizione, tag) vengono generati lato server: fai polling veloce finché
+    // resta pendente, così la sidebar si aggiorna in tempo reale. A regime
+    // (nessuna indicizzazione) niente polling.
+    refetchInterval: (query) => {
+      const t = query.state.data?.data as (Tile & { sparks?: Spark[] }) | undefined;
+      const indexing = (t?.sparks ?? []).some((s) => s.ai_status === 'pending' || s.ai_status === 'processing');
+      return indexing ? 4_000 : false;
+    },
   });
 
   const tile = data?.data;
@@ -1192,37 +1179,12 @@ export function TileSidebar({
     },
   });
 
-  const tabBtn = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 10px',
-    height: 28,
-    background: active ? theme.accent : theme.surfaceVariant,
-    color: active ? theme.onAccent : theme.ink2,
-    border: `2px solid ${theme.border}`,
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    cursor: 'pointer',
-    boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
-  });
-  const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--font-pixel-head)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    marginBottom: 4,
-  };
+  const labelStyle = obLabel(theme);
 
   return (
     <div
       style={{
-        borderLeft: `2px solid ${theme.border}`,
+        borderLeft: `1px solid ${theme.border}`,
         background: theme.bg2,
         transition: 'width 200ms',
         display: 'flex',
@@ -1242,7 +1204,7 @@ export function TileSidebar({
             justifyContent: 'center',
             background: 'transparent',
             border: 'none',
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `1px solid ${theme.border}`,
             cursor: 'pointer',
             flexShrink: 0,
             color: theme.ink2,
@@ -1265,8 +1227,8 @@ export function TileSidebar({
               display: 'flex',
               alignItems: 'center',
               gap: 4,
-              borderBottom: `2px solid ${theme.border}`,
-              background: theme.surfaceVariant,
+              borderBottom: `1px solid ${theme.border}`,
+              background: theme.bg2,
               flexShrink: 0,
             }}
           >
@@ -1278,9 +1240,10 @@ export function TileSidebar({
                 justifyContent: 'center',
                 width: 28,
                 height: 28,
-                background: theme.surface,
+                borderRadius: 8,
+                background: 'transparent',
                 color: theme.ink2,
-                border: `2px solid ${theme.border}`,
+                border: `1px solid ${theme.border}`,
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
@@ -1288,9 +1251,13 @@ export function TileSidebar({
             >
               <IconLayoutSidebarRightCollapse size={14} />
             </button>
-            <button onClick={() => setActiveTab('edit')} style={tabBtn(activeTab === 'edit')}>Edit</button>
-            <button onClick={() => setActiveTab('list')} style={tabBtn(activeTab === 'list')}>List</button>
-            <button onClick={() => setActiveTab('flow')} style={tabBtn(activeTab === 'flow')}>Flow</button>
+            {(
+              <div className="ob-insp-tabs">
+                <button className={cn('ob-insp-tab', activeTab === 'edit' && 'ob-insp-tab--active')} onClick={() => setActiveTab('edit')}><IconEdit size={14} />Edit</button>
+                <button className={cn('ob-insp-tab', activeTab === 'list' && 'ob-insp-tab--active')} onClick={() => setActiveTab('list')}><IconList size={14} />List</button>
+                <button className={cn('ob-insp-tab', activeTab === 'flow' && 'ob-insp-tab--active')} onClick={() => setActiveTab('flow')}><IconShare2 size={14} />Flow</button>
+              </div>
+            )}
           </div>
         )}
         <div
@@ -1298,11 +1265,11 @@ export function TileSidebar({
           style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
         >
           {!tileId ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
             <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
@@ -1310,40 +1277,65 @@ export function TileSidebar({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Title</label>
-                <textarea
-                  value={editTitle}
-                  onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
-                  onBlur={saveTitle}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
-                  rows={2}
-                  style={{
-                    width: '100%',
-                    background: theme.surfaceVariant,
-                    border: `2px solid ${theme.border}`,
-                    padding: '6px 8px',
-                    color: theme.ink,
-                    fontFamily: 'var(--font-pixel-body)',
-                    fontSize: 12,
-                    lineHeight: '20px',
-                    outline: 'none',
-                    resize: 'none',
-                  }}
-                  placeholder="Title..."
-                />
+                <label style={labelStyle}>{'Titolo'}</label>
+                <div style={{ position: 'relative' }}>
+                  <textarea
+                    value={editTitle}
+                    onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
+                    onBlur={saveTitle}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
+                    rows={2}
+                    style={{
+                      ...obField(theme),
+                      display: 'block',
+                      width: '100%',
+                      padding: '8px 36px 8px 10px',
+                      lineHeight: '20px',
+                      outline: 'none',
+                      resize: 'none',
+                      textDecoration: tile.is_completed ? 'line-through' : 'none',
+                      color: tile.is_completed ? theme.ink3 : theme.ink,
+                    }}
+                    placeholder={'Titolo…'}
+                  />
+                  {/* Overlay COMPLETATO: check vuoto/verde in basso a destra. */}
+                  <button
+                    type="button"
+                    onClick={() => updateTileMutation.mutate({ is_completed: !tile.is_completed })}
+                    title={tile.is_completed ? 'Segna come da completare' : 'Segna come completato'}
+                    aria-pressed={!!tile.is_completed}
+                    style={{
+                      position: 'absolute',
+                      right: 8,
+                      bottom: 8,
+                      width: 20,
+                      height: 20,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      background: tile.is_completed ? 'var(--ob-success)' : 'transparent',
+                      border: `1.5px solid ${tile.is_completed ? 'var(--ob-success)' : theme.ink3}`,
+                      borderRadius: 6,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {tile.is_completed && <IconCheck size={13} color="#fff" stroke={3} />}
+                  </button>
+                </div>
               </div>
 
 
               {/* Type selector */}
               <div>
-                <label style={labelStyle}>Action</label>
+                <label style={labelStyle}>{'Azione'}</label>
                 {(() => {
                   const ac = actionColors;
                   // Same icon mapping used in tile renderers (kanban/calendar/canvas).
                   // Notes (none) shows no badge.
                   const TILE_ACTION_ICON: Record<string, typeof IconBolt | null> = {
-                    none:     null,
-                    anytime:  IconArrowUp,
+                    none:     IconNote,
+                    anytime:  IconCheckbox,
                     deadline: IconBolt,
                     event:    IconClock,
                     allday:   IconCalendar,
@@ -1357,6 +1349,10 @@ export function TileSidebar({
                   ] as const;
                   const row1 = allOpts.slice(0, 2);
                   const row2 = allOpts.slice(2);
+                  // Etichette native Obsidian (immagine di design).
+                  const OB_LABEL: Record<string, string> = {
+                    'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Due', 'ALL DAY': 'Daily', 'TIMED': 'Timing',
+                  };
                   const renderBtn = (opt: typeof allOpts[number]) => {
                     const isActive = opt.value === 'event'
                       ? tile.action_type === 'event' && ((opt as any).extra?.all_day ? !!tile.all_day : !tile.all_day)
@@ -1384,42 +1380,35 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
-                          height: 30,
-                          background: isActive ? theme.accent : theme.surfaceVariant,
-                          color: isActive ? theme.onAccent : theme.ink2,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
-                          fontSize: 9,
-                          letterSpacing: '0.06em',
-                          textTransform: 'uppercase',
+                          height: 32,
+                          borderRadius: 7,
+                          // Tutti i bottoni hanno un leggero sfondo violaceo (accent);
+                          // l'attivo è più marcato e con contorno accent.
+                          background: isActive ? `${theme.accent}2E` : `${theme.accent}14`,
+                          color: isActive ? theme.accent : theme.ink,
+                          border: `1px solid ${isActive ? theme.accent : 'transparent'}`,
+                          fontFamily: 'var(--ob-font-sans)',
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          letterSpacing: 0,
+                          textTransform: 'none',
                           cursor: 'pointer',
-                          boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+                          boxShadow: 'none',
                         }}
                       >
-                        {Icon && (
-                          <div
-                            style={{
-                              width: 14,
-                              height: 14,
-                              background: actionColor,
-                              border: `2px solid ${isActive ? theme.onAccent : theme.border}`,
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              flexShrink: 0,
-                            }}
-                          >
-                            <Icon size={8} color={readableOn(actionColor)} />
-                          </div>
-                        )}
-                        {opt.label}
+                        {Icon && ((
+                          <Icon size={14} color={isActive ? theme.accent : theme.ink2} />
+                        ))}
+                        {(OB_LABEL[opt.label] ?? opt.label)}
                       </button>
                     );
                   };
                   return (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      <div style={{ display: 'flex', gap: 4 }}>{row1.map(renderBtn)}</div>
-                      <div style={{ display: 'flex', gap: 4 }}>{row2.map(renderBtn)}</div>
+                    // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
+                    // surface + cornice leggera + padding, come segmented control.
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 3 }}>
+                      <div style={{ display: 'flex', gap: 3 }}>{row1.map(renderBtn)}</div>
+                      <div style={{ display: 'flex', gap: 3 }}>{row2.map(renderBtn)}</div>
                     </div>
                   );
                 })()}
@@ -1458,51 +1447,99 @@ export function TileSidebar({
                   }
                 };
 
+                // ── Durata attività (ore): lega start/end ──
+                const startMs = tile.start_at ? new Date(tile.start_at).getTime() : NaN;
+                const endMs = tile.end_at ? new Date(tile.end_at).getTime() : NaN;
+                const durMs = (!isNaN(startMs) && !isNaN(endMs) && endMs > startMs) ? endMs - startMs : 3600000;
+                const durationHours = Math.round((durMs / 3600000) * 100) / 100;
+                const curStart = safeTime(startTime, '09:00');
+
+                // Cambio inizio: preserva la durata (sposta anche la fine).
+                const setStart = (t: string) => {
+                  if (!dateVal) return;
+                  const ns = new Date(`${dateVal}T${t}`);
+                  const ne = new Date(ns.getTime() + durMs);
+                  updateTileMutation.mutate({ start_at: ns.toISOString(), end_at: ne.toISOString() });
+                };
+                // Cambio fine: tiene fisso l'inizio (la durata si ricalcola).
+                const setEnd = (t: string) => {
+                  if (!dateVal) return;
+                  updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() });
+                };
+                // Cambio durata: tiene fisso l'inizio, ricalcola la fine.
+                const setDuration = (h: number) => {
+                  if (!dateVal || !(h > 0)) return;
+                  const ns = new Date(`${dateVal}T${curStart}`);
+                  const ne = new Date(ns.getTime() + h * 3600000);
+                  updateTileMutation.mutate({ start_at: ns.toISOString(), end_at: ne.toISOString() });
+                };
+
+                // Cella generica dentro il container: sfondo surface, NESSUN bordo
+                // (la cornice la dà il container del gruppo).
+                const cellBase: React.CSSProperties = {
+                  background: theme.surface, border: '1px solid transparent',
+                  borderRadius: 8, height: 36,
+                };
+
                 return (
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 8 }}>
-                      {/* Date */}
-                      <div style={{ flexShrink: 0 }}>
-                        <label style={labelStyle}>Date</label>
+                    <label style={labelStyle}>Data e orario</label>
+                    {/* Tutto raggruppato in un unico container (come AZIONE): riga data +
+                        riga inizio/durata/fine. Niente label: segnaposti illustrativi inline. */}
+                    <div style={{ background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {/* Riga 1: data a piena larghezza */}
+                      <div style={{ position: 'relative' }}>
+                        <IconCalendar
+                          size={14}
+                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
+                        />
                         <input
                           type="date"
                           value={dateVal}
                           onChange={(e) => updateDate(e.target.value)}
+                          onClick={(e) => { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); }}
+                          className={'ob-ts-date'}
                           style={{
-                            background: theme.surfaceVariant,
-                            border: `2px solid ${theme.border}`,
-                            padding: '0 8px',
-                            height: 30,
+                            ...cellBase,
                             color: theme.ink,
-                            fontFamily: 'var(--font-pixel-body)',
-                            fontSize: 12,
+                            fontFamily: 'var(--ob-font-sans)',
+                            fontSize: 13.5,
+                            padding: '0 8px 0 32px',
                             outline: 'none',
-                            width: 'auto',
-                            maxWidth: 110,
-                            colorScheme: 'dark',
+                            width: '100%',
+                            colorScheme: theme.mode,
                           }}
                         />
                       </div>
-                      {/* Start/End time — only for timed */}
+                      {/* Riga 2: inizio · durata (h) · fine — solo per eventi a orario.
+                          Orologio = segnaposto orario, "h" = segnaposto durata. */}
                       {isTimed && (
-                        <>
-                          <div style={{ flexShrink: 0 }}>
-                            <label style={labelStyle}>Start</label>
-                            <TimePicker
-                              value={startTime || '09:00'}
-                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ start_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                              compact
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <TimePicker value={startTime || '09:00'} icon={<IconClock size={14} />} onChange={setStart} compact noBorder />
+                          <div style={{ ...cellBase, flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 8px' }}>
+                            <input
+                              type="number"
+                              min={0.25}
+                              step={0.25}
+                              value={durationHours}
+                              onChange={(e) => setDuration(parseFloat(e.target.value))}
+                              aria-label="Durata in ore"
+                              style={{
+                                width: 44,
+                                background: 'transparent',
+                                border: 'none',
+                                outline: 'none',
+                                textAlign: 'right',
+                                fontFamily: 'var(--ob-font-sans)',
+                                fontSize: 13,
+                                fontWeight: 600,
+                                color: theme.ink,
+                              }}
                             />
+                            <span style={{ fontSize: 11, color: theme.ink3 }}>h</span>
                           </div>
-                          <div style={{ flexShrink: 0 }}>
-                            <label style={labelStyle}>End</label>
-                            <TimePicker
-                              value={endTime || '10:00'}
-                              onChange={(t) => { if (dateVal) updateTileMutation.mutate({ end_at: new Date(`${dateVal}T${t}`).toISOString() }); }}
-                              compact
-                            />
-                          </div>
-                        </>
+                          <TimePicker value={endTime || '10:00'} icon={<IconClock size={14} />} onChange={setEnd} compact noBorder />
+                        </div>
                       )}
                     </div>
                   </div>
@@ -1510,44 +1547,42 @@ export function TileSidebar({
               })()}
 
               {/* Tags */}
-              <TagPicker tileId={tile.id} tileTags={tile.tags || []} onChanged={invalidateAll} queryClient={queryClient} invalidateKeys={invalidateKeys} />
+              <TagPicker
+                tileId={tile.id}
+                tileTags={tile.tags || []}
+                onChanged={invalidateAll}
+                queryClient={queryClient}
+                invalidateKeys={invalidateKeys}
+                suggestText={[tile.title || '', ...sparks.map((s) => s.content || s.file_name || '')].join(' ')}
+              />
 
               {/* Type Icon */}
               <TypeIconPicker tileId={tile.id} />
 
-              {/* Status */}
-              {allStatuses.length > 0 && (
-                <StatusPickerField
-                  statuses={allStatuses}
-                  value={tile.status_id || null}
-                  onChange={(id) => updateTileMutation.mutate({ status_id: id })}
-                />
-              )}
-
-              <div style={{ borderTop: `2px solid ${theme.border}` }} />
+              <div style={{ borderTop: `1px solid ${theme.border}` }} />
 
               <div>
+                <div style={{ ...obLabel(theme), marginBottom: 8 }}>
+                  {`Sparks · ${sparks.length}`}
+                </div>
                 <div
                   style={{
-                    fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 9,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    color: theme.ink3,
-                    marginBottom: 8,
+                    display: 'flex',
+                    border: '1px solid var(--ob-line-2)',
+                    borderRadius: 12,
+                    overflow: 'hidden',
+                    background: theme.surface,
+                    marginBottom: 12,
                   }}
                 >
-                  Sparks ({sparks.length})
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                   {[
-                    { id: 'photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
-                    { id: 'video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
-                    { id: 'gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
-                    { id: 'text', icon: IconEdit, capKey: 'text' as const, accept: null },
-                    { id: 'voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
-                    { id: 'file', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
-                  ].map((opt) => {
+                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
+                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
+                    { id: 'gallery', label: 'Gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
+                    { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
+                    { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
+                  ].map((opt, idx, arr) => {
                     const BtnIcon = opt.icon;
                     const isDropTarget = dropTargetIcon === opt.id;
                     const acceptsDrop = opt.id !== 'text';
@@ -1578,34 +1613,33 @@ export function TileSidebar({
                           setDropTargetIcon(null);
                           if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
                         } : undefined}
-                        className="px-press"
+                        className={undefined}
                         style={{
                           position: 'relative',
-                          width: 32,
-                          height: 32,
+                          flex: 1,
+                          minWidth: 0,
+                          height: 56,
+                          borderRadius: 0,
                           display: 'inline-flex',
+                          flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: cstyle.background,
-                          border: `2px solid ${cstyle.border}`,
+                          gap: 6,
+                          background: isDropTarget ? `${cap}1F` : 'transparent',
+                          border: 'none',
+                          // Divisore leggero tra le celle (non sull'ultima).
+                          borderRight: idx < arr.length - 1 ? '1px solid var(--ob-line-2)' : 'none',
                           cursor: 'pointer',
-                          ...(isDropTarget ? { boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${cap}` } : {}),
                         }}
                         title={opt.id}
                       >
-                        <BtnIcon size={14} style={{ color: cstyle.iconColor }} />
-                        {cstyle.dot && (
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: 2,
-                              right: 2,
-                              width: 4,
-                              height: 4,
-                              background: cstyle.dot,
-                            }}
-                          />
+                        <BtnIcon size={19} style={{ color: cap }} />
+                        {(
+                          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, fontWeight: 500, color: theme.ink2, lineHeight: 1 }}>
+                            {opt.label}
+                          </span>
                         )}
+                        {false}
                       </button>
                     );
                   })}
@@ -1634,10 +1668,10 @@ export function TileSidebar({
                         minHeight: 80,
                         textAlign: 'left',
                         background: theme.surfaceVariant,
-                        border: `2px solid ${theme.border}`,
+                        border: `1px solid ${theme.border}`,
                         padding: '8px 10px',
                         color: theme.ink,
-                        fontFamily: 'var(--font-pixel-body)',
+                        fontFamily: 'var(--ob-font-sans)',
                         fontSize: 12,
                         cursor: 'pointer',
                       }}
@@ -1659,7 +1693,7 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           background: theme.surface,
-                          border: `2px solid ${theme.border}`,
+                          border: `1px solid ${theme.border}`,
                           color: theme.ink2,
                         }}
                       >
@@ -1678,8 +1712,8 @@ export function TileSidebar({
                           height: 26,
                           background: theme.accent,
                           color: theme.onAccent,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
+                          border: `1px solid ${theme.border}`,
+                          fontFamily: 'var(--ob-font-mono)',
                           fontSize: 9,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
@@ -1699,8 +1733,8 @@ export function TileSidebar({
                           height: 26,
                           background: theme.surfaceVariant,
                           color: theme.ink2,
-                          border: `2px solid ${theme.border}`,
-                          fontFamily: 'var(--font-pixel-head)',
+                          border: `1px solid ${theme.border}`,
+                          fontFamily: 'var(--ob-font-mono)',
                           fontSize: 9,
                           letterSpacing: '0.08em',
                           textTransform: 'uppercase',
@@ -1723,6 +1757,7 @@ export function TileSidebar({
                       }}
                       onCancel={() => setNewTextModalOpen(false)}
                       title="Nuovo testo"
+                      commitOnClose
                     />
                   </div>
                 )}
@@ -1733,10 +1768,10 @@ export function TileSidebar({
         </div>
 
         {tileId && tile && (
-          <div style={{ padding: '8px 12px', flexShrink: 0, textAlign: 'right', borderTop: `2px solid ${theme.border}`, background: theme.surfaceVariant }}>
+          <div style={{ padding: '8px 12px', flexShrink: 0, textAlign: 'right', borderTop: `1px solid ${theme.border}`, background: theme.surfaceVariant }}>
             <span
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: 'var(--ob-font-mono)',
                 fontSize: 8,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { pixelToolbarBtn } from '@/lib/pixel-toolbar';
+import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
 
 function ToolbarToggle({ icon, label, active, onClick }: {
@@ -13,8 +13,9 @@ function ToolbarToggle({ icon, label, active, onClick }: {
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
+  const style = obsidianToolbarBtn(theme, active);
   return (
-    <button onClick={onClick} className="px-press" style={pixelToolbarBtn(theme, active)} title={label}>
+    <button onClick={onClick} style={style} title={label}>
       {icon}
       {label}
     </button>
@@ -27,8 +28,9 @@ function ToolbarButton({ icon, label, onClick }: {
   onClick: () => void;
 }) {
   const theme = usePixelTheme();
+  const style = obsidianToolbarBtn(theme, false);
   return (
-    <button onClick={onClick} className="px-press" style={pixelToolbarBtn(theme, false)} title={label}>
+    <button onClick={onClick} style={style} title={label}>
       {icon}
       {label}
     </button>
@@ -54,6 +56,24 @@ interface CanvasTopbarProps {
 
 export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
+  const chipBorderW = 1;
+  const chipFont = 'var(--ob-font-sans)';
+  const chipFontSize = 11.5;
+  const chipRadius = 8;
+  const chipTransform: 'none' | 'uppercase' = 'none';
+  const chipWeight = 600;
+  // Forma "linguetta": angoli superiori arrotondati, base piatta, allineata in
+  // basso alla barra così poggia sulla linea inferiore (tab-strip). Niente
+  // overlap verticale: eviterebbe lo scroll ma con overflow-x:auto il browser
+  // mostrerebbe una scrollbar verticale (overflow-y diventa auto).
+  const tabShape = {
+    height: 32,
+    alignSelf: 'flex-end' as const,
+    borderTopLeftRadius: chipRadius,
+    borderTopRightRadius: chipRadius,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+  };
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
@@ -90,13 +110,13 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '0 12px',
-        borderBottom: `2px solid ${theme.border}`,
+        borderBottom: `${chipBorderW}px solid ${theme.border}`,
         background: theme.bg2,
       }}
     >
       <div
         className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflowX: 'auto' }}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: 3, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
       >
         {tag && (
           <>
@@ -104,25 +124,23 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                padding: '0 12px',
-                height: 30,
+                padding: '0 14px',
+                ...tabShape,
                 background: theme.accent,
                 color: theme.onAccent,
-                border: `2px solid ${theme.onAccent}`,
-                fontFamily: 'var(--font-pixel-head)',
-                fontSize: 8,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
+                border: `${chipBorderW}px solid transparent`,
+                fontFamily: chipFont,
+                fontSize: chipFontSize,
+                fontWeight: chipWeight,
+                letterSpacing: 0,
+                textTransform: chipTransform,
                 flexShrink: 0,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.mode === 'dark' ? theme.shadowColor : theme.surface}`,
+                boxShadow: 'none',
               }}
               title={`Canvas corrente: ${tag.name}`}
             >
               {tag.name}
             </div>
-            {otherPinned.length > 0 && (
-              <div style={{ width: 2, height: 20, background: theme.border, margin: '0 4px', flexShrink: 0 }} />
-            )}
           </>
         )}
         {otherPinned.map((pt, idx) => {
@@ -130,9 +148,10 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
           const isDropTarget = dropTargetId === pt.id && draggingId !== pt.id;
           const draggingIdx = draggingId ? otherPinned.findIndex((t) => t.id === draggingId) : -1;
           const insertAfter = draggingIdx !== -1 && draggingIdx < idx;
-          // Stesso "swap ink/surface in base al mode" di pixelToolbarBtn.
-          const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
-          const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
+          // Chip neutro Obsidian (surface-2 + hairline).
+          const chipBg = theme.surfaceVariant;
+          const chipFg = theme.ink2;
+          const chipBorderCol = theme.border;
           return (
           <div
             key={pt.id}
@@ -164,15 +183,17 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
               position: 'relative',
               display: 'inline-flex',
               alignItems: 'center',
-              padding: '0 12px',
-              height: 30,
-              background: darkSlot,
-              color: lightSlot,
-              border: `2px solid ${lightSlot}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 8,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              padding: '0 26px 0 14px',
+              ...tabShape,
+              background: chipBg,
+              color: chipFg,
+              border: `${chipBorderW}px solid ${chipBorderCol}`,
+              borderBottom: 'none',
+              fontFamily: chipFont,
+              fontSize: chipFontSize,
+              fontWeight: chipWeight,
+              letterSpacing: 0,
+              textTransform: chipTransform,
               flexShrink: 0,
               cursor: 'grab',
               opacity: isDragging ? 0.4 : 1,
@@ -212,7 +233,8 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
                 alignItems: 'center',
                 justifyContent: 'center',
                 background: theme.surface,
-                border: `2px solid ${theme.border}`,
+                border: `${chipBorderW}px solid ${theme.border}`,
+                borderRadius: 5,
                 color: '#E24B4A',
                 cursor: 'pointer',
               }}
@@ -242,7 +264,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
         <ToolbarToggle icon={<IconLayoutGrid size={12} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
         <ToolbarToggle icon={<IconNote size={12} />} label="Testo" active={textMode} onClick={onToggleTextMode} />
         <ToolbarToggle icon={<IconPhoto size={12} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
-        <div style={{ width: 2, height: 20, background: theme.border, margin: '0 4px' }} />
+        <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px' }} />
         <ToolbarButton icon={<IconMaximize size={12} />} label="Fit" onClick={onFit} />
         <ToolbarButton icon={null} label="100%" onClick={onZoom100} />
       </div>

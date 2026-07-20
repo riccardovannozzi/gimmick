@@ -108,6 +108,13 @@ export function StagingPanel({
   onToggle,
 }: Props) {
   const theme = usePixelTheme();
+  // Strutturali per il restyle nativo Obsidian (colori già dal theme in shell).
+  const bW = 1;
+  const headFont = 'var(--ob-font-sans)';
+  const bodyFont = 'var(--ob-font-sans)';
+  const headTransform: 'none' | 'uppercase' = 'none';
+  const headWeight = 600;
+  const radius = 8;
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -272,8 +279,9 @@ export function StagingPanel({
             background: tileBg,
             width: TILE_W,
             height: TILE_H,
-            border: actionKey === 'deadline' ? '2px dashed #E24B4A' : `2px solid ${theme.border}`,
-            boxShadow: isSelected ? `0 0 0 3px ${theme.accent}` : 'none',
+            borderRadius: radius,
+            border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${theme.border}`,
+            boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : 'none',
           }}
           title={t.title || 'Senza titolo'}
         >
@@ -281,7 +289,7 @@ export function StagingPanel({
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <p
                 style={{
-                  fontFamily: 'var(--font-pixel-body)',
+                  fontFamily: bodyFont,
                   fontSize: 11,
                   lineHeight: '14px',
                   color: readableOn(tileBg),
@@ -323,11 +331,13 @@ export function StagingPanel({
               height: 16,
               background: theme.accent,
               color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 8,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
+              border: `${bW}px solid transparent`,
+              borderRadius: 6,
+              fontFamily: headFont,
+              fontSize: 9,
+              fontWeight: headWeight,
+              letterSpacing: 0.2,
+              textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
               cursor: 'pointer',
@@ -350,7 +360,7 @@ export function StagingPanel({
           flexShrink: 0,
           width: 32,
           background: panelBg,
-          borderRight: `2px solid ${panelBorderColor}`,
+          borderRight: `${bW}px solid ${panelBorderColor}`,
           display: 'flex',
           flexDirection: 'column',
         }}
@@ -364,7 +374,7 @@ export function StagingPanel({
             justifyContent: 'center',
             background: 'transparent',
             border: 'none',
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `${bW}px solid ${theme.border}`,
             cursor: 'pointer',
             flexShrink: 0,
             color: theme.ink2,
@@ -375,7 +385,7 @@ export function StagingPanel({
         </button>
         {tiles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
-            <span style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
+            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -390,7 +400,7 @@ export function StagingPanel({
         flexShrink: 0,
         width: width != null ? width : 176,
         background: panelBg,
-        borderRight: `2px solid ${panelBorderColor}`,
+        borderRight: `${bW}px solid ${panelBorderColor}`,
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -403,7 +413,7 @@ export function StagingPanel({
           gap: 6,
           paddingLeft: 4,
           paddingRight: 12,
-          borderBottom: `2px solid ${theme.border}`,
+          borderBottom: `${bW}px solid ${theme.border}`,
           background: theme.surfaceVariant,
         }}
       >
@@ -427,16 +437,17 @@ export function StagingPanel({
         </button>
         <span
           style={{
-            fontFamily: 'var(--font-pixel-head)',
-            fontSize: 10,
-            letterSpacing: '0.1em',
-            textTransform: 'uppercase',
+            fontFamily: headFont,
+            fontSize: 13,
+            fontWeight: headWeight,
+            letterSpacing: 0,
+            textTransform: headTransform,
             color: theme.ink,
           }}
         >
           Staging
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-pixel-head)', fontSize: 9, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 11, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
           {tiles.length}
         </span>
       </div>
@@ -449,7 +460,7 @@ export function StagingPanel({
             display: 'flex',
             alignItems: 'center',
             gap: 4,
-            borderBottom: `2px solid ${theme.border}`,
+            borderBottom: `${bW}px solid ${theme.border}`,
             flexShrink: 0,
             background: theme.bg1,
           }}
@@ -468,10 +479,11 @@ export function StagingPanel({
               background: 'transparent',
               border: 'none',
               color: theme.ink2,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 9,
-              letterSpacing: '0.06em',
-              textTransform: 'uppercase',
+              fontFamily: headFont,
+              fontSize: 11.5,
+              fontWeight: headWeight,
+              letterSpacing: 0,
+              textTransform: headTransform,
               cursor: 'pointer',
             }}
             title="Raggruppa per"
@@ -489,8 +501,9 @@ export function StagingPanel({
                 width: groupMenuPos.width,
                 zIndex: 9999,
                 background: theme.surface,
-                border: `2px solid ${theme.border}`,
-                boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                border: `${bW}px solid ${theme.border}`,
+                borderRadius: 10,
+                boxShadow: 'var(--ob-shadow-card)',
                 padding: 4,
               }}
             >
@@ -502,10 +515,11 @@ export function StagingPanel({
                     width: '100%',
                     textAlign: 'left',
                     padding: '6px 10px',
+                    borderRadius: 6,
                     background: groupBy === opt ? theme.surfaceVariant : 'transparent',
-                    border: `2px solid ${groupBy === opt ? theme.border : 'transparent'}`,
+                    border: `${bW}px solid transparent`,
                     color: groupBy === opt ? theme.ink : theme.ink2,
-                    fontFamily: 'var(--font-pixel-body)',
+                    fontFamily: bodyFont,
                     fontSize: 12,
                     cursor: 'pointer',
                   }}
@@ -544,8 +558,8 @@ export function StagingPanel({
         {tiles.length === 0 ? (
           <p
             style={{
-              fontFamily: 'var(--font-pixel-body)',
-              fontSize: 11,
+              fontFamily: bodyFont,
+              fontSize: 12,
               color: theme.ink3,
               textAlign: 'center',
               padding: '24px 8px',
@@ -571,10 +585,11 @@ export function StagingPanel({
                     alignItems: 'center',
                     gap: 6,
                     marginBottom: 4,
-                    fontFamily: 'var(--font-pixel-head)',
-                    fontSize: 9,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    fontFamily: headFont,
+                    fontSize: 11,
+                    fontWeight: headWeight,
+                    letterSpacing: 0,
+                    textTransform: headTransform,
                     color: theme.ink3,
                   }}
                 >

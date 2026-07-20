@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;} html,body{margin:0;}
+  .gm-scroll::-webkit-scrollbar{width:9px;height:9px;}
+  .gm-scroll::-webkit-scrollbar-thumb{background:rgba(128,128,140,0.3);border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+  .gm-scroll::-webkit-scrollbar-track{background:transparent;}
+</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1712,&quot;height&quot;:1012},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tileColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tint&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;tint&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tile&quot;}}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() {
+    const S = (b) => this.S(b);
+    return {
+      sparks: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+      tiles: S('<rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/>'),
+      tags: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      flows: S('<circle cx="3.6" cy="8" r="1.7"/><circle cx="12.4" cy="4.2" r="1.7"/><circle cx="12.4" cy="11.8" r="1.7"/><path d="M5.2 7.3 10.8 4.9M5.2 8.7l5.6 2.4"/>'),
+      chrono: S('<circle cx="8" cy="8.6" r="5.4"/><path d="M8 5.6v3l2 1.4"/><path d="M5.4 1.9 3.6 3.3M10.6 1.9l1.8 1.4"/>'),
+      canvas: S('<rect x="2.2" y="3" width="11.6" height="10" rx="1.6"/><path d="M2.2 6.4h11.6M6.2 6.4v6.6"/>'),
+      kanban: S('<rect x="2.2" y="2.6" width="3.4" height="10.8" rx="1"/><rect x="6.3" y="2.6" width="3.4" height="7.4" rx="1"/><rect x="10.4" y="2.6" width="3.4" height="9" rx="1"/>'),
+      panopticon: S('<path d="M1.4 8S3.9 3.6 8 3.6 14.6 8 14.6 8 12.1 12.4 8 12.4 1.4 8 1.4 8Z"/><circle cx="8" cy="8" r="1.9"/>'),
+      spark2: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+      search: S('<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 13.5 13.5"/>'),
+      bell: S('<path d="M5 7a3 3 0 0 1 6 0c0 3 1.2 3.8 1.2 3.8H3.8S5 10 5 7ZM6.6 12.6a1.5 1.5 0 0 0 2.8 0"/>'),
+      gear: S('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v2M8 12.4v2M14.4 8h-2M3.6 8h-2M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4M12.5 12.5l-1.4-1.4M4.9 4.9 3.5 3.5"/>'),
+      collapse: S('<rect x="2.4" y="3" width="11.2" height="10" rx="1.6"/><path d="M6.2 3v10"/>'),
+      chevR: S('<path d="M6 4l4 4-4 4"/>'),
+      chevL: S('<path d="M10 4 6 8l4 4"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      pin: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>',
+      expand: S('<path d="M5 6 8 3l3 3M5 10l3 3 3-3"/>'),
+      plus: S('<path d="M8 3.5v9M3.5 8h9"/>'),
+      home: S('<path d="M2.6 7.6 8 3.2l5.4 4.4M4 6.6V13h8V6.6"/>'),
+      briefcase: S('<rect x="2.3" y="5" width="11.4" height="8" rx="1.5"/><path d="M5.5 5V3.9a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5M2.3 8.6h11.4"/>'),
+      person: S('<circle cx="8" cy="5.4" r="2.4"/><path d="M3.6 13.2a4.4 4.4 0 0 1 8.8 0"/>'),
+      folder: S('<path d="M2.3 5.2a1 1 0 0 1 1-1h2.7l1.4 1.6h4.3a1 1 0 0 1 1 1v5.4a1 1 0 0 1-1 1H3.3a1 1 0 0 1-1-1Z"/>'),
+      sun: S('<circle cx="8" cy="8" r="2.7"/><path d="M8 1.9v1.5M8 12.6v1.5M14.1 8h-1.5M3.4 8H1.9M12.3 3.7l-1 1M4.7 11.3l-1 1M12.3 12.3l-1-1M4.7 4.7l-1-1"/>'),
+      wave: S('<path d="M1.9 6.2c1.4-1.5 2.8-1.5 4.2 0s2.8 1.5 4.2 0 2.8-1.5 4.2 0M1.9 10c1.4-1.5 2.8-1.5 4.2 0s2.8 1.5 4.2 0 2.8-1.5 4.2 0"/>'),
+      euro: S('<path d="M11.2 4.6a4 4 0 1 0 0 6.8M3.6 6.9h5M3.6 9.2h5"/>'),
+      note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      todo: S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+      calendar: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      clock: S('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.4"/>'),
+      sort: S('<path d="M4 4v8M4 12l-2-2M4 12l2-2M11 12V4M11 4l-2 2M11 4l2 2"/>'),
+      filter: S('<path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2v-5.2z"/>'),
+      group: S('<path d="M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.6 4.5h.01M2.6 8h.01M2.6 11.5h.01"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      doc: S('<path d="M4 2.6h5.4L12.6 5.8V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.2 2.6v3.2h3.2"/>'),
+      video: S('<rect x="2.2" y="4.2" width="8.4" height="7.6" rx="1.6"/><path d="M10.6 6.6 13.8 5v6l-3.2-1.6z"/>'),
+      gallery: S('<rect x="4.2" y="2.4" width="9.4" height="9.4" rx="1.6"/><path d="M2.4 5v8a1 1 0 0 0 1 1h7.6"/>'),
+      panel: S('<rect x="2.2" y="2.6" width="11.6" height="10.8" rx="1.6"/><path d="M6.4 2.6v10.8"/>'),
+      edit: S('<path d="M9.5 3.2 12.8 6.5 6 13.3l-3.3.6.6-3.3z"/>'),
+      list: S('<path d="M5.5 4.5h8M5.5 8h8M5.5 11.5h8M2.6 4.5h.01M2.6 8h.01M2.6 11.5h.01"/>'),
+      flow2: S('<circle cx="3.6" cy="8" r="1.7"/><circle cx="12.4" cy="4.2" r="1.7"/><circle cx="12.4" cy="11.8" r="1.7"/><path d="M5.2 7.3 10.8 4.9M5.2 8.7l5.6 2.4"/>'),
+      call: S('<path d="M3 3.4c-.4.4-.6 1-.5 1.6.5 3.2 3.3 6 6.5 6.5.6.1 1.2-.1 1.6-.5l.9-.9a.8.8 0 0 0-.1-1.2l-1.7-1.2a.8.8 0 0 0-.9 0l-.6.4a7 7 0 0 1-2.5-2.5l.4-.6a.8.8 0 0 0 0-.9L4.4 2.9a.8.8 0 0 0-1.2-.1z"/>'),
+      check: S('<circle cx="8" cy="8" r="5.6"/><path d="M5.6 8.2 7.3 10l3.3-3.8"/>'),
+      timed: S('<circle cx="8" cy="8.4" r="5.4"/><path d="M8 5.4v3l2 1.4"/>'),
+      allday: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      due: S('<circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.4M8 10.7h.01"/>'),
+      send: S('<path d="M13.5 2.5 8.6 13.5l-1.5-4.6-4.6-1.5z"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tokens() {
+    const dark = (this.props.mode || 'light') === 'dark';
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const base = dark ? {
+      canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#242424', sidebar: '#262626', field: '#1a1a1a', panel: '#1d1d1d',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)', gridLine: 'rgba(255,255,255,0.05)',
+      todayBg: 'rgba(171,159,242,0.07)',
+      timed: '#74D6A2', allday: '#7AA7F5', deadline: '#F08D89', anytime: '#9aa0ad', notes: '#8b8b94', amber: '#E7C25E',
+      cap: { photo: '#7AA7F5', file: '#E7C25E', voice: '#F08D89', doc: '#74D6A2', text: '#74D6A2', video: '#EC8FAE' }
+    } : {
+      canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', head: '#fbfbfc', sidebar: '#faf9fb', field: '#ffffff', panel: '#fbfbfc',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', gridLine: 'rgba(24,20,38,0.06)',
+      todayBg: 'rgba(124,92,203,0.05)',
+      timed: '#3FAE72', allday: '#4F86EE', deadline: '#E0544F', anytime: '#7e8694', notes: '#8a8694', amber: '#C99220',
+      cap: { photo: '#4F86EE', file: '#C99220', voice: '#E0544F', doc: '#3FAE72', text: '#3FAE72', video: '#E0588C' }
+    };
+    base.accent = acc.a; base.accentInk = acc.ink; base.accentSoft = acc.soft; base.dark = dark;
+    return base;
+  }
+  readable(hex) { let x = hex.replace('#', ''); const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4, 6), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#1b1923' : '#ffffff'; }
+  fillFor(c, T) {
+    const solid = (this.props.tileColor || 'tint') === 'solid';
+    if (solid) { const ink = this.readable(c); return { solid: true, wrap: { background: c, border: '1px solid transparent' }, title: ink, meta: ink === '#ffffff' ? 'rgba(255,255,255,0.78)' : 'rgba(0,0,0,0.55)', on: ink, track: ink === '#ffffff' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.16)' }; }
+    const tint = T.dark ? '2b' : '1c';
+    return { solid: false, wrap: { background: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30') }, title: T.text, meta: T.dark ? T.muted : c, on: c, track: T.line2 };
+  }
+
+  // ============ HEADER ============
+  header(T) {
+    const h = React.createElement;
+    const logo = h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px' } },
+      h('div', { style: { width: '28px', height: '28px', borderRadius: '9px', background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '9px', height: '9px', borderRadius: '3px', background: T.accentInk } })),
+      h('span', { style: { fontSize: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Gimmick'));
+    const search = h('div', { style: { width: '300px', display: 'flex', alignItems: 'center', gap: '9px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '9px', padding: '8px 12px' } },
+      this.glyph('search', 14, T.subtle), h('span', { style: { fontSize: '13px', color: T.subtle } }, 'Cerca spark, tile, tag…'));
+    const ask = h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', height: '32px', padding: '0 13px', borderRadius: '9px', background: T.accent, color: T.accentInk, fontSize: '12.5px', fontWeight: 600 } }, this.glyph('spark2', 13, T.accentInk), 'Ask Gimmick');
+    const buffer = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '4px 11px 4px 6px' } },
+      h('div', { style: { width: '26px', height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '24px', height: '24px' }, dangerouslySetInnerHTML: { __html: this.mascot('buffy', T) } })),
+      h('div', { style: { lineHeight: 1.1 } }, h('div', { style: { fontSize: '12px', fontWeight: 600, color: T.text } }, '8 spark'), h('div', { style: { fontSize: '10px', color: T.subtle } }, 'in buffer')));
+    const iconBtn = (n) => h('div', { key: n, style: { width: '32px', height: '32px', borderRadius: '8px', border: '1px solid ' + T.line2, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph(n, 15));
+    const avatar = h('div', { style: { width: '32px', height: '32px', borderRadius: '50%', background: T.accent, color: T.accentInk, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700 } }, 'RI');
+    return h('div', { style: { height: '56px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '16px', padding: '0 16px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      logo, search, h('div', { style: { flex: 1 } }), ask, buffer, iconBtn('bell'), iconBtn('gear'), avatar);
+  }
+
+  navbar(T) {
+    const h = React.createElement;
+    const LEFT = [['sparks', 'Sparks'], ['tiles', 'Tiles'], ['tags', 'Tags'], ['flows', 'Flows']];
+    const RIGHT = [['chrono', 'Chrono', true], ['canvas', 'Canvas'], ['kanban', 'Kanban'], ['panopticon', 'Panopticon']];
+    const item = (it) => h('div', { key: it[1], style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 13px', borderRadius: '9px', fontSize: '13px', fontWeight: it[2] ? 600 : 500, color: it[2] ? T.accent : T.muted, background: it[2] ? T.accentSoft : 'transparent', cursor: 'default', whiteSpace: 'nowrap' } },
+      this.glyph(it[0], 16, it[2] ? T.accent : T.subtle), it[1]);
+    return h('div', { style: { height: '50px', flexShrink: 0, display: 'flex', alignItems: 'center', padding: '0 14px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { display: 'flex', gap: '4px' } }, LEFT.map(item)),
+      h('div', { style: { flex: 1 } }),
+      h('div', { style: { display: 'flex', gap: '4px' } }, RIGHT.map(item)));
+  }
+
+  // ============ LEFT SIDEBAR ============
+  sidebar(T) {
+    const h = React.createElement;
+    const groups = [
+      { name: 'Home', icon: 'home', color: '#6FCF97', open: false, children: [] },
+      { name: 'Lavoro', icon: 'briefcase', color: '#5B8DEF', open: false, children: [] },
+      { name: 'Persona', icon: 'person', color: '#AB9FF2', open: false, children: [] },
+      { name: 'Progetto', icon: 'folder', color: '#E0B341', open: false, children: [] },
+      { name: 'Golfo del Sole', icon: 'sun', color: '#E0B341', open: true, children: [
+        { name: 'GDS_Fotovoltaico' }, { name: 'GDS_Permuta Viale I…' }, { name: 'GDS_Report', pin: true, active: true }, { name: 'GDS_Varie' } ] },
+      { name: 'Ortano Mare', icon: 'wave', color: '#5B8DEF', open: true, children: [
+        { name: 'OM La Villa 1' }, { name: 'OM Cartelli Rotonda' }, { name: 'OM Le ville 26/27' }, { name: 'OM Report', pin: true }, { name: 'OM Unicoop' }, { name: 'OM Varie' } ] },
+      { name: 'Money', icon: 'euro', color: '#6FCF97', open: true, children: [{ name: 'Agenzia Entrate' }, { name: 'Commercialista' }] }
+    ];
+    const child = (c) => h('div', { key: c.name, style: { display: 'flex', alignItems: 'center', gap: '7px', padding: '6px 9px', borderRadius: '7px', background: c.active ? T.accentSoft : 'transparent' } },
+      h('span', { style: { fontSize: '13px', fontWeight: c.active ? 600 : 500, color: c.active ? T.accent : T.muted, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, c.name),
+      c.pin ? h('span', { style: { width: '12px', height: '12px', color: c.active ? T.accent : T.subtle } }, this.glyph('pin', 12)) : null);
+    const group = (g) => {
+      const head = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', borderRadius: '8px' } },
+        h('span', { style: { width: '13px', height: '13px', color: T.subtle, transform: g.open ? 'rotate(90deg)' : 'none', display: 'inline-flex' } }, this.glyph('chevR', 13)),
+        this.glyph(g.icon, 16, g.color),
+        h('span', { style: { fontSize: '13px', fontWeight: 600, color: T.text, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, g.name));
+      const kids = g.open && g.children.length ? h('div', { style: { marginLeft: '14px', paddingLeft: '12px', borderLeft: '1px solid ' + T.line } }, g.children.map(child)) : null;
+      return h('div', { key: g.name, style: { marginBottom: '1px' } }, head, kids);
+    };
+    const logo = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '2px 6px 12px' } },
+      h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.16em', color: T.subtle, flex: 1 } }, 'TAG'),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', fontWeight: 600, color: T.muted, background: T.surface2, padding: '2px 8px', borderRadius: '7px' } }, '26'));
+    const seg = h('div', { style: { display: 'flex', gap: '3px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '3px', marginBottom: '10px' } },
+      [['Tutti', true], ['Pinned · 2', false]].map((s) => h('div', { key: s[0], style: { flex: 1, textAlign: 'center', padding: '6px', borderRadius: '8px', fontSize: '12px', fontWeight: s[1] ? 600 : 500, color: s[1] ? T.accent : T.muted, background: s[1] ? T.accentSoft : 'transparent' } }, s[0])));
+    return h('div', { className: 'gm-scroll', style: { width: '232px', flexShrink: 0, background: T.sidebar, borderRight: '1px solid ' + T.line, overflowY: 'auto', padding: '14px 12px' } },
+      logo, seg, ...groups.map(group));
+  }
+
+  // ============ CHRONO ============
+  colHeader(T, icon, color, label, count) {
+    const h = React.createElement;
+    const ib = (n) => h('div', { key: n, style: { width: '20px', height: '20px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.subtle } }, this.glyph(n, 12));
+    return h('div', { style: { height: '38px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '7px', padding: '0 8px', background: T.head, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '18px', height: '18px', color: T.subtle, display: 'flex' } }, this.glyph('collapse', 13)),
+      this.glyph(icon, 14, color),
+      h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.1em', color: T.text } }, label),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, count),
+      h('div', { style: { flex: 1 } }), ib('sort'), ib('filter'), ib('group'));
+  }
+  tileCard(T, t) {
+    const h = React.createElement;
+    const tagColor = t.tagColor === 'amber' ? T.amber : T.accent;
+    const s = this.fillFor(tagColor, T);
+    return h('div', { key: t.title, style: Object.assign({ borderRadius: '8px', padding: '9px 10px', display: 'flex', flexDirection: 'column', gap: '9px' }, s.wrap) },
+      h('div', { style: { fontSize: '12px', lineHeight: '15px', fontWeight: 500, color: s.title, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, t.title),
+      t.checklist ? h('div', { style: { display: 'flex', gap: '3px' } }, t.checklist.map((d, i) => h('div', { key: i, style: { flex: 1, height: '4px', borderRadius: '2px', background: d ? (s.solid ? s.on : T.timed) : s.track } }))) : null,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: s.solid ? s.on : t.actionColor, flexShrink: 0 } }),
+        h('span', { style: { fontSize: '10px', fontWeight: 600, color: s.solid ? s.meta : T.muted } }, t.actionLabel),
+        h('div', { style: { flex: 1 } }),
+        t.spark ? this.glyph(t.spark, 13, s.solid ? s.on : T.cap[t.spark]) : null,
+        h('div', { style: { width: '13px', height: '13px', color: s.solid ? s.on : tagColor } }, this.glyph('tags', 13))));
+  }
+  column(T, w, icon, color, label, tiles) {
+    const h = React.createElement;
+    return h('div', { style: { width: w + 'px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, borderRight: '1px solid ' + T.line, overflow: 'hidden' } },
+      this.colHeader(T, icon, color, label, tiles.length),
+      h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', padding: '9px', display: 'flex', flexDirection: 'column', gap: '8px' } }, tiles.map((t) => this.tileCard(T, t))));
+  }
+  calendar(T) {
+    const h = React.createElement;
+    const H = 40, START = 8, END = 19;
+    const days = [['lun', 22], ['mar', 23], ['mer', 24], ['gio', 25], ['ven', 26], ['sab', 27], ['dom', 28]];
+    const todayIdx = 4;
+    const hours = []; for (let x = START; x <= END; x++) hours.push(x);
+    const EV = [
+      { day: 2, s: 12.25, e: 13.25, title: 'GDS/bisdomini', kind: 'timed', amber: true },
+      { day: 4, s: 11, e: 12, title: 'Call con barbini', kind: 'timed', sel: true },
+      { day: 4, s: 17, e: 18, title: 'Audio e incontro Marco', kind: 'timed' },
+      { day: 2, s: 18, e: 19, title: 'Proloco Marras', kind: 'timed' }
+    ];
+    const ALLDAY = [{ day: 3, title: 'Aruba — certificato', kind: 'deadline' }, { day: 4, title: 'Incontro su IA', kind: 'allday' }];
+    const kc = (k) => ({ timed: T.timed, allday: T.allday, deadline: T.deadline })[k];
+    const fmt = (v) => { const hh = Math.floor(v); const mm = Math.round((v - hh) * 60); return (hh < 10 ? '0' + hh : hh) + ':' + (mm < 10 ? '0' + mm : mm); };
+    const seg = h('div', { style: { display: 'flex', gap: '2px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '8px', padding: '2px' } },
+      ['Week', 'Month'].map((m, i) => h('div', { key: m, style: { padding: '5px 11px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, color: i === 0 ? T.accent : T.muted, background: i === 0 ? T.accentSoft : 'transparent' } }, m)));
+    const nav = (n) => h('div', { style: { width: '26px', height: '26px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph(n, 14));
+    const calHead = h('div', { style: { height: '44px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 12px', background: T.head, borderBottom: '1px solid ' + T.line } },
+      this.glyph('calendar', 15, T.muted), h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: T.text } }, 'CALENDARIO'),
+      h('span', { style: { fontSize: '13px', color: T.muted } }, '22–28 giu 2026'), h('div', { style: { flex: 1 } }), seg,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '4px' } }, nav('chevL'),
+        h('div', { style: { padding: '5px 11px', borderRadius: '7px', fontSize: '12px', fontWeight: 500, color: T.text, border: '1px solid ' + T.line2 } }, 'Oggi'), nav('chevR')));
+    const dayHead = h('div', { style: { display: 'flex', height: '44px', flexShrink: 0, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '46px', flexShrink: 0, borderRight: '1px solid ' + T.line } }),
+      days.map((d, i) => h('div', { key: i, style: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, background: i === todayIdx ? T.todayBg : 'transparent' } },
+        h('span', { style: { fontSize: '9px', fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: i === todayIdx ? T.accent : T.subtle } }, d[0]),
+        h('span', { style: { fontSize: '15px', fontWeight: 600, fontFamily: "'Geist Mono',monospace", color: i === todayIdx ? T.accent : T.text } }, d[1]))));
+    const allDayRow = h('div', { style: { display: 'flex', minHeight: '30px', flexShrink: 0, borderBottom: '1px solid ' + T.line2, background: T.head } },
+      h('div', { style: { width: '46px', flexShrink: 0, borderRight: '1px solid ' + T.line, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 5px' } }, h('span', { style: { fontSize: '7.5px', fontWeight: 600, color: T.subtle, textAlign: 'right', lineHeight: 1.1 } }, 'TUTTO IL DÌ')),
+      days.map((d, i) => { const items = ALLDAY.filter((a) => a.day === i); return h('div', { key: i, style: { flex: 1, borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, padding: '3px', display: 'flex', flexDirection: 'column', gap: '3px', background: i === todayIdx ? T.todayBg : 'transparent', minWidth: 0 } },
+        items.map((a, j) => { const c = kc(a.kind); const s = this.fillFor(c, T); return h('div', { key: j, style: Object.assign({ display: 'flex', alignItems: 'center', gap: '4px', borderRadius: '4px', padding: '2px 5px', minWidth: 0, overflow: 'hidden' }, s.wrap) },
+          h('span', { style: { width: '5px', height: '5px', borderRadius: a.kind === 'deadline' ? '1px' : '50%', background: s.solid ? s.on : c, flexShrink: 0 } }),
+          h('span', { style: { fontSize: '9.5px', fontWeight: 500, color: s.title, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, a.title)); })); }));
+    const gutter = h('div', { style: { width: '46px', flexShrink: 0, position: 'relative', borderRight: '1px solid ' + T.line } },
+      hours.map((x, i) => h('div', { key: x, style: { position: 'absolute', top: (i * H - 6) + 'px', right: '5px', fontSize: '9px', fontFamily: "'Geist Mono',monospace", color: T.subtle } }, i === 0 ? '' : (x < 10 ? '0' + x : x) + ':00')));
+    const dayCol = (i) => {
+      const evs = EV.filter((e) => e.day === i);
+      const lines = hours.map((x, k) => h('div', { key: k, style: { position: 'absolute', top: (k * H) + 'px', left: 0, right: 0, borderTop: '1px solid ' + T.gridLine } }));
+      const blocks = evs.map((e, j) => { const c = e.amber ? T.amber : kc(e.kind); const top = (e.s - START) * H, height = Math.max((e.e - e.s) * H - 3, 20); const s = this.fillFor(c, T);
+        return h('div', { key: j, style: Object.assign({ position: 'absolute', top: (top + 1) + 'px', left: '3px', right: '3px', height: height + 'px', borderRadius: '5px', padding: '3px 6px', overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: '1px', boxShadow: e.sel ? '0 0 0 2px ' + T.accent : 'none' }, s.wrap) },
+          h('span', { style: { fontSize: '10px', fontWeight: 600, color: s.title, lineHeight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, e.title),
+          h('span', { style: { fontSize: '8.5px', fontFamily: "'Geist Mono',monospace", color: s.meta } }, fmt(e.s) + '–' + fmt(e.e))); });
+      const now = i === todayIdx ? h('div', { style: { position: 'absolute', top: ((13.5 - START) * H) + 'px', left: 0, right: 0, height: '0', borderTop: '1.5px solid ' + T.accent, zIndex: 5 } }, h('div', { style: { position: 'absolute', left: '-3px', top: '-3.5px', width: '7px', height: '7px', borderRadius: '50%', background: T.accent } })) : null;
+      return h('div', { key: i, style: { flex: 1, position: 'relative', borderLeft: i === 0 ? 'none' : '1px solid ' + T.line, background: i === todayIdx ? T.todayBg : 'transparent', minWidth: 0 } }, lines, blocks, now);
+    };
+    const body = h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', display: 'flex' } }, gutter,
+      h('div', { style: { flex: 1, display: 'flex', position: 'relative', height: (hours.length * H) + 'px' } }, days.map((d, i) => dayCol(i))));
+    return h('div', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', background: T.canvas, overflow: 'hidden' } }, calHead, dayHead, allDayRow, body);
+  }
+  chrono(T) {
+    const h = React.createElement;
+    const notes = [
+      { title: 'Marco al tramonto, foto e nota', actionLabel: 'Notes', actionColor: T.notes, spark: 'photo' },
+      { title: 'Appuntamento con Marco Guerrieri', actionLabel: 'Notes', actionColor: T.notes, spark: 'voice' },
+      { title: 'Incontro con Bania sul preventivo', actionLabel: 'Notes', actionColor: T.notes, spark: 'voice' }
+    ];
+    const todos = [
+      { title: 'Revoca certificato Aruba', actionLabel: 'To do', actionColor: T.anytime, spark: 'file', checklist: [true, true, false], tagColor: 'amber' },
+      { title: 'Brief Teleport per Marco', actionLabel: 'To do', actionColor: T.anytime, spark: 'text', checklist: [true, false, false, false] },
+      { title: 'Lista materiali cucina', actionLabel: 'To do', actionColor: T.anytime, checklist: [false, false], tagColor: 'amber' }
+    ];
+    const toolbar = h('div', { style: { height: '40px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 12px', background: T.head, borderBottom: '1px solid ' + T.line2 } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', height: '28px', padding: '0 12px', borderRadius: '8px', background: T.accent, color: T.accentInk, fontSize: '12px', fontWeight: 600 } }, this.glyph('plus', 13), 'Tile'),
+      h('div', { style: { flex: 1 } }), h('span', { style: { fontSize: '11px', color: T.subtle } }, '5 tile · 19 spark'));
+    return h('div', { style: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 } }, toolbar,
+      h('div', { style: { flex: 1, display: 'flex', minHeight: 0 } }, this.column(T, 178, 'note', T.notes, 'NOTES', notes), this.column(T, 178, 'todo', T.anytime, 'TODO', todos), this.calendar(T)));
+  }
+
+  // ============ RIGHT INSPECTOR ============
+  eyebrow(T, t) { return React.createElement('div', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: T.subtle, margin: '0 0 7px' } }, t); }
+  field(T, opts) {
+    const h = React.createElement;
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', background: T.field, border: '1px solid ' + T.line2, borderRadius: '8px', padding: '9px 11px' } },
+      opts.icon ? this.glyph(opts.icon, 15, opts.iconColor || T.subtle) : null,
+      h('span', { style: { fontSize: '13px', fontWeight: opts.strong ? 500 : 400, color: T.text, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, opts.value),
+      opts.chev ? this.glyph('chevD', 13, T.subtle) : null);
+  }
+  segG(T, items) {
+    const h = React.createElement;
+    return h('div', { style: { display: 'flex', gap: '3px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '3px' } },
+      items.map((it) => h('div', { key: it[0], style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '7px 8px', borderRadius: '7px', fontSize: '12px', fontWeight: it[1] ? 600 : 500, color: it[1] ? T.accent : T.muted, background: it[1] ? T.accentSoft : 'transparent', whiteSpace: 'nowrap' } }, it[2] ? this.glyph(it[2], 13) : null, it[0])));
+  }
+  inspector(T) {
+    const h = React.createElement;
+    const sec = (eb, body, mt) => h('div', { style: { marginTop: mt || '18px' } }, this.eyebrow(T, eb), body);
+    const topBar = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '11px 12px', borderBottom: '1px solid ' + T.line, flexShrink: 0 } },
+      h('div', { style: { width: '32px', height: '32px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted, border: '1px solid ' + T.line } }, this.glyph('panel', 16)),
+      h('div', { style: { flex: 1 } }, this.segG(T, [['Edit', true, 'edit'], ['List', false, 'list'], ['Flow', false, 'flow2']])));
+    const caps = [['photo', 'Photo'], ['video', 'Video'], ['gallery', 'Gallery'], ['text', 'Text'], ['voice', 'Voice'], ['file', 'File']];
+    const capBtn = (c, i) => h('div', { key: c[0], style: { flex: 1, padding: '10px 2px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', borderLeft: i === 0 ? 'none' : '1px solid ' + T.line } }, this.glyph(c[0], 16, T.cap[c[0]] || T.accent), h('span', { style: { fontSize: '9px', fontWeight: 600, color: T.subtle } }, c[1]));
+    const textCard = h('div', { style: { background: T.field, border: '1px solid ' + T.line, borderRadius: '10px', overflow: 'hidden', marginTop: '12px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', padding: '9px 11px', borderBottom: '1px solid ' + T.line } }, this.glyph('text', 14, T.cap.text), h('span', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: T.subtle } }, 'TESTO')),
+      h('div', { style: { padding: '11px', fontSize: '12.5px', lineHeight: 1.55, color: T.muted, maxHeight: '78px', overflow: 'hidden' } }, 'Abbiamo n\u00b03 D-matrix (per ricevere segnale satellitare) ed una centrale Galaxia (gi\u00e0 installata sul tetto…)'));
+    const media = h('div', { style: { marginTop: '10px', height: '96px', borderRadius: '10px', background: T.dark ? '#161616' : '#e9e7ee', border: '1px solid ' + T.line, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '8px' } },
+      h('div', { style: { width: '34px', height: '34px', borderRadius: '50%', background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.accentInk } }, this.glyph('video', 16)),
+      h('span', { style: { fontSize: '12px', fontWeight: 500, color: T.muted } }, 'Registrazione call · 02:14'));
+    const body = h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', padding: '16px 14px 24px' } },
+      sec('TITOLO', this.field(T, { value: 'OM/call con barbini', strong: true }), '2px'),
+      sec('AZIONE', h('div', { style: { display: 'flex', gap: '8px' } },
+        h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '8px', borderRadius: '8px', background: T.field, border: '1px solid ' + T.line2, fontSize: '13px', fontWeight: 500, color: T.text } }, this.glyph('note', 15, T.muted), 'Note'),
+        h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '8px', borderRadius: '8px', background: T.field, border: '1px solid ' + T.line2, fontSize: '13px', fontWeight: 500, color: T.text } }, this.glyph('todo', 15, T.muted), 'To-do'))),
+      h('div', { style: { marginTop: '12px' } }, this.segG(T, [['Scadenza', false, 'due'], ['Giornata', false, 'allday'], ['A orario', true, 'timed']])),
+      sec('DATA E ORARIO', h('div', { style: { display: 'flex', gap: '8px' } },
+        h('div', { style: { flex: '1.4' } }, this.field(T, { value: '22/06/2026', icon: 'calendar' })),
+        h('div', { style: { flex: '1' } }, this.field(T, { value: '11:00', icon: 'clock' })),
+        h('div', { style: { flex: '1' } }, this.field(T, { value: '12:00' })))),
+      sec('TAG', h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', width: '100%', background: T.accentSoft, border: '1px solid ' + T.line, borderRadius: '8px', padding: '9px 11px', fontSize: '13px', fontWeight: 500, color: T.accent } }, this.glyph('tags', 15), 'Golfo del Sole')),
+      sec('TIPO', this.field(T, { value: 'Call', icon: 'call', iconColor: T.muted, chev: true })),
+      sec('STATO', this.field(T, { value: 'Done', icon: 'check', iconColor: T.timed, chev: true })),
+      h('div', { style: { height: '1px', background: T.line, margin: '20px 0 0' } }),
+      sec('SPARKS · 3', h('div', { style: { display: 'flex', background: T.field, border: '1px solid ' + T.line2, borderRadius: '8px', overflow: 'hidden' } }, caps.map((c, i) => capBtn(c, i)))),
+      textCard, media);
+    return h('div', { style: { width: '300px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.panel, borderLeft: '1px solid ' + T.line, minHeight: 0 } }, topBar, body);
+  }
+
+  view() {
+    const h = React.createElement;
+    const T = this.tokens();
+    const win = h('div', { style: { width: '1640px', height: '940px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.12)'), borderRadius: '16px', overflow: 'hidden', boxShadow: '0 30px 80px -40px rgba(0,0,0,0.45)' } },
+      this.header(T), this.navbar(T),
+      h('div', { style: { flex: 1, display: 'flex', minHeight: 0 } }, this.sidebar(T), this.chrono(T), this.inspector(T)));
+    return h('div', { style: { minHeight: '100%', background: T.dark ? '#0c0a12' : '#e7e6ea', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '36px', display: 'flex', justifyContent: 'center' } }, win);
+  }
+
+  mascot(id, T) {
+    const ink = T.dark ? '#1b1822' : '#26212f';
+    const M = {
+      buffy: '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#6FCF97;--m2:#E0B341;"><rect x="20" y="54" width="20" height="8" rx="4" fill="var(--m1)" transform="rotate(20 30 58)"/><rect x="56" y="54" width="20" height="8" rx="4" fill="var(--m1)" transform="rotate(-20 66 58)"/><rect x="22" y="26" width="52" height="46" rx="22" fill="var(--m1)"/><circle cx="38" cy="44" r="5.5" fill="' + ink + '"/><circle cx="58" cy="44" r="5.5" fill="' + ink + '"/><rect x="36" y="56" width="24" height="20" rx="4" fill="var(--m2)"/><rect x="32" y="74" width="11" height="10" rx="5" fill="var(--m1)"/><rect x="53" y="74" width="11" height="10" rx="5" fill="var(--m1)"/></svg>'
+    };
+    return M[id];
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

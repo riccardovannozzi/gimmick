@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}</style>
+</helmet>
+
+<div style="background:#eceaef; font-family:'Geist',ui-sans-serif,system-ui,sans-serif; color:#1b1923; -webkit-font-smoothing:antialiased; padding:48px 40px 72px; min-width:760px;">
+<div style="max-width:760px; margin:0 auto;">
+
+  <div style="display:flex; align-items:center; gap:11px; margin-bottom:14px;">
+    <div style="width:24px; height:24px; border-radius:7px; background:#7C5CCB; display:flex; align-items:center; justify-content:center;"><div style="width:8px; height:8px; border-radius:2.5px; background:#fff;"></div></div>
+    <span style="font-size:12px; font-weight:600; letter-spacing:0.16em; color:#7a7589;">GIMMICK · SPARKS</span>
+  </div>
+  <h1 style="margin:0 0 8px; font-size:34px; font-weight:700; letter-spacing:-0.03em;">Riga sparks · in contesto</h1>
+  <p style="margin:0 0 36px; font-size:15px; line-height:1.55; color:#5c5868; max-width:560px;">Icone più grandi, alla larghezza reale della sidebar destra (312px). Ogni proposta mostrata dentro l'inspector, Light e Dark.</p>
+
+  <div style="display:flex; flex-direction:column; gap:18px;">
+    <sc-for list="{{ variants }}" as="v" hint-placeholder-count="6">
+      <div>
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:11px;">
+          <span style="font-family:'Geist Mono',monospace; font-size:12px; font-weight:600; color:#9a96a4;">{{ v.num }}</span>
+          <span style="font-size:15px; font-weight:600; letter-spacing:-0.01em;">{{ v.name }}</span>
+          <span style="font-size:12px; color:#8a8694;">{{ v.note }}</span>
+        </div>
+        <div style="display:flex; gap:22px;">
+          <div style="width:312px; flex-shrink:0; border:1px solid rgba(24,20,38,0.12); border-radius:12px; overflow:hidden;">{{ v.light }}</div>
+          <div style="width:312px; flex-shrink:0; border:1px solid rgba(0,0,0,0.4); border-radius:12px; overflow:hidden;">{{ v.dark }}</div>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      video: S('<rect x="2.2" y="4.2" width="8.4" height="7.6" rx="1.6"/><path d="M10.6 6.6 13.8 5v6l-3.2-1.6z"/>'),
+      gallery: S('<rect x="4.2" y="2.4" width="9.4" height="9.4" rx="1.6"/><path d="M2.4 5v8a1 1 0 0 0 1 1h7.6"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>')
+    };
+  }
+  get CAPS() {
+    return [
+      { k: 'photo', l: '#4F86EE', d: '#7AA7F5' },
+      { k: 'video', l: '#E0588C', d: '#F08DB4' },
+      { k: 'gallery', l: '#8C7BE0', d: '#B0A2EE' },
+      { k: 'text', l: '#3FAE72', d: '#74D6A2' },
+      { k: 'voice', l: '#E0544F', d: '#F38682' },
+      { k: 'file', l: '#D29A2A', d: '#EBC25E' }
+    ];
+  }
+  glyph(name, size, color) { const px = (size || 22) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+  row(children) { return React.createElement('div', { style: { display: 'flex', gap: '7px' } }, children); }
+
+  vSolid(mode) {
+    const h = React.createElement; const ink = mode === 'd' ? '#1b1b1b' : '#fff';
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, height: '48px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: c[mode] } }, this.glyph(c.k, 23, ink))));
+  }
+  vSoftStrong(mode) {
+    const h = React.createElement;
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, height: '48px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: c[mode] + (mode === 'd' ? '30' : '24'), border: '1px solid ' + c[mode] + (mode === 'd' ? '59' : '45') } }, this.glyph(c.k, 23, c[mode]))));
+  }
+  vOutline(mode) {
+    const h = React.createElement;
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, height: '48px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'transparent', border: '1.5px solid ' + c[mode] } }, this.glyph(c.k, 23, c[mode]))));
+  }
+  vNeutral(mode) {
+    const h = React.createElement;
+    const surf = mode === 'd' ? '#2e2e2e' : '#f1f0f4'; const line = mode === 'd' ? 'rgba(255,255,255,0.1)' : 'rgba(24,20,38,0.1)';
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, height: '48px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: surf, border: '1px solid ' + line } }, this.glyph(c.k, 23, c[mode]))));
+  }
+  vUnderline(mode) {
+    const h = React.createElement;
+    const surf = mode === 'd' ? '#2a2a2a' : '#fbfbfc'; const line = mode === 'd' ? 'rgba(255,255,255,0.1)' : 'rgba(24,20,38,0.1)';
+    const txt = mode === 'd' ? '#e6e6e6' : '#1b1923';
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, height: '48px', borderRadius: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: surf, border: '1px solid ' + line, borderBottom: '3px solid ' + c[mode] } }, this.glyph(c.k, 23, txt))));
+  }
+  vLabeled(mode) {
+    const h = React.createElement;
+    const surf = mode === 'd' ? '#2a2a2a' : '#fbfbfc'; const line = mode === 'd' ? 'rgba(255,255,255,0.1)' : 'rgba(24,20,38,0.1)';
+    const sub = mode === 'd' ? '#a8a8a8' : '#7a7589';
+    const labels = { photo: 'Foto', video: 'Video', gallery: 'Galleria', text: 'Testo', voice: 'Voce', file: 'File' };
+    return this.row(this.CAPS.map((c) => h('div', { key: c.k, style: { flex: 1, padding: '9px 2px', borderRadius: '11px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', background: surf, border: '1px solid ' + line } }, this.glyph(c.k, 22, c[mode]), h('span', { style: { fontSize: '9px', fontWeight: 600, letterSpacing: '0.01em', color: sub } }, labels[c.k]))));
+  }
+
+  // inspector-column context wrapper
+  context(mode, rowEl) {
+    const h = React.createElement;
+    const panel = mode === 'd' ? '#262626' : '#fbfbfc';
+    const field = mode === 'd' ? '#1e1e1e' : '#ffffff';
+    const text = mode === 'd' ? '#dcdcdc' : '#1b1923';
+    const muted = mode === 'd' ? '#9a9a9a' : '#5c5868';
+    const subtle = mode === 'd' ? '#6e6e6e' : '#9a96a4';
+    const line = mode === 'd' ? 'rgba(255,255,255,0.08)' : 'rgba(24,20,38,0.09)';
+    const line2 = mode === 'd' ? 'rgba(255,255,255,0.14)' : 'rgba(24,20,38,0.15)';
+    const accent = mode === 'd' ? '#AB9FF2' : '#7C5CCB';
+    const accentSoft = mode === 'd' ? '#2e2747' : '#efeafb';
+    const eyebrow = (t) => h('div', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: subtle, margin: '0 0 7px' } }, t);
+    const field1 = h('div', { style: { display: 'flex', alignItems: 'center', background: field, border: '1px solid ' + line2, borderRadius: '8px', padding: '9px 11px', fontSize: '13px', fontWeight: 500, color: text } }, 'OM/call con barbini');
+    const tag = h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', width: '100%', background: accentSoft, border: '1px solid ' + line, borderRadius: '8px', padding: '9px 11px', fontSize: '13px', fontWeight: 500, color: accent } }, '# Gimmick');
+    return h('div', { style: { background: panel, padding: '16px 14px' } },
+      eyebrow('TITOLO'), field1,
+      h('div', { style: { marginTop: '16px' } }, eyebrow('TAG'), tag),
+      h('div', { style: { height: '1px', background: line, margin: '18px 0' } }),
+      eyebrow('SPARKS · 3'), rowEl
+    );
+  }
+
+  renderVals() {
+    const V = [
+      { num: '01', name: 'Pieno saturo', note: 'icona in negativo', fn: 'vSolid' },
+      { num: '02', name: 'Tinta intensa + bordo', note: 'più decisa', fn: 'vSoftStrong' },
+      { num: '03', name: 'Outline', note: 'bordo colorato', fn: 'vOutline' },
+      { num: '04', name: 'Superficie neutra', note: 'icona satura su grigio', fn: 'vNeutral' },
+      { num: '05', name: 'Barra d’accento', note: 'underline colorato', fn: 'vUnderline' },
+      { num: '06', name: 'Icona + etichetta', note: 'label sotto', fn: 'vLabeled' }
+    ];
+    return { variants: V.map((v) => ({ num: v.num, name: v.name, note: v.note, light: this.context('l', this[v.fn]('l')), dark: this.context('d', this[v.fn]('d')) })) };
+  }
+}
+</script>
+</body>
+</html>

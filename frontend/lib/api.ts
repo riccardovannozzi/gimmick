@@ -38,8 +38,30 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
-// API request helper
-let isRefreshing = false;
+// API request helper.
+//
+// Refresh single-flight: quando l'access token è scaduto e la dashboard monta
+// sparando molte query insieme (tags, tiles-calendar, tile-detail, statuses,
+// tag-types…), ricevono TUTTE un 401 in contemporanea. Con un semplice flag
+// booleano solo la prima richiesta rinfrescava il token e riprovava, mentre le
+// altre vedevano "refresh in corso" e fallivano subito con 401 senza riprovare
+// → l'Inspector (tile-detail) spesso perdeva la corsa e restava vuoto finché
+// non si ricaricava la pagina. Ora le richieste concorrenti CONDIVIDONO lo
+// stesso refresh e, al termine, riprovano tutte.
+let refreshPromise: Promise<boolean> | null = null;
+
+function refreshTokenOnce(): Promise<boolean> {
+  if (!refreshPromise) {
+    refreshPromise = authApi
+      .refreshSession()
+      .then((r) => r.success)
+      .catch(() => false)
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+}
 
 async function apiRequest<T>(
   endpoint: string,
@@ -64,13 +86,12 @@ async function apiRequest<T>(
     const data = await response.json();
 
     if (!response.ok) {
-      // Auto-refresh token on 401
-      if (response.status === 401 && !_retry && refreshToken && !isRefreshing) {
-        isRefreshing = true;
-        const refreshResult = await authApi.refreshSession();
-        isRefreshing = false;
-
-        if (refreshResult.success) {
+      // Auto-refresh token on 401. Escludiamo l'endpoint di refresh stesso per
+      // evitare ricorsione (un 401 sul refresh significa refresh token scaduto).
+      const isRefreshCall = endpoint === '/api/auth/refresh';
+      if (response.status === 401 && !_retry && refreshToken && !isRefreshCall) {
+        const ok = await refreshTokenOnce();
+        if (ok) {
           return apiRequest<T>(endpoint, options, true);
         }
       }
@@ -323,6 +344,17 @@ export const subtasksApi = {
     return apiRequest('/api/subtasks/reorder', {
       method: 'PUT',
       body: JSON.stringify({ items }),
+    });
+  },
+};
+
+// ============ AI API ============
+export const aiApi = {
+  /** Riscrive un testo (o porzione) secondo un'istruzione. Ritorna il testo riscritto (Markdown). */
+  async rewrite(text: string, instruction: string) {
+    return apiRequest<{ result: string }>('/api/ai/rewrite', {
+      method: 'POST',
+      body: JSON.stringify({ text, instruction }),
     });
   },
 };

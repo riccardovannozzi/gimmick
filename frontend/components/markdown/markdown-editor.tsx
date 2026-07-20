@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent, type Editor } from '@tiptap/react';
+import { BubbleMenu } from '@tiptap/react/menus';
 import { StarterKit } from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import { Table } from '@tiptap/extension-table';
@@ -16,9 +17,12 @@ import {
   IconBold, IconItalic, IconStrikethrough, IconCode, IconH1, IconH2, IconH3,
   IconList, IconListNumbers, IconListCheck, IconQuote, IconLink, IconHighlight,
   IconTable, IconArrowBackUp, IconArrowForwardUp, IconSeparator,
-  IconMicrophone, IconMicrophoneOff,
+  IconMicrophone, IconMicrophoneOff, IconSparkles, IconLoader2,
+  IconMail, IconBrandWhatsapp,
 } from '@tabler/icons-react';
+import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
+import { aiApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 // Soft pastel highlight palette — the Light2 row of GIMMICK_PALETTE.
@@ -36,6 +40,199 @@ const HIGHLIGHT_COLORS: Array<{ color: string | null; label: string }> = [
   { color: '#EEEEEE', label: 'Grigio' },
   { color: null, label: 'Rimuovi' },
 ];
+
+// Tinte per i pulsanti azione (AI / condivisione): bordo + sfondo tenue.
+const ACTION_TINTS = {
+  ai: '#F2C94C',        // giallo
+  mail: '#5B8DEF',      // blu
+  whatsapp: '#25D366',  // verde
+} as const;
+
+/** Stile pulsante "tinto": sfondo tenue + bordo colorato attorno all'icona. */
+function tintedBtn(color: string): React.CSSProperties {
+  return {
+    width: 30,
+    height: 30,
+    background: `${color}22`,
+    color,
+    border: `1px solid ${color}66`,
+    borderRadius: 8,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    flexShrink: 0,
+  };
+}
+
+// ─── Azioni AI: set completo di riscritture (istruzioni per Claude Haiku) ──────
+const AI_ACTIONS: Array<{ label: string; instruction: string }> = [
+  { label: 'Riscrivi (parafrasa)', instruction: 'Riscrivi il testo con parole diverse mantenendo lo stesso significato e la stessa lunghezza.' },
+  { label: 'Accorcia', instruction: 'Rendi il testo più conciso, eliminando le parti superflue, senza perdere le informazioni essenziali.' },
+  { label: 'Espandi', instruction: 'Espandi il testo aggiungendo dettagli e chiarimenti pertinenti, mantenendo coerenza e stile.' },
+  { label: 'Correggi grammatica', instruction: 'Correggi errori di ortografia, grammatica e punteggiatura, senza cambiare il contenuto né lo stile.' },
+  { label: 'Tono formale', instruction: 'Riscrivi il testo con un tono formale e professionale.' },
+  { label: 'Tono informale', instruction: 'Riscrivi il testo con un tono informale e amichevole.' },
+];
+
+/**
+ * Esegue una riscrittura AI sulla selezione corrente, o sull'intero documento se
+ * non c'è selezione. Il risultato (Markdown) sostituisce il testo di origine
+ * (tiptap-markdown parsa la stringa markdown su setContent/insertContent).
+ */
+async function runAiRewrite(editor: Editor, instruction: string): Promise<void> {
+  const { from, to, empty } = editor.state.selection;
+  const source = empty
+    ? (editor.storage as { markdown?: { getMarkdown: () => string } }).markdown?.getMarkdown() ?? ''
+    : editor.state.doc.textBetween(from, to, '\n');
+  if (!source.trim()) { toast.error('Nessun testo da riscrivere'); return; }
+
+  const res = await aiApi.rewrite(source, instruction);
+  if (!res.success || !res.data) { toast.error(res.error || 'Errore riscrittura AI'); return; }
+  const result = res.data.result;
+
+  if (empty) {
+    editor.chain().focus().setContent(result).run();
+  } else {
+    editor.chain().focus().deleteRange({ from, to }).insertContent(result).run();
+  }
+}
+
+/**
+ * Menu delle azioni AI. `compact` → variante "pillola AI" usata nella BubbleMenu
+ * che compare sulla selezione; altrimenti pulsante icona per la toolbar.
+ */
+function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<typeof usePixelTheme>; compact?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => { if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [open]);
+
+  const run = async (instruction: string) => {
+    setOpen(false);
+    setBusy(true);
+    try { await runAiRewrite(editor, instruction); }
+    catch { toast.error('Errore riscrittura AI'); }
+    finally { setBusy(false); }
+  };
+
+  const hasSelection = !editor.state.selection.empty;
+  const scope = hasSelection ? 'selezione' : 'tutto il testo';
+
+  const trigger: React.CSSProperties = compact
+    ? {
+        display: 'inline-flex', alignItems: 'center', gap: 4, height: 28, padding: '0 10px',
+        background: theme.accent, color: theme.onAccent, border: 'none', borderRadius: 8,
+        fontFamily: 'var(--ob-font-sans)', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+      }
+    : {
+        width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        background: `${ACTION_TINTS.ai}22`, color: ACTION_TINTS.ai,
+        border: `1px solid ${open ? ACTION_TINTS.ai : `${ACTION_TINTS.ai}66`}`, borderRadius: 8,
+        cursor: busy ? 'wait' : 'pointer', flexShrink: 0,
+      };
+
+  const row: React.CSSProperties = {
+    display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px',
+    background: 'transparent', border: 'none', borderRadius: 6, color: theme.ink,
+    fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
+  };
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        title={busy ? 'Riscrittura in corso…' : `Riscrivi con AI (${scope})`}
+        disabled={busy}
+        style={trigger}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {busy ? <IconLoader2 size={14} className="animate-spin" /> : <IconSparkles size={14} />}
+        {compact && <span>AI</span>}
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100, minWidth: 200,
+            background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10,
+            padding: 4, boxShadow: 'var(--ob-shadow-card)',
+          }}
+        >
+          <div style={{ padding: '4px 10px 6px', fontFamily: 'var(--ob-font-mono)', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: theme.ink3 }}>
+            Riscrivi: {scope}
+          </div>
+          {AI_ACTIONS.map((a) => (
+            <button
+              key={a.label}
+              type="button"
+              style={row}
+              onClick={() => run(a.instruction)}
+              onMouseEnter={(e) => (e.currentTarget.style.background = theme.surfaceVariant)}
+              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            >{a.label}</button>
+          ))}
+          <div style={{ height: 1, background: theme.border, margin: '4px 0' }} />
+          <button
+            type="button"
+            style={row}
+            onMouseEnter={(e) => (e.currentTarget.style.background = theme.surfaceVariant)}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+            onClick={() => { const c = window.prompt("Istruzione personalizzata per l'AI:"); if (c && c.trim()) run(c.trim()); else setOpen(false); }}
+          >Istruzione personalizzata…</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Testo da condividere: la selezione corrente se presente, altrimenti l'intero
+ * documento. Restituisce testo semplice (senza sintassi Markdown) — mail e
+ * WhatsApp non renderizzano il Markdown, quindi gli asterischi risulterebbero
+ * solo rumore visivo.
+ */
+function getShareText(editor: Editor): string {
+  const { from, to, empty } = editor.state.selection;
+  const text = empty
+    ? editor.getText({ blockSeparator: '\n\n' })
+    : editor.state.doc.textBetween(from, to, '\n\n');
+  return text.trim();
+}
+
+/**
+ * Pulsanti di condivisione: aprono il client mail (`mailto:`) o WhatsApp
+ * (`wa.me`) con il testo già precompilato nel campo di scrittura. L'utente
+ * sceglie destinatario/contatto nell'app di destinazione.
+ */
+function ShareButtons({ editor }: { editor: Editor }) {
+  const sendMail = () => {
+    const body = getShareText(editor);
+    if (!body) { toast.error('Nessun testo da inviare'); return; }
+    // mailto non naviga la pagina: apre il client di posta predefinito.
+    window.location.href = `mailto:?body=${encodeURIComponent(body)}`;
+  };
+
+  const sendWhatsApp = () => {
+    const body = getShareText(editor);
+    if (!body) { toast.error('Nessun testo da inviare'); return; }
+    // wa.me apre WhatsApp (app o web) con il testo precompilato; il contatto
+    // viene scelto dall'utente.
+    window.open(`https://wa.me/?text=${encodeURIComponent(body)}`, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <>
+      <button type="button" title="Invia per email" style={tintedBtn(ACTION_TINTS.mail)} onClick={sendMail}><IconMail size={14} /></button>
+      <button type="button" title="Invia su WhatsApp" style={tintedBtn(ACTION_TINTS.whatsapp)} onClick={sendWhatsApp}><IconBrandWhatsapp size={14} /></button>
+    </>
+  );
+}
 
 interface MarkdownEditorProps {
   /** Initial markdown content. */
@@ -105,15 +302,24 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
   return (
     <div className={cn('flex flex-col h-full', className)}>
       <Toolbar editor={editor} theme={theme} />
+      {/* Menu flottante sulla selezione di testo: azioni AI mirate alla porzione. */}
+      <BubbleMenu editor={editor} shouldShow={() => !editor.state.selection.empty}>
+        <div
+          onMouseDown={(e) => e.preventDefault()}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, background: theme.bg2, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: 'var(--ob-shadow-card)' }}
+        >
+          <AiMenu editor={editor} theme={theme} compact />
+        </div>
+      </BubbleMenu>
       <div
         className="flex-1 overflow-auto"
         style={{
           background: theme.surface,
           padding: 16,
-          fontFamily: 'var(--font-pixel-body), ui-monospace, monospace',
+          fontFamily: 'var(--ob-font-sans)',
           color: theme.ink,
-          fontSize: 13,
-          lineHeight: 1.5,
+          fontSize: 14,
+          lineHeight: 1.6,
         }}
       >
         <EditorContent editor={editor} />
@@ -126,11 +332,12 @@ interface ToolbarProps { editor: Editor; theme: ReturnType<typeof usePixelTheme>
 
 function Toolbar({ editor, theme }: ToolbarProps) {
   const btnStyle = (active: boolean): React.CSSProperties => ({
-    width: 28,
-    height: 28,
-    background: active ? theme.accent : theme.surfaceVariant,
-    color: active ? theme.onAccent : theme.ink,
-    border: `2px solid ${theme.border}`,
+    width: 30,
+    height: 30,
+    background: active ? (`${theme.accent}22`) : 'transparent',
+    color: active ? theme.accent : theme.ink2,
+    border: `1px solid ${active ? theme.accent : 'transparent'}`,
+    borderRadius: 8,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -163,9 +370,11 @@ function Toolbar({ editor, theme }: ToolbarProps) {
         gap: 4,
         padding: 8,
         background: theme.bg2,
-        borderBottom: `2px solid ${theme.border}`,
+        borderBottom: `1px solid ${theme.border}`,
       }}
     >
+      <AiMenu editor={editor} theme={theme} />
+      {sep}
       <button type="button" title="Annulla" style={btnStyle(false)} onClick={() => editor.chain().focus().undo().run()}><IconArrowBackUp size={14} /></button>
       <button type="button" title="Ripeti" style={btnStyle(false)} onClick={() => editor.chain().focus().redo().run()}><IconArrowForwardUp size={14} /></button>
       {sep}
@@ -189,6 +398,8 @@ function Toolbar({ editor, theme }: ToolbarProps) {
       <button type="button" title="Tabella" style={btnStyle(false)} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><IconTable size={14} /></button>
       {sep}
       <DictationButton editor={editor} btnStyle={btnStyle} />
+      {sep}
+      <ShareButtons editor={editor} />
     </div>
   );
 }
@@ -334,12 +545,13 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
             marginTop: 4,
             zIndex: 100,
             background: theme.surface,
-            border: `2px solid ${theme.border}`,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
             padding: 6,
             display: 'grid',
             gridTemplateColumns: 'repeat(6, 22px)',
             gap: 4,
-            boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+            boxShadow: 'var(--ob-shadow-card)',
           }}
         >
           {HIGHLIGHT_COLORS.map((opt) => {
@@ -354,7 +566,8 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
                   width: 22,
                   height: 22,
                   background: isRemove ? theme.surfaceVariant : (opt.color as string),
-                  border: `2px solid ${theme.border}`,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 6,
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',

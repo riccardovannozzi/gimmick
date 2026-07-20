@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}</style>
+</helmet>
+
+<div style="position:relative; width:2380px; height:1020px;">{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() {
+    const S = (b) => this.S(b);
+    return {
+      menu: S('<path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/>'),
+      search: S('<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 13.5 13.5"/>'),
+      chevR: S('<path d="M6 4l4 4-4 4"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      close: S('<path d="M4 4l8 8M12 4l-8 8"/>'),
+      plus: S('<path d="M8 3v10M3 8h10"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      video: S('<rect x="2.2" y="4.2" width="8.4" height="7.6" rx="1.6"/><path d="M10.6 6.6 13.8 5v6l-3.2-1.6z"/>'),
+      gallery: S('<rect x="4.2" y="2.4" width="9.4" height="9.4" rx="1.6"/><path d="M2.4 5v8a1 1 0 0 0 1 1h7.6"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      sun: S('<circle cx="8" cy="8" r="2.7"/><path d="M8 1.9v1.5M8 12.6v1.5M14.1 8h-1.5M3.4 8H1.9M12.3 3.7l-1 1M4.7 11.3l-1 1M12.3 12.3l-1-1M4.7 4.7l-1-1"/>'),
+      wave: S('<path d="M1.9 6.2c1.4-1.5 2.8-1.5 4.2 0s2.8 1.5 4.2 0 2.8-1.5 4.2 0M1.9 10c1.4-1.5 2.8-1.5 4.2 0s2.8 1.5 4.2 0 2.8-1.5 4.2 0"/>'),
+      euro: S('<path d="M11.2 4.6a4 4 0 1 0 0 6.8M3.6 6.9h5M3.6 9.2h5"/>'),
+      home: S('<path d="M2.6 7.6 8 3.2l5.4 4.4M4 6.6V13h8V6.6"/>'),
+      gear: S('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v2M8 12.4v2M14.4 8h-2M3.6 8h-2M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4M12.5 12.5l-1.4-1.4M4.9 4.9 3.5 3.5"/>'),
+      tiles: S('<rect x="2.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="2.2" width="4.6" height="4.6" rx="1.2"/><rect x="2.2" y="9.2" width="4.6" height="4.6" rx="1.2"/><rect x="9.2" y="9.2" width="4.6" height="4.6" rx="1.2"/>'),
+      chrono: S('<circle cx="8" cy="8.6" r="5.4"/><path d="M8 5.6v3l2 1.4"/><path d="M5.4 1.9 3.6 3.3M10.6 1.9l1.8 1.4"/>'),
+      check: S('<path d="M3 8.6 6.4 12 13 4.6"/>'),
+      send: S('<path d="M13.6 2.4 7.8 13.4l-1.4-4.4-4.4-1.4z"/><path d="M13.6 2.4 6.4 9"/>'),
+      due: S('<circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.4M8 10.7h.01"/>'),
+      allday: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      timed: S('<circle cx="8" cy="8.4" r="5.4"/><path d="M8 5.4v3l2 1.4"/>'),
+      todo: S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+      note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      spark: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>'
+    };
+  }
+  glyph(name, size, color) { const px = (size || 16) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const b = dark ? {
+      bezel: '#0c0c0d', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', sidebar: '#1b1b1b', field: '#1d1d1d',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656', statusInk: '#dcdcdc',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)',
+      cap: { photo: '#7AA7F5', video: '#F08DB4', gallery: '#B0A2EE', text: '#74D6A2', voice: '#F38682', file: '#E7C25E' }
+    } : {
+      bezel: '#d9d7dd', canvas: '#f6f6f8', surface: '#ffffff', surface2: '#f1f0f4', sidebar: '#ffffff', field: '#ffffff',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd', statusInk: '#1b1923',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)',
+      cap: { photo: '#4F86EE', video: '#E0588C', gallery: '#8C7BE0', text: '#3FAE72', voice: '#E0544F', file: '#C99220' }
+    };
+    b.accent = acc.a; b.accentInk = acc.ink; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+
+  statusBar(T) {
+    const h = React.createElement; const c = T.statusInk;
+    return h('div', { style: { height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', position: 'relative' } },
+      h('span', { style: { fontSize: '13px', fontWeight: 600, color: c } }, '9:30'),
+      h('div', { style: { position: 'absolute', left: '50%', top: '9px', transform: 'translateX(-50%)', width: '9px', height: '9px', borderRadius: '50%', background: '#000' } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('span', { style: { width: '15px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5"/><rect x="9" y="3" width="3" height="9" rx="0.5"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.5" opacity="0.35"/></svg>' } }),
+        h('span', { style: { width: '15px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><path d="M8 11.2 0.7 4.5a10.4 10.4 0 0 1 14.6 0L8 11.2Z"/></svg>' } }),
+        h('span', { style: { width: '22px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 24 12" width="100%" height="100%" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="2.6" width="13" height="6.8" rx="1.2" fill="currentColor"/><rect x="21" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>' } }))
+    );
+  }
+  navPill(T) {
+    return React.createElement('div', { style: { height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+      React.createElement('div', { style: { width: '128px', height: '4px', borderRadius: '2px', background: T.dark ? 'rgba(255,255,255,0.4)' : 'rgba(24,20,38,0.32)' } }));
+  }
+  appHeader(T) {
+    const h = React.createElement;
+    return h('div', { style: { height: '54px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px' } },
+      h('div', { style: { width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph('menu', 19)),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1 } },
+        h('div', { style: { width: '24px', height: '24px', borderRadius: '7px', background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '8px', height: '8px', borderRadius: '2.5px', background: T.accentInk } })),
+        h('span', { style: { fontSize: '17px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Gimmick')),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '20px', padding: '4px 11px 4px 8px' } },
+        h('span', { style: { width: '18px', height: '18px', color: T.accent }, dangerouslySetInnerHTML: { __html: this.ICONS.spark } }),
+        h('span', { style: { fontSize: '13px', fontWeight: 600, color: T.text } }, '8')),
+      h('div', { style: { width: '34px', height: '34px', borderRadius: '50%', background: T.accent, color: T.accentInk, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 700, marginLeft: '2px' } }, 'RI'));
+  }
+
+  get CAPS() { return [['photo', 'Photo', 'Scatta o carica una foto'], ['video', 'Video', 'Registra un video'], ['gallery', 'Gallery', 'Scegli pi\u00f9 elementi'], ['text', 'Text', 'Scrivi una nota'], ['voice', 'Voice', 'Detta un memo vocale'], ['file', 'File', 'Allega un documento']]; }
+
+  capBar(T, c, opts) {
+    const h = React.createElement; const col = T.cap[c[0]]; const o = opts || {};
+    return h('div', { key: c[0], style: { display: 'flex', alignItems: 'center', gap: '14px', background: o.pressed ? col + (T.dark ? '24' : '14') : T.surface, border: '1px solid ' + (o.pressed ? col + (T.dark ? '4d' : '40') : T.line), borderRadius: '14px', padding: '13px 14px', transform: o.pressed ? 'scale(0.98)' : 'none' } },
+      h('div', { style: { width: '44px', height: '44px', borderRadius: '12px', background: o.pressed ? col : col + (T.dark ? '2e' : '1c'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: o.pressed ? '#fff' : col, flexShrink: 0 } }, this.glyph(c[0], 22)),
+      h('div', { style: { flex: 1, minWidth: 0 } }, h('div', { style: { fontSize: '15px', fontWeight: 600, color: T.text } }, c[1]), h('div', { style: { fontSize: '12px', color: T.subtle, marginTop: '1px' } }, c[2])),
+      this.glyph('chevR', 16, o.pressed ? col : T.faint));
+  }
+  sendButton(T) {
+    const h = React.createElement;
+    const badgeBg = T.dark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.24)';
+    return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', background: T.accent, color: T.accentInk, borderRadius: '14px', padding: '14px', margin: '0 0 16px', boxShadow: '0 12px 26px -14px ' + T.accent } },
+      this.glyph('send', 18, T.accentInk),
+      h('span', { style: { fontSize: '15px', fontWeight: 600, letterSpacing: '-0.01em' } }, 'Invia a Gimmick'),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '12px', fontWeight: 700, background: badgeBg, borderRadius: '7px', padding: '2px 8px' } }, '2'));
+  }
+  setOptionsBar(T) {
+    const h = React.createElement;
+    return h('div', { style: { marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', padding: '13px', borderRadius: '12px', border: '1px solid ' + T.line2, background: T.surface, color: T.muted, fontSize: '13px', fontWeight: 600 } },
+      'Set options', h('span', { style: { width: '13px', height: '13px', transform: 'rotate(180deg)', display: 'inline-flex' } }, this.glyph('chevD', 13)));
+  }
+  setOptionsPanel(T) {
+    const h = React.createElement;
+    const eb = (t) => h('div', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.13em', color: T.subtle, margin: '0 0 9px' } }, t);
+    const actBtn = (icon, label, on) => h('div', { key: label, style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '7px', padding: '11px', borderRadius: '10px', fontSize: '14px', fontWeight: on ? 600 : 500, color: on ? T.accentInk : T.text, background: on ? T.accent : T.surface2, border: '1px solid ' + (on ? 'transparent' : T.line2) } }, this.glyph(icon, 15, on ? T.accentInk : T.muted), label);
+    const chip = (icon, label, on) => h('div', { key: label, style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '9px', borderRadius: '9px', fontSize: '12.5px', fontWeight: on ? 600 : 500, color: on ? T.accent : T.muted, background: on ? T.accentSoft : T.surface2, border: '1px solid ' + (on ? 'transparent' : T.line) } }, this.glyph(icon, 13, on ? T.accent : T.subtle), label);
+    const panel = h('div', { style: { position: 'absolute', left: 0, right: 0, bottom: 0, background: T.surface, borderTopLeftRadius: '22px', borderTopRightRadius: '22px', borderTop: '1px solid ' + T.line, boxShadow: '0 -20px 50px -20px rgba(0,0,0,0.32)', padding: '12px 18px 22px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center', marginBottom: '18px' } },
+        h('span', { style: { fontSize: '13px', fontWeight: 600, color: T.text } }, 'Set options'),
+        h('span', { style: { width: '13px', height: '13px', display: 'inline-flex', color: T.subtle } }, this.glyph('chevD', 13))),
+      eb('AZIONE'),
+      h('div', { style: { display: 'flex', gap: '8px', marginBottom: '10px' } }, actBtn('note', 'Notes', true), actBtn('todo', 'To do', false)),
+      h('div', { style: { display: 'flex', gap: '7px', marginBottom: '18px' } }, chip('due', 'Scadenza', false), chip('allday', 'Giornata', false), chip('timed', 'A orario', true)),
+      eb('TAG'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', background: T.field, border: '1px solid ' + T.line2, borderRadius: '10px', padding: '11px 13px' } },
+        this.glyph('tag', 15, T.subtle), h('span', { style: { flex: 1, fontSize: '13px', color: T.subtle } }, 'Seleziona tag…'), this.glyph('chevD', 14, T.subtle)));
+    return h('div', { style: { position: 'absolute', inset: 0, zIndex: 10 } },
+      h('div', { style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.28)' } }), panel);
+  }
+  home(T, opts) {
+    const h = React.createElement; const o = opts || {};
+    return h('div', { style: { flex: 1, position: 'relative', overflow: 'hidden', padding: '6px 16px 16px', display: 'flex', flexDirection: 'column' } },
+      h('div', { style: { fontSize: '26px', fontWeight: 700, letterSpacing: '-0.03em', color: T.text, margin: '6px 2px 4px' } }, 'Cattura'),
+      h('div', { style: { fontSize: '13px', color: T.muted, margin: '0 2px 16px' } }, 'Butta dentro, poi invia tutto a Gimmick.'),
+      this.sendButton(T),
+      h('div', { style: { display: 'flex', flexDirection: 'column', gap: '9px' } }, this.CAPS.map((c) => this.capBar(T, c, { pressed: o.pressed === c[0] }))),
+      o.options ? null : this.setOptionsBar(T),
+      o.drawer ? this.drawer(T) : null,
+      o.sheet ? this.voiceSheet(T) : null,
+      o.options ? this.setOptionsPanel(T) : null);
+  }
+
+  drawer(T) {
+    const h = React.createElement;
+    const grp = (icon, color, name, open, kids) => h('div', { key: name, style: { marginBottom: '2px' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', padding: '9px 8px' } },
+        h('span', { style: { width: '13px', height: '13px', color: T.subtle, transform: open ? 'rotate(90deg)' : 'none', display: 'inline-flex' } }, this.glyph('chevR', 13)),
+        this.glyph(icon, 17, color), h('span', { style: { fontSize: '14px', fontWeight: 600, color: T.text, flex: 1 } }, name)),
+      open ? h('div', { style: { marginLeft: '15px', paddingLeft: '13px', borderLeft: '1px solid ' + T.line } }, kids.map((k) => h('div', { key: k.n, style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 9px', borderRadius: '8px', background: k.on ? T.accentSoft : 'transparent' } },
+        h('span', { style: { fontSize: '14px', fontWeight: k.on ? 600 : 500, color: k.on ? T.accent : T.muted } }, k.n)))) : null);
+    const panel = h('div', { style: { position: 'absolute', top: 0, left: 0, bottom: 0, width: '290px', background: T.sidebar, borderRight: '1px solid ' + T.line, boxShadow: '0 0 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', overflow: 'hidden' } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', padding: '18px 16px 14px' } },
+        h('div', { style: { width: '28px', height: '28px', borderRadius: '8px', background: T.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '9px', height: '9px', borderRadius: '3px', background: T.accentInk } })),
+        h('span', { style: { fontSize: '17px', fontWeight: 600, color: T.text, flex: 1 } }, 'Gimmick'),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', fontWeight: 600, color: T.muted, background: T.surface2, padding: '2px 8px', borderRadius: '7px' } }, '26')),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '9px', margin: '0 14px 8px', background: T.surface2, border: '1px solid ' + T.line, borderRadius: '10px', padding: '9px 11px' } }, this.glyph('search', 14, T.subtle), h('span', { style: { fontSize: '13px', color: T.subtle } }, 'Cerca tag…')),
+      h('div', { style: { flex: 1, overflow: 'hidden', padding: '6px 10px' } },
+        grp('home', '#6FCF97', 'Home', false, []),
+        grp('sun', '#E0B341', 'Golfo del Sole', true, [{ n: 'GDS_Report', on: true }, { n: 'GDS_Fotovoltaico' }, { n: 'GDS_Varie' }]),
+        grp('wave', '#5B8DEF', 'Ortano Mare', false, []),
+        grp('euro', '#6FCF97', 'Money', false, [])),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', padding: '13px 18px', borderTop: '1px solid ' + T.line } }, this.glyph('gear', 16, T.muted), h('span', { style: { fontSize: '14px', fontWeight: 500, color: T.muted } }, 'Impostazioni')));
+    return h('div', { style: { position: 'absolute', inset: 0, zIndex: 10 } },
+      h('div', { style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)' } }), panel);
+  }
+
+  voiceSheet(T) {
+    const h = React.createElement; const col = T.cap.voice;
+    const bars = [8, 16, 28, 20, 34, 44, 30, 22, 38, 48, 36, 24, 18, 30, 42, 26, 14, 22, 34, 20, 28, 16, 10].map((v, i) =>
+      h('div', { key: i, style: { width: '4px', height: v + 'px', borderRadius: '2px', background: i < 14 ? col : T.line2 } }));
+    const sheet = h('div', { style: { position: 'absolute', left: 0, right: 0, bottom: 0, background: T.surface, borderTopLeftRadius: '22px', borderTopRightRadius: '22px', borderTop: '1px solid ' + T.line, boxShadow: '0 -20px 50px -20px rgba(0,0,0,0.35)', padding: '12px 18px 20px' } },
+      h('div', { style: { width: '40px', height: '4px', borderRadius: '2px', background: T.line2, margin: '0 auto 16px' } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' } },
+        h('div', { style: { width: '40px', height: '40px', borderRadius: '11px', background: col + (T.dark ? '2e' : '1c'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: col } }, this.glyph('voice', 20)),
+        h('div', { style: { flex: 1 } }, h('div', { style: { fontSize: '15px', fontWeight: 600, color: T.text } }, 'Memo vocale'), h('div', { style: { fontSize: '12px', color: T.subtle } }, 'In registrazione…')),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '16px', fontWeight: 600, color: T.text } }, '00:12')),
+      h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '3px', height: '54px', marginBottom: '18px' } }, bars),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px' } },
+        h('div', { style: { flex: 1, textAlign: 'center', padding: '12px', borderRadius: '12px', border: '1px solid ' + T.line2, fontSize: '14px', fontWeight: 500, color: T.muted } }, 'Annulla'),
+        h('div', { style: { width: '58px', height: '58px', borderRadius: '50%', background: col, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 24px -8px ' + col } }, h('div', { style: { width: '20px', height: '20px', borderRadius: '4px', background: '#fff' } })),
+        h('div', { style: { flex: 1, textAlign: 'center', padding: '12px', borderRadius: '12px', background: T.accent, color: T.accentInk, fontSize: '14px', fontWeight: 600 } }, 'Salva spark')));
+    return h('div', { style: { position: 'absolute', inset: 0, zIndex: 10 } },
+      h('div', { style: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.42)' } }), sheet);
+  }
+
+  phone(T, opts) {
+    const h = React.createElement;
+    return h('div', { style: { width: '380px', height: '812px', borderRadius: '40px', background: T.bezel, padding: '7px', boxShadow: '0 40px 90px -50px rgba(0,0,0,0.6)' } },
+      h('div', { style: { width: '100%', height: '100%', borderRadius: '34px', overflow: 'hidden', background: T.canvas, display: 'flex', flexDirection: 'column', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased' } },
+        this.statusBar(T), this.appHeader(T), this.home(T, opts), this.navPill(T)));
+  }
+  frame(key, x, T, opts) {
+    return React.createElement('div', { key: key, style: { position: 'absolute', left: x + 'px', top: '64px', width: '380px' } }, this.phone(T, opts));
+  }
+  groupLabel(text, x) {
+    return React.createElement('div', { key: text, 'data-drags-parent': '1', style: { position: 'absolute', left: x + 'px', top: '20px', fontSize: '13px', fontWeight: 600, letterSpacing: '-0.01em', color: '#46434f' } }, text);
+  }
+
+  view() {
+    const h = React.createElement;
+    const L = this.tok(false), D = this.tok(true);
+    const G = 440;
+    return h(React.Fragment, {},
+      this.groupLabel('Home · Light', 0),
+      this.frame('hl', 0, L, {}),
+      this.groupLabel('Home · Dark', G),
+      this.frame('hd', G, D, {}),
+      this.groupLabel('Set options aperto', G * 2),
+      this.frame('so', G * 2, L, { options: true }),
+      this.groupLabel('Drawer aperto', G * 3),
+      this.frame('dr', G * 3, L, { drawer: true }),
+      this.groupLabel('Cattura · Voice', G * 4),
+      this.frame('vc', G * 4, L, { pressed: 'voice', sheet: true })
+    );
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

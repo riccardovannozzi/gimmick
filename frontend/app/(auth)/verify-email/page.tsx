@@ -2,9 +2,9 @@
 
 import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import { toast } from 'sonner';
-import { usePixelTheme } from '@/components/pixel';
+import { Button } from '@/components/primitives';
+import { AuthLayout, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
 import { authApi } from '@/lib/api';
 
 /**
@@ -13,7 +13,6 @@ import { authApi } from '@/lib/api';
  * reinviare il link (con cooldown 60s per evitare spam).
  */
 function VerifyEmailInner() {
-  const theme = usePixelTheme();
   const params = useSearchParams();
   const email = params.get('email') || '';
 
@@ -40,87 +39,22 @@ function VerifyEmailInner() {
   };
 
   return (
-    <div
-      style={{
-        display: 'flex',
-        minHeight: '100vh',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: theme.bg1,
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          width: '100%',
-          maxWidth: 420,
-          background: theme.surface,
-          border: `2px solid ${theme.border}`,
-          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-          color: theme.ink,
-        }}
-      >
-        <div style={{ padding: '20px 16px 16px', background: theme.surfaceVariant, borderBottom: `2px solid ${theme.border}`, textAlign: 'center' }}>
-          <h1
-            style={{
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 16,
-              letterSpacing: '0.1em',
-              textTransform: 'uppercase',
-              color: theme.ink,
-              margin: 0,
-            }}
-          >
-            Controlla l&apos;email
-          </h1>
-        </div>
-
-        <div style={{ padding: 18, display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2, margin: 0, lineHeight: 1.55 }}>
-            Ti abbiamo inviato un link di conferma{email ? ' a ' : '.'}
-            {email && (
-              <strong style={{ wordBreak: 'break-all', color: theme.ink }}>{email}</strong>
-            )}
-            . Clicca il link per attivare l&apos;account e accedere a Gimmick.
-          </p>
-
-          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, margin: 0 }}>
-            Non hai ricevuto l&apos;email? Controlla nello spam o reinviala.
-          </p>
-
-          <button
-            type="button"
-            onClick={resend}
-            disabled={sending || cooldown > 0 || !email}
-            className="px-press"
-            style={{
-              padding: '8px 12px',
-              background: theme.surfaceVariant,
-              color: theme.ink,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: sending || cooldown > 0 || !email ? 'not-allowed' : 'pointer',
-              opacity: sending || cooldown > 0 || !email ? 0.5 : 1,
-            }}
-          >
-            {sending
-              ? 'Invio…'
-              : cooldown > 0
-                ? `Reinvia tra ${cooldown}s`
-                : 'Reinvia email di conferma'}
-          </button>
-
-          <p style={{ marginTop: 4, textAlign: 'center', fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3 }}>
-            <Link href="/login" style={{ color: theme.accent, textDecoration: 'underline' }}>
-              Torna al login
-            </Link>
-          </p>
-        </div>
+    <AuthLayout title="Controlla l'email">
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+          Ti abbiamo inviato un link di conferma{email ? ' a ' : '.'}
+          {email && <strong style={{ wordBreak: 'break-all', color: 'var(--ob-text)' }}>{email}</strong>}
+          . Clicca il link per attivare l&apos;account e accedere a Gimmick.
+        </p>
+        <p style={{ fontSize: 12, color: 'var(--ob-subtle)', margin: 0 }}>
+          Non hai ricevuto l&apos;email? Controlla nello spam o reinviala.
+        </p>
+        <Button variant="secondary" onClick={resend} disabled={sending || cooldown > 0 || !email} style={{ width: '100%' }}>
+          {sending ? 'Invio…' : cooldown > 0 ? `Reinvia tra ${cooldown}s` : 'Reinvia email di conferma'}
+        </Button>
+        <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>
       </div>
-    </div>
+    </AuthLayout>
   );
 }
 

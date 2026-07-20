@@ -32,6 +32,11 @@ export function useActionColorsQuery() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings', SETTINGS_KEY] });
     },
+    // Rollback: se il salvataggio fallisce, ripristina la cache dal server così
+    // il colore non resta cambiato in UI ma non persistito.
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', SETTINGS_KEY] });
+    },
   });
 
   const actionColors: ActionColors = data ?? DEFAULT_ACTION_COLORS;

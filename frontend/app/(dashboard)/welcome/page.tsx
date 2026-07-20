@@ -15,17 +15,14 @@ import {
   IconLayoutGrid,
   IconCheck,
 } from '@tabler/icons-react';
-import { usePixelTheme } from '@/components/pixel';
-import { MascotSprite } from '@/components/cards/mascot-sprite';
-import { MASCOTS } from '@/lib/mascots';
 import { settingsApi } from '@/lib/api';
-
-const GIMMICK = MASCOTS.find((m) => m.id === 'gimmick')!;
+import { Beniamino } from '@/components/mascot';
+import { Button } from '@/components/primitives';
 
 interface CaptureBadge {
   icon: typeof IconCamera;
   label: string;
-  /** Token path verso PixelTheme (es. `theme.cap.photo`). */
+  /** Token della scala colori-tipo Obsidian (`--ob-type-<color>`). */
   color: 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
 }
 
@@ -40,8 +37,11 @@ const CAPTURES: CaptureBadge[] = [
 
 const STEPS = ['Benvenuto', 'Cattura', 'Organizza', 'Pronti'] as const;
 
+/**
+ * Welcome wizard — versione Obsidian (la variante arcade pixel è stata rimossa
+ * nel cleanup della migrazione). 4 step: Benvenuto / Cattura / Organizza / Pronti.
+ */
 export default function WelcomePage() {
-  const theme = usePixelTheme();
   const router = useRouter();
   const [step, setStep] = useState<number>(0);
   const [completing, setCompleting] = useState(false);
@@ -62,50 +62,57 @@ export default function WelcomePage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: theme.bg1,
+        background: 'var(--ob-canvas)',
         padding: 16,
         zIndex: 100,
+        fontFamily: 'var(--ob-font-sans)',
       }}
     >
       <div
         style={{
           width: '100%',
           maxWidth: 520,
-          background: theme.surface,
-          border: `2px solid ${theme.border}`,
-          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+          background: 'var(--ob-surface)',
+          border: '1px solid var(--ob-line-2)',
+          borderRadius: 'var(--ob-radius-card)',
+          boxShadow: 'var(--ob-shadow-card)',
+          overflow: 'hidden',
         }}
       >
-        {/* Step pills */}
-        <div
-          style={{
-            display: 'flex',
-            gap: 4,
-            padding: 12,
-            background: theme.surfaceVariant,
-            borderBottom: `2px solid ${theme.border}`,
-          }}
-        >
+        {/* Step progress */}
+        <div style={{ display: 'flex', gap: 6, padding: '14px 18px', borderBottom: '1px solid var(--ob-line)' }}>
           {STEPS.map((label, i) => (
             <div
               key={label}
+              title={label}
               style={{
                 flex: 1,
-                height: 6,
-                background: i <= step ? theme.accent : theme.surface,
-                border: `2px solid ${theme.border}`,
+                height: 4,
+                borderRadius: 'var(--ob-radius-pill)',
+                background: i <= step ? 'var(--ob-accent)' : 'var(--ob-surface-2)',
+                transition: 'background 160ms ease',
               }}
-              title={label}
             />
           ))}
         </div>
 
         {/* Body */}
-        <div style={{ padding: 24, minHeight: 320, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
-          {step === 0 && <StepWelcome theme={theme} />}
-          {step === 1 && <StepCapture theme={theme} />}
-          {step === 2 && <StepOrganize theme={theme} />}
-          {step === 3 && <StepFinish theme={theme} />}
+        <div
+          style={{
+            padding: 32,
+            minHeight: 340,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 18,
+            textAlign: 'center',
+          }}
+        >
+          {step === 0 && <ObStepWelcome />}
+          {step === 1 && <ObStepCapture />}
+          {step === 2 && <ObStepOrganize />}
+          {step === 3 && <ObStepFinish />}
         </div>
 
         {/* Nav */}
@@ -115,267 +122,184 @@ export default function WelcomePage() {
             justifyContent: 'space-between',
             alignItems: 'center',
             gap: 8,
-            padding: 14,
-            background: theme.surfaceVariant,
-            borderTop: `2px solid ${theme.border}`,
+            padding: 16,
+            borderTop: '1px solid var(--ob-line)',
           }}
         >
-          <button
-            type="button"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={step === 0}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 12px',
-              background: theme.surface,
-              color: theme.ink2,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: step === 0 ? 'not-allowed' : 'pointer',
-              opacity: step === 0 ? 0.4 : 1,
-            }}
-          >
-            <IconArrowLeft size={12} />
+          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>
+            <IconArrowLeft size={15} />
             Indietro
-          </button>
-
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
+            disabled={completing}
             onClick={() => {
               if (step === STEPS.length - 1) finish();
               else setStep((s) => s + 1);
             }}
-            disabled={completing}
-            className="px-press"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '8px 14px',
-              background: theme.accent,
-              color: theme.onAccent,
-              border: `2px solid ${theme.border}`,
-              fontFamily: 'var(--font-pixel-head)',
-              fontSize: 10,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              cursor: completing ? 'not-allowed' : 'pointer',
-              opacity: completing ? 0.6 : 1,
-              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-            }}
           >
             {step === STEPS.length - 1 ? (
               <>
-                <IconCheck size={12} />
+                <IconCheck size={15} />
                 Inizia
               </>
             ) : (
               <>
                 Avanti
-                <IconArrowRight size={12} />
+                <IconArrowRight size={15} />
               </>
             )}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Step components ─────────────────────────────────────────────────────
+const obTitle: React.CSSProperties = {
+  fontSize: 18,
+  fontWeight: 600,
+  letterSpacing: '-0.015em',
+  color: 'var(--ob-text)',
+  margin: 0,
+};
+const obBody: React.CSSProperties = {
+  fontSize: 14,
+  color: 'var(--ob-muted)',
+  margin: 0,
+  lineHeight: 1.55,
+  maxWidth: 400,
+};
+const obEyebrow: React.CSSProperties = {
+  fontFamily: 'var(--ob-font-mono)',
+  fontSize: 11,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: 'var(--ob-subtle)',
+  margin: 0,
+};
 
-function StepWelcome({ theme }: { theme: ReturnType<typeof usePixelTheme> }) {
+function ObStepWelcome() {
   return (
     <>
-      <div
-        style={{
-          width: 160, height: 160,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <MascotSprite mascot={GIMMICK} cell={8} />
-      </div>
-      <h2
-        style={{
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 14,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: theme.ink,
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        Bip! Benvenuto in Gimmick
-      </h2>
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 13, color: theme.ink2, textAlign: 'center', margin: 0, lineHeight: 1.55, maxWidth: 380 }}>
+      <Beniamino name="gimmick" size={132} title="" />
+      <h2 style={obTitle}>Bip! Benvenuto in Gimmick</h2>
+      <p style={obBody}>
         Io sono il tuo beniamino. In 30 secondi ti mostro come funziona l&apos;app.
       </p>
     </>
   );
 }
 
-function StepCapture({ theme }: { theme: ReturnType<typeof usePixelTheme> }) {
+function ObStepCapture() {
   return (
     <>
-      <h2
-        style={{
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 12,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: theme.ink,
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        Cattura idee in qualunque formato
-      </h2>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, width: '100%' }}>
-        {CAPTURES.map(({ icon: Icon, label, color }) => {
-          const bg = theme.cap[color];
-          return (
+      <p style={obEyebrow}>Passo 1</p>
+      <h2 style={obTitle}>Cattura idee in qualunque formato</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, width: '100%' }}>
+        {CAPTURES.map(({ icon: Icon, label, color }) => (
+          <div
+            key={label}
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: 8,
+              padding: 14,
+              background: 'var(--ob-surface-2)',
+              border: '1px solid var(--ob-line)',
+              borderRadius: 'var(--ob-radius-control)',
+            }}
+          >
             <div
-              key={label}
               style={{
-                display: 'flex',
-                flexDirection: 'column',
+                width: 38,
+                height: 38,
+                borderRadius: 'var(--ob-radius-icon)',
+                background: `var(--ob-type-${color})`,
+                display: 'inline-flex',
                 alignItems: 'center',
-                gap: 6,
-                padding: 12,
-                background: theme.surfaceVariant,
-                border: `2px solid ${theme.border}`,
+                justifyContent: 'center',
               }}
             >
-              <div
-                style={{
-                  width: 36, height: 36,
-                  background: bg,
-                  border: `2px solid ${theme.border}`,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Icon size={18} style={{ color: theme.onAccent }} />
-              </div>
-              <span
-                style={{
-                  fontFamily: 'var(--font-pixel-head)',
-                  fontSize: 9,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  color: theme.ink2,
-                }}
-              >
-                {label}
-              </span>
+              <Icon size={19} style={{ color: 'var(--ob-accent-ink)' }} />
             </div>
-          );
-        })}
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ob-muted)' }}>{label}</span>
+          </div>
+        ))}
       </div>
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, textAlign: 'center', margin: 0, lineHeight: 1.55 }}>
-        Foto, audio, testo, file. Tutto diventa uno <strong>Spark</strong>.
+      <p style={obBody}>
+        Foto, audio, testo, file. Tutto diventa uno <strong style={{ color: 'var(--ob-text)' }}>Spark</strong>.
       </p>
     </>
   );
 }
 
-function StepOrganize({ theme }: { theme: ReturnType<typeof usePixelTheme> }) {
+function ObStepOrganize() {
   return (
     <>
-      <h2
-        style={{
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 12,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: theme.ink,
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        Si organizzano da soli
-      </h2>
+      <p style={obEyebrow}>Passo 2</p>
+      <h2 style={obTitle}>Si organizzano da soli</h2>
       <div
         style={{
           display: 'flex',
-          gap: 12,
+          gap: 14,
           alignItems: 'center',
           width: '100%',
-          padding: 16,
-          background: theme.surfaceVariant,
-          border: `2px solid ${theme.border}`,
+          padding: 18,
+          textAlign: 'left',
+          background: 'var(--ob-surface-2)',
+          border: '1px solid var(--ob-line)',
+          borderRadius: 'var(--ob-radius-control)',
         }}
       >
         <div
           style={{
             flexShrink: 0,
-            width: 64, height: 64,
-            background: theme.cap.text,
-            border: `2px solid ${theme.border}`,
+            width: 60,
+            height: 60,
+            borderRadius: 'var(--ob-radius-icon)',
+            background: 'var(--ob-accent-soft)',
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          <IconBolt size={28} style={{ color: theme.onAccent }} />
+          <IconBolt size={28} style={{ color: 'var(--ob-accent-text)' }} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-pixel-head)', fontSize: 10, letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.ink, marginBottom: 4 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ob-text)', marginBottom: 4 }}>
             Tile = contenitore
           </div>
-          <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2, margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.5 }}>
             Ogni Spark vive dentro un Tile. Più Spark che parlano della stessa cosa formano una Tile, che puoi schedulare, taggare, condividere.
           </p>
         </div>
       </div>
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, textAlign: 'center', margin: 0, lineHeight: 1.55 }}>
-        L&apos;AI suggerisce titolo, tag e date. Tu cambi quello che vuoi.
-      </p>
+      <p style={obBody}>L&apos;AI suggerisce titolo, tag e date. Tu cambi quello che vuoi.</p>
     </>
   );
 }
 
-function StepFinish({ theme }: { theme: ReturnType<typeof usePixelTheme> }) {
+function ObStepFinish() {
   return (
     <>
       <div
         style={{
-          width: 96, height: 96,
-          background: theme.accent,
-          border: `2px solid ${theme.border}`,
+          width: 88,
+          height: 88,
+          borderRadius: 'var(--ob-radius-card)',
+          background: 'var(--ob-accent)',
           display: 'inline-flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        <IconLayoutGrid size={48} style={{ color: theme.onAccent }} />
+        <IconLayoutGrid size={42} style={{ color: 'var(--ob-accent-ink)' }} />
       </div>
-      <h2
-        style={{
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 14,
-          letterSpacing: '0.1em',
-          textTransform: 'uppercase',
-          color: theme.ink,
-          margin: 0,
-          textAlign: 'center',
-        }}
-      >
-        Tutto pronto
-      </h2>
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 13, color: theme.ink2, textAlign: 'center', margin: 0, lineHeight: 1.55, maxWidth: 380 }}>
-        Il tuo workspace è già impostato: tag <strong>GIMMICK</strong> come inbox e 5 status pronti. Personalizza tutto da <strong>Settings</strong>.
+      <h2 style={obTitle}>Tutto pronto</h2>
+      <p style={obBody}>
+        Il tuo workspace è già impostato: tag <strong style={{ color: 'var(--ob-text)' }}>GIMMICK</strong> come inbox e 5 status pronti. Personalizza tutto da <strong style={{ color: 'var(--ob-text)' }}>Settings</strong>.
       </p>
     </>
   );

@@ -30,7 +30,6 @@ async function main(): Promise<void> {
   let failed = 0;
   let lastId: string | null = null;
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     let query = supabaseAdmin
       .from('tiles')

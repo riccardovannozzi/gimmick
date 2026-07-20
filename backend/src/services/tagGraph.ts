@@ -10,7 +10,7 @@ export interface TagNode {
   is_root?: boolean;
 }
 
-export interface TagEdge {
+interface TagEdge {
   id: string;
   tag_from: string;
   tag_to: string;
@@ -23,31 +23,7 @@ export interface TagGraph {
   edges: TagEdge[];
 }
 
-// ---------- Helpers ----------
-
-/** Generate a URL-safe slug from a tag name */
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9\u00C0-\u024F-]/g, '') // keep accented chars
-    .replace(/-+/g, '-');
-}
-
 // ---------- Service ----------
-
-/**
- * Ensure a tag has a slug. Called on create/update if slug is missing.
- */
-export async function ensureTagSlug(tagId: string, name: string): Promise<void> {
-  const slug = slugify(name);
-  await supabaseAdmin
-    .from('tags')
-    .update({ slug })
-    .eq('id', tagId)
-    .is('slug', null);
-}
 
 /**
  * Update co-occurrence weights after tags change on a tile.

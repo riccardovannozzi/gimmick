@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;} .gm-s::-webkit-scrollbar{width:0;height:0;}</style>
+</helmet>
+
+<div style="position:relative; width:980px; height:1020px;">{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  S(b) { return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>'; }
+  get ICONS() { const S = (b) => this.S(b); return {
+    back: S('<path d="M9.5 3.5 5 8l4.5 4.5"/>'),
+    home: S('<path d="M2.6 7.6 8 3.2l5.4 4.4M4 6.6V13h8V6.6"/>'),
+    search: S('<circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4 13.5 13.5"/>'),
+    chevD: S('<path d="M4 6l4 4 4-4"/>'),
+    chevR: S('<path d="M6 4l4 4-4 4"/>'),
+    sort: S('<path d="M4 4v8M4 12l-2-2M4 12l2-2M11 12V4M11 4l-2 2M11 4l2 2"/>'),
+    audio: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+    text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+    photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+    video: S('<rect x="2.2" y="4.2" width="8.4" height="7.6" rx="1.6"/><path d="M10.6 6.6 13.8 5v6l-3.2-1.6z"/>'),
+    file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+    check: S('<path d="M3 8.6 6.4 12 13 4.6"/>'),
+    gear: S('<circle cx="8" cy="8" r="2.2"/><path d="M8 1.6v2M8 12.4v2M14.4 8h-2M3.6 8h-2M12.5 3.5l-1.4 1.4M4.9 11.1l-1.4 1.4M12.5 12.5l-1.4-1.4M4.9 4.9 3.5 3.5"/>'),
+    spark2: '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>'
+  }; }
+  glyph(name, size, color) { const px = (size || 16) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tok(dark) {
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const b = dark ? {
+      bezel: '#0c0c0d', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#1c1c1c', statusInk: '#dcdcdc',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#565656',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)',
+      cap: { audio: '#F08D89', text: '#82D7A6', photo: '#7AA7F5', video: '#EC8FAE', file: '#E7C25E' }
+    } : {
+      bezel: '#d9d7dd', canvas: '#f6f6f8', surface: '#ffffff', surface2: '#f1f0f4', head: '#fbfbfc', statusInk: '#1b1923',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)',
+      cap: { audio: '#E0544F', text: '#3FAE72', photo: '#4F86EE', video: '#E0588C', file: '#C99220' }
+    };
+    b.accent = acc.a; b.accentInk = acc.ink; b.accentSoft = acc.soft; b.dark = dark;
+    return b;
+  }
+
+  statusBar(T) {
+    const h = React.createElement; const c = T.statusInk;
+    return h('div', { style: { height: '34px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', position: 'relative' } },
+      h('span', { style: { fontSize: '13px', fontWeight: 600, color: c } }, '9:30'),
+      h('div', { style: { position: 'absolute', left: '50%', top: '9px', transform: 'translateX(-50%)', width: '9px', height: '9px', borderRadius: '50%', background: '#000' } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        h('span', { style: { width: '15px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5"/><rect x="9" y="3" width="3" height="9" rx="0.5"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.5" opacity="0.35"/></svg>' } }),
+        h('span', { style: { width: '22px', height: '11px', display: 'inline-flex', color: c }, dangerouslySetInnerHTML: { __html: '<svg viewBox="0 0 24 12" width="100%" height="100%" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="2.6" width="13" height="6.8" rx="1.2" fill="currentColor"/><rect x="21" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>' } }))
+    );
+  }
+  navPill(T) { return React.createElement('div', { style: { height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, React.createElement('div', { style: { width: '128px', height: '4px', borderRadius: '2px', background: T.dark ? 'rgba(255,255,255,0.4)' : 'rgba(24,20,38,0.32)' } })); }
+
+  topNav(T) {
+    const h = React.createElement;
+    const ib = (n) => h('div', { key: n, style: { width: '38px', height: '38px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.muted } }, this.glyph(n, 19));
+    return h('div', { style: { height: '54px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '6px', padding: '0 10px', borderBottom: '1px solid ' + T.line } },
+      ib('back'), ib('home'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', flex: 1, marginLeft: '4px' } },
+        h('span', { style: { width: '20px', height: '20px', color: T.accent }, dangerouslySetInnerHTML: { __html: this.ICONS.spark2 } }),
+        h('span', { style: { fontSize: '17px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Sparks'),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '12px', color: T.subtle } }, '14')),
+      ib('search'), ib('gear'));
+  }
+
+  preview(T, s) {
+    const h = React.createElement; const col = T.cap[s.type];
+    if (s.type === 'audio') return h('div', { style: { display: 'flex', alignItems: 'center', gap: '2px', height: '16px' } }, [6, 11, 8, 13, 9, 7, 12, 8].map((v, i) => h('div', { key: i, style: { width: '2px', height: v + 'px', borderRadius: '1px', background: col, opacity: 0.8 } })));
+    if (s.type === 'text') return h('span', { style: { fontSize: '11.5px', color: T.subtle, fontStyle: 'italic', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' } }, s.body || '');
+    if (s.dim) return h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, s.dim);
+    return null;
+  }
+  card(T, s, last) {
+    const h = React.createElement; const col = T.cap[s.type];
+    const map = { audio: 'Audio', text: 'Text', photo: 'Photo', video: 'Video', file: 'File' };
+    return h('div', { key: s.id, style: { display: 'flex', alignItems: 'center', gap: '12px', padding: '13px 4px', borderBottom: last ? 'none' : '1px solid ' + T.line } },
+      h('div', { style: { width: '42px', height: '42px', borderRadius: '12px', background: col + (T.dark ? '2e' : '1c'), display: 'flex', alignItems: 'center', justifyContent: 'center', color: col, flexShrink: 0 } }, this.glyph(s.type, 20)),
+      h('div', { style: { flex: 1, minWidth: 0 } },
+        h('div', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '13.5px', fontWeight: 500, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '4px' } }, s.name),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+          h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.04em', color: col } }, map[s.type].toUpperCase()),
+          h('span', { style: { width: '3px', height: '3px', borderRadius: '50%', background: T.faint } }),
+          h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, s.date),
+          this.preview(T, s) ? h('span', { style: { width: '3px', height: '3px', borderRadius: '50%', background: T.faint } }) : null,
+          this.preview(T, s))),
+      s.ai ? h('div', { style: { width: '22px', height: '22px', borderRadius: '7px', background: T.cap.text, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0 } }, this.glyph('check', 13, '#fff')) : h('div', { style: { width: '22px', height: '22px', borderRadius: '7px', border: '1.5px solid ' + T.line2, flexShrink: 0 } }),
+      this.glyph('chevR', 15, T.faint));
+  }
+  content(T) {
+    const h = React.createElement;
+    const sparks = [
+      { id: 1, name: 'audio_recording', type: 'audio', date: '26/06', ai: true },
+      { id: 2, name: 'p 16.12.25', type: 'text', date: '26/06', body: 'Promemoria pagamento', ai: true },
+      { id: 3, name: 'pagata 20.03.26', type: 'text', date: '26/06', body: 'Fattura saldata', ai: true },
+      { id: 4, name: 'Questo è marco guerrieri', type: 'text', date: '25/06', body: 'Contatto nuovo', ai: true },
+      { id: 5, name: 'photo', type: 'photo', date: '25/06', dim: '1,4 MB', ai: true },
+      { id: 6, name: 'audio_recording', type: 'audio', date: '25/06', ai: true },
+      { id: 7, name: 'preventivo_om.pdf', type: 'file', date: '25/06', dim: '240 KB', ai: false },
+      { id: 8, name: 'clip_demo', type: 'video', date: '24/06', dim: '8,2 MB', ai: false },
+      { id: 9, name: 'audio_recording', type: 'audio', date: '24/06', ai: true }
+    ];
+    const counts = {}; sparks.forEach((s) => counts[s.type] = (counts[s.type] || 0) + 1);
+    const chipDefs = [['all', 'Tutti', null, 14, true], ['audio', 'Audio', 'audio', counts.audio], ['text', 'Text', 'text', counts.text], ['photo', 'Photo', 'photo', counts.photo], ['video', 'Video', 'video', counts.video], ['file', 'File', 'file', counts.file]];
+    const chips = h('div', { className: 'gm-s', style: { display: 'flex', gap: '7px', padding: '12px 16px', overflowX: 'auto', flexShrink: 0 } },
+      chipDefs.map((c) => { const on = c[4]; const col = c[2] ? T.cap[c[2]] : T.accent; return h('div', { key: c[0], style: { display: 'flex', alignItems: 'center', gap: '6px', height: '32px', padding: '0 12px', borderRadius: '9px', flexShrink: 0, background: on ? (c[2] ? col + (T.dark ? '24' : '16') : T.accentSoft) : T.surface, border: '1px solid ' + (on ? (c[2] ? col + (T.dark ? '4d' : '40') : 'transparent') : T.line), fontSize: '12.5px', fontWeight: 600, color: on ? (c[2] ? (T.dark ? T.text : col) : T.accent) : T.muted } },
+        c[2] ? this.glyph(c[2], 13, on ? col : T.subtle) : this.glyph('spark2', 12, on ? T.accent : T.subtle), c[1],
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', opacity: 0.75 } }, c[3])); }));
+    const sortBar = h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px 8px', flexShrink: 0 } },
+      h('div', { style: { flex: 1 } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', fontWeight: 600, color: T.muted } }, this.glyph('sort', 13, T.subtle), 'Data', this.glyph('chevD', 11, T.subtle)));
+    const list = h('div', { className: 'gm-s', style: { flex: 1, overflowY: 'auto', padding: '0 16px 16px' } }, sparks.map((s, i) => this.card(T, s, i === sparks.length - 1)));
+    return h(React.Fragment, {}, chips, sortBar, list);
+  }
+
+  phone(T) {
+    const h = React.createElement;
+    return h('div', { style: { width: '380px', height: '812px', borderRadius: '40px', background: T.bezel, padding: '7px', boxShadow: '0 40px 90px -50px rgba(0,0,0,0.6)' } },
+      h('div', { style: { width: '100%', height: '100%', borderRadius: '34px', overflow: 'hidden', background: T.canvas, display: 'flex', flexDirection: 'column', fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased' } },
+        this.statusBar(T), this.topNav(T), this.content(T), this.navPill(T)));
+  }
+  label(text, x) { return React.createElement('div', { key: text, 'data-drags-parent': '1', style: { position: 'absolute', left: x + 'px', top: '20px', fontSize: '13px', fontWeight: 600, color: '#46434f' } }, text); }
+  view() {
+    const h = React.createElement;
+    return h(React.Fragment, {},
+      this.label('Sparks · Light', 0),
+      h('div', { style: { position: 'absolute', left: '0px', top: '64px', width: '380px' } }, this.phone(this.tok(false))),
+      this.label('Sparks · Dark', 480),
+      h('div', { style: { position: 'absolute', left: '480px', top: '64px', width: '380px' } }, this.phone(this.tok(true))));
+  }
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;} :root{font-family:'Geist',system-ui,sans-serif;}</style>
+</helmet>
+
+<div style="position:relative; width:1760px; height:1860px; font-family:'Geist',system-ui,sans-serif;">{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1760,&quot;height&quot;:1860}}">
+class Component extends DCLogic {
+  S(b){ return '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">'+b+'</svg>'; }
+  get ICONS(){
+    const S=(b)=>this.S(b);
+    return {
+      close:S('<path d="M4 4l8 8M12 4l-8 8"/>'),
+      chevR:S('<path d="M6 4l4 4-4 4"/>'),
+      chevD:S('<path d="M4 6l4 4 4-4"/>'),
+      check:S('<path d="M3 8.6 6.4 12 13 4.6"/>'),
+      plus:S('<path d="M8 3v10M3 8h10"/>'),
+      flash:S('<path d="M9 1.6 3.6 9h3.2l-.8 5.4L12 6.8H8.6z"/>'),
+      flip:S('<path d="M3.4 6.2A5 5 0 0 1 12.6 5M12.6 9.8A5 5 0 0 1 3.4 11"/><path d="M12.6 2.2v2.8h-2.8M3.4 13.8V11h2.8"/>'),
+      grid3:S('<rect x="2.4" y="2.4" width="11.2" height="11.2" rx="1"/><path d="M2.4 6.2h11.2M2.4 9.8h11.2M6.2 2.4v11.2M9.8 2.4v11.2"/>'),
+      mountain:S('<rect x="2.2" y="2.6" width="11.6" height="10.8" rx="1.6"/><circle cx="5.6" cy="6" r="1.1"/><path d="M2.6 11.4 6 8l2.4 2 2.2-2.6 2.8 3.4"/>'),
+      voice:S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      flag:S('<path d="M4 14V2.4M4 3h7l-1.4 2.2L11 7.4H4"/>'),
+      pause:S('<rect x="5" y="3.4" width="2" height="9.2" rx="0.7" fill="currentColor" stroke="none"/><rect x="9" y="3.4" width="2" height="9.2" rx="0.7" fill="currentColor" stroke="none"/>'),
+      bold:S('<path d="M4.6 2.6h4a2.6 2.6 0 0 1 0 5.2H4.6zM4.6 7.8h4.6a2.7 2.7 0 0 1 0 5.4H4.6z"/>'),
+      italic:S('<path d="M6.6 2.6h5M4.4 13.4h5M9.4 2.6 6.6 13.4"/>'),
+      list:S('<path d="M5.6 4.2h7.8M5.6 8h7.8M5.6 11.8h7.8"/><circle cx="2.8" cy="4.2" r="0.8" fill="currentColor" stroke="none"/><circle cx="2.8" cy="8" r="0.8" fill="currentColor" stroke="none"/><circle cx="2.8" cy="11.8" r="0.8" fill="currentColor" stroke="none"/>'),
+      checksq:S('<rect x="2.4" y="2.4" width="11.2" height="11.2" rx="2.4"/><path d="M5.4 8 7.2 9.8 10.8 6"/>'),
+      doc:S('<path d="M4 2.6h5l3 3V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M8.8 2.6v3h3"/>'),
+      send:S('<path d="M13.6 2.4 7.8 13.4l-1.4-4.4-4.4-1.4z"/><path d="M13.6 2.4 6.4 9"/>'),
+      tag:S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      todo:S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+      note:S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      due:S('<circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.4M8 10.7h.01"/>'),
+      allday:S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      timed:S('<circle cx="8" cy="8.4" r="5.4"/><path d="M8 5.4v3l2 1.4"/>'),
+      spark:'<svg viewBox="0 0 16 16" width="100%" height="100%" fill="currentColor"><path d="M8 1.6 9.05 6.05 13.5 7.1 9.05 8.15 8 12.6 6.95 8.15 2.5 7.1 6.95 6.05Z"/></svg>'
+    };
+  }
+  glyph(name,size,color){ const px=(size||16)+'px'; return React.createElement('span',{style:{width:px,height:px,display:'inline-flex',flexShrink:0,color:color||'inherit'},dangerouslySetInnerHTML:{__html:this.ICONS[name]}}); }
+
+  tok(dark){
+    const acc = dark ? {a:'#AB9FF2',ink:'#1b0d2e',soft:'#2e2747'} : {a:'#7C5CCB',ink:'#fff',soft:'#efeafb'};
+    const b = dark ? {
+      bezel:'#0c0c0d', canvas:'#161616', surface:'#1e1e1e', surface2:'#262626', field:'#1d1d1d',
+      text:'#dcdcdc', muted:'#9a9a9a', subtle:'#6e6e6e', faint:'#565656', statusInk:'#dcdcdc',
+      line:'rgba(255,255,255,0.08)', line2:'rgba(255,255,255,0.13)',
+      cap:{photo:'#7AA7F5',video:'#F08DB4',gallery:'#B0A2EE',text:'#74D6A2',voice:'#F38682',file:'#E7C25E'}
+    } : {
+      bezel:'#d9d7dd', canvas:'#f6f6f8', surface:'#ffffff', surface2:'#f1f0f4', field:'#ffffff',
+      text:'#1b1923', muted:'#5c5868', subtle:'#9a96a4', faint:'#c4c1cd', statusInk:'#1b1923',
+      line:'rgba(24,20,38,0.08)', line2:'rgba(24,20,38,0.13)',
+      cap:{photo:'#4F86EE',video:'#E0588C',gallery:'#8C7BE0',text:'#3FAE72',voice:'#E0544F',file:'#C99220'}
+    };
+    b.accent=acc.a; b.accentInk=acc.ink; b.accentSoft=acc.soft; b.dark=dark;
+    return b;
+  }
+
+  statusBar(T){
+    const h=React.createElement; const c=T.statusInk;
+    return h('div',{style:{height:'34px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 18px 0 20px',position:'relative',zIndex:5}},
+      h('span',{style:{fontSize:'13px',fontWeight:600,color:c}},'9:30'),
+      h('div',{style:{display:'flex',alignItems:'center',gap:'6px'}},
+        h('span',{style:{width:'15px',height:'11px',display:'inline-flex',color:c},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="0.5"/><rect x="4.5" y="5.5" width="3" height="6.5" rx="0.5"/><rect x="9" y="3" width="3" height="9" rx="0.5"/><rect x="13.5" y="0.5" width="3" height="11.5" rx="0.5" opacity="0.4"/></svg>'}}),
+        h('span',{style:{width:'15px',height:'11px',display:'inline-flex',color:c},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 16 12" width="100%" height="100%" fill="currentColor"><path d="M8 11.2 0.7 4.5a10.4 10.4 0 0 1 14.6 0L8 11.2Z"/></svg>'}}),
+        h('span',{style:{width:'22px',height:'11px',display:'inline-flex',color:c},dangerouslySetInnerHTML:{__html:'<svg viewBox="0 0 24 12" width="100%" height="100%" fill="none"><rect x="1" y="1" width="19" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2"/><rect x="2.6" y="2.6" width="13" height="6.8" rx="1.2" fill="currentColor"/><rect x="21" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>'}}))
+    );
+  }
+  navPill(T,light){
+    return React.createElement('div',{style:{height:'24px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}},
+      React.createElement('div',{style:{width:'128px',height:'4px',borderRadius:'2px',background:(light||T.dark)?'rgba(255,255,255,0.5)':'rgba(24,20,38,0.32)'}}));
+  }
+
+  phone(label,node,bg,darkBar){
+    const h=React.createElement;
+    return h('div',{style:{width:'380px',height:'812px',borderRadius:'42px',background:'#0c0c0d',padding:'8px',boxShadow:'0 40px 80px -40px rgba(20,16,40,0.55)'}},
+      h('div',{style:{width:'100%',height:'100%',borderRadius:'34px',overflow:'hidden',background:bg,display:'flex',flexDirection:'column',position:'relative'}}, node));
+  }
+  frame(x,y,label,node){
+    const h=React.createElement;
+    return h('div',{key:label,style:{position:'absolute',left:x+'px',top:y+'px',width:'380px'}},
+      h('div',{'data-drags-parent':'1',style:{fontSize:'12px',fontWeight:600,letterSpacing:'0.04em',color:'#6e6a78',margin:'0 0 12px 6px',textTransform:'uppercase'}},label),
+      node);
+  }
+
+  // ---- shared bits ----
+  topBar(T,left,title,right){
+    const h=React.createElement;
+    return h('div',{style:{height:'52px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px'}},
+      h('div',{style:{minWidth:'62px',display:'flex',justifyContent:'flex-start'}},left),
+      h('span',{style:{fontSize:'16px',fontWeight:600,color:T.text}},title),
+      h('div',{style:{minWidth:'62px',display:'flex',justifyContent:'flex-end'}},right));
+  }
+  textBtn(T,label,accent){ return React.createElement('span',{style:{fontSize:'15px',fontWeight:accent?600:500,color:accent?T.accent:T.muted}},label); }
+  iconBtn(T,name,col){ return React.createElement('div',{style:{width:'34px',height:'34px',borderRadius:'50%',display:'flex',alignItems:'center',justifyContent:'center',color:col||T.muted}},this.glyph(name,18)); }
+
+  // ---- 1. CAMERA (photo) ----
+  cameraView(){
+    const h=React.createElement; const T=this.tok(true); const camT={...T,statusInk:'#fff'};
+    const corner=(pos)=>{ const s={position:'absolute',width:'26px',height:'26px',borderColor:'rgba(255,255,255,0.85)',borderStyle:'solid',borderWidth:'0'}; const m=22;
+      if(pos==='tl'){s.top=m+'px';s.left=m+'px';s.borderTopWidth='2.5px';s.borderLeftWidth='2.5px';s.borderTopLeftRadius='6px';}
+      if(pos==='tr'){s.top=m+'px';s.right=m+'px';s.borderTopWidth='2.5px';s.borderRightWidth='2.5px';s.borderTopRightRadius='6px';}
+      if(pos==='bl'){s.bottom=m+'px';s.left=m+'px';s.borderBottomWidth='2.5px';s.borderLeftWidth='2.5px';s.borderBottomLeftRadius='6px';}
+      if(pos==='br'){s.bottom=m+'px';s.right=m+'px';s.borderBottomWidth='2.5px';s.borderRightWidth='2.5px';s.borderBottomRightRadius='6px';}
+      return h('div',{key:pos,style:s}); };
+    const modeStrip=(active)=>h('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'26px',marginBottom:'18px'}},
+      ['Voce','Foto','Video'].map(m=>h('span',{key:m,style:{fontSize:'13px',fontWeight:m===active?700:500,letterSpacing:'0.04em',color:m===active?'#FACC4A':'rgba(255,255,255,0.6)',textTransform:'uppercase'}},m)));
+    const viewfinder=h('div',{style:{flex:1,position:'relative',background:'radial-gradient(125% 90% at 50% 32%, #34373d 0%, #1c1d20 62%, #0b0c0d 100%)',display:'flex',flexDirection:'column'}},
+      // top translucent controls
+      h('div',{style:{position:'absolute',top:0,left:0,right:0,height:'52px',display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 18px',zIndex:4}},
+        h('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:'rgba(0,0,0,0.35)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.glyph('close',18)),
+        h('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:'rgba(0,0,0,0.35)',display:'flex',alignItems:'center',justifyContent:'center',color:'#FACC4A'}},this.glyph('flash',17))),
+      corner('tl'),corner('tr'),corner('bl'),corner('br'),
+      // subject hint
+      h('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}},
+        h('div',{style:{width:'120px',height:'120px',borderRadius:'30px',background:'rgba(255,255,255,0.05)',border:'1px dashed rgba(255,255,255,0.18)'}})),
+      // bottom controls
+      h('div',{style:{position:'absolute',left:0,right:0,bottom:0,paddingBottom:'16px',background:'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))'}},
+        modeStrip('Foto'),
+        h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 30px'}},
+          h('div',{style:{width:'46px',height:'46px',borderRadius:'11px',background:'linear-gradient(135deg,#6f7bd6,#9d6fd6)',border:'2px solid rgba(255,255,255,0.5)'}}),
+          h('div',{style:{width:'74px',height:'74px',borderRadius:'50%',border:'4px solid #fff',display:'flex',alignItems:'center',justifyContent:'center'}},
+            h('div',{style:{width:'58px',height:'58px',borderRadius:'50%',background:'#fff'}})),
+          h('div',{style:{width:'46px',height:'46px',borderRadius:'50%',background:'rgba(255,255,255,0.14)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.glyph('flip',20)))));
+    return this.phone('Foto · fotocamera',h(React.Fragment,null,this.statusBar(camT),viewfinder,this.navPill(T,true)),'#0b0c0d');
+  }
+
+  // ---- 2. VIDEO ----
+  videoView(){
+    const h=React.createElement; const T=this.tok(true); const camT={...T,statusInk:'#fff'};
+    const modeStrip=h('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'26px',marginBottom:'18px'}},
+      ['Voce','Foto','Video'].map(m=>h('span',{key:m,style:{fontSize:'13px',fontWeight:m==='Video'?700:500,letterSpacing:'0.04em',color:m==='Video'?'#F0746E':'rgba(255,255,255,0.6)',textTransform:'uppercase'}},m)));
+    const viewfinder=h('div',{style:{flex:1,position:'relative',background:'radial-gradient(125% 90% at 50% 38%, #3a2e30 0%, #201a1b 62%, #0c0a0a 100%)',display:'flex',flexDirection:'column'}},
+      h('div',{style:{position:'absolute',top:'14px',left:0,right:0,display:'flex',justifyContent:'center',zIndex:4}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:'8px',background:'rgba(0,0,0,0.5)',borderRadius:'20px',padding:'6px 14px 6px 11px'}},
+          h('div',{style:{width:'10px',height:'10px',borderRadius:'50%',background:'#F0463E'}}),
+          h('span',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'14px',fontWeight:600,color:'#fff',letterSpacing:'0.04em'}},'00:12'))),
+      h('div',{style:{position:'absolute',top:0,right:'18px',height:'52px',display:'flex',alignItems:'center',zIndex:4}},
+        h('div',{style:{width:'38px',height:'38px',borderRadius:'50%',background:'rgba(0,0,0,0.35)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.glyph('close',18))),
+      h('div',{style:{position:'absolute',left:0,right:0,bottom:0,paddingBottom:'16px',background:'linear-gradient(to top, rgba(0,0,0,0.55), rgba(0,0,0,0))'}},
+        modeStrip,
+        h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 30px'}},
+          h('div',{style:{width:'46px',height:'46px',borderRadius:'11px',background:'linear-gradient(135deg,#d66f93,#d66f6f)',border:'2px solid rgba(255,255,255,0.5)'}}),
+          h('div',{style:{width:'74px',height:'74px',borderRadius:'50%',border:'4px solid #fff',display:'flex',alignItems:'center',justifyContent:'center'}},
+            h('div',{style:{width:'30px',height:'30px',borderRadius:'8px',background:'#F0463E'}})),
+          h('div',{style:{width:'46px',height:'46px',borderRadius:'50%',background:'rgba(255,255,255,0.14)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},this.glyph('flip',20)))));
+    return this.phone('Video · registrazione',h(React.Fragment,null,this.statusBar(camT),viewfinder,this.navPill(T,true)),'#0c0a0a');
+  }
+
+  // ---- 3. VOICE ----
+  voiceView(){
+    const h=React.createElement; const T=this.tok(false); const red=T.cap.voice;
+    const bars=[]; const seed=[5,9,16,24,32,22,14,28,38,30,18,10,22,34,40,32,20,12,8,16,26,36,28,18,10,6,14,24,30,20,12,8,18,28,22,14,9,16,22,14,8];
+    for(let i=0;i<seed.length;i++){ const active=i<26; bars.push(h('div',{key:i,style:{width:'4px',height:seed[i]+'px',borderRadius:'2px',background:active?red:T.faint,flexShrink:0}})); }
+    const body=h('div',{style:{flex:1,display:'flex',flexDirection:'column',padding:'8px 22px 0'}},
+      h('div',{style:{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:'30px'}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:'8px',color:red}},
+          h('div',{style:{width:'9px',height:'9px',borderRadius:'50%',background:red}}),
+          h('span',{style:{fontSize:'13px',fontWeight:600,letterSpacing:'0.04em',textTransform:'uppercase'}},'Registrazione')),
+        h('div',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'52px',fontWeight:600,color:T.text,letterSpacing:'-0.01em'}},'00:14'),
+        h('div',{style:{display:'flex',alignItems:'center',gap:'4px',height:'48px',width:'100%',justifyContent:'center'}},bars)),
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 20px 30px'}},
+        h('div',{style:{width:'54px',height:'54px',borderRadius:'50%',background:T.surface2,border:'1px solid '+T.line,display:'flex',alignItems:'center',justifyContent:'center',color:T.muted}},this.glyph('flag',20)),
+        h('div',{style:{width:'80px',height:'80px',borderRadius:'50%',background:red,boxShadow:'0 14px 30px -10px '+red,display:'flex',alignItems:'center',justifyContent:'center'}},
+          h('div',{style:{width:'26px',height:'26px',borderRadius:'7px',background:'#fff'}})),
+        h('div',{style:{width:'54px',height:'54px',borderRadius:'50%',background:T.surface2,border:'1px solid '+T.line,display:'flex',alignItems:'center',justifyContent:'center',color:T.text}},this.glyph('pause',20))));
+    const top=this.topBar(T,this.iconBtn(T,'close'),'Memo vocale',this.textBtn(T,'Salva',true));
+    return this.phone('Voice · registratore',h(React.Fragment,null,this.statusBar(T),top,body,this.navPill(T)),T.canvas);
+  }
+
+  // ---- 4. TEXT ----
+  textView(){
+    const h=React.createElement; const T=this.tok(false);
+    const top=this.topBar(T,this.textBtn(T,'Annulla'),'Nota',this.textBtn(T,'Salva',true));
+    const body=h('div',{style:{flex:1,display:'flex',flexDirection:'column',padding:'8px 20px 0',overflow:'hidden'}},
+      h('input',{readOnly:true,value:'Preventivo bagno · Marco',style:{border:'none',outline:'none',background:'transparent',fontSize:'21px',fontWeight:700,color:T.text,letterSpacing:'-0.01em',padding:'6px 0',fontFamily:'inherit'}}),
+      h('div',{style:{fontSize:'12px',color:T.subtle,marginBottom:'14px'}},'Oggi · 9:30'),
+      h('div',{style:{fontSize:'15.5px',lineHeight:1.55,color:T.text}},
+        'Chiamare Marco per il preventivo del rifacimento bagno. Mandargli le misure prese ieri (1,80 × 2,40) e le foto delle piastrelle.',
+        h('span',{style:{display:'inline-block',width:'2px',height:'18px',background:T.accent,marginLeft:'2px',verticalAlign:'-3px'}})),
+      h('div',{style:{flex:1}}));
+    const toolbar=h('div',{style:{flexShrink:0,borderTop:'1px solid '+T.line,background:T.surface,display:'flex',alignItems:'center',gap:'4px',padding:'10px 14px'}},
+      ['bold','italic','list','checksq','tag'].map(ic=>h('div',{key:ic,style:{width:'40px',height:'38px',borderRadius:'9px',display:'flex',alignItems:'center',justifyContent:'center',color:T.muted}},this.glyph(ic,18))),
+      h('div',{style:{flex:1}}),
+      h('div',{style:{width:'40px',height:'38px',borderRadius:'9px',background:T.accentSoft,display:'flex',alignItems:'center',justifyContent:'center',color:T.accent}},this.glyph('plus',18)));
+    return this.phone('Text · editor nota',h(React.Fragment,null,this.statusBar(T),top,body,toolbar,this.navPill(T)),T.canvas);
+  }
+
+  // ---- 5. GALLERY ----
+  galleryView(){
+    const h=React.createElement; const T=this.tok(false);
+    const grads=['linear-gradient(135deg,#8fb3f0,#6f8fd6)','linear-gradient(135deg,#f0b38f,#d68f6f)','linear-gradient(135deg,#a9e0bd,#6fbf95)','linear-gradient(135deg,#e0a9d2,#bf6fae)','linear-gradient(135deg,#f0dd8f,#d6b86f)','linear-gradient(135deg,#9fd9e0,#6fbcc8)','linear-gradient(135deg,#b9aef0,#8f6fd6)','linear-gradient(135deg,#f09f9f,#d66f6f)','linear-gradient(135deg,#aebdf0,#6f86d6)'];
+    const sel={0:1,4:2};
+    const tiles=grads.map((g,i)=>{ const n=sel[i];
+      return h('div',{key:i,style:{position:'relative',aspectRatio:'1',borderRadius:'10px',background:g,overflow:'hidden',outline:n?'3px solid '+T.accent:'none',outlineOffset:'-3px'}},
+        h('div',{style:{position:'absolute',top:'7px',right:'7px',width:'20px',height:'20px',borderRadius:'50%',background:n?T.accent:'rgba(0,0,0,0.25)',border:n?'none':'1.5px solid rgba(255,255,255,0.85)',display:'flex',alignItems:'center',justifyContent:'center',color:'#fff',fontSize:'11px',fontWeight:700}},n?String(n):'')); });
+    const top=this.topBar(T,this.textBtn(T,'Annulla'),'Galleria',h('div',{style:{display:'flex',alignItems:'center',gap:'5px',color:T.muted,fontSize:'14px',fontWeight:500}},'Recenti',this.glyph('chevD',13)));
+    const grid=h('div',{style:{flex:1,overflow:'hidden',padding:'4px 16px 0'}},
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:'6px'}},tiles));
+    const bottom=h('div',{style:{flexShrink:0,padding:'12px 18px 16px',borderTop:'1px solid '+T.line}},
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'9px',background:T.accent,color:T.accentInk,borderRadius:'13px',padding:'14px',boxShadow:'0 12px 26px -14px '+T.accent}},
+        this.glyph('plus',17,T.accentInk),h('span',{style:{fontSize:'15px',fontWeight:600}},'Aggiungi'),
+        h('span',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'12px',fontWeight:700,background:'rgba(255,255,255,0.24)',borderRadius:'7px',padding:'2px 8px'}},'2')));
+    return this.phone('Gallery · selezione',h(React.Fragment,null,this.statusBar(T),top,grid,bottom,this.navPill(T)),T.canvas);
+  }
+
+  // ---- 6. FILE ----
+  fileView(){
+    const h=React.createElement; const T=this.tok(false);
+    const files=[['Preventivo_bagno.pdf','PDF · 248 KB · oggi',T.cap.voice,true],['Misure_stanza.xlsx','XLSX · 36 KB · oggi',T.cap.text,false],['Piastrelle_ref.jpg','JPG · 1,2 MB · ieri',T.cap.photo,false],['Contratto_2026.docx','DOCX · 89 KB · 24 giu',T.cap.gallery,false],['Note_vocali.m4a','M4A · 3,4 MB · 24 giu',T.cap.file,false]];
+    const seg=h('div',{style:{flexShrink:0,display:'flex',gap:'4px',padding:'4px',margin:'4px 16px 8px',background:T.surface2,borderRadius:'11px'}},
+      ['Recenti','Sfoglia'].map((s,i)=>h('div',{key:s,style:{flex:1,textAlign:'center',padding:'8px',borderRadius:'8px',fontSize:'13.5px',fontWeight:i===0?600:500,color:i===0?T.text:T.muted,background:i===0?T.surface:'transparent',boxShadow:i===0?'0 1px 2px rgba(0,0,0,0.06)':'none'}},s)));
+    const rows=files.map((f,i)=>h('div',{key:i,style:{display:'flex',alignItems:'center',gap:'13px',padding:'12px 0',borderBottom:i<files.length-1?'1px solid '+T.line:'none'}},
+      h('div',{style:{width:'40px',height:'40px',borderRadius:'10px',background:f[2]+(T.dark?'2e':'1c'),display:'flex',alignItems:'center',justifyContent:'center',color:f[2],flexShrink:0}},this.glyph('doc',20)),
+      h('div',{style:{flex:1,minWidth:0}},h('div',{style:{fontSize:'14.5px',fontWeight:600,color:T.text,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},f[0]),h('div',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'11px',color:T.subtle,marginTop:'2px'}},f[1])),
+      h('div',{style:{width:'22px',height:'22px',borderRadius:'50%',background:f[3]?T.accent:'transparent',border:f[3]?'none':'1.5px solid '+T.line2,display:'flex',alignItems:'center',justifyContent:'center',color:'#fff'}},f[3]?this.glyph('check',13):null)));
+    const top=this.topBar(T,this.textBtn(T,'Annulla'),'File',null);
+    const list=h('div',{style:{flex:1,overflow:'hidden',padding:'0 18px'}},rows);
+    const bottom=h('div',{style:{flexShrink:0,padding:'12px 18px 16px',borderTop:'1px solid '+T.line}},
+      h('div',{style:{display:'flex',alignItems:'center',justifyContent:'center',gap:'9px',background:T.accent,color:T.accentInk,borderRadius:'13px',padding:'14px',boxShadow:'0 12px 26px -14px '+T.accent}},
+        h('span',{style:{fontSize:'15px',fontWeight:600}},'Allega'),
+        h('span',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'12px',fontWeight:700,background:'rgba(255,255,255,0.24)',borderRadius:'7px',padding:'2px 8px'}},'1')));
+    return this.phone('File · documenti',h(React.Fragment,null,this.statusBar(T),top,seg,list,bottom,this.navPill(T)),T.canvas);
+  }
+
+  // ---- mascot (soft) ----
+  mascot(col,size){
+    const h=React.createElement; const s=size||34;
+    return h('div',{style:{position:'relative',width:s+'px',height:s+'px',flexShrink:0}},
+      h('div',{style:{position:'absolute',left:'50%',top:'-3px',width:'2px',height:'6px',background:col,transform:'translateX(-50%)',borderRadius:'1px'}}),
+      h('div',{style:{position:'absolute',left:'50%',top:'-5px',width:'5px',height:'5px',borderRadius:'50%',background:col,transform:'translateX(-50%)'}}),
+      h('div',{style:{width:'100%',height:'100%',borderRadius:'34%',background:col,display:'flex',alignItems:'center',justifyContent:'center',gap:s*0.16+'px'}},
+        h('div',{style:{width:s*0.14+'px',height:s*0.14+'px',borderRadius:'50%',background:'rgba(0,0,0,0.55)'}}),
+        h('div',{style:{width:s*0.14+'px',height:s*0.14+'px',borderRadius:'50%',background:'rgba(0,0,0,0.55)'}})));
+  }
+
+  // ---- 7. SAVE SHEET ----
+  saveView(dark){
+    const h=React.createElement; const T=this.tok(dark); const col=T.cap.voice;
+    const eb=(t)=>h('div',{style:{fontSize:'10px',fontWeight:700,letterSpacing:'0.13em',color:T.subtle,margin:'0 0 9px'}},t);
+    const segItem=(icon,label,on,c)=>h('div',{key:label,style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'7px',padding:'11px',borderRadius:'10px',fontSize:'14px',fontWeight:on?600:500,color:on?T.accentInk:T.text,background:on?T.accent:T.surface2,border:'1px solid '+(on?'transparent':T.line2)}},this.glyph(icon,15,on?T.accentInk:T.muted),label);
+    const chip=(icon,label,on)=>h('div',{key:label,style:{flex:1,display:'flex',alignItems:'center',justifyContent:'center',gap:'6px',padding:'9px',borderRadius:'9px',fontSize:'12.5px',fontWeight:on?600:500,color:on?T.accent:T.muted,background:on?T.accentSoft:T.surface2,border:'1px solid '+(on?'transparent':T.line)}},this.glyph(icon,13,on?T.accent:T.subtle),label);
+    const top=this.topBar(T,this.textBtn(T,'Annulla'),'Nuovo spark',this.iconBtn(T,'close',T.muted));
+    const preview=h('div',{style:{display:'flex',alignItems:'center',gap:'13px',background:T.surface2,border:'1px solid '+T.line,borderRadius:'14px',padding:'12px'}},
+      h('div',{style:{width:'52px',height:'52px',borderRadius:'12px',background:col+(T.dark?'2e':'1c'),display:'flex',alignItems:'center',justifyContent:'center',color:col,flexShrink:0}},this.glyph('voice',24)),
+      h('div',{style:{flex:1,minWidth:0}},
+        h('div',{style:{fontSize:'15px',fontWeight:600,color:T.text}},'Memo · preventivo bagno'),
+        h('div',{style:{display:'flex',alignItems:'center',gap:'8px',marginTop:'4px'}},
+          h('span',{style:{fontSize:'10px',fontWeight:700,letterSpacing:'0.06em',color:col,background:col+(T.dark?'2e':'1c'),borderRadius:'5px',padding:'2px 7px'}},'VOICE'),
+          h('span',{style:{fontFamily:"'Geist Mono',monospace",fontSize:'11px',color:T.subtle}},'00:14'))));
+    const tagRow=h('div',{style:{display:'flex',alignItems:'center',justifyContent:'space-between',background:T.surface2,border:'1px solid '+T.line2,borderRadius:'11px',padding:'12px 14px'}},
+      h('span',{style:{fontSize:'14px',color:T.subtle}},'Seleziona tag…'),this.glyph('chevD',15,T.faint));
+    const suggestion=h('div',{style:{display:'flex',alignItems:'center',gap:'11px',background:T.accentSoft,border:'1px solid '+(T.dark?'rgba(171,159,242,0.22)':'rgba(124,92,203,0.18)'),borderRadius:'13px',padding:'12px 13px'}},
+      this.mascot(T.cap.gallery,32),
+      h('div',{style:{flex:1,minWidth:0}},
+        h('div',{style:{fontSize:'12.5px',fontWeight:600,color:T.dark?'#cbbef5':'#5b3aa8'}},'Pixel suggerisce'),
+        h('div',{style:{display:'flex',gap:'6px',marginTop:'6px'}},
+          h('span',{style:{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'11px',fontWeight:600,color:T.accent,background:T.surface,borderRadius:'6px',padding:'3px 8px'}},this.glyph('tag',11,T.accent),'Casa'),
+          h('span',{style:{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'11px',fontWeight:600,color:T.accent,background:T.surface,borderRadius:'6px',padding:'3px 8px'}},this.glyph('todo',11,T.accent),'To-do'))));
+    const body=h('div',{style:{flex:1,display:'flex',flexDirection:'column',gap:'18px',padding:'14px 18px 0',overflow:'hidden'}},
+      preview,
+      h('div',null,eb('AZIONE'),h('div',{style:{display:'flex',gap:'8px'}},segItem('note','Nota',true),segItem('todo','To-do',false))),
+      h('div',null,eb('QUANDO'),h('div',{style:{display:'flex',gap:'8px'}},chip('due','Scadenza',false),chip('allday','Giornata',false),chip('timed','A orario',false))),
+      h('div',null,eb('TAG'),tagRow),
+      suggestion);
+    const bottom=h('div',{style:{flexShrink:0,display:'flex',gap:'10px',padding:'14px 18px 16px',borderTop:'1px solid '+T.line}},
+      h('div',{style:{flex:1,textAlign:'center',padding:'14px',borderRadius:'13px',fontSize:'15px',fontWeight:600,color:T.text,background:T.surface2,border:'1px solid '+T.line2}},'Salva'),
+      h('div',{style:{flex:1.4,display:'flex',alignItems:'center',justifyContent:'center',gap:'8px',padding:'14px',borderRadius:'13px',fontSize:'15px',fontWeight:600,color:T.accentInk,background:T.accent,boxShadow:'0 12px 26px -14px '+T.accent}},this.glyph('send',16,T.accentInk),'Invia a Gimmick'));
+    return this.phone('Salva spark · '+(dark?'Dark':'Light'),h(React.Fragment,null,this.statusBar(T),top,body,bottom,this.navPill(T)),T.canvas);
+  }
+
+  renderVals(){
+    const fr=this.frame.bind(this);
+    const r1=46, r2=946;
+    const view=React.createElement(React.Fragment,null,
+      fr(0,r1,'1 · Foto',this.cameraView()),
+      fr(430,r1,'2 · Video',this.videoView()),
+      fr(860,r1,'3 · Voice',this.voiceView()),
+      fr(1290,r1,'4 · Text',this.textView()),
+      fr(0,r2,'5 · Gallery',this.galleryView()),
+      fr(430,r2,'6 · File',this.fileView()),
+      fr(860,r2,'7 · Salva (Light)',this.saveView(false)),
+      fr(1290,r2,'8 · Salva (Dark)',this.saveView(true)));
+    return { view };
+  }
+}
+</script>
+</body>
+</html>

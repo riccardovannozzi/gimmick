@@ -4,11 +4,10 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
-import { Header } from '@/components/layout/header';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
 import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { pixelToolbarBtn, pixelSegmentedBtn, pixelSegmentedContainer } from '@/lib/pixel-toolbar';
+import { obsidianToolbarBtn, obsidianSegmentedBtn, obsidianSegmentedContainer } from '@/lib/pixel-toolbar';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
@@ -93,6 +92,8 @@ interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
 
 export default function GraphPage() {
   const theme = usePixelTheme();
+  // Migrazione Obsidian (Fase 9): nello shell la pagina vive nel ViewContainer
+  // → niente <Header/> di pagina e root che cresce. Restyle token D3 rimandato.
   const svgRef = useRef<SVGSVGElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
@@ -1241,7 +1242,12 @@ export default function GraphPage() {
   const isEmpty = (!graphData || (graphData.tiles.length === 0 && graphData.sparks.length === 0))
     && (!tagGraph || (tagGraph.nodes as TagNode[]).length === 0);
 
-  const pillBtn = (active: boolean): React.CSSProperties => pixelToolbarBtn(theme, active);
+  // Strutturali per il restyle nativo Obsidian (colori già dal theme in shell).
+  const bW = 1;
+  const headFont = 'var(--ob-font-mono)';
+  const bodyFont = 'var(--ob-font-sans)';
+  const pillBtn = (active: boolean): React.CSSProperties =>
+    obsidianToolbarBtn(theme, active);
   const popupContainer: React.CSSProperties = {
     position: 'absolute',
     top: '100%',
@@ -1249,16 +1255,12 @@ export default function GraphPage() {
     marginTop: 4,
     zIndex: 50,
     background: theme.surface,
-    border: `2px solid ${theme.border}`,
-    boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+    border: `${bW}px solid ${theme.border}`,
+    borderRadius: 12,
+    boxShadow: 'var(--ob-shadow-card)',
     padding: 4,
   };
   const popupItem = (active: boolean): React.CSSProperties => {
-    // Stesso swap ink/surface per mode di pixel-toolbar.ts: in dark mode
-    // theme.ink è brillante (white/yellow/pink) → invertiamo per avere
-    // sempre bg scuro + testo chiaro sull'item selezionato.
-    const darkSlot = theme.mode === 'dark' ? theme.surface : theme.ink;
-    const lightSlot = theme.mode === 'dark' ? theme.ink : theme.surface;
     return {
       display: 'flex',
       alignItems: 'center',
@@ -1266,26 +1268,26 @@ export default function GraphPage() {
       width: '100%',
       padding: '6px 8px',
       textAlign: 'left',
-      background: active ? darkSlot : 'transparent',
-      border: `2px solid ${active ? theme.border : 'transparent'}`,
-      color: active ? lightSlot : theme.ink2,
+      borderRadius: 6,
+      background: active ? theme.surfaceVariant : 'transparent',
+      border: `${bW}px solid transparent`,
+      color: active ? theme.ink : theme.ink2,
       fontWeight: active ? 600 : 400,
-      fontFamily: 'var(--font-pixel-body)',
+      fontFamily: bodyFont,
       fontSize: 12,
       cursor: 'pointer',
     };
   };
 
   return (
-    <div className="flex flex-col h-full" style={{ background: theme.bg1 }}>
-      <Header title="Panopticon" />
+    <div className={cn('flex flex-col h-full', 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
 
       {/* Toolbar */}
       <div
         style={{
           padding: '8px 16px',
           background: theme.bg2,
-          borderBottom: `2px solid ${theme.border}`,
+          borderBottom: `${bW}px solid ${theme.border}`,
           display: 'flex',
           alignItems: 'center',
           gap: 8,
@@ -1293,24 +1295,24 @@ export default function GraphPage() {
         }}
       >
         {/* Mode toggle (segmented) */}
-        <div style={pixelSegmentedContainer(theme)}>
+        <div style={obsidianSegmentedContainer(theme)}>
           <button
             onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-            style={pixelSegmentedBtn(theme, toolbarMode === 'navigate')}
+            style={obsidianSegmentedBtn(theme, toolbarMode === 'navigate')}
           >
             <IconEye size={12} />
             Navigate
           </button>
           <button
             onClick={() => setToolbarMode('edit')}
-            style={pixelSegmentedBtn(theme, toolbarMode === 'edit')}
+            style={obsidianSegmentedBtn(theme, toolbarMode === 'edit')}
           >
             <IconSettings2 size={12} />
             Edit Tag
           </button>
         </div>
 
-        <div style={{ width: 2, height: 20, background: theme.border }} />
+        <div style={{ width: bW, height: 20, background: theme.border }} />
 
         {toolbarMode === 'navigate' ? (
           <>
@@ -1328,9 +1330,9 @@ export default function GraphPage() {
                     style={{
                       background: theme.accent,
                       color: theme.onAccent,
-                      border: `2px solid ${theme.border}`,
+                      border: `${bW}px solid ${theme.border}`,
                       padding: '1px 5px',
-                      fontFamily: 'var(--font-pixel-head)',
+                      fontFamily: headFont,
                       fontSize: 8,
                     }}
                   >
@@ -1354,7 +1356,8 @@ export default function GraphPage() {
                           style={{
                             width: 12,
                             height: 12,
-                            border: `2px solid ${clr}`,
+                            border: `1.5px solid ${clr}`,
+                            borderRadius: 4,
                             background: active ? clr : 'transparent',
                           }}
                         />
@@ -1362,7 +1365,7 @@ export default function GraphPage() {
                       </button>
                     );
                   })}
-                  <div style={{ borderTop: `2px solid ${theme.border}`, marginTop: 4, paddingTop: 4 }}>
+                  <div style={{ borderTop: `${bW}px solid ${theme.border}`, marginTop: 4, paddingTop: 4 }}>
                     <button
                       onClick={() => setActiveFilters(new Set(filterConfig.map((f) => f.key)))}
                       style={{
@@ -1372,7 +1375,7 @@ export default function GraphPage() {
                         background: 'transparent',
                         border: 'none',
                         color: theme.accent,
-                        fontFamily: 'var(--font-pixel-head)',
+                        fontFamily: headFont,
                         fontSize: 9,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
@@ -1407,7 +1410,7 @@ export default function GraphPage() {
                   >
                     Tutti i tag
                   </button>
-                  <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
+                  <div style={{ borderTop: `${bW}px solid ${theme.border}`, margin: '4px 0' }} />
                   {graphData?.tags?.map((tag) => (
                     <button
                       key={tag.id}
@@ -1419,12 +1422,12 @@ export default function GraphPage() {
                           width: 10,
                           height: 10,
                           background: TAG_NODE_COLOR_THEME,
-                          border: `2px solid ${theme.border}`,
+                          border: `${bW}px solid ${theme.border}`,
                           flexShrink: 0,
                         }}
                       />
                       {tag.name}
-                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: 'var(--font-pixel-head)', fontSize: 9 }}>
+                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: headFont, fontSize: 9 }}>
                         {tag.tile_ids.length}
                       </span>
                     </button>
@@ -1465,10 +1468,10 @@ export default function GraphPage() {
                   width: 160,
                   height: 28,
                   background: theme.surfaceVariant,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   padding: '0 8px',
                   color: theme.ink,
-                  fontFamily: 'var(--font-pixel-body)',
+                  fontFamily: bodyFont,
                   fontSize: 12,
                   outline: 'none',
                 }}
@@ -1488,7 +1491,7 @@ export default function GraphPage() {
               </button>
             </div>
 
-            <div style={{ width: 2, height: 20, background: theme.border }} />
+            <div style={{ width: bW, height: 20, background: theme.border }} />
 
             {/* Link mode toggle */}
             <button
@@ -1508,7 +1511,7 @@ export default function GraphPage() {
                 style={{
                   ...pillBtn(false),
                   color: '#E24B4A',
-                  border: `2px solid #E24B4A`,
+                  border: `${bW}px solid #E24B4A`,
                 }}
               >
                 <IconTrash size={12} />
@@ -1523,7 +1526,7 @@ export default function GraphPage() {
         {/* Stats */}
         <span
           style={{
-            fontFamily: 'var(--font-pixel-head)',
+            fontFamily: headFont,
             fontSize: 9,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -1553,7 +1556,7 @@ export default function GraphPage() {
               alignItems: 'center',
               padding: '16px 0',
               background: theme.bg2,
-              borderLeft: `2px solid ${theme.border}`,
+              borderLeft: `${bW}px solid ${theme.border}`,
             }}
           >
             {[1, 2, 7, 30].map((days) => {
@@ -1566,7 +1569,7 @@ export default function GraphPage() {
                   key={days}
                   onClick={() => setTimeRange([startPct, 100])}
                   style={{
-                    fontFamily: 'var(--font-pixel-head)',
+                    fontFamily: headFont,
                     fontSize: 8,
                     letterSpacing: '0.06em',
                     textTransform: 'uppercase',
@@ -1574,7 +1577,7 @@ export default function GraphPage() {
                     marginBottom: 4,
                     background: isActive ? theme.accent : theme.surfaceVariant,
                     color: isActive ? theme.onAccent : theme.ink2,
-                    border: `2px solid ${theme.border}`,
+                    border: `${bW}px solid ${theme.border}`,
                     cursor: 'pointer',
                   }}
                 >
@@ -1585,7 +1588,7 @@ export default function GraphPage() {
             <div style={{ height: 24 }} />
             <span
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: headFont,
                 fontSize: 8,
                 color: theme.ink2,
                 marginBottom: 8,
@@ -1602,7 +1605,7 @@ export default function GraphPage() {
                   height: '100%',
                   width: 10,
                   background: theme.surfaceVariant,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   position: 'relative',
                   cursor: 'pointer',
                 }}
@@ -1634,7 +1637,7 @@ export default function GraphPage() {
                     width: 14,
                     height: 14,
                     background: theme.accent,
-                    border: `2px solid ${theme.border}`,
+                    border: `${bW}px solid ${theme.border}`,
                     cursor: 'grab',
                     top: `${100 - timeRange[1]}%`,
                     left: '50%',
@@ -1648,7 +1651,7 @@ export default function GraphPage() {
                     width: 14,
                     height: 14,
                     background: theme.accent,
-                    border: `2px solid ${theme.border}`,
+                    border: `${bW}px solid ${theme.border}`,
                     cursor: 'grab',
                     top: `${100 - timeRange[0]}%`,
                     left: '50%',
@@ -1660,7 +1663,7 @@ export default function GraphPage() {
             </div>
             <span
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: headFont,
                 fontSize: 8,
                 color: theme.ink2,
                 marginTop: 8,
@@ -1681,7 +1684,7 @@ export default function GraphPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', textAlign: 'center', gap: 8 }}>
             <p
               style={{
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: headFont,
                 fontSize: 11,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
@@ -1691,7 +1694,7 @@ export default function GraphPage() {
             >
               Nessun dato da visualizzare
             </p>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: bodyFont, fontSize: 12, color: theme.ink3, margin: 0 }}>
               Crea dei tile e spark per vedere il grafo delle connessioni
             </p>
           </div>
@@ -1707,13 +1710,13 @@ export default function GraphPage() {
                   zIndex: 20,
                   background: theme.accent,
                   color: theme.onAccent,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   padding: '8px 14px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
                   boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-                  fontFamily: 'var(--font-pixel-head)',
+                  fontFamily: headFont,
                   fontSize: 9,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
@@ -1753,7 +1756,7 @@ export default function GraphPage() {
                     justifyContent: 'center',
                     background: active ? theme.accent : theme.surface,
                     color: active ? theme.onAccent : theme.ink2,
-                    border: `2px solid ${theme.border}`,
+                    border: `${bW}px solid ${theme.border}`,
                     cursor: 'pointer',
                     boxShadow: active ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
                   }}
@@ -1766,7 +1769,7 @@ export default function GraphPage() {
             {/* Physics console panel */}
             {showPhysicsPanel && (() => {
               const sectionLabel: React.CSSProperties = {
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: headFont,
                 fontSize: 9,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
@@ -1776,7 +1779,7 @@ export default function GraphPage() {
                 paddingBottom: 6,
               };
               const fieldLabel: React.CSSProperties = {
-                fontFamily: 'var(--font-pixel-head)',
+                fontFamily: headFont,
                 fontSize: 9,
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
@@ -1785,7 +1788,7 @@ export default function GraphPage() {
                 flexShrink: 0,
               };
               const fieldValue: React.CSSProperties = {
-                fontFamily: 'var(--font-pixel-body)',
+                fontFamily: bodyFont,
                 fontSize: 11,
                 color: theme.ink3,
                 width: 44,
@@ -1795,7 +1798,7 @@ export default function GraphPage() {
               const sectionWrap: React.CSSProperties = {
                 marginBottom: 12,
                 paddingBottom: 8,
-                borderBottom: `2px solid ${theme.border}`,
+                borderBottom: `${bW}px solid ${theme.border}`,
               };
               const rangeStyle: React.CSSProperties = {
                 flex: 1,
@@ -1810,7 +1813,7 @@ export default function GraphPage() {
                   left: 64,
                   zIndex: 20,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                   padding: 14,
                   width: 304,
@@ -1821,7 +1824,7 @@ export default function GraphPage() {
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <h3
                     style={{
-                      fontFamily: 'var(--font-pixel-head)',
+                      fontFamily: headFont,
                       fontSize: 11,
                       letterSpacing: '0.1em',
                       textTransform: 'uppercase',
@@ -1845,9 +1848,9 @@ export default function GraphPage() {
                       style={{
                         background: theme.accent,
                         color: theme.onAccent,
-                        border: `2px solid ${theme.border}`,
+                        border: `${bW}px solid ${theme.border}`,
                         padding: '2px 8px',
-                        fontFamily: 'var(--font-pixel-head)',
+                        fontFamily: headFont,
                         fontSize: 8,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
@@ -1861,9 +1864,9 @@ export default function GraphPage() {
                       style={{
                         background: theme.surfaceVariant,
                         color: theme.ink2,
-                        border: `2px solid ${theme.border}`,
+                        border: `${bW}px solid ${theme.border}`,
                         padding: '2px 8px',
-                        fontFamily: 'var(--font-pixel-head)',
+                        fontFamily: headFont,
                         fontSize: 8,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
@@ -1991,7 +1994,7 @@ export default function GraphPage() {
                       onChange={(e) => setPhysics((prev) => ({ ...prev, showTagClusters: e.target.checked ? 1 : 0 }))}
                       style={{ accentColor: theme.accent }}
                     />
-                    <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink2 }}>
+                    <span style={{ fontFamily: bodyFont, fontSize: 11, color: theme.ink2 }}>
                       Evidenzia tag cluster
                     </span>
                   </label>
@@ -2008,13 +2011,13 @@ export default function GraphPage() {
                   left: tooltip.x + 16,
                   top: tooltip.y - 10,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                   padding: 10,
                   maxWidth: 280,
                   zIndex: 50,
                   color: theme.ink,
-                  fontFamily: 'var(--font-pixel-body)',
+                  fontFamily: bodyFont,
                   fontSize: 11,
                 }}
               >
@@ -2031,8 +2034,9 @@ export default function GraphPage() {
                   top: contextMenu.y,
                   zIndex: 50,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
-                  boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
+                  border: `${bW}px solid ${theme.border}`,
+                  borderRadius: 12,
+                  boxShadow: 'var(--ob-shadow-card)',
                   padding: 4,
                   minWidth: 200,
                 }}
@@ -2042,12 +2046,12 @@ export default function GraphPage() {
                   style={{
                     padding: '6px 10px',
                     margin: 0,
-                    fontFamily: 'var(--font-pixel-head)',
+                    fontFamily: headFont,
                     fontSize: 9,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     color: theme.ink3,
-                    borderBottom: `2px solid ${theme.border}`,
+                    borderBottom: `${bW}px solid ${theme.border}`,
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                     whiteSpace: 'nowrap',
@@ -2074,10 +2078,10 @@ export default function GraphPage() {
                             flex: 1,
                             height: 28,
                             background: theme.surfaceVariant,
-                            border: `2px solid ${theme.border}`,
+                            border: `${bW}px solid ${theme.border}`,
                             padding: '0 8px',
                             color: theme.ink,
-                            fontFamily: 'var(--font-pixel-body)',
+                            fontFamily: bodyFont,
                             fontSize: 12,
                             outline: 'none',
                           }}
@@ -2096,7 +2100,7 @@ export default function GraphPage() {
                             justifyContent: 'center',
                             background: theme.accent,
                             color: theme.onAccent,
-                            border: `2px solid ${theme.border}`,
+                            border: `${bW}px solid ${theme.border}`,
                             cursor: 'pointer',
                           }}
                         >
@@ -2116,7 +2120,7 @@ export default function GraphPage() {
                           background: 'transparent',
                           border: 'none',
                           color: theme.ink2,
-                          fontFamily: 'var(--font-pixel-body)',
+                          fontFamily: bodyFont,
                           fontSize: 12,
                           cursor: 'pointer',
                         }}
@@ -2126,7 +2130,7 @@ export default function GraphPage() {
                       </button>
                     )}
 
-                    <div style={{ borderTop: `2px solid ${theme.border}`, margin: '4px 0' }} />
+                    <div style={{ borderTop: `${bW}px solid ${theme.border}`, margin: '4px 0' }} />
 
                     {/* Delete */}
                     <button
@@ -2144,7 +2148,7 @@ export default function GraphPage() {
                         background: 'transparent',
                         border: 'none',
                         color: '#E24B4A',
-                        fontFamily: 'var(--font-pixel-body)',
+                        fontFamily: bodyFont,
                         fontSize: 12,
                         cursor: 'pointer',
                       }}
@@ -2179,7 +2183,7 @@ export default function GraphPage() {
                       background: 'transparent',
                       border: 'none',
                       color: '#E24B4A',
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: bodyFont,
                       fontSize: 12,
                       cursor: 'pointer',
                     }}
@@ -2200,7 +2204,7 @@ export default function GraphPage() {
                   top: selectedEdge.y - 10,
                   zIndex: 50,
                   background: theme.surface,
-                  border: `2px solid ${theme.border}`,
+                  border: `${bW}px solid ${theme.border}`,
                   boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                   padding: 12,
                   width: 280,
@@ -2209,7 +2213,7 @@ export default function GraphPage() {
               >
                 <p
                   style={{
-                    fontFamily: 'var(--font-pixel-head)',
+                    fontFamily: headFont,
                     fontSize: 9,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
@@ -2241,10 +2245,10 @@ export default function GraphPage() {
                       flex: 1,
                       height: 28,
                       background: theme.surfaceVariant,
-                      border: `2px solid ${theme.border}`,
+                      border: `${bW}px solid ${theme.border}`,
                       padding: '0 8px',
                       color: theme.ink,
-                      fontFamily: 'var(--font-pixel-body)',
+                      fontFamily: bodyFont,
                       fontSize: 12,
                       outline: 'none',
                     }}
@@ -2265,7 +2269,7 @@ export default function GraphPage() {
                       justifyContent: 'center',
                       background: theme.accent,
                       color: theme.onAccent,
-                      border: `2px solid ${theme.border}`,
+                      border: `${bW}px solid ${theme.border}`,
                       cursor: 'pointer',
                     }}
                   >
@@ -2288,8 +2292,8 @@ export default function GraphPage() {
                       padding: '4px 8px',
                       background: 'transparent',
                       color: '#E24B4A',
-                      border: `2px solid #E24B4A`,
-                      fontFamily: 'var(--font-pixel-head)',
+                      border: `${bW}px solid #E24B4A`,
+                      fontFamily: headFont,
                       fontSize: 9,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
@@ -2305,8 +2309,8 @@ export default function GraphPage() {
                       padding: '4px 8px',
                       background: theme.surfaceVariant,
                       color: theme.ink2,
-                      border: `2px solid ${theme.border}`,
-                      fontFamily: 'var(--font-pixel-head)',
+                      border: `${bW}px solid ${theme.border}`,
+                      fontFamily: headFont,
                       fontSize: 9,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',

@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>*{box-sizing:border-box;} html,body{margin:0;}</style>
+</helmet>
+
+<div style="background:#eceaef; font-family:'Geist',ui-sans-serif,system-ui,sans-serif; color:#1b1923; -webkit-font-smoothing:antialiased; padding:48px 40px 80px; min-width:1300px;">
+<div style="max-width:1240px; margin:0 auto;">
+
+  <div style="display:flex; align-items:center; gap:11px; margin-bottom:14px;">
+    <div style="width:24px; height:24px; border-radius:7px; background:#7C5CCB; display:flex; align-items:center; justify-content:center;"><div style="width:8px; height:8px; border-radius:2.5px; background:#fff;"></div></div>
+    <span style="font-size:12px; font-weight:600; letter-spacing:0.16em; color:#7a7589;">GIMMICK · TILES TABLE</span>
+  </div>
+  <h1 style="margin:0 0 8px; font-size:34px; font-weight:700; letter-spacing:-0.03em;">Tabella tile · Quiet rows</h1>
+  <p style="margin:0 0 40px; font-size:15px; line-height:1.55; color:#5c5868; max-width:640px;">Trattamento definitivo: controlli ghost, hairline orizzontali, molta aria. Colore solo dove è semantico — tipo evento, tag, sparks. Stesso comportamento in Light e Dark.</p>
+
+  <div style="font-size:10px; font-weight:700; letter-spacing:0.18em; color:#9a96a4; margin-bottom:10px;">LIGHT</div>
+  <div style="border:1px solid rgba(24,20,38,0.1); border-radius:14px; overflow:hidden; margin-bottom:40px;">{{ tableAlight }}</div>
+  <div style="font-size:10px; font-weight:700; letter-spacing:0.18em; color:#9a96a4; margin-bottom:10px;">DARK</div>
+  <div style="border:1px solid rgba(0,0,0,0.4); border-radius:14px; overflow:hidden;">{{ tableAdark }}</div>
+
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      clock: S('<circle cx="8" cy="8" r="5.5"/><path d="M8 5v3l2 1.4"/>'),
+      calendar: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/>'),
+      note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>'),
+      sun: S('<circle cx="8" cy="8" r="2.7"/><path d="M8 1.9v1.5M8 12.6v1.5M14.1 8h-1.5M3.4 8H1.9M12.3 3.7l-1 1M4.7 11.3l-1 1M12.3 12.3l-1-1M4.7 4.7l-1-1"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      chev: S('<path d="M4 6.5 8 10.5 12 6.5"/>'),
+      square: S('<rect x="3" y="3" width="10" height="10" rx="2"/>'),
+      filter: S('<path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2v-5.2z"/>'),
+      grid: S('<rect x="2.4" y="2.4" width="4.6" height="4.6" rx="1"/><rect x="9" y="2.4" width="4.6" height="4.6" rx="1"/><rect x="2.4" y="9" width="4.6" height="4.6" rx="1"/><rect x="9" y="9" width="4.6" height="4.6" rx="1"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tokens(mode) {
+    return mode === 'd' ? {
+      canvas: '#161616', surface: '#1e1e1e', surface2: '#2a2a2a', head: '#242424', text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#4a4a4a',
+      line: 'rgba(255,255,255,0.07)', line2: 'rgba(255,255,255,0.12)', rowHover: 'rgba(255,255,255,0.03)', zebra: 'rgba(255,255,255,0.028)',
+      accent: '#AB9FF2', accentSoft: '#2e2747', blue: '#7AA7F5', amber: '#EBC25E', red: '#F08D89', green: '#74D6A2', voice: '#F08D89',
+      blueT: 'rgba(122,167,245,0.16)', amberT: 'rgba(235,194,94,0.16)', redT: 'rgba(240,141,137,0.16)', greenT: 'rgba(116,214,162,0.16)'
+    } : {
+      canvas: '#ffffff', surface: '#ffffff', surface2: '#f1f0f4', head: '#fbfbfc', text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)', rowHover: 'rgba(24,20,38,0.02)', zebra: 'rgba(24,20,38,0.022)',
+      accent: '#7C5CCB', accentSoft: '#efeafb', blue: '#4F86EE', amber: '#C99220', red: '#E0544F', green: '#3FAE72', voice: '#E0544F',
+      blueT: 'rgba(79,134,238,0.10)', amberT: 'rgba(201,146,32,0.12)', redT: 'rgba(224,84,79,0.10)', greenT: 'rgba(63,174,114,0.12)'
+    };
+  }
+
+  get COLS() {
+    return [
+      { key: 'check', w: '40px', label: '' },
+      { key: 'title', w: '240px', label: 'Title', sort: true },
+      { key: 'action', w: '136px', label: 'Action', sort: true },
+      { key: 'schedule', w: '128px', label: 'Schedule' },
+      { key: 'tags', w: '150px', label: 'Tags', sort: true },
+      { key: 'type', w: '140px', label: 'Type' },
+      { key: 'status', w: '110px', label: 'Status' },
+      { key: 'sparks', w: 'minmax(220px,1fr)', label: 'Sparks', sort: true }
+    ];
+  }
+
+  get ROWS() {
+    return [
+      { title: 'Marco al tramonto mediterran…', action: 'notes', tags: 'Gimmick', sparks: [{ t: 'photo' }, { t: 'text', x: 'Questo è marco guerrieri' }] },
+      { title: 'Audio e incontro con Marco', action: 'timed', date: '26/06/2026', time: '17:00 – 18:00', tags: 'Gimmick', sparks: [{ t: 'voice' }, { t: 'voice' }] },
+      { title: 'Appuntamento con Marco Guerr…', action: 'notes', tags: 'Gimmick', sparks: [{ t: 'voice' }] },
+      { title: 'GDS/bisdomini', action: 'timed', date: '26/06/2026', time: '12:15 – 13:15', tags: 'GDS_Varie', tagIcon: 'sun', tagColor: 'amber', sparks: [] },
+      { title: 'Incontro con Bania Piccardi …', action: 'notes', tags: 'Gimmick', sparks: [{ t: 'voice' }] },
+      { title: 'Incontro su Intelligenza Art…', action: 'allday', date: '26/06/2026', tags: 'Gimmick', sparks: [{ t: 'voice' }] },
+      { title: 'Contatto isibrix.it per Sola…', action: 'allday', date: '25/06/2026', tags: 'Gimmick', sparks: [{ t: 'voice' }] },
+      { title: 'Proloco Marras e Renai', action: 'timed', date: '24/06/2026', time: '18:00 – 18:30', tags: 'Gimmick', sparks: [] },
+      { title: 'Aruba - Certificato digitale', action: 'allday', date: '25/06/2026', tags: 'Gimmick', type: 'Importante', sparks: [{ t: 'text', x: 'Reminder revoca imminente del…' }, { t: 'file', x: 'certificato digit…' }] },
+      { title: 'Call con Viviani e Renai', action: 'timed', date: '29/06/2026', time: '11:00 – 12:00', tags: 'Gimmick', sparks: [{ t: 'voice' }] },
+      { title: 'Progetto Cameretta Bambini', action: 'timed', date: '24/06/2026', time: '18:30 – 19:30', tags: 'Gimmick', sparks: [{ t: 'voice' }] }
+    ];
+  }
+
+  actionMeta(action, T) {
+    if (action === 'timed') return { label: 'Timed', icon: 'clock', color: T.blue, tint: T.blueT };
+    if (action === 'allday') return { label: 'All Day', icon: 'calendar', color: T.amber, tint: T.amberT };
+    return { label: 'Notes', icon: 'note', color: T.muted, tint: T.surface2 };
+  }
+
+  topBar(T, proposal) {
+    const h = React.createElement;
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: '14px', padding: '13px 18px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', color: T.subtle } }, this.glyph('grid', 15, T.subtle),
+        h('span', { style: { fontSize: '13px', fontWeight: 600, color: T.text, fontFamily: "'Geist Mono',monospace", letterSpacing: '0.02em' } }, '400'),
+        h('span', { style: { fontSize: '13px', color: T.faint } }, '/'),
+        h('span', { style: { fontSize: '13px', color: T.muted, fontFamily: "'Geist Mono',monospace" } }, '400'),
+        h('span', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.14em', color: T.subtle, marginLeft: '2px' } }, 'TILES')
+      ),
+      h('div', { style: { flex: 1 } }),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', fontSize: '13px', fontWeight: 500, color: T.accent === '#AB9FF2' ? '#1b0d2e' : '#fff', background: T.accent, padding: '7px 14px', borderRadius: '8px' } },
+        h('span', { style: { fontSize: '15px', lineHeight: 1 } }, '+'), h('span', {}, 'Add tile'))
+    );
+  }
+
+  headerRow(T, proposal) {
+    const h = React.createElement;
+    const grid = this.COLS.map((c) => c.w).join(' ');
+    const cells = this.COLS.map((c) => {
+      if (c.key === 'check') return h('div', { key: c.key, style: { display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 8px' } }, h('div', { style: { width: '15px', height: '15px', borderRadius: '4px', border: '1.5px solid ' + T.line2 } }));
+      return h('div', { key: c.key, style: { display: 'flex', alignItems: 'center', gap: '5px', padding: '0 14px', borderLeft: proposal === 'B' && c.key !== 'check' ? '1px solid ' + T.line : 'none' } },
+        h('span', { style: { fontSize: '10px', fontWeight: 700, letterSpacing: '0.11em', color: T.subtle, textTransform: 'uppercase' } }, c.label),
+        c.sort ? this.glyph('filter', 10, T.faint) : null
+      );
+    });
+    return h('div', { style: { display: 'grid', gridTemplateColumns: grid, height: '42px', background: proposal === 'B' ? T.head : T.surface, borderBottom: '1px solid ' + (proposal === 'B' ? T.line2 : T.line) } }, cells);
+  }
+
+  // control: action / type / status
+  control(meta, T, proposal, opts) {
+    const h = React.createElement;
+    const empty = !!opts && opts.empty;
+    if (proposal === 'A2') { // testo + micro-punto, niente chevron
+      if (empty) return h('span', { style: { fontSize: '13px', color: T.faint } }, '—');
+      return h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', minWidth: 0 } },
+        meta.color ? h('span', { style: { width: '6px', height: '6px', borderRadius: meta.sq ? '2px' : '50%', background: meta.color, flexShrink: 0 } }) : null,
+        h('span', { style: { fontSize: '13px', fontWeight: 500, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, meta.label)
+      );
+    }
+    if (proposal === 'A') { // ghost
+      return h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 6px', borderRadius: '6px', cursor: 'default' } },
+        empty ? null : (meta.icon ? this.glyph(meta.icon, 14, meta.color) : h('span', { style: { width: '7px', height: '7px', borderRadius: '50%', background: meta.color, flexShrink: 0 } })),
+        h('span', { style: { fontSize: '13px', fontWeight: empty ? 400 : 500, color: empty ? T.faint : T.text, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, empty ? '—' : meta.label),
+        this.glyph('chev', 12, T.faint)
+      );
+    }
+    // proposal B: pill
+    if (empty) return h('div', { style: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px', padding: '5px 9px', borderRadius: '7px', border: '1px solid ' + T.line, background: T.surface } },
+      h('span', { style: { fontSize: '12.5px', color: T.faint } }, '—'), this.glyph('chev', 12, T.faint));
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '5px 9px', borderRadius: '7px', background: meta.tint, border: '1px solid ' + (meta.color === T.muted ? T.line : meta.color + '55') } },
+      meta.icon ? this.glyph(meta.icon, 13, meta.color) : h('span', { style: { width: '7px', height: '7px', borderRadius: '2px', background: meta.color, flexShrink: 0 } }),
+      h('span', { style: { fontSize: '12.5px', fontWeight: 600, color: meta.color === T.muted ? T.text : meta.color, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, meta.label),
+      this.glyph('chev', 11, meta.color === T.muted ? T.faint : meta.color)
+    );
+  }
+
+  sparkEl(s, T, proposal) {
+    const h = React.createElement;
+    const map = { voice: { c: T.voice, icon: 'voice' }, text: { c: T.green, icon: 'text' }, file: { c: T.amber, icon: 'file' }, photo: { c: T.blue, icon: 'photo' } };
+    const m = map[s.t];
+    if (s.t === 'photo') return h('div', { key: Math.random(), style: { width: '30px', height: '30px', borderRadius: '7px', background: T.surface2, border: '1px solid ' + T.line, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: T.subtle } }, this.glyph('photo', 15, T.subtle));
+    if (s.x) { // text/file chip with content
+      return h('div', { key: Math.random(), style: { display: 'flex', alignItems: 'center', gap: '6px', maxWidth: '180px', padding: '5px 9px', borderRadius: '7px', background: proposal === 'B' ? m.c + (T.canvas === '#161616' ? '1f' : '14') : T.surface2, border: '1px solid ' + (proposal === 'B' ? m.c + '44' : T.line) } },
+        this.glyph(m.icon, 13, m.c),
+        h('span', { style: { fontSize: '12px', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, s.x));
+    }
+    // icon-only (voice)
+    return h('div', { key: Math.random(), style: { width: '30px', height: '30px', borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, background: proposal === 'B' ? m.c + (T.canvas === '#161616' ? '1f' : '14') : 'transparent', border: '1px solid ' + (proposal === 'B' ? m.c + '44' : T.line) } }, this.glyph(m.icon, 15, m.c));
+  }
+
+  bodyRow(r, T, proposal, last, idx) {
+    const h = React.createElement;
+    const grid = this.COLS.map((c) => c.w).join(' ');
+    const am = this.actionMeta(r.action, T);
+    const cellBorder = proposal === 'B' ? { borderLeft: '1px solid ' + T.line } : {};
+    const zebraOn = proposal === 'A2' && idx % 2 === 1;
+    const rowBg = zebraOn ? T.zebra : T.surface;
+    const rowBorder = proposal === 'A2' ? 'none' : (last ? 'none' : '1px solid ' + T.line);
+    const cell = (key, content, extra) => h('div', { key: key, style: Object.assign({ display: 'flex', alignItems: 'center', padding: '0 14px', minWidth: 0, overflow: 'hidden' }, key === 'check' ? { justifyContent: 'center', padding: '0 8px' } : cellBorder, extra || {}) }, content);
+
+    return h('div', { style: { display: 'grid', gridTemplateColumns: grid, minHeight: proposal === 'A2' ? '54px' : '52px', borderBottom: rowBorder, background: rowBg } },
+      cell('check', h('div', { style: { width: '15px', height: '15px', borderRadius: '4px', border: '1.5px solid ' + T.line2 } })),
+      cell('title', h('span', { style: { fontSize: '13.5px', fontWeight: 500, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, r.title)),
+      cell('action', this.control(am, T, proposal), { padding: proposal === 'B' ? '0 10px' : '0 10px' }),
+      cell('schedule', r.date ? h('div', { style: { lineHeight: 1.25 } },
+        h('div', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '12px', color: T.text } }, r.date),
+        r.time ? h('div', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, r.time) : null
+      ) : h('span', { style: { fontSize: '13px', color: T.faint } }, '—')),
+      cell('tags', h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 9px', borderRadius: '7px', background: proposal === 'B' ? T.surface2 : 'transparent', border: proposal === 'B' ? '1px solid ' + T.line : 'none', maxWidth: '100%' } },
+        this.glyph(r.tagIcon || 'tag', 13, r.tagColor === 'amber' ? T.amber : T.accent),
+        h('span', { style: { fontSize: '12.5px', fontWeight: 500, color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, r.tags)
+      )),
+      cell('type', r.type ? this.control({ label: r.type, color: T.red, tint: T.redT, icon: null, sq: true }, T, proposal) : this.control({}, T, proposal, { empty: true }), { padding: '0 10px' }),
+      cell('status', this.control({}, T, proposal, { empty: true }), { padding: '0 10px' }),
+      cell('sparks', h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'nowrap', overflow: 'hidden' } }, r.sparks.length ? r.sparks.map((s) => this.sparkEl(s, T, proposal)) : h('span', { style: { fontSize: '13px', color: T.faint } }, '—')))
+    );
+  }
+
+  table(mode, proposal) {
+    const h = React.createElement;
+    const T = this.tokens(mode);
+    const rows = this.ROWS.map((r, i) => this.bodyRow(r, T, proposal, i === this.ROWS.length - 1, i));
+    return h('div', { style: { background: T.canvas, fontFamily: "'Geist',sans-serif" } },
+      this.topBar(T, proposal), this.headerRow(T, proposal), h('div', {}, rows));
+  }
+
+  renderVals() {
+    return {
+      tableAlight: this.table('l', 'A'), tableAdark: this.table('d', 'A')
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -45,7 +45,7 @@ export function errorHandler(
   });
 }
 
-export class HttpError extends Error implements AppError {
+class HttpError extends Error implements AppError {
   statusCode: number;
   isOperational: boolean;
 
@@ -60,18 +60,6 @@ export class HttpError extends Error implements AppError {
 export class BadRequestError extends HttpError {
   constructor(message: string = 'Bad request') {
     super(message, 400);
-  }
-}
-
-export class UnauthorizedError extends HttpError {
-  constructor(message: string = 'Unauthorized') {
-    super(message, 401);
-  }
-}
-
-export class ForbiddenError extends HttpError {
-  constructor(message: string = 'Forbidden') {
-    super(message, 403);
   }
 }
 

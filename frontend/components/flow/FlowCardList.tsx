@@ -71,7 +71,7 @@ export function FlowCardList({ tileId }: Props) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, padding: 12 }}>
+      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, padding: 12 }}>
         Caricamento flow...
       </p>
     );
@@ -82,7 +82,7 @@ export function FlowCardList({ tileId }: Props) {
       {nodes.length === 0 && (
         <p
           style={{
-            fontFamily: 'var(--font-pixel-head)',
+            fontFamily: 'var(--ob-font-mono)',
             fontSize: 9,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -127,19 +127,21 @@ export function FlowCardList({ tileId }: Props) {
           alignItems: 'center',
           justifyContent: 'center',
           gap: 6,
-          padding: '6px 8px',
+          padding: '9px 8px',
           background: 'transparent',
-          color: theme.ink3,
-          border: `2px dashed ${theme.border}`,
-          fontFamily: 'var(--font-pixel-head)',
-          fontSize: 9,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
+          color: theme.ink2,
+          border: `1px dashed ${theme.border}`,
+          borderRadius: 10,
+          fontFamily: 'var(--ob-font-sans)',
+          fontSize: 12.5,
+          fontWeight: 600,
+          letterSpacing: 0,
+          textTransform: 'none',
           cursor: addNode.isPending ? 'not-allowed' : 'pointer',
           opacity: addNode.isPending ? 0.4 : 1,
         }}
       >
-        <IconPlus size={11} />
+        <IconPlus size={14} />
         Aggiungi nodo
       </button>
     </div>
@@ -214,12 +216,13 @@ function FlowCard({
       }}
       className="group"
       style={{
-        background: theme.surfaceVariant,
-        border: `2px solid ${theme.border}`,
+        background: theme.surface,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 10,
         padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
-        borderTopWidth: isDropTarget ? 4 : 2,
+        borderTopWidth: isDropTarget ? (2) : (1),
         borderTopColor: isDropTarget ? theme.accent : theme.border,
       }}
     >
@@ -252,7 +255,7 @@ function FlowCard({
             minWidth: 0,
             background: 'transparent',
             color: theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
+            fontFamily: 'var(--ob-font-sans)',
             fontSize: 12,
             lineHeight: 1.3,
             resize: 'none',
@@ -366,7 +369,8 @@ function StatusChip({
         width: 28,
         height: 24,
         background: active ? theme.accent : theme.surface,
-        border: `2px solid ${active ? theme.border : theme.border}`,
+        border: `1px solid ${theme.border}`,
+        borderRadius: 7,
         cursor: 'pointer',
       }}
       title={state === 'active' ? 'Imposta status' : FLOW_STATE_LABELS[state]}
@@ -374,7 +378,7 @@ function StatusChip({
       {Icon ? (
         <Icon size={13} style={{ color: active ? theme.onAccent : color }} stroke={2.5} />
       ) : (
-        <span style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
+        <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
       )}
     </button>
   );
@@ -409,8 +413,9 @@ function ContactChip({
         maxWidth: 150,
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-body)',
+        border: `1px solid ${theme.border}`,
+        borderRadius: 8,
+        fontFamily: 'var(--ob-font-sans)',
         fontSize: 11,
         cursor: 'pointer',
       }}
@@ -452,8 +457,9 @@ function DateChip({
         height: 24,
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
-        border: `2px solid ${theme.border}`,
-        fontFamily: 'var(--font-pixel-body)',
+        border: `1px solid ${theme.border}`,
+        borderRadius: 8,
+        fontFamily: 'var(--ob-font-sans)',
         fontSize: 11,
         cursor: 'pointer',
       }}
@@ -493,14 +499,15 @@ function StatusEditor({
               gap: 8,
               padding: '0 10px',
               background: isActive ? color : theme.surfaceVariant,
-              border: `2px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 8,
               color: isActive ? '#000000' : theme.ink,
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: 'var(--ob-font-mono)',
               fontSize: 9,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
-              boxShadow: isActive ? `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}` : 'none',
+              boxShadow: 'none',
             }}
           >
             <Icon size={13} style={{ color: isActive ? '#000000' : color }} stroke={2.5} />
@@ -558,13 +565,14 @@ function DateEditor({
           placeholder="gg/mm/aaaa"
           style={{
             flex: 1,
-            background: theme.surfaceVariant,
-            border: `2px solid ${theme.border}`,
-            padding: '0 8px',
-            height: 30,
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 10,
+            padding: '0 10px',
+            height: 36,
             color: theme.ink,
-            fontFamily: 'var(--font-pixel-body)',
-            fontSize: 12,
+            fontFamily: 'var(--ob-font-sans)',
+            fontSize: 13,
             outline: 'none',
           }}
         />
@@ -575,13 +583,14 @@ function DateEditor({
               onChange(null);
             }}
             style={{
-              padding: '0 8px',
-              height: 30,
+              padding: '0 10px',
+              height: 36,
               background: theme.surface,
               color: '#E24B4A',
-              border: `2px solid ${theme.border}`,
+              border: `1px solid ${theme.border}`,
+              borderRadius: 10,
               cursor: 'pointer',
-              fontFamily: 'var(--font-pixel-body)',
+              fontFamily: 'var(--ob-font-sans)',
               fontSize: 14,
             }}
             title="Cancella"
@@ -626,19 +635,20 @@ function MiniCalendar({
     justifyContent: 'center',
     background: theme.surface,
     color: theme.ink2,
-    border: `2px solid ${theme.border}`,
+    border: `1px solid ${theme.border}`,
+    borderRadius: 7,
     cursor: 'pointer',
-    fontFamily: 'var(--font-pixel-body)',
+    fontFamily: 'var(--ob-font-sans)',
     fontSize: 14,
   };
   return (
-    <div style={{ background: theme.surface, border: `2px solid ${theme.border}`, padding: 8 }}>
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 8 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <button onClick={() => stepMonth(-1)} style={navBtn}>‹</button>
         <span
           style={{
-            fontFamily: 'var(--font-pixel-head)',
+            fontFamily: 'var(--ob-font-mono)',
             fontSize: 10,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
@@ -655,7 +665,7 @@ function MiniCalendar({
           <div
             key={i}
             style={{
-              fontFamily: 'var(--font-pixel-head)',
+              fontFamily: 'var(--ob-font-mono)',
               fontSize: 9,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
@@ -684,8 +694,9 @@ function MiniCalendar({
                 justifyContent: 'center',
                 background: isSel ? theme.accent : 'transparent',
                 color: isSel ? theme.onAccent : inMonth ? theme.ink : theme.ink3,
-                border: isTd && !isSel ? `2px solid ${theme.accent}` : `2px solid transparent`,
-                fontFamily: 'var(--font-pixel-body)',
+                border: isTd && !isSel ? `1px solid ${theme.accent}` : `1px solid transparent`,
+                borderRadius: 7,
+                fontFamily: 'var(--ob-font-sans)',
                 fontSize: 11,
                 fontWeight: isSel ? 700 : 400,
                 cursor: 'pointer',

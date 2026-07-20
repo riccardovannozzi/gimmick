@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;} html,body{margin:0;}
+  .gm-scroll::-webkit-scrollbar{width:9px;height:9px;}
+  .gm-scroll::-webkit-scrollbar-thumb{background:rgba(128,128,140,0.3);border-radius:6px;border:2px solid transparent;background-clip:content-box;}
+  .gm-scroll::-webkit-scrollbar-track{background:transparent;}
+</style>
+</helmet>
+
+<div>{{ view }}</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1400,&quot;height&quot;:920},&quot;mode&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;light&quot;,&quot;dark&quot;],&quot;default&quot;:&quot;light&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;tileColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;tint&quot;,&quot;solid&quot;],&quot;default&quot;:&quot;tint&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Tile&quot;}}">
+class Component extends DCLogic {
+  get ICONS() {
+    const S = (b) => '<svg viewBox="0 0 16 16" width="100%" height="100%" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">' + b + '</svg>';
+    return {
+      note: S('<path d="M4 2.6h6l2.6 2.6V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.6 2.6v3h3M6 9h4M6 11h4"/>'),
+      todo: S('<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2"/><path d="M5.4 8.2 7.2 10l3.6-4"/>'),
+      timed: S('<circle cx="8" cy="8.4" r="5.4"/><path d="M8 5.4v3l2 1.4"/>'),
+      deadline: S('<circle cx="8" cy="8" r="5.6"/><path d="M8 5v3.4M8 10.7h.01"/>'),
+      done: S('<circle cx="8" cy="8" r="5.6"/><path d="M5.6 8.2 7.3 10l3.3-3.8"/>'),
+      plus: S('<path d="M8 3.5v9M3.5 8h9"/>'),
+      sort: S('<path d="M4 4v8M4 12l-2-2M4 12l2-2M11 12V4M11 4l-2 2M11 4l2 2"/>'),
+      filter: S('<path d="M2.5 3.5h11l-4.2 5v4l-2.6 1.2v-5.2z"/>'),
+      chevD: S('<path d="M4 6l4 4 4-4"/>'),
+      chevR: S('<path d="M6 4l4 4-4 4"/>'),
+      more: S('<circle cx="3.5" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"/><circle cx="12.5" cy="8" r="1" fill="currentColor" stroke="none"/>'),
+      column: S('<rect x="2.4" y="3" width="4" height="10" rx="1"/><rect x="9.6" y="3" width="4" height="10" rx="1"/>'),
+      today: S('<rect x="2.4" y="3.4" width="11.2" height="10" rx="1.6"/><path d="M2.4 6.4h11.2M5.4 2.2v2.4M10.6 2.2v2.4"/><circle cx="8" cy="9.6" r="1.6" fill="currentColor" stroke="none"/>'),
+      grip: S('<circle cx="6" cy="4" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="4" r="0.9" fill="currentColor" stroke="none"/><circle cx="6" cy="8" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="8" r="0.9" fill="currentColor" stroke="none"/><circle cx="6" cy="12" r="0.9" fill="currentColor" stroke="none"/><circle cx="10" cy="12" r="0.9" fill="currentColor" stroke="none"/>'),
+      voice: S('<rect x="6" y="2.2" width="4" height="7.2" rx="2"/><path d="M3.8 8a4.2 4.2 0 0 0 8.4 0M8 12.2v1.6"/>'),
+      text: S('<path d="M4 4h8M4 7h8M4 10h5"/>'),
+      file: S('<path d="M11.5 7.5 8 11a2.4 2.4 0 0 1-3.4-3.4l4-4a1.6 1.6 0 0 1 2.3 2.3l-4 4a.8.8 0 0 1-1.2-1.2L9 5.6"/>'),
+      photo: S('<rect x="2.2" y="4" width="11.6" height="9" rx="1.8"/><circle cx="8" cy="8.4" r="2.4"/><path d="M5.6 4l.9-1.4h3l.9 1.4"/>'),
+      doc: S('<path d="M4 2.6h5.4L12.6 5.8V13a.6.6 0 0 1-.6.6H4a.6.6 0 0 1-.6-.6V3.2A.6.6 0 0 1 4 2.6Z"/><path d="M9.2 2.6v3.2h3.2"/>'),
+      tag: S('<path d="M2.6 7.7V3.3a.7.7 0 0 1 .7-.7h4.4a1 1 0 0 1 .7.3l5 5a1 1 0 0 1 0 1.4l-4.4 4.4a1 1 0 0 1-1.4 0l-5-5a1 1 0 0 1-.3-.7Z"/><circle cx="5.5" cy="5.5" r="0.7" fill="currentColor" stroke="none"/>')
+    };
+  }
+  glyph(name, size, color) { const px = (size || 14) + 'px'; return React.createElement('span', { style: { width: px, height: px, display: 'inline-flex', flexShrink: 0, color: color || 'inherit' }, dangerouslySetInnerHTML: { __html: this.ICONS[name] } }); }
+
+  tokens() {
+    const dark = (this.props.mode || 'light') === 'dark';
+    const acc = dark ? { a: '#AB9FF2', ink: '#1b0d2e', soft: '#2e2747' } : { a: '#7C5CCB', ink: '#fff', soft: '#efeafb' };
+    const base = dark ? {
+      page: '#0c0a12', canvas: '#161616', surface: '#1e1e1e', surface2: '#262626', head: '#242424', lane: '#141414', laneHead: '#1c1c1c',
+      text: '#dcdcdc', muted: '#9a9a9a', subtle: '#6e6e6e', faint: '#4a4a4a',
+      line: 'rgba(255,255,255,0.08)', line2: 'rgba(255,255,255,0.13)',
+      timed: '#74D6A2', allday: '#7AA7F5', deadline: '#F08D89', anytime: '#9aa0ad', notes: '#8b8b94', amber: '#E7C25E',
+      cap: { photo: '#7AA7F5', file: '#E7C25E', voice: '#F08D89', doc: '#74D6A2', text: '#74D6A2' }
+    } : {
+      page: '#e7e6ea', canvas: '#ffffff', surface: '#ffffff', surface2: '#f3f2f6', head: '#fbfbfc', lane: '#f4f3f6', laneHead: '#efeef2',
+      text: '#1b1923', muted: '#5c5868', subtle: '#9a96a4', faint: '#c4c1cd',
+      line: 'rgba(24,20,38,0.08)', line2: 'rgba(24,20,38,0.13)',
+      timed: '#3FAE72', allday: '#4F86EE', deadline: '#E0544F', anytime: '#7e8694', notes: '#8a8694', amber: '#C99220',
+      cap: { photo: '#4F86EE', file: '#C99220', voice: '#E0544F', doc: '#3FAE72', text: '#3FAE72' }
+    };
+    base.accent = acc.a; base.accentInk = acc.ink; base.accentSoft = acc.soft; base.dark = dark;
+    return base;
+  }
+  readable(hex) { let x = hex.replace('#', ''); const r = parseInt(x.slice(0, 2), 16), g = parseInt(x.slice(2, 4), 16), b = parseInt(x.slice(4, 6), 16); return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.62 ? '#1b1923' : '#ffffff'; }
+  fillFor(c, T) {
+    const solid = (this.props.tileColor || 'tint') === 'solid';
+    if (solid) { const ink = this.readable(c); return { solid: true, bg: c, border: '1px solid transparent', title: ink, on: ink, sub: ink === '#ffffff' ? 'rgba(255,255,255,0.6)' : 'rgba(0,0,0,0.45)', track: ink === '#ffffff' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.16)' }; }
+    const tint = T.dark ? '2b' : '1c';
+    return { solid: false, bg: c + tint, border: '1px solid ' + c + (T.dark ? '3a' : '30'), title: T.text, on: c, sub: T.dark ? T.muted : c, track: T.line2 };
+  }
+  capColor(T, ic) { return ({ photo: T.cap.photo, file: T.cap.file, voice: T.cap.voice, doc: T.cap.doc, text: T.cap.text })[ic] || T.accent; }
+
+  // ---------- shared card ----------
+  card(T, t) {
+    const h = React.createElement;
+    const c = t.tagColor === 'amber' ? T.amber : T.accent;
+    const s = this.fillFor(c, T);
+    const chipBg = (col) => s.solid ? (s.on === '#ffffff' ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.12)') : col + (T.dark ? '2e' : '1c');
+    return h('div', { key: t.title, style: Object.assign({ borderRadius: '9px', padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: '10px', cursor: 'default', position: 'relative' }, { background: s.bg, border: s.border }) },
+      h('div', { style: { display: 'flex', alignItems: 'flex-start', gap: '7px' } },
+        h('div', { style: { fontSize: '12.5px', lineHeight: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: s.title, flex: 1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' } }, t.title),
+        h('div', { style: { width: '14px', height: '14px', color: s.solid ? s.on : T.faint, opacity: s.solid ? 0.6 : 1, marginTop: '1px' } }, this.glyph('grip', 14))),
+      t.checklist ? h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px' } },
+        h('div', { style: { flex: 1, display: 'flex', gap: '3px' } }, t.checklist.map((d, i) => h('div', { key: i, style: { flex: 1, height: '4px', borderRadius: '2px', background: d ? (s.solid ? s.on : T.timed) : s.track } }))),
+        h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: s.sub } }, t.checklist.filter(Boolean).length + '/' + t.checklist.length)) : null,
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px' } },
+        t.caps ? t.caps.map((ic, i) => { const col = this.capColor(T, ic); return h('div', { key: i, style: { width: '20px', height: '20px', borderRadius: '6px', background: chipBg(col), display: 'flex', alignItems: 'center', justifyContent: 'center', color: s.solid ? s.on : col } }, this.glyph(ic, 12)); }) : null,
+        h('div', { style: { flex: 1 } }),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: '5px', fontSize: '10px', fontWeight: 600, color: s.sub } },
+          h('span', { style: { width: '12px', height: '12px', color: s.solid ? s.on : c } }, this.glyph('tag', 12)), t.tag))
+    );
+  }
+
+  datePill(T, g) {
+    const h = React.createElement;
+    const today = g.today;
+    const label = g.noDate ? 'Senza data' : (today ? 'Oggi' : g.long);
+    return h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', padding: '3px 2px 1px' } },
+      h('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: today ? T.accent : T.faint, flexShrink: 0 } }),
+      h('span', { style: { fontSize: '11px', fontWeight: 600, color: today ? T.accent : T.muted, whiteSpace: 'nowrap' } }, label),
+      g.noDate ? null : h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '10px', color: T.subtle, marginLeft: 'auto' } }, g.date));
+  }
+
+  lane(T, col) {
+    const h = React.createElement;
+    const count = (col.groups || []).reduce((n, g) => n + g.tiles.length, 0);
+    const headBtn = (n) => h('div', { key: n, style: { width: '20px', height: '20px', borderRadius: '5px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.subtle } }, this.glyph(n, 12));
+    const head = h('div', { style: { height: '40px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 8px 0 9px' } },
+      h('div', { style: { width: '11px', height: '13px', color: T.faint, flexShrink: 0 } }, this.glyph('grip', 11)),
+      h('span', { style: { width: '8px', height: '8px', borderRadius: col.kind === 'deadline' ? '2px' : '50%', background: col.color, flexShrink: 0 } }),
+      h('span', { style: { fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: T.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' } }, col.label),
+      h('span', { style: { fontFamily: "'Geist Mono',monospace", fontSize: '11px', color: T.subtle } }, count),
+      h('div', { style: { flex: 1 } }),
+      headBtn('chevR'), headBtn('more'));
+    const dropZone = h('div', { key: 'drop', style: { height: '50px', flexShrink: 0, border: '1.5px dashed ' + T.line2, borderRadius: '9px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', color: T.subtle } }, 'Rilascia qui');
+    const groups = (col.groups || []).map((g, gi) => {
+      const kids = [this.datePill(T, g)];
+      g.tiles.forEach((t) => kids.push(this.card(T, t)));
+      if (g.drop) kids.push(dropZone);
+      return h('div', { key: gi, style: { display: 'flex', flexDirection: 'column', gap: '8px' } }, kids);
+    });
+    const empty = h('div', { style: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '34px 0', fontSize: '11px', fontWeight: 700, letterSpacing: '0.1em', color: T.faint } }, 'NESSUN TILE');
+    const body = h('div', { className: 'gm-scroll', style: { flex: 1, overflowY: 'auto', padding: '6px 10px 12px', display: 'flex', flexDirection: 'column', gap: '12px' } }, count ? groups : empty);
+    return h('div', { style: { width: '270px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.lane, border: '1px solid ' + T.line, borderTop: '2px solid ' + col.color, borderRadius: '12px', overflow: 'hidden' } }, head, body);
+  }
+
+  view() {
+    const h = React.createElement;
+    const T = this.tokens();
+    const cols = [
+      { label: 'NOTE', icon: 'note', color: T.notes, kind: 'notes', groups: [
+        { date: '27/06/26', dow: 'SAB', today: true, tiles: [
+          { title: 'Appuntamento con Marco Guerrieri', tag: 'OM', tagColor: 'violet', caps: ['voice'] } ] },
+        { date: '29/06/26', dow: 'LUN', long: 'Lun 29 giu', tiles: [
+          { title: 'Moodboard cucina Ortano — riferimenti materiali', tag: 'GDS', tagColor: 'violet', caps: ['photo', 'doc'] } ] }
+      ] },
+      { label: 'DA FARE', icon: 'todo', color: T.anytime, kind: 'todo', groups: [
+        { date: '27/06/26', dow: 'SAB', today: true, drop: true, tiles: [
+          { title: 'Revoca certificato digitale Aruba', tag: 'OM', tagColor: 'amber', caps: ['file'], checklist: [true, true, false] },
+          { title: 'Preparare brief Teleport per Marco', tag: 'GDS', tagColor: 'violet', caps: ['text'], checklist: [true, false, false, false] } ] },
+        { noDate: true, tiles: [
+          { title: 'Lista materiali cucina', tag: 'OM', tagColor: 'amber', checklist: [false, false] } ] }
+      ] },
+      { label: 'PROGRAMMATI', icon: 'timed', color: T.timed, kind: 'timed', groups: [
+        { date: '27/06/26', dow: 'SAB', today: true, tiles: [
+          { title: 'Audio e incontro con Marco', tag: 'OM', tagColor: 'violet', caps: ['voice'] } ] },
+        { date: '28/06/26', dow: 'DOM', long: 'Dom 28 giu', tiles: [
+          { title: 'GDS/bisdomini — sopralluogo', tag: 'GDS', tagColor: 'amber', caps: ['photo'] } ] }
+      ] },
+      { label: 'SCADENZE', icon: 'deadline', color: T.deadline, kind: 'deadline', groups: [
+        { date: '30/06/26', dow: 'MAR', long: 'Mar 30 giu', tiles: [
+          { title: 'Aruba — rinnovo certificato', tag: 'OM', tagColor: 'amber', caps: ['file'] } ] },
+        { noDate: true, tiles: [
+          { title: 'Rinnovo polizza Unipol casa', tag: 'OM', tagColor: 'amber', caps: ['file'] } ] }
+      ] },
+      { label: 'FATTI', icon: 'done', color: T.timed, kind: 'done', groups: [
+        { date: '26/06/26', dow: 'VEN', long: 'Ven 26 giu', tiles: [
+          { title: 'Itinerario Lisbona confermato', tag: 'Viaggio', tagColor: 'violet', caps: ['file', 'photo'], checklist: [true, true, true] },
+          { title: 'Demo prodotto v2 rivista', tag: 'GDS', tagColor: 'violet', caps: ['doc'] } ] }
+      ] },
+      { label: 'FAMIGLIA', icon: 'note', color: T.amber, kind: 'notes', groups: [] }
+    ];
+
+    // group-by control
+    const grp = h('div', { style: { display: 'flex', alignItems: 'center', gap: '7px', height: '30px', padding: '0 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: T.text, background: T.surface, border: '1px solid ' + T.line2 } },
+      h('span', { style: { color: T.subtle, fontWeight: 500 } }, 'Raggruppa:'), 'Stato', this.glyph('chevD', 12, T.subtle));
+    const tagPill = (label, active) => h('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: '6px', height: '30px', padding: '0 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: active ? T.accentInk : T.muted, background: active ? T.accent : T.surface, border: '1px solid ' + (active ? 'transparent' : T.line2) } },
+      h('span', { style: { width: '6px', height: '6px', borderRadius: '50%', background: active ? T.accentInk : T.accent } }), label);
+
+    const secBtn = (icon, label) => h('div', { key: label, style: { display: 'flex', alignItems: 'center', gap: '6px', height: '30px', padding: '0 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: T.muted, background: T.surface, border: '1px solid ' + T.line2, cursor: 'default' } }, this.glyph(icon, 13, T.subtle), label);
+    const toolbar = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px', padding: '0 16px', background: T.head, borderBottom: '1px solid ' + T.line2 } },
+      grp,
+      h('div', { style: { width: '1px', height: '22px', background: T.line2, margin: '0 2px' } }),
+      tagPill('Tutti i tag', true), tagPill('OM', false), tagPill('GDS', false),
+      h('div', { style: { flex: 1 } }),
+      secBtn('today', 'Oggi'),
+      secBtn('column', 'Colonna'),
+      h('div', { style: { display: 'flex', alignItems: 'center', gap: '6px', height: '30px', padding: '0 13px', borderRadius: '8px', fontSize: '12px', fontWeight: 600, color: T.accentInk, background: T.accent, cursor: 'default' } }, this.glyph('plus', 13), 'Tile'));
+
+    const board = h('div', { className: 'gm-scroll', style: { flex: 1, minHeight: 0, overflowX: 'auto', display: 'flex', gap: '14px', padding: '16px', alignItems: 'stretch', background: T.canvas } }, cols.map((c) => this.lane(T, c)));
+
+    const header = h('div', { style: { height: '52px', flexShrink: 0, display: 'flex', alignItems: 'center', gap: '12px', padding: '0 16px', background: T.surface, borderBottom: '1px solid ' + T.line } },
+      h('div', { style: { width: '30px', height: '30px', borderRadius: '8px', background: T.surface2, display: 'flex', alignItems: 'center', justifyContent: 'center' } }, h('div', { style: { width: '26px', height: '26px' }, dangerouslySetInnerHTML: { __html: this.snappySvg(T) } })),
+      h('div', {}, h('div', { style: { fontSize: '16px', fontWeight: 600, letterSpacing: '-0.01em', color: T.text } }, 'Kanban'),
+        h('div', { style: { fontSize: '11px', color: T.subtle, marginTop: '1px' } }, 'Snappy sposta i tile da una colonna all\u2019altra')),
+      h('div', { style: { flex: 1 } }),
+      h('span', { style: { fontSize: '11px', color: T.subtle } }, 'GIMMICK · 10 tile in board'));
+
+    const win = h('div', { style: { width: '1320px', height: '840px', flexShrink: 0, display: 'flex', flexDirection: 'column', background: T.canvas, border: '1px solid ' + (T.dark ? 'rgba(0,0,0,0.5)' : 'rgba(24,20,38,0.12)'), borderRadius: '16px', overflow: 'hidden', boxShadow: '0 30px 70px -36px rgba(0,0,0,0.45)' } },
+      header, toolbar, board);
+
+    return h('div', { style: { minHeight: '100%', background: T.page, fontFamily: "'Geist',ui-sans-serif,system-ui,sans-serif", WebkitFontSmoothing: 'antialiased', padding: '40px', display: 'flex', justifyContent: 'center' } }, win);
+  }
+
+  snappySvg(T) {
+    return '<svg viewBox="0 0 96 96" xmlns="http://www.w3.org/2000/svg" style="--m1:#E87DA0;--m2:#7C5CCB;--mascot-ink:' + (T.dark ? '#1b1822' : '#26212f') + ';"><rect x="30" y="22" width="22" height="10" rx="4" fill="var(--m1)"/><rect x="14" y="30" width="68" height="46" rx="12" fill="var(--m1)"/><circle cx="48" cy="53" r="17" fill="#11131a" opacity="0.22"/><circle cx="48" cy="53" r="11" fill="var(--mascot-ink)"/><circle cx="48" cy="53" r="5" fill="var(--m2)"/><circle cx="52" cy="49" r="2.5" fill="#fff" opacity="0.85"/><circle cx="68" cy="40" r="3.5" fill="var(--m2)"/></svg>';
+  }
+
+  renderVals() { return { view: this.view() }; }
+}
+</script>
+</body>
+</html>

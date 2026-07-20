@@ -10,6 +10,7 @@ import { sparksRouter } from './routes/sparks.js';
 import { tilesRouter } from './routes/tiles.js';
 import { uploadRouter } from './routes/upload.js';
 import { chatRouter } from './routes/chat.js';
+import { aiRouter } from './routes/ai.js';
 import { tagsRouter } from './routes/tags.js';
 import { calendarRouter } from './routes/calendar.js';
 import { settingsRouter } from './routes/settings.js';
@@ -45,6 +46,8 @@ const DEFAULT_CORS_ORIGINS = [
   'https://app.gimmickapp.com',
   'https://gimmick-frontend-production.up.railway.app',
   'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:3003',
 ];
 const corsOrigin = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(o => o.trim()).filter(Boolean)
@@ -80,6 +83,7 @@ app.use('/api/sparks', sparksRouter);
 app.use('/api/tiles', tilesRouter);
 app.use('/api/upload', uploadRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/ai', aiRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/calendar', calendarRouter);
 app.use('/api/settings', settingsRouter);

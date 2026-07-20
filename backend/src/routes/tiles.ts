@@ -6,7 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { upsertTileEmbedding } from '../services/indexing.js';
 import { getActiveStatusId } from '../services/statuses.js';
-import type { AuthenticatedRequest, Tile, ActionType } from '../types/index.js';
+import type { AuthenticatedRequest, Tile } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
 
@@ -73,27 +73,47 @@ tilesRouter.get(
         .eq('is_root', true)
         .single();
 
+      // Row shapes for this query's Supabase joins
+      type SparkPreview = {
+        id: string;
+        type: string;
+        content: string | null;
+        storage_path: string | null;
+        file_name: string | null;
+      };
+      type TileTag = { id: string; name: string; tag_type?: string };
+      type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string } | null };
+      type SubtaskRow = { is_done: boolean | null; sort_order: number | null };
+      type TileListRow = Tile & {
+        sparks?: SparkPreview[];
+        tile_tags?: TileTagJoin[];
+        tile_subtasks?: SubtaskRow[];
+      };
+      const listRows = (data ?? []) as unknown as TileListRow[];
+
       // Find tiles without any tags and auto-assign GIMMICK
-      if (rootTag && data) {
-        const untaggedIds = data
-          .filter((tile: any) => !tile.tile_tags || tile.tile_tags.length === 0)
-          .map((tile: any) => tile.id);
+      if (rootTag && listRows.length) {
+        const untaggedIds = listRows
+          .filter((tile) => !tile.tile_tags || tile.tile_tags.length === 0)
+          .map((tile) => tile.id);
 
         if (untaggedIds.length > 0) {
-          const rows = untaggedIds.map((tile_id: string) => ({
+          const newLinks = untaggedIds.map((tile_id) => ({
             tile_id,
             tag_id: rootTag.id,
           }));
           await supabaseAdmin
             .from('tile_tags')
-            .upsert(rows, { onConflict: 'tag_id,tile_id' });
+            .upsert(newLinks, { onConflict: 'tag_id,tile_id' });
         }
       }
 
       // Transform data to include spark_count, sparks preview, tags, and subtasks
-      const tilesWithCount = data?.map((tile: any) => {
+      const tilesWithCount = listRows.map((tile) => {
         const sparks = Array.isArray(tile.sparks) ? tile.sparks : [];
-        const tags = (tile.tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
+        const tags: TileTag[] = (tile.tile_tags || [])
+          .map((tt) => tt.tags)
+          .filter((t): t is { id: string; name: string; tag_type: string } => Boolean(t));
         // If no tags, inject root tag
         if (tags.length === 0 && rootTag) {
           tags.push({ id: rootTag.id, name: rootTag.name });
@@ -102,8 +122,8 @@ tilesRouter.get(
         const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
         const subtasks = subtasksRaw
           .slice()
-          .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((s: any) => ({ is_done: !!s.is_done }));
+          .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+          .map((s) => ({ is_done: !!s.is_done }));
         return {
           ...tile,
           spark_count: sparks.length,
@@ -164,23 +184,42 @@ tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next)
 
     if (tagsError) throw tagsError;
 
+    type GraphSpark = {
+      id: string;
+      tile_id: string | null;
+      type: string;
+      content: string | null;
+      file_name: string | null;
+      metadata: { tags?: string[]; summary?: string } | null;
+      created_at: string;
+      storage_path: string | null;
+    };
+    type GraphTag = {
+      id: string;
+      name: string;
+      tag_type: string;
+      color?: string | null;
+      created_at: string;
+      tile_tags?: { tile_id: string }[];
+    };
+
     res.json({
       success: true,
       data: {
         tiles: tiles || [],
-        sparks: (sparks || []).map((s: any) => ({
+        sparks: ((sparks ?? []) as unknown as GraphSpark[]).map((s) => ({
           ...s,
           label: s.content?.slice(0, 60) || s.file_name || s.type,
           tags: s.metadata?.tags || [],
           summary: s.metadata?.summary || null,
           storage_path: s.storage_path || null,
         })),
-        tags: (tags || []).map((t: any) => ({
+        tags: ((tags ?? []) as unknown as GraphTag[]).map((t) => ({
           id: t.id,
           name: t.name,
           color: t.color,
           created_at: t.created_at,
-          tile_ids: (t.tile_tags || []).map((tt: any) => tt.tile_id),
+          tile_ids: (t.tile_tags || []).map((tt) => tt.tile_id),
         })),
       },
     });
@@ -221,7 +260,12 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
       throw sparksError;
     }
 
-    const tags = ((tile as any).tile_tags || []).map((tt: any) => tt.tags).filter(Boolean);
+    type TileTagDetail = {
+      tag_id: string;
+      tags: { id: string; name: string; tag_type: string; is_root: boolean } | null;
+    };
+    const tileRow = tile as unknown as Tile & { tile_tags?: TileTagDetail[] };
+    const tags = (tileRow.tile_tags || []).map((tt) => tt.tags).filter(Boolean);
 
     res.json({
       success: true,

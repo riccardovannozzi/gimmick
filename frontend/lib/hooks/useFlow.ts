@@ -40,6 +40,7 @@ export function useFlow(tileId: string | null | undefined) {
     queryKey: ['flow', tileId],
     queryFn: async (): Promise<FlowGraph> => {
       const res = await flowApi.getByTile(tileId!);
+      if (!res.success) throw new Error(res.error || 'Errore caricamento flow');
       return (res.data as FlowGraph) ?? { nodes: [] };
     },
     enabled,
