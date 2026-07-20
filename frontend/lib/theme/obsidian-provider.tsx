@@ -16,7 +16,6 @@
 import * as React from 'react';
 import { useAuthStore } from '@/store/auth-store';
 import { settingsApi } from '@/lib/api';
-import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import type { ObsidianMode } from '@/lib/theme/obsidian';
 
 const STORAGE_KEY = 'obsidian_theme';
@@ -58,11 +57,9 @@ export function ObsidianThemeProvider({ children }: { children: React.ReactNode 
   React.useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.setAttribute('data-theme', mode);
-      // Marker globale per gli override scoped (es. scrollbar Obsidian che
-      // devono battere lo stile pixel globale in globals.css). Solo con shell ON.
-      if (isObsidianShellEnabled()) {
-        document.documentElement.setAttribute('data-ob', 'on');
-      }
+      // Marker globale per gli override scoped (es. scrollbar Obsidian che deve
+      // battere lo stile pixel residuo in globals.css).
+      document.documentElement.setAttribute('data-ob', 'on');
     }
     try {
       window.localStorage.setItem(STORAGE_KEY, mode);
