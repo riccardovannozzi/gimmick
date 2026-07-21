@@ -32,7 +32,7 @@ const CAPTURES: CaptureBadge[] = [
   { icon: IconMicrophone, label: 'Voce',  color: 'voice' },
   { icon: IconNote,       label: 'Testo', color: 'text' },
   { icon: IconPaperclip,  label: 'File',  color: 'file' },
-  { icon: IconPhoto,      label: 'Gallery', color: 'gallery' },
+  { icon: IconPhoto,      label: 'Image', color: 'gallery' },
 ];
 
 const STEPS = ['Benvenuto', 'Cattura', 'Organizza', 'Pronti'] as const;

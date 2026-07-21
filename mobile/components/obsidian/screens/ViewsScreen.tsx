@@ -14,7 +14,7 @@ import {
   IconDeviceMobileVibration, IconBell, IconWorld, IconSparkles,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import type { ObTileVM, ObTileGroup, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
 import type { FlowHubFilter } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
@@ -35,7 +35,7 @@ function Segmented<T extends string>({ c, value, onChange, items }: { c: Obsidia
       {items.map((it) => {
         const on = it.value === value;
         return (
-          <Pressable key={it.value} onPress={() => onChange?.(it.value)} style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 7, backgroundColor: on ? c.accentSoft : 'transparent' }}>
+          <Pressable key={it.value} onPress={() => onChange?.(it.value)} style={{ flex: 1, alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 7, backgroundColor: on ? c.accentSoft : 'transparent' }}>
             <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{it.label}</Text>
           </Pressable>
         );
@@ -332,7 +332,7 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
           <Row Icon={IconUser} label={account.email} sub="Connesso" control={<View />} />
           <Pressable
             onPress={account.onSignOut}
-            style={({ pressed }) => ({ alignItems: 'center', paddingVertical: 13, borderRadius: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, opacity: pressed ? 0.75 : 1 })}
+            style={({ pressed }) => ({ alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, opacity: pressed ? 0.75 : 1 })}
           >
             <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.deadline }}>Esci</Text>
           </Pressable>
@@ -342,7 +342,7 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
           <Row Icon={IconAlertCircle} label="Non hai effettuato l'accesso" sub="Senza login le liste restano vuote" control={<View />} />
           <Pressable
             onPress={account.onSignIn}
-            style={({ pressed }) => ({ alignItems: 'center', paddingVertical: 13, borderRadius: 12, backgroundColor: c.accent, opacity: pressed ? 0.85 : 1 })}
+            style={({ pressed }) => ({ alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.accent, opacity: pressed ? 0.85 : 1 })}
           >
             <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#fff' }}>Accedi</Text>
           </Pressable>

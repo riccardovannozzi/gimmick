@@ -18,7 +18,7 @@ import {
   IconCalendarEvent, IconClock, IconSend, IconMicrophone,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { ObsidianNavPill } from '../NavPill';
 
 // ─── Shared chrome ────────────────────────────────────────────────────────────
@@ -33,7 +33,11 @@ function TopBar({ c, left, title, right }: { c: ObsidianColors; left?: React.Rea
 }
 function TextBtn({ c, label, accent, onPress }: { c: ObsidianColors; label: string; accent?: boolean; onPress?: () => void }) {
   return (
-    <Pressable onPress={onPress} hitSlop={8}>
+    // Sta in una TopBar da 52dp, quindi non può diventare alto 48 senza
+    // sfondarla: qui lo standard si raggiunge con hitSlop verticale, che
+    // allarga l'area toccabile lasciando intatto il layout. Il testo è ~18dp,
+    // +15 sopra e sotto ⇒ 48dp effettivi.
+    <Pressable onPress={onPress} hitSlop={{ top: 15, bottom: 15, left: 10, right: 10 }}>
       <Text style={{ fontSize: 15, fontWeight: accent ? '600' : '500', color: accent ? c.accent : c.muted }}>{label}</Text>
     </Pressable>
   );
@@ -225,7 +229,7 @@ export function GalleryFlow({ onClose, onAdd }: { onClose: () => void; onAdd?: (
       <TopBar
         c={c}
         left={<TextBtn c={c} label="Annulla" onPress={onClose} />}
-        title="Galleria"
+        title="Image"
         right={<View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}><Text style={{ fontSize: 14, fontWeight: '500', color: c.muted }}>Recenti</Text><IconChevronDown size={13} color={c.muted} /></View>}
       />
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4 }}>
@@ -243,7 +247,7 @@ export function GalleryFlow({ onClose, onAdd }: { onClose: () => void; onAdd?: (
         </View>
       </ScrollView>
       <View style={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16 + insets.bottom, borderTopWidth: 1, borderTopColor: c.line }}>
-        <Pressable onPress={onAdd} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: c.accent, borderRadius: 13, paddingVertical: 14 }}>
+        <Pressable onPress={onAdd} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: c.accent, borderRadius: 13, minHeight: OB_BTN_H }}>
           <IconPlus size={17} color={c.accentInk} strokeWidth={1.8} />
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Aggiungi</Text>
           <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>2</Text>
@@ -293,7 +297,7 @@ export function FileFlow({ onClose, onAttach }: { onClose: () => void; onAttach?
         ))}
       </ScrollView>
       <View style={{ paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16 + insets.bottom, borderTopWidth: 1, borderTopColor: c.line }}>
-        <Pressable onPress={onAttach} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: c.accent, borderRadius: 13, paddingVertical: 14 }}>
+        <Pressable onPress={onAttach} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, backgroundColor: c.accent, borderRadius: 13, minHeight: OB_BTN_H }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Allega</Text>
           <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>1</Text>
         </Pressable>
@@ -316,7 +320,7 @@ export function SaveSparkScreen({ onClose, onSend }: { onClose: () => void; onSe
   const Seg = ({ id, label, Icon }: { id: 'note' | 'todo'; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
     return (
-      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, borderRadius: 10, backgroundColor: on ? c.accent : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
+      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: OB_BTN_H, borderRadius: 10, backgroundColor: on ? c.accent : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
         <Icon size={15} color={on ? c.accentInk : c.muted} strokeWidth={1.8} />
         <Text style={{ fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accentInk : c.text }}>{label}</Text>
       </Pressable>
@@ -325,7 +329,7 @@ export function SaveSparkScreen({ onClose, onSend }: { onClose: () => void; onSe
   const Chip = ({ id, label, Icon }: { id: 'due' | 'allday' | 'timed'; label: string; Icon: typeof IconNote }) => {
     const on = when === id;
     return (
-      <Pressable onPress={() => setWhen(on ? null : id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9, backgroundColor: on ? c.accentSoft : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line }}>
+      <Pressable onPress={() => setWhen(on ? null : id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 9, backgroundColor: on ? c.accentSoft : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line }}>
         <Icon size={13} color={on ? c.accent : c.subtle} strokeWidth={1.8} />
         <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{label}</Text>
       </Pressable>
@@ -398,10 +402,10 @@ export function SaveSparkScreen({ onClose, onSend }: { onClose: () => void; onSe
       </ScrollView>
 
       <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 16 + insets.bottom, borderTopWidth: 1, borderTopColor: c.line }}>
-        <Pressable onPress={onClose} style={{ flex: 1, alignItems: 'center', paddingVertical: 14, borderRadius: 13, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line2 }}>
+        <Pressable onPress={onClose} style={{ flex: 1, alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 13, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line2 }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Salva</Text>
         </Pressable>
-        <Pressable onPress={onSend} style={{ flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 13, backgroundColor: c.accent }}>
+        <Pressable onPress={onSend} style={{ flex: 1.4, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: OB_BTN_H, borderRadius: 13, backgroundColor: c.accent }}>
           <IconSend size={16} color={c.accentInk} strokeWidth={1.8} />
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Invia a Gimmick</Text>
         </Pressable>
@@ -417,7 +421,7 @@ const HUB: Array<{ id: FlowId; label: string }> = [
   { id: 'video', label: 'Video · registrazione' },
   { id: 'voice', label: 'Voice · registratore' },
   { id: 'text', label: 'Text · editor nota' },
-  { id: 'gallery', label: 'Gallery · selezione' },
+  { id: 'gallery', label: 'Image · selezione' },
   { id: 'file', label: 'File · documenti' },
   { id: 'save', label: 'Salva spark' },
 ];

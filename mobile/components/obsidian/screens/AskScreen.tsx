@@ -11,7 +11,7 @@ import {
   IconTag, IconCheck, IconAlignLeft,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { BitoMascot } from '../Mascot';
@@ -66,11 +66,11 @@ function TileResult({ c }: { c: ObsidianColors }) {
 function ConfirmRow({ c }: { c: ObsidianColors }) {
   return (
     <View style={{ flexDirection: 'row', gap: 8 }}>
-      <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 34, borderRadius: 9, backgroundColor: c.accent }}>
+      <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 9, backgroundColor: c.accent }}>
         <IconCheck size={13} color={c.accentInk} strokeWidth={2.2} />
         <Text style={{ fontSize: 12.5, fontWeight: '600', color: c.accentInk }}>Conferma</Text>
       </Pressable>
-      <Pressable style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: 34, borderRadius: 9, borderWidth: 1, borderColor: c.line2 }}>
+      <Pressable style={{ flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: OB_BTN_H, borderRadius: 9, borderWidth: 1, borderColor: c.line2 }}>
         <Text style={{ fontSize: 12.5, fontWeight: '600', color: c.muted }}>Modifica</Text>
       </Pressable>
     </View>
@@ -110,6 +110,8 @@ export function ObsidianAskScreen({
         <Pressable onPress={onBack} hitSlop={6} style={({ pressed }) => ({ width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
           <IconArrowLeft size={18} color={c.muted} strokeWidth={1.8} />
         </Pressable>
+        {/* Avatar del mascotte, non un pulsante: resta 34×34 dentro la top bar
+            da 54dp. Lo standard 48 vale per i pulsanti con etichetta. */}
         <View style={{ width: 34, height: 34, borderRadius: 9, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
           <BitoMascot size={27} />
         </View>

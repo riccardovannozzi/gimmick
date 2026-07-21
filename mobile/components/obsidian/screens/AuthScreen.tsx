@@ -104,7 +104,7 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
 const ONB_CAPS: Array<{ key: string; label: string; color: (c: ObsidianColors) => string; Icon: typeof IconCamera }> = [
   { key: 'photo', label: 'Photo', color: (c) => c.cap.photo, Icon: IconCamera },
   { key: 'video', label: 'Video', color: (c) => c.cap.video, Icon: IconVideo },
-  { key: 'gallery', label: 'Gallery', color: (c) => c.cap.gallery, Icon: IconPhoto },
+  { key: 'gallery', label: 'Image', color: (c) => c.cap.gallery, Icon: IconPhoto },
   { key: 'text', label: 'Text', color: (c) => c.cap.text, Icon: IconAlignLeft },
   { key: 'voice', label: 'Voice', color: (c) => c.cap.voice, Icon: IconMicrophone },
   { key: 'file', label: 'File', color: (c) => c.cap.file, Icon: IconPaperclip },

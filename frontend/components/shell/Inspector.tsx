@@ -112,7 +112,7 @@ export interface InspectorCap {
 const DEFAULT_CAPS: InspectorCap[] = [
   { type: 'photo', label: 'Photo' },
   { type: 'video', label: 'Video' },
-  { type: 'gallery', label: 'Gallery' },
+  { type: 'gallery', label: 'Image' },
   { type: 'text', label: 'Text' },
   { type: 'voice', label: 'Voice' },
   { type: 'file', label: 'File' },

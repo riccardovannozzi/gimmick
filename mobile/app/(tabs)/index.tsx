@@ -13,7 +13,6 @@ import {
   LayoutAnimation,
   KeyboardAvoidingView,
   Platform,
-  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -73,10 +72,25 @@ type CaptureOption = {
   route: string;
 };
 
+/**
+ * Disposizione della griglia di cattura, una riga per array.
+ *
+ * Non è un semplice wrap a 3 colonne: la larghezza dei pulsanti esprime la
+ * gerarchia dei canali. Text occupa da solo la prima riga perché è la cattura
+ * più frequente e quella che non dipende da permessi o hardware; seguono i tre
+ * canali di registrazione dal vivo; in fondo i due di importazione, che
+ * partono da contenuto già esistente.
+ */
+const CAPTURE_ROWS: CaptureKey[][] = [
+  ['text'],
+  ['photo', 'video', 'voice'],
+  ['gallery', 'file'],
+];
+
 const captureOptions: CaptureOption[] = [
   { id: 'photo',   label: 'PHOTO',   Icon: IconCamera,     route: '/capture/photo' },
   { id: 'video',   label: 'VIDEO',   Icon: IconVideo,      route: '/capture/video' },
-  { id: 'gallery', label: 'GALLERY', Icon: IconPhoto,      route: '/capture/gallery' },
+  { id: 'gallery', label: 'IMAGE', Icon: IconPhoto,      route: '/capture/gallery' },
   { id: 'text',    label: 'TEXT',    Icon: IconEdit,       route: '/capture/text' },
   { id: 'voice',   label: 'REC',     Icon: IconMicrophone, route: '/capture/voice' },
   { id: 'file',    label: 'FILE',    Icon: IconPaperclip,  route: '/capture/file' },
@@ -85,8 +99,13 @@ const captureOptions: CaptureOption[] = [
 function sparkToCaptureKey(type: SparkType): CaptureKey {
   switch (type) {
     case 'photo':
-    case 'image':
       return 'photo';
+    // Gli spark 'image' appartengono al canale IMAGE, non a PHOTO: prima
+    // finivano qui e venivano colorati come foto pur essendo contati sotto
+    // IMAGE da `buttonToSparkTypes`, quindi lo stesso item compariva sotto due
+    // identità diverse nella stessa schermata.
+    case 'image':
+      return 'gallery';
     case 'video':
       return 'video';
     case 'text':
@@ -204,14 +223,9 @@ function HomeScreenLegacy() {
   const colors = useThemeColors(); // ancora usato dai sub-component legacy
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = useWindowDimensions();
-  // Layout calcolato per evitare bug Android di aspectRatio+flex.
-  // 3 tile per riga: ognuno occupa (T + offset) di spazio per ospitare l'ombra
-  // pixel sporgente in basso-destra. Margine 16 + 2 gap da 10.
-  const shadowOffset = theme.shadowOffset;
-  const tileSize = Math.floor(
-    (screenWidth - 16 * 2 - 10 * 2 - 3 * shadowOffset) / 3,
-  );
+  // La griglia di cattura usa `flex: 1` per pulsante, quindi non serve più
+  // calcolare a mano la dimensione delle tile né riservare spazio all'ombra
+  // pixel sporgente: i pulsanti Obsidian sono piatti e si dividono la riga.
   const items = useBufferStore((state) => state.items);
   const clearBuffer = useBufferStore((state) => state.clearBuffer);
   const removeItem = useBufferStore((state) => state.removeItem);
@@ -519,87 +533,70 @@ function HomeScreenLegacy() {
                 }
               />
 
-              {/* Capture grid — 2 rows × 3 buttons */}
-              {[captureOptions.slice(0, 3), captureOptions.slice(3, 6)].map((row, rowIdx) => (
-                <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
-                  {row.map((option) => {
+              {/* Capture grid — righe a larghezza variabile (vedi CAPTURE_ROWS) */}
+              {CAPTURE_ROWS.map((row, rowIdx) => (
+                <View key={rowIdx} style={{ flexDirection: 'row', gap: 8 }}>
+                  {row.map((id) => {
+                    const option = captureOptions.find((o) => o.id === id);
+                    if (!option) return null;
                     const types = buttonToSparkTypes[option.id] || [];
                     const count = types.reduce(
                       (sum, t) => sum + items.filter((i) => i.type === t).length,
                       0,
                     );
-                    const tintBg = theme.tint[option.id];
                     const accent = theme.cap[option.id];
                     const Icon = option.Icon;
                     return (
-                      <View
+                      <Pressable
                         key={option.id}
-                        style={{
-                          position: 'relative',
-                          paddingRight: shadowOffset,
-                          paddingBottom: shadowOffset,
-                        }}
+                        onPress={() => handleCapture(option.route)}
+                        disabled={isUploading}
+                        android_ripple={null}
+                        // `flex: 1` su ogni pulsante: le righe si dividono la
+                        // larghezza disponibile, quindi una riga da uno dà un
+                        // pulsante pieno e una da tre pulsanti in terzi, senza
+                        // calcoli di dimensione.
+                        style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.85 : 1 })}
                       >
-                        {/* Offset shadow Android-safe — stesso pattern della HOME
-                            pill: padding sul container, shadow absolute dietro,
-                            Pressable static (non absolute) wrappa il View
-                            stilizzato. Z-order garantito da JSX. */}
-                        {shadowOffset > 0 && (
-                          <View
-                            style={{
-                              position: 'absolute',
-                              left: shadowOffset,
-                              top: shadowOffset,
-                              right: 0,
-                              bottom: 0,
-                              backgroundColor: theme.shadowColor,
-                            }}
-                          />
-                        )}
-                        <Pressable
-                          onPress={() => handleCapture(option.route)}
-                          disabled={isUploading}
-                          android_ripple={null}
-                          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+                        <View
+                          style={{
+                            height: 46,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            gap: 7,
+                            paddingHorizontal: 10,
+                            borderRadius: 10,
+                            borderWidth: 1,
+                            borderColor: theme.border,
+                            backgroundColor: theme.surfaceVariant,
+                          }}
                         >
-                          <View
+                          <Icon size={17} color={accent} strokeWidth={1.8} />
+                          <Text
+                            numberOfLines={1}
                             style={{
-                              width: tileSize,
-                              height: tileSize,
-                              borderWidth: 2,
-                              borderColor: theme.border,
-                              backgroundColor: tintBg,
-                              alignItems: 'center',
-                              justifyContent: 'center',
+                              fontFamily: theme.fontHead,
+                              fontSize: 12,
+                              color: theme.ink,
+                              letterSpacing: 0.2,
                             }}
                           >
-                            <Icon size={42} color={accent} strokeWidth={1.6} />
-                            <Text
-                              numberOfLines={1}
-                              style={{
-                                fontFamily: theme.fontHead,
-                                fontSize: 9,
-                                lineHeight: 12,
-                                color: theme.ink,
-                                marginTop: 14,
-                                letterSpacing: 1,
-                              }}
-                            >
-                              {option.label}
-                            </Text>
-                            {count > 0 && (
-                              <View style={{ position: 'absolute', top: 4, right: 4 }}>
-                                <PixelBadge
-                                  theme={theme}
-                                  label={String(count)}
-                                  bg={accent}
-                                  color={theme.onAccent}
-                                />
-                              </View>
-                            )}
-                          </View>
-                        </Pressable>
-                      </View>
+                            {option.label}
+                          </Text>
+                          {/* Contatore in linea, non più a badge sovrapposto:
+                              su un pulsante basso e largo un badge d'angolo
+                              verrebbe tagliato dal borderRadius. */}
+                          {count > 0 && (
+                            <PixelBadge
+                              theme={theme}
+                              label={String(count)}
+                              bg={accent}
+                              color={theme.onAccent}
+                            />
+                          )}
+                        </View>
+                      </Pressable>
                     );
                   })}
                 </View>

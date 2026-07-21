@@ -70,7 +70,7 @@ function getItemLabel(type: SparkType): string {
     case 'file': return 'File';
     case 'photo': return 'Photo';
     case 'video': return 'Video';
-    case 'image': return 'Gallery';
+    case 'image': return 'Image';
     default: return 'Item';
   }
 }

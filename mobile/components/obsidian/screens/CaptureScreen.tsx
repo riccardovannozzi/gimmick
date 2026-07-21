@@ -1,21 +1,21 @@
 /**
  * Gimmick · Obsidian — Mobile Capture screen.
  *
- * Capture home: AppHeader + "Cattura" intro + "Invia a Gimmick" + the six
- * capture bars + "Set options". Overlays: the tag Drawer (menu), the voice
- * recording sheet (tapping Voice) and the Set-options sheet. Reference:
- * GimmickMobileCapture.dc.html. Reuses the Obsidian mobile shell + tokens.
+ * Capture home: AppHeader + "Invia a Gimmick" + the capture grid (see
+ * CAPTURE_ROWS) + "Set options". Overlays: the tag Drawer (menu), the voice
+ * recording sheet (tapping Voice) and the Set-options sheet. Reuses the
+ * Obsidian mobile shell + tokens.
  */
 import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend, IconChevronRight, IconChevronDown,
+  IconSend, IconChevronDown,
   IconNote, IconCheckbox, IconAlertCircle, IconCalendarEvent, IconClock, IconTag,
 } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianAppHeader } from '../AppHeader';
@@ -23,13 +23,28 @@ import { ObsidianDrawer } from '../Drawer';
 import type { MobileViewId } from '../TopNav';
 
 type CapKey = 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
-const CAPS: Array<{ key: CapKey; label: string; sub: string; Icon: typeof IconCamera }> = [
-  { key: 'photo', label: 'Photo', sub: 'Scatta o carica una foto', Icon: IconCamera },
-  { key: 'video', label: 'Video', sub: 'Registra un video', Icon: IconVideo },
-  { key: 'gallery', label: 'Gallery', sub: 'Scegli più elementi', Icon: IconPhoto },
-  { key: 'text', label: 'Text', sub: 'Scrivi una nota', Icon: IconAlignLeft },
-  { key: 'voice', label: 'Voice', sub: 'Detta un memo vocale', Icon: IconMicrophone },
-  { key: 'file', label: 'File', sub: 'Allega un documento', Icon: IconPaperclip },
+const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
+  photo: { label: 'Photo', Icon: IconCamera },
+  video: { label: 'Video', Icon: IconVideo },
+  gallery: { label: 'Image', Icon: IconPhoto },
+  text: { label: 'Text', Icon: IconAlignLeft },
+  voice: { label: 'Voice', Icon: IconMicrophone },
+  file: { label: 'File', Icon: IconPaperclip },
+};
+
+/**
+ * Disposizione della griglia di cattura, una riga per array.
+ *
+ * Non è un wrap automatico: la larghezza dei pulsanti esprime la gerarchia dei
+ * canali. Text da solo in prima riga perché è la cattura più frequente e
+ * l'unica che non dipende da permessi o hardware; poi i tre canali di
+ * registrazione dal vivo; in fondo i due di importazione, che partono da
+ * contenuto già esistente.
+ */
+const CAPTURE_ROWS: CapKey[][] = [
+  ['text'],
+  ['photo', 'video', 'voice'],
+  ['gallery', 'file'],
 ];
 
 // ─── Bottom sheet shell ───────────────────────────────────────────────────────
@@ -61,7 +76,7 @@ function SetOptionsSheet({ open, onClose }: { open: boolean; onClose: () => void
   const ActBtn = ({ id, label, Icon }: { id: 'note' | 'todo'; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
     return (
-      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, borderRadius: 10, backgroundColor: on ? c.accent : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
+      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: OB_BTN_H, borderRadius: 10, backgroundColor: on ? c.accent : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
         <Icon size={15} color={on ? c.accentInk : c.muted} strokeWidth={1.8} />
         <Text style={{ fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accentInk : c.text }}>{label}</Text>
       </Pressable>
@@ -70,7 +85,7 @@ function SetOptionsSheet({ open, onClose }: { open: boolean; onClose: () => void
   const Chip = ({ id, label, Icon }: { id: 'due' | 'allday' | 'timed'; label: string; Icon: typeof IconNote }) => {
     const on = when === id;
     return (
-      <Pressable onPress={() => setWhen(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 9, backgroundColor: on ? c.accentSoft : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line }}>
+      <Pressable onPress={() => setWhen(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 9, backgroundColor: on ? c.accentSoft : c.surface2, borderWidth: 1, borderColor: on ? 'transparent' : c.line }}>
         <Icon size={13} color={on ? c.accent : c.subtle} strokeWidth={1.8} />
         <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{label}</Text>
       </Pressable>
@@ -128,13 +143,13 @@ function VoiceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         ))}
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <Pressable onPress={onClose} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: c.line2, alignItems: 'center' }}>
+        <Pressable onPress={onClose} style={{ flex: 1, minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.line2, alignItems: 'center' }}>
           <Text style={{ fontSize: 14, fontWeight: '500', color: c.muted }}>Annulla</Text>
         </Pressable>
         <View style={{ width: 58, height: 58, borderRadius: 29, backgroundColor: col, alignItems: 'center', justifyContent: 'center' }}>
           <View style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: '#fff' }} />
         </View>
-        <Pressable onPress={onClose} style={{ flex: 1, paddingVertical: 12, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center' }}>
+        <Pressable onPress={onClose} style={{ flex: 1, minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.accent, alignItems: 'center' }}>
           <Text style={{ fontSize: 14, fontWeight: '600', color: c.accentInk }}>Salva spark</Text>
         </Pressable>
       </View>
@@ -168,56 +183,85 @@ export function ObsidianCaptureScreen({
       <ObsidianStatusBar />
       <ObsidianAppHeader bufferCount={count} onMenu={() => setDrawer(true)} onBuffer={onOpenBuffer} />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16 }}>
-        <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.6, color: c.text, marginTop: 6, marginHorizontal: 2, marginBottom: 4 }}>Cattura</Text>
-        <Text style={{ fontSize: 13, color: c.muted, marginHorizontal: 2, marginBottom: 16 }}>Butta dentro, poi invia tutto a Gimmick.</Text>
-
+      {/* paddingTop 14 (era 6): senza il titolo "Cattura" il pulsante Invia
+          finirebbe attaccato all'header. */}
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 14, paddingBottom: 16 }}>
         {/* Send */}
+        {/* Stessa struttura dei pulsanti di cattura: Pressable per il tocco,
+            View interna con stile statico per la grafica. Con lo stile passato
+            come funzione il fondo accent non veniva applicato e il pulsante
+            appariva come solo testo. */}
         <Pressable
           onPress={onSend}
           disabled={!onSend || count === 0}
-          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, marginBottom: 16, opacity: onSend && count === 0 ? 0.45 : pressed ? 0.92 : 1 })}
+          style={{ marginBottom: 16, opacity: onSend && count === 0 ? 0.45 : 1 }}
         >
-          <IconSend size={18} color={c.accentInk} strokeWidth={1.8} />
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Invia a Gimmick</Text>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: c.dark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>{count}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: c.accent, borderRadius: 14, minHeight: OB_BTN_H }}>
+            <IconSend size={18} color={c.accentInk} strokeWidth={1.8} />
+            <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Invia a Gimmick</Text>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: c.dark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>{count}</Text>
+          </View>
         </Pressable>
 
-        {/* Capture bars */}
-        <View style={{ gap: 9 }}>
-          {CAPS.map(({ key, label, sub, Icon }) => {
-            const col = c.cap[key];
-            return (
-              <Pressable
-                key={key}
-                onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
-                style={({ pressed }) => ({
-                  flexDirection: 'row', alignItems: 'center', gap: 14,
-                  backgroundColor: pressed ? col + (c.dark ? '24' : '14') : c.surface,
-                  borderWidth: 1, borderColor: pressed ? col + (c.dark ? '4d' : '40') : c.line,
-                  borderRadius: 14, paddingVertical: 13, paddingHorizontal: 14,
-                  transform: [{ scale: pressed ? 0.98 : 1 }],
-                })}
-              >
-                {({ pressed }) => (
-                  <>
-                    <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: pressed ? col : col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
-                      <Icon size={22} color={pressed ? '#fff' : col} strokeWidth={1.8} />
+        {/* Capture grid — stesso linguaggio visivo del gruppo AZIONE nella
+            sidebar web: contenitore unico a mo' di segmented control (surface +
+            cornice leggera + padding 3), pulsanti su fondo accent tenue e icone
+            neutre. Niente colore per canale: qui i pulsanti sono un unico
+            gruppo di scelta, non sei entità cromaticamente distinte. */}
+        {/* padding/gap 6 e non 3 come sul web: a 3px l'annidamento non si legge
+            sulla densità di pixel di un telefono e i pulsanti sembrano toccare
+            la cornice. Raggio esterno 14 / interno 8 per mantenere le curve
+            concentriche a questa distanza. */}
+        <View style={{ gap: 6, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 14, padding: 6 }}>
+          {CAPTURE_ROWS.map((row, rowIdx) => (
+            <View key={rowIdx} style={{ flexDirection: 'row', gap: 6 }}>
+              {row.map((key) => {
+                const { label, Icon } = CAPS[key];
+                return (
+                  // Il Pressable porta SOLO `flex: 1` (stile statico) e la
+                  // gestione del tocco; tutta la grafica sta sulla View interna
+                  // con un oggetto di stile statico. Gli stili passati a
+                  // Pressable come funzione `({pressed}) => …` non venivano
+                  // applicati in questo ambiente — è la ragione per cui i
+                  // pulsanti comparivano senza fondo né altezza.
+                  <Pressable
+                    key={key}
+                    onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
+                    android_ripple={{ color: c.accent + '33', borderless: false }}
+                    style={{ flex: 1 }}
+                  >
+                    <View
+                      style={{
+                        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        // 48 e non 32 come sul web: è il bersaglio di tocco
+                        // minimo di Material/accessibilità Android. Qui il
+                        // Pressable avvolge esattamente questa View senza
+                        // padding, quindi l'altezza disegnata coincide con
+                        // l'area toccabile e deve reggere da sola la soglia.
+                        minHeight: OB_BTN_H,
+                        borderRadius: 8,
+                        backgroundColor: c.accent + '14',
+                        borderWidth: 1,
+                        borderColor: 'transparent',
+                      }}
+                    >
+                      <Icon size={18} color={c.muted} strokeWidth={1.8} />
+                      {/* numberOfLines={1}: su schermi stretti una riga da tre
+                          non deve mandare l'etichetta a capo e sfalsare le
+                          altezze dei pulsanti affiancati. */}
+                      <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: c.text }}>
+                        {label}
+                      </Text>
                     </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{label}</Text>
-                      <Text style={{ fontSize: 12, color: c.subtle, marginTop: 1 }}>{sub}</Text>
-                    </View>
-                    <IconChevronRight size={16} color={pressed ? col : c.faint} strokeWidth={1.8} />
-                  </>
-                )}
-              </Pressable>
-            );
-          })}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))}
         </View>
 
         {/* Set options */}
-        <Pressable onPress={() => setOptions(true)} style={({ pressed }) => ({ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 13, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface, opacity: pressed ? 0.8 : 1 })}>
+        <Pressable onPress={() => setOptions(true)} style={({ pressed }) => ({ marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface, opacity: pressed ? 0.8 : 1 })}>
           <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>Set options</Text>
           <IconChevronDown size={13} color={c.muted} strokeWidth={1.8} style={{ transform: [{ rotate: '180deg' }] }} />
         </Pressable>

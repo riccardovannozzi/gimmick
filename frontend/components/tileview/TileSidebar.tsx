@@ -21,6 +21,7 @@ import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
 import { MarkdownPreview } from '@/components/markdown/markdown-preview';
 import { MarkdownEditorModal } from '@/components/markdown/markdown-editor-modal';
+import { CameraCapture, type CaptureMode, type CapturedMedia } from '@/components/capture/CameraCapture';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -1127,7 +1128,14 @@ export function TileSidebar({
       const mime = file.type;
       let sparkType: string = 'file';
       let folder = 'files';
-      if (mime.startsWith('image/')) { sparkType = 'photo'; folder = 'photos'; }
+      // Import da file → 'image', mai 'photo'. La distinzione è semantica e non
+      // cosmetica: 'photo' significa "catturata ora dal dispositivo", quindi con
+      // timestamp attendibile; 'image' significa "contenuto preesistente, data di
+      // creazione ignota". Un file scelto dal picker è per definizione il
+      // secondo caso — marcarlo 'photo' sarebbe un'affermazione falsa, e
+      // porterebbe fuori strada un'eventuale estrazione date sulle immagini.
+      // La cattura da webcam (che produrrà 'photo') arriva in un passo separato.
+      if (mime.startsWith('image/')) { sparkType = 'image'; folder = 'photos'; }
       else if (mime.startsWith('video/')) { sparkType = 'video'; folder = 'videos'; }
       else if (mime.startsWith('audio/')) { sparkType = 'audio_recording'; folder = 'audio'; }
       try {
@@ -1148,6 +1156,40 @@ export function TileSidebar({
     }
     invalidateAll();
   }, [tileId, invalidateAll]);
+
+  // `null` = modale chiusa; altrimenti è anche la modalità di cattura attiva.
+  const [cameraMode, setCameraMode] = useState<CaptureMode | null>(null);
+
+  /**
+   * Salva una cattura da webcam. Non passa da `handleFileSelect` di proposito:
+   * quello deriva il tipo dal MIME e marcherebbe uno scatto come 'image', cioè
+   * "contenuto preesistente". Qui sappiamo che il contenuto è stato creato
+   * adesso, quindi scriviamo il tipo esplicitamente.
+   */
+  const handleCameraCapture = useCallback(async ({ file, duration }: CapturedMedia) => {
+    if (!tileId || !cameraMode) return;
+    const isVideo = cameraMode === 'video';
+    try {
+      const uploadRes = await uploadApi.uploadFile(file, isVideo ? 'videos' : 'photos');
+      if (!uploadRes.data) throw new Error('Upload failed');
+      await sparksApi.create({
+        tile_id: tileId,
+        type: isVideo ? 'video' : 'photo',
+        storage_path: uploadRes.data.path,
+        file_name: uploadRes.data.file_name,
+        mime_type: uploadRes.data.mime_type,
+        file_size: uploadRes.data.file_size,
+        ...(duration ? { duration } : {}),
+      });
+      toast.success(isVideo ? 'Video aggiunto' : 'Foto aggiunta');
+      setCameraMode(null);
+      invalidateAll();
+    } catch {
+      // La modale resta aperta: la cattura è ancora in anteprima e si può
+      // ritentare l'upload senza rifarla.
+      toast.error('Errore upload');
+    }
+  }, [tileId, cameraMode, invalidateAll]);
 
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
@@ -1576,9 +1618,15 @@ export function TileSidebar({
                   }}
                 >
                   {[
-                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
-                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
-                    { id: 'gallery', label: 'Gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    // Due canali immagine con significati distinti e veri:
+                    // Photo apre la webcam e produce spark 'photo' (catturata
+                    // ora, timestamp attendibile); Image apre il file picker e
+                    // produce 'image' (contenuto preesistente, data ignota).
+                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: null },
+                    { id: 'image', label: 'Image', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    // Video registra dalla webcam, non importa: aprire un file
+                    // picker qui duplicherebbe File, che l'importazione la fa già.
+                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: null },
                     { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
                     { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
                     { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
@@ -1596,6 +1644,8 @@ export function TileSidebar({
                         onClick={() => {
                           if (opt.id === 'text') {
                             setShowNewText(true);
+                          } else if (opt.id === 'photo' || opt.id === 'video') {
+                            setCameraMode(opt.id);
                           } else {
                             const input = document.createElement('input');
                             input.type = 'file';
@@ -1783,6 +1833,20 @@ export function TileSidebar({
           </div>
         )}
       </>)}
+
+      {/* Fuori dai blocchi condizionali della barra di cattura: la modale si
+          monta in un portale a `position: fixed`, quindi non dipende dallo
+          stato di apertura di nessuna sezione della sidebar. */}
+      <CameraCapture
+        open={cameraMode !== null}
+        // `key` forza il rimonto al cambio modalità: la modale acquisisce lo
+        // stream all'apertura, e riusare la stessa istanza fra photo e video la
+        // lascerebbe con uno stream senza traccia audio.
+        key={cameraMode ?? 'closed'}
+        mode={cameraMode ?? 'photo'}
+        onCancel={() => setCameraMode(null)}
+        onCapture={handleCameraCapture}
+      />
     </div>
   );
 }

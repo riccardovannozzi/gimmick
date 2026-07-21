@@ -14,7 +14,7 @@
 export type CaptureKey = 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
 
 export const CAPTURE_LABELS: Record<CaptureKey, string> = {
-  photo: 'PHOTO', video: 'VIDEO', gallery: 'GALLERY',
+  photo: 'PHOTO', video: 'VIDEO', gallery: 'IMAGE',
   text: 'TEXT', voice: 'REC', file: 'FILE',
 };
 

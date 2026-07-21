@@ -144,6 +144,20 @@ export const obsidianRadius = {
   pill: 999,
 } as const;
 
+/**
+ * Altezza standard dei pulsanti con etichetta (dp).
+ *
+ * 48 è il bersaglio di tocco minimo di Material e delle linee guida di
+ * accessibilità Android. Va applicata come `minHeight` e non come `height`,
+ * così un'etichetta che va a capo o una dimensione di testo aumentata dalle
+ * impostazioni di sistema fanno crescere il pulsante invece di essere tagliate.
+ *
+ * NON si applica a: pulsanti solo-icona compatti dentro barre ad altezza fissa,
+ * chip in liste orizzontali e celle di calendario — lì la strada corretta è
+ * `hitSlop`, che allarga l'area toccabile senza toccare il layout.
+ */
+export const OB_BTN_H = 48;
+
 /** Append an 8-bit alpha (00–ff) to a 6-digit hex. */
 export function withAlpha(hex: string, alpha: string): string {
   return hex.length === 7 ? hex + alpha : hex;

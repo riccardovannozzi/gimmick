@@ -25,7 +25,7 @@ export default function GalleryCaptureScreen() {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (status !== 'granted') {
-        toast.error('Gallery access denied');
+        toast.error('Accesso alle immagini negato');
         router.back();
         return;
       }
