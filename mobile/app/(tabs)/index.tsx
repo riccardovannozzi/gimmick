@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ObsidianCaptureScreenLive } from '@/components/obsidian';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import {
   View,
   Text,
@@ -192,7 +194,12 @@ function PixelSparkChip({
   );
 }
 
-export default function HomeScreen() {
+export default function HomeRoute() {
+  if (isObsidianShellEnabled()) return <ObsidianCaptureScreenLive />;
+  return <HomeScreenLegacy />;
+}
+
+function HomeScreenLegacy() {
   const theme = usePixelTheme();
   const colors = useThemeColors(); // ancora usato dai sub-component legacy
   const router = useRouter();

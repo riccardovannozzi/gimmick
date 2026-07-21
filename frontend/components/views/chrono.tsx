@@ -15,6 +15,7 @@
  * mock di design (route di anteprima).
  */
 import * as React from 'react';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
 import { readableOn } from '@/lib/palette';
 import { Icon, type ShellIconName } from '@/components/shell';
@@ -412,7 +413,16 @@ function DayColumn({
         onDblCreateAt(dayIndex, s);
       } : undefined}
     >
-      {HOURS.map((_, k) => <div key={k} className="ob-chrono__gridline" style={{ top: k * H }} />)}
+      {HOURS.map((_, k) => (
+        <React.Fragment key={k}>
+          <div className="ob-chrono__gridline" style={{ top: k * H }} />
+          {/* Mezz'ora tratteggiata: omessa sull'ultima fascia, che non ha
+              un'ora successiva a chiuderla. */}
+          {k < HOURS.length - 1 && (
+            <div className="ob-chrono__gridline ob-chrono__gridline--half" style={{ top: k * H + H / 2 }} />
+          )}
+        </React.Fragment>
+      ))}
       {evs.map((e, j) => {
         const previewE = resize && resize.id === e.id ? resize.curE : e.e;
         const s = Math.max(e.s, START);
@@ -591,6 +601,28 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
 
 function Calendar({ cal }: { cal: ChronoCalendar }) {
   const view = cal.view ?? 'week';
+
+  // Allineamento colonne. Day-header e lane All Day stanno FUORI dal contenitore
+  // che scrolla: quando la griglia oraria mostra la scrollbar verticale perde in
+  // larghezza quanto la scrollbar occupa, mentre le due righe sopra restano a
+  // larghezza piena → le colonne si disallineano, con scarto crescente verso
+  // destra. Misuriamo la scrollbar e la riserviamo come padding sulle due righe.
+  // Su scrollbar overlay (macOS) la misura è 0, quindi nessun effetto.
+  const gridRef = React.useRef<HTMLDivElement>(null);
+  const [scrollbarW, setScrollbarW] = React.useState(0);
+  useIsomorphicLayoutEffect(() => {
+    const el = gridRef.current;
+    if (!el) return;
+    const measure = () => setScrollbarW(el.offsetWidth - el.clientWidth);
+    measure();
+    // L'altezza del contenuto è fissa (HOURS.length * H): la comparsa della
+    // scrollbar dipende solo dall'altezza del contenitore, quindi basta
+    // osservare quello.
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view]);
+
   return (
     <div className="ob-chrono__cal">
       {/* Calendar header */}
@@ -617,7 +649,7 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
       ) : (
       <>
       {/* Day header */}
-      <div className="ob-chrono__dayhead">
+      <div className="ob-chrono__dayhead" style={{ paddingRight: scrollbarW }}>
         <div className="ob-chrono__gutter-sp" />
         {cal.days.map((d, i) => (
           <div key={i} className={cn('ob-chrono__day', i === 0 && 'ob-chrono__day--first', i === cal.todayIndex && 'ob-chrono__day--today')}>
@@ -628,13 +660,13 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
       </div>
 
       {/* All-day lane */}
-      <div className="ob-chrono__allday">
-        <div className="ob-chrono__allday-label"><span>ALL DAY</span></div>
+      <div className="ob-chrono__allday" style={{ paddingRight: scrollbarW }}>
+        <div className="ob-chrono__allday-label"><span>DAILY</span></div>
         {cal.days.map((_, i) => <AllDayCell key={i} dayIndex={i} cal={cal} />)}
       </div>
 
       {/* Time grid */}
-      <div className="ob-chrono__grid ob-scroll">
+      <div className="ob-chrono__grid ob-scroll" ref={gridRef}>
         <div className="ob-chrono__gutter" style={{ height: HOURS.length * H }}>
           {HOURS.map((x, i) => (
             <div key={x} className="ob-chrono__gutter-h" style={{ top: i * H - 6 }}>

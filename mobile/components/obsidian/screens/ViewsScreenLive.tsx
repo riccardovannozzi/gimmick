@@ -11,6 +11,7 @@ import { tilesApi, flowApi, calendarApi } from '@/lib/api';
 import { tilesToGroups, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
 import type { FlowHubFilter } from '@/types';
 import { useSettingsStore } from '@/store/settingsStore';
+import { useAuthStore } from '@/store/authStore';
 import { ObsidianViewsScreen } from './ViewsScreen';
 import type { MobileViewId } from '../TopNav';
 
@@ -19,12 +20,23 @@ const MONTHS_SHORT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 's
 
 export interface ObsidianViewsScreenLiveProps {
   initial?: MobileViewId;
+  /** Opens the login screen from the Settings tab. */
+  onSignIn?: () => void;
+  /** TopNav home button → the Capture screen. */
+  onHome?: () => void;
   onOpenTile?: (id: string) => void;
   onOpenFlow?: (tileId: string) => void;
+  /** Fired after the internal TopNav switches view, so a host route can keep
+   *  the router in sync with the visible tab (see app/(tabs)/*). */
+  onActiveChange?: (id: MobileViewId) => void;
 }
 
-export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow }: ObsidianViewsScreenLiveProps) {
+export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome }: ObsidianViewsScreenLiveProps) {
   const [active, setActive] = React.useState<MobileViewId>(initial);
+  const handleActive = React.useCallback((id: MobileViewId) => {
+    setActive(id);
+    onActiveChange?.(id);
+  }, [onActiveChange]);
   const [flowFilter, setFlowFilter] = React.useState<FlowHubFilter>('wait');
   const [dayOffset, setDayOffset] = React.useState(0);
 
@@ -35,6 +47,9 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
   const setConfirmDelete = useSettingsStore((s) => s.setConfirmDelete);
   const themeMode = useSettingsStore((s) => s.theme);
   const setThemeMode = useSettingsStore((s) => s.setTheme);
+
+  const authUser = useAuthStore((s) => s.user);
+  const signOut = useAuthStore((s) => s.signOut);
 
   const tilesQuery = useQuery({
     queryKey: ['tiles', { page: 1, limit: 100 }],
@@ -67,6 +82,20 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     enabled: active === 'chrono',
   });
 
+  // A failed fetch and an empty result render identically in the list content,
+  // so surface the failure explicitly. Two distinct cases: the request threw
+  // (network / unreachable backend) or it came back with success:false (auth,
+  // validation). Both are reported to the user rather than swallowed.
+  const activeQuery = active === 'tiles' ? tilesQuery : active === 'flows' ? flowsQuery : active === 'chrono' ? chronoQuery : null;
+  const errorText = React.useMemo(() => {
+    if (!activeQuery) return null;
+    if (activeQuery.error) return `Impossibile contattare il backend: ${String((activeQuery.error as Error)?.message ?? activeQuery.error)}`;
+    if (activeQuery.data && activeQuery.data.success === false) {
+      return `Il backend ha rifiutato la richiesta: ${(activeQuery.data as { error?: string }).error ?? 'errore sconosciuto'}`;
+    }
+    return null;
+  }, [activeQuery]);
+
   const groups = React.useMemo(
     () => tilesToGroups(tilesQuery.data?.data ?? [], new Date()),
     [tilesQuery.data],
@@ -84,7 +113,7 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
   return (
     <ObsidianViewsScreen
       active={active}
-      onActiveChange={setActive}
+      onActiveChange={handleActive}
       tileGroups={groups}
       tilesLoading={tilesQuery.isLoading}
       onOpenTile={onOpenTile}
@@ -107,6 +136,9 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
       onConfirmDelete={setConfirmDelete}
       themeMode={themeMode}
       onThemeMode={setThemeMode}
+      errorText={errorText}
+      account={{ email: authUser?.email ?? null, onSignIn, onSignOut: signOut }}
+      onHome={onHome}
     />
   );
 }

@@ -11,9 +11,11 @@ import { Animated, Modal, Pressable, ScrollView, Text, View } from 'react-native
 import {
   IconChevronRight, IconChevronDown, IconSearch, IconSettings,
   IconHome, IconSun, IconRipple, IconCurrencyEuro,
+  IconLayoutGrid, IconRoute, IconCalendarTime,
 } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
+import type { MobileViewId } from './TopNav';
 
 const PANEL = 290;
 
@@ -37,6 +39,15 @@ export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
   { id: 'money', name: 'Money', Icon: IconCurrencyEuro, color: '#6FCF97' },
 ];
 
+/** App views reachable from the drawer. The Capture screen has no TopNav — its
+ *  AppHeader menu is the only navigation affordance it owns — so without these
+ *  entries Capture would be a dead end. */
+const VIEW_LINKS: Array<{ id: MobileViewId; name: string; Icon: typeof IconHome }> = [
+  { id: 'tiles', name: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'flows', name: 'Flows', Icon: IconRoute },
+  { id: 'chrono', name: 'Chrono', Icon: IconCalendarTime },
+];
+
 interface ObsidianDrawerProps {
   open: boolean;
   onClose: () => void;
@@ -45,10 +56,13 @@ interface ObsidianDrawerProps {
   activeChildId?: string;
   onSelectChild?: (id: string) => void;
   onSettings?: () => void;
+  /** Navigate to one of the main views. Omit to hide the VISTE section (QA preview). */
+  onNavigateView?: (id: MobileViewId) => void;
 }
 
 export function ObsidianDrawer({
   open, onClose, groups = DEFAULT_DRAWER_GROUPS, count = 26, activeChildId = 'gds-report', onSelectChild, onSettings,
+  onNavigateView,
 }: ObsidianDrawerProps) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
@@ -104,6 +118,23 @@ export function ObsidianDrawer({
 
         {/* Groups */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+          {onNavigateView && (
+            <View style={{ marginBottom: 10 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: c.subtle, paddingHorizontal: 8, marginBottom: 4 }}>VISTE</Text>
+              {VIEW_LINKS.map((v) => (
+                <Pressable
+                  key={v.id}
+                  onPress={() => { onNavigateView(v.id); onClose(); }}
+                  style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 8, paddingVertical: 9, borderRadius: 8, backgroundColor: pressed ? c.surface2 : 'transparent' })}
+                >
+                  <v.Icon size={17} color={c.muted} strokeWidth={1.8} />
+                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: c.text }}>{v.name}</Text>
+                </Pressable>
+              ))}
+              <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: 8, marginTop: 8 }} />
+              <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.2, color: c.subtle, paddingHorizontal: 8, marginTop: 10 }}>TAG</Text>
+            </View>
+          )}
           {groups.map((g) => {
             const isOpen = openState[g.id];
             const Chevron = isOpen ? IconChevronDown : IconChevronRight;

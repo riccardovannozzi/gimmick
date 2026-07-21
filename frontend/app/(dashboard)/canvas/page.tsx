@@ -14,6 +14,7 @@ import { StagingPanel } from '@/components/canvas/StagingPanel';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
@@ -185,7 +186,9 @@ export default function CanvasPage() {
   const STAGING_MAX_W = 700;
   const [stagingWidth, setStagingWidth] = useState<number>(176);
   const [stagingOpen, setStagingOpen] = useState<boolean>(true);
-  useEffect(() => {
+  // Layout-effect: evita che il pannello venga disegnato alla larghezza di
+  // default (176px) prima di saltare a quella salvata.
+  useIsomorphicLayoutEffect(() => {
     try {
       const raw = localStorage.getItem('canvas_staging_width');
       if (raw) {

@@ -35,6 +35,7 @@ import {
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -138,7 +139,9 @@ export function ChronoLive() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   // Vista calendario persistita (init 'week' per evitare mismatch di idratazione).
-  useEffect(() => {
+  // Ripristino in layout-effect: gira prima del paint, così il default 'week'
+  // non viene mai disegnato e il segmented non "salta" al rimonto della vista.
+  useIsomorphicLayoutEffect(() => {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-cal-view') : null;
     if (s === 'day' || s === '3day' || s === 'week' || s === 'month') setViewState(s);
   }, []);
@@ -161,7 +164,7 @@ export function ChronoLive() {
   // Colorazione dei tile: per Tag (colore del tag_type) o per Tipo (type-icon).
   // Persistita in localStorage; init 'tag' per evitare mismatch di idratazione.
   const [colorMode, setColorMode] = useState<ChronoColorMode>('tag');
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
     if (s === 'tag' || s === 'type') setColorMode(s);
   }, []);

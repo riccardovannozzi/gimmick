@@ -14,7 +14,11 @@ import type { ViewId } from '@/components/shell';
  * l'ultimo tag aperto (`localStorage.canvas_last_tag`, lo stesso che il canvas
  * riapre in auto-redirect) per precaricare i dati di quel tag.
  */
-const PREFETCH_STALE = 30_000;
+// Finestra di freschezza del prefetch. Tenuta ampia perché il prefetch ora gira
+// anche a idle su tutte le viste: con 30s la coda rifetchava di continuo. Le
+// viste rivalidano comunque al mount secondo il proprio staleTime, mostrando
+// intanto i dati in cache (nessuno spinner).
+const PREFETCH_STALE = 120_000;
 
 function prefetchTags(qc: QueryClient): void {
   qc.prefetchQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list(), staleTime: PREFETCH_STALE });

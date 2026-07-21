@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useCallback } from 'react';
+import { ObsidianViewsTabHost } from '@/components/obsidian/ViewsTabHost';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { View, Text, FlatList, ActivityIndicator, Pressable } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import * as TablerIcons from '@tabler/icons-react-native';
@@ -287,7 +289,12 @@ function TileItem({
 
 // ============ Main screen ============
 
-export default function HistoryScreen() {
+export default function HistoryRoute() {
+  if (isObsidianShellEnabled()) return <ObsidianViewsTabHost view="tiles" />;
+  return <HistoryScreenLegacy />;
+}
+
+function HistoryScreenLegacy() {
   const theme = usePixelTheme();
   const router = useRouter();
   const queryClient = useQueryClient();

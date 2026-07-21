@@ -20,6 +20,7 @@ import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianAppHeader } from '../AppHeader';
 import { ObsidianDrawer } from '../Drawer';
+import type { MobileViewId } from '../TopNav';
 
 type CapKey = 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
 const CAPS: Array<{ key: CapKey; label: string; sub: string; Icon: typeof IconCamera }> = [
@@ -142,26 +143,44 @@ function VoiceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
 }
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
-export function ObsidianCaptureScreen() {
+export interface ObsidianCaptureScreenProps {
+  /** Items waiting in the buffer. */
+  bufferCount?: number;
+  /** Start a capture flow. Omitted → the static QA mock (voice sheet only). */
+  onCapture?: (key: CapKey) => void;
+  onSend?: () => void;
+  onOpenBuffer?: () => void;
+  onNavigateView?: (id: MobileViewId) => void;
+  onSettings?: () => void;
+}
+
+export function ObsidianCaptureScreen({
+  bufferCount, onCapture, onSend, onOpenBuffer, onNavigateView, onSettings,
+}: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
   const [drawer, setDrawer] = React.useState(false);
   const [voice, setVoice] = React.useState(false);
   const [options, setOptions] = React.useState(false);
+  const count = bufferCount ?? 2;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <ObsidianAppHeader bufferCount={8} onMenu={() => setDrawer(true)} />
+      <ObsidianAppHeader bufferCount={count} onMenu={() => setDrawer(true)} onBuffer={onOpenBuffer} />
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 16 }}>
         <Text style={{ fontSize: 26, fontWeight: '700', letterSpacing: -0.6, color: c.text, marginTop: 6, marginHorizontal: 2, marginBottom: 4 }}>Cattura</Text>
         <Text style={{ fontSize: 13, color: c.muted, marginHorizontal: 2, marginBottom: 16 }}>Butta dentro, poi invia tutto a Gimmick.</Text>
 
         {/* Send */}
-        <Pressable style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, marginBottom: 16, opacity: pressed ? 0.92 : 1 })}>
+        <Pressable
+          onPress={onSend}
+          disabled={!onSend || count === 0}
+          style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, marginBottom: 16, opacity: onSend && count === 0 ? 0.45 : pressed ? 0.92 : 1 })}
+        >
           <IconSend size={18} color={c.accentInk} strokeWidth={1.8} />
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Invia a Gimmick</Text>
-          <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: c.dark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>2</Text>
+          <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk, backgroundColor: c.dark ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.24)', borderRadius: 7, paddingHorizontal: 8, paddingVertical: 2, fontVariant: ['tabular-nums'] }}>{count}</Text>
         </Pressable>
 
         {/* Capture bars */}
@@ -171,7 +190,7 @@ export function ObsidianCaptureScreen() {
             return (
               <Pressable
                 key={key}
-                onPress={() => { if (key === 'voice') setVoice(true); }}
+                onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
                 style={({ pressed }) => ({
                   flexDirection: 'row', alignItems: 'center', gap: 14,
                   backgroundColor: pressed ? col + (c.dark ? '24' : '14') : c.surface,
@@ -207,7 +226,7 @@ export function ObsidianCaptureScreen() {
       <ObsidianNavPill />
 
       {/* Overlays */}
-      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} />
+      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} />
       <VoiceSheet open={voice} onClose={() => setVoice(false)} />
       <SetOptionsSheet open={options} onClose={() => setOptions(false)} />
     </View>

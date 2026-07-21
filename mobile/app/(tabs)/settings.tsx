@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { ObsidianViewsTabHost } from '@/components/obsidian/ViewsTabHost';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { View, Text, ScrollView, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -348,7 +350,12 @@ function PixelSettingsBlock() {
 
 // ─── Main screen ────────────────────────────────────────────────────────────
 
-export default function SettingsScreen() {
+export default function SettingsRoute() {
+  if (isObsidianShellEnabled()) return <ObsidianViewsTabHost view="settings" />;
+  return <SettingsScreenLegacy />;
+}
+
+function SettingsScreenLegacy() {
   const theme = usePixelTheme();
   const {
     hapticFeedback,

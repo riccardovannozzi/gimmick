@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -27,11 +27,30 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const initialize = useAuthStore((state) => state.initialize);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+  const accessToken = useAuthStore((state) => state.accessToken);
   const { colors, isDark } = useTheme();
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
     initialize();
   }, []);
+
+  // Auth guard. Without it an unauthenticated session lands straight on the
+  // tabs and every list renders empty with no explanation — the requests just
+  // go out without an Authorization header and come back rejected. Gated on
+  // `isInitialized` so we don't bounce to login while AsyncStorage is still
+  // rehydrating a perfectly valid session.
+  const inAuthGroup = segments[0] === 'auth';
+  useEffect(() => {
+    if (!isInitialized) return;
+    if (!accessToken && !inAuthGroup) {
+      router.replace('/auth/login');
+    } else if (accessToken && inAuthGroup) {
+      router.replace('/');
+    }
+  }, [isInitialized, accessToken, inAuthGroup]);
 
   return (
     <View className={`flex-1 ${isDark ? 'dark' : ''}`}>
@@ -98,6 +117,12 @@ function AppContent() {
           }}
         />
       </Stack>
+      {/* Cover — NOT a replacement for the Stack. Swapping the navigator root
+          out while the session is read crashes Fabric ("addViewAt: failed to
+          insert"), so it stays mounted and we just paint over it. */}
+      {!isInitialized && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: colors.background1 }} pointerEvents="auto" />
+      )}
       <ToastContainer />
     </View>
   );

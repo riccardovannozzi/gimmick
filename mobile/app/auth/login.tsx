@@ -10,8 +10,28 @@ import {
   PixelTextInput,
   PixelWordmark,
 } from '@/components/pixel';
+import { ObsidianAuthScreenLive } from '@/components/obsidian';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
-export default function LoginScreen() {
+export default function LoginRoute() {
+  const router = useRouter();
+
+  if (isObsidianShellEnabled()) {
+    return (
+      <ObsidianAuthScreenLive
+        onAuthed={() => {
+          // Opened from the tabs there's a screen to pop back to; reached via
+          // the root auth guard there isn't, and the guard's own redirect to
+          // "/" takes over once the token lands in the store.
+          if (router.canGoBack()) router.back();
+        }}
+      />
+    );
+  }
+  return <LoginScreenLegacy />;
+}
+
+function LoginScreenLegacy() {
   const theme = usePixelTheme();
   const router = useRouter();
   const { signIn, signUp, isLoading } = useAuthStore();
@@ -46,7 +66,10 @@ export default function LoginScreen() {
           toast.error(result.error);
         } else {
           toast.success('Login successful!');
-          router.back();
+          // Reached from the tabs there's a screen to pop back to; reached via
+          // the root auth guard (redirect on a cold, unauthenticated start)
+          // there isn't, so the guard's own redirect takes over instead.
+          if (router.canGoBack()) router.back();
         }
       }
     } catch (error) {

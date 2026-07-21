@@ -11,6 +11,7 @@ import {
   IconChevronDown,
 } from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -139,7 +140,7 @@ export function StagingPanel({
 
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     try {
       const s = localStorage.getItem(SORT_LS_KEY);
       if (s === 'asc' || s === 'desc') setSortDir(s);

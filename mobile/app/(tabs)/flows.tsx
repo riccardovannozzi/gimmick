@@ -6,6 +6,8 @@
  * backend endpoint as the web. Default selection is "wait" — matches the web.
  */
 import React, { useState } from 'react';
+import { ObsidianViewsTabHost } from '@/components/obsidian/ViewsTabHost';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import {
   View,
   Text,
@@ -61,7 +63,12 @@ function formatDate(iso: string | null): string | null {
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export default function FlowsScreen() {
+export default function FlowsRoute() {
+  if (isObsidianShellEnabled()) return <ObsidianViewsTabHost view="flows" />;
+  return <FlowsScreenLegacy />;
+}
+
+function FlowsScreenLegacy() {
   const router = useRouter();
   const theme = usePixelTheme();
   const [filter, setFilter] = useState<FlowHubFilter>('wait');
