@@ -90,7 +90,14 @@
 .ob-chrono__empty { font-size: 11px; color: var(--ob-subtle); padding: 4px; }
 
 /* tile card */
-.ob-chrono__card { border-radius: 5px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: space-between; gap: 9px; min-height: 58px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card { position: relative; border-radius: 5px; padding: 9px 10px; display: flex; flex-direction: column; justify-content: space-between; gap: 9px; min-height: 58px; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+/* Pallino "completato": cerchietto verde in alto a destra della card. */
+.ob-chrono__card-done { position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-success); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ob-success) 30%, transparent); pointer-events: none; }
+/* Tile/evento completato: titolo barrato e attenuato. */
+.ob-chrono__card--done .ob-chrono__card-title,
+.ob-chrono__event--done .ob-chrono__event-title,
+.ob-chrono__allday-pill--done .ob-chrono__allday-title,
+.ob-chrono__month-ev--done .ob-chrono__month-ev-title { text-decoration: line-through; opacity: 0.55; }
 /* ── Vista Mese ── */
 .ob-chrono__month { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .ob-chrono__month-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--ob-line); position: sticky; top: 0; background: var(--ob-surface); z-index: 1; }
@@ -106,7 +113,8 @@
 .ob-chrono__month-evs { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ob-chrono__month-ev { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, var(--ev-c) 14%, transparent); }
 .ob-chrono__month-ev-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ev-c); flex-shrink: 0; }
-.ob-chrono__month-ev-title { font-family: var(--ob-font-sans); font-size: 11px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__month-ev-title { flex: 1; min-width: 0; font-family: var(--ob-font-sans); font-size: 11px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__month-ev-done { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--ob-success); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ob-success) 30%, transparent); }
 .ob-chrono__month-more { font-family: var(--ob-font-sans); font-size: 10px; color: var(--ob-subtle); padding-left: 4px; }
 
 .ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; }
@@ -176,7 +184,8 @@
 /* Scadenze: etichetta verticale rossa sul bordo sinistro (unico marcatore). */
 .ob-chrono__allday-pill--deadline { padding-left: 9px; }
 .ob-chrono__allday-pill--deadline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ob-error); border-radius: 3px 0 0 3px; }
-.ob-chrono__allday-title { font-size: 9.5px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__allday-title { flex: 1; min-width: 0; font-size: 9.5px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__allday-done { flex-shrink: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--ob-success); box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--ob-success) 30%, transparent); }
 
 /* time grid */
 .ob-chrono__grid { flex: 1; overflow-y: auto; display: flex; }
@@ -202,6 +211,8 @@
 .ob-chrono__event--tall { flex-direction: column; padding: 3px 6px; gap: 1px; }
 .ob-chrono__event--tiny { flex-direction: row; align-items: center; padding: 2px 6px; gap: 5px; }
 .ob-chrono__event-title { font-size: 9.5px; font-weight: 600; color: var(--ob-text); line-height: 12px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; word-break: break-word; }
+/* Indicatore "completato": cerchietto verde in alto a destra dell'evento. */
+.ob-chrono__event-done { position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--ob-success); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ob-success) 30%, transparent); pointer-events: none; z-index: 1; }
 /* Negli eventi bassi (tiny) c'è spazio per una sola riga: troncamento inline. */
 .ob-chrono__event--tiny .ob-chrono__event-title { flex: 1; -webkit-line-clamp: 1; white-space: nowrap; text-overflow: ellipsis; }
 .ob-chrono__event-time { font-size: 8.5px; font-family: var(--ob-font-mono); color: var(--ev-c); flex-shrink: 0; }

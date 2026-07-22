@@ -23,27 +23,16 @@ function GimmickMark({ c, size }: { c: ObsidianColors; size: number }) {
   );
 }
 
-// ─── Login ────────────────────────────────────────────────────────────────────
-interface LoginProps {
-  c: ObsidianColors;
-  onNext: () => void;
-  /** Live auth wiring (omit → static demo that just advances onboarding). */
-  email?: string;
-  password?: string;
-  onEmail?: (t: string) => void;
-  onPassword?: (t: string) => void;
-  onSubmit?: () => void;
-  onRegister?: () => void;
-  loading?: boolean;
-  error?: string | null;
-}
-function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRegister, loading, error }: LoginProps) {
-  const live = onSubmit !== undefined;
-  const Field = ({ Icon, placeholder, secure, eye, value, onChangeText, keyboardType, autoCapitalize }: {
-    Icon: typeof IconMail; placeholder: string; secure?: boolean; eye?: boolean;
-    value?: string; onChangeText?: (t: string) => void;
-    keyboardType?: 'email-address' | 'default'; autoCapitalize?: 'none' | 'sentences';
-  }) => (
+// NB: Field e Social vivono a livello di modulo, NON dentro Login. Se fossero
+// definiti nel corpo di Login, ad ogni keystroke Login si ri-renderizza, la loro
+// identità cambia e React rimonta il TextInput → il focus si perde e la tastiera
+// si chiude ad ogni lettera. Tenendoli fuori, l'identità resta stabile.
+function LoginField({ c, Icon, placeholder, secure, eye, value, onChangeText, keyboardType, autoCapitalize, loading }: {
+  c: ObsidianColors; Icon: typeof IconMail; placeholder: string; secure?: boolean; eye?: boolean;
+  value?: string; onChangeText?: (t: string) => void;
+  keyboardType?: 'email-address' | 'default'; autoCapitalize?: 'none' | 'sentences'; loading?: boolean;
+}) {
+  return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14 }}>
       <Icon size={17} color={c.subtle} strokeWidth={1.8} />
       <TextInput
@@ -61,12 +50,33 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
       {eye ? <IconEye size={16} color={c.subtle} strokeWidth={1.8} /> : null}
     </View>
   );
-  const Social = ({ Icon, label }: { Icon: typeof IconBrandGoogle; label: string }) => (
+}
+
+function LoginSocial({ c, Icon, label }: { c: ObsidianColors; Icon: typeof IconBrandGoogle; label: string }) {
+  return (
     <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, height: 46, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface }}>
       <Icon size={18} color={c.text} strokeWidth={1.8} />
       <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>{label}</Text>
     </View>
   );
+}
+
+// ─── Login ────────────────────────────────────────────────────────────────────
+interface LoginProps {
+  c: ObsidianColors;
+  onNext: () => void;
+  /** Live auth wiring (omit → static demo that just advances onboarding). */
+  email?: string;
+  password?: string;
+  onEmail?: (t: string) => void;
+  onPassword?: (t: string) => void;
+  onSubmit?: () => void;
+  onRegister?: () => void;
+  loading?: boolean;
+  error?: string | null;
+}
+function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRegister, loading, error }: LoginProps) {
+  const live = onSubmit !== undefined;
   const primary = live ? onSubmit : onNext;
   return (
     <View style={{ flex: 1, paddingHorizontal: 24, justifyContent: 'center' }}>
@@ -76,13 +86,19 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
         <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi spark</Text>
       </View>
       <View style={{ gap: 11 }}>
-        <Field Icon={IconMail} placeholder="ruslan@gimmick.app" value={email} onChangeText={onEmail} keyboardType="email-address" autoCapitalize="none" />
-        <Field Icon={IconLock} placeholder="••••••••••" secure eye value={password} onChangeText={onPassword} />
+        <LoginField c={c} loading={loading} Icon={IconMail} placeholder="ruslan@gimmick.app" value={email} onChangeText={onEmail} keyboardType="email-address" autoCapitalize="none" />
+        <LoginField c={c} loading={loading} Icon={IconLock} placeholder="••••••••••" secure eye value={password} onChangeText={onPassword} />
       </View>
       {error ? <Text style={{ fontSize: 12.5, color: c.deadline, marginTop: 12, marginHorizontal: 2 }}>{error}</Text> : null}
       <Text style={{ textAlign: 'right', fontSize: 12.5, fontWeight: '600', color: c.accent, marginVertical: 14, marginHorizontal: 2 }}>Password dimenticata?</Text>
-      <Pressable onPress={primary} disabled={loading} style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', opacity: loading ? 0.6 : pressed ? 0.9 : 1 })}>
-        <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
+      {/* Touch = Pressable, chrome = View interno con stile STATICO. In questo
+          ambiente lo `style` in forma-funzione su Pressable non viene applicato,
+          quindi il rettangolo (sfondo/altezza/raggio) sparirebbe: lo spostiamo
+          sulla View, che lo rende sempre. */}
+      <Pressable onPress={primary} disabled={loading} android_ripple={{ color: 'rgba(0,0,0,0.18)' }}>
+        <View style={{ height: 50, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', opacity: loading ? 0.6 : 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
+        </View>
       </Pressable>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
@@ -90,8 +106,8 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
         <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
       </View>
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Social Icon={IconBrandGoogle} label="Google" />
-        <Social Icon={IconBrandApple} label="Apple" />
+        <LoginSocial c={c} Icon={IconBrandGoogle} label="Google" />
+        <LoginSocial c={c} Icon={IconBrandApple} label="Apple" />
       </View>
       <Pressable onPress={live ? onRegister : onNext} disabled={loading} style={{ marginTop: 24 }}>
         <Text style={{ textAlign: 'center', fontSize: 13, color: c.muted }}>Non hai un account? <Text style={{ fontWeight: '600', color: c.accent }}>Registrati</Text></Text>

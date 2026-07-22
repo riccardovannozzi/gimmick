@@ -47,6 +47,8 @@ export interface ColTile {
   actionLabel: string;
   actionColor: string;
   deadline?: boolean;
+  /** Tile completato (is_completed) → pallino verde in alto a destra. */
+  done?: boolean;
   spark?: SparkType;
   amber?: boolean;
   checklist?: boolean[];
@@ -65,7 +67,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
   const inkStyle = ink ? { color: ink } : undefined;
   return (
     <div
-      className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable')}
+      className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
       style={{ ['--card-c' as string]: t.bg ?? cardC, ...(t.bg ? { background: t.bg, borderColor: t.bg } : {}) }}
       onClick={onClick}
       onContextMenu={onContextMenu}
@@ -75,6 +77,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
+      {t.done && <span className="ob-chrono__card-done" title="Completato" aria-label="Completato" />}
       <div className="ob-chrono__card-title" style={inkStyle}>{t.title}</div>
       {t.checklist && (
         <div className="ob-chrono__card-bars">
@@ -239,9 +242,9 @@ const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 /** Modalità del calendario: 1 giorno, 3 giorni, settimana, mese. */
 export type ChronoCalView = 'day' | '3day' | 'week' | 'month';
 export interface ChronoDay { dow: string; num: number }
-export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string }
-export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string }
-export interface MonthEvent { id?: string; title: string; kind: EventKind; color?: string }
+export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string; done?: boolean }
+export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string; done?: boolean }
+export interface MonthEvent { id?: string; title: string; kind: EventKind; color?: string; done?: boolean }
 export interface MonthCell { key: string; num: number; inMonth: boolean; isToday: boolean; events: MonthEvent[] }
 export interface ChronoCalendar {
   days: ChronoDay[];
@@ -441,7 +444,7 @@ function DayColumn({
         return (
           <div
             key={e.id ?? j}
-            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active')}
+            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active', e.done && 'ob-chrono__event--done')}
             style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e), ...(e.color ? { background: e.color, borderColor: e.color, color: readableOn(e.color) } : {}) }}
             onClick={click}
             onContextMenu={ctx}
@@ -455,6 +458,7 @@ function DayColumn({
               de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: e.id, dur: Math.max(e.e - e.s, SNAP), grab }));
             } : undefined}
           >
+            {e.done && <span className="ob-chrono__event-done" title="Completato" aria-label="Completato" />}
             <span className="ob-chrono__event-title" style={e.color ? { color: readableOn(e.color) } : undefined}>{e.title}</span>
             {resizable && (
               <div
@@ -517,7 +521,7 @@ function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { ce
                 return (
                   <div
                     key={e.id ?? i}
-                    className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable', !!e.id && e.id === selectedId && 'ob-chrono__month-ev--active')}
+                    className={cn('ob-chrono__month-ev', click && 'ob-chrono__event--clickable', !!e.id && e.id === selectedId && 'ob-chrono__month-ev--active', e.done && 'ob-chrono__month-ev--done')}
                     style={{ ['--ev-c' as string]: e.color ?? KIND_COLOR[e.kind] }}
                     onClick={click}
                     onContextMenu={ctx}
@@ -527,6 +531,7 @@ function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { ce
                   >
                     <span className="ob-chrono__month-ev-dot" />
                     <span className="ob-chrono__month-ev-title">{e.title}</span>
+                    {e.done && <span className="ob-chrono__month-ev-done" title="Completato" aria-label="Completato" />}
                   </div>
                 );
               })}
@@ -578,7 +583,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
         return (
           <div
             key={a.id ?? j}
-            className={cn('ob-chrono__allday-pill', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active')}
+            className={cn('ob-chrono__allday-pill', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active', a.done && 'ob-chrono__allday-pill--done')}
             style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind], ...(a.color ? { background: a.color, borderColor: a.color } : {}) }}
             onClick={click}
             onContextMenu={ctx}
@@ -592,6 +597,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
             tabIndex={click ? 0 : undefined}
           >
             <span className="ob-chrono__allday-title" style={a.color ? { color: readableOn(a.color) } : undefined}>{a.title}</span>
+            {a.done && <span className="ob-chrono__allday-done" title="Completato" aria-label="Completato" />}
           </div>
         );
       })}

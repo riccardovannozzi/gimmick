@@ -156,7 +156,7 @@ export const obsidianRadius = {
  * chip in liste orizzontali e celle di calendario — lì la strada corretta è
  * `hitSlop`, che allarga l'area toccabile senza toccare il layout.
  */
-export const OB_BTN_H = 48;
+export const OB_BTN_H = 52;
 
 /** Append an 8-bit alpha (00–ff) to a 6-digit hex. */
 export function withAlpha(hex: string, alpha: string): string {

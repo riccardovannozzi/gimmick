@@ -12,6 +12,7 @@
  * straight from the `--ob-type-*` / semantic tokens.
  */
 import * as React from 'react';
+import { IconCheck, IconMinus } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
@@ -45,6 +46,8 @@ export interface TileRow {
   tagAmber?: boolean;
   type?: string;
   sparks: RowSpark[];
+  /** Tile completato (is_completed) → titolo barrato e attenuato. */
+  done?: boolean;
 }
 
 const ROWS: TileRow[] = [
@@ -122,12 +125,34 @@ function SparkEl({ s }: { s: RowSpark }) {
   );
 }
 
-function Row({ row, onClick, active }: { row: TileRow; onClick?: () => void; active?: boolean }) {
+// ─── Checkbox (selezione riga / select-all) ───────────────────────────────────
+function Checkbox({
+  checked, indeterminate, onToggle, ariaLabel,
+}: {
+  checked?: boolean; indeterminate?: boolean; onToggle?: () => void; ariaLabel?: string;
+}) {
+  const on = !!checked || !!indeterminate;
+  return (
+    <button
+      type="button"
+      className={cn('ob-tiles__checkbox', on && 'ob-tiles__checkbox--on')}
+      role="checkbox"
+      aria-checked={indeterminate ? 'mixed' : !!checked}
+      aria-label={ariaLabel}
+      onClick={(e) => { e.stopPropagation(); onToggle?.(); }}
+    >
+      {indeterminate ? <IconMinus size={11} stroke={3} /> : checked ? <IconCheck size={11} stroke={3} /> : null}
+    </button>
+  );
+}
+
+function Row({ row, onClick, active, checked, onToggle, onContextMenu }: { row: TileRow; onClick?: () => void; active?: boolean; checked?: boolean; onToggle?: () => void; onContextMenu?: (e: React.MouseEvent) => void }) {
   const am = actionMeta(row.action);
   return (
     <div
-      className={cn('ob-tiles__row', active && 'ob-tiles__row--active', onClick && 'ob-tiles__row--clickable')}
+      className={cn('ob-tiles__row', active && 'ob-tiles__row--active', onClick && 'ob-tiles__row--clickable', checked && 'ob-tiles__row--checked')}
       onClick={onClick}
+      onContextMenu={onContextMenu}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={
@@ -141,8 +166,10 @@ function Row({ row, onClick, active }: { row: TileRow; onClick?: () => void; act
           : undefined
       }
     >
-      <div className="ob-tiles__cell ob-tiles__cell--check"><div className="ob-tiles__checkbox" /></div>
-      <div className="ob-tiles__cell"><span className="ob-tiles__title">{row.title}</span></div>
+      <div className="ob-tiles__cell ob-tiles__cell--check">
+        <Checkbox checked={checked} onToggle={onToggle} ariaLabel="Seleziona tile" />
+      </div>
+      <div className="ob-tiles__cell"><span className={cn('ob-tiles__title', row.done && 'ob-tiles__title--done')}>{row.title}</span></div>
       <div className="ob-tiles__cell ob-tiles__cell--ctrl"><Control label={am.label} icon={am.icon} iconColor={am.color} /></div>
       <div className="ob-tiles__cell">
         {row.date ? (
@@ -190,20 +217,66 @@ export interface TilesViewProps {
   selectedId?: string;
   /** Contenuto in coda alla lista, dentro lo scroll (es. sentinella infinite-scroll). */
   footer?: React.ReactNode;
+  /** Id delle righe spuntate (multi-selezione per azioni bulk). */
+  checkedIds?: Set<string>;
+  /** Toggle della spunta di una riga. */
+  onToggleRow?: (id: string) => void;
+  /** Toggle select-all (spunta/deseleziona tutte le righe visibili). */
+  onToggleAll?: () => void;
+  /** Svuota la selezione. */
+  onClearSelection?: () => void;
+  /** Elimina le righe selezionate. */
+  onDeleteSelected?: () => void;
+  /** Tasto destro su una riga (apre il menu contestuale). */
+  onRowContextMenu?: (e: React.MouseEvent, id: string) => void;
 }
 
-export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile, onRowClick, selectedId, footer }: TilesViewProps) {
+export function TilesView({
+  rows = ROWS, count = 400, total = 400, onAddTile, onRowClick, selectedId, footer,
+  checkedIds, onToggleRow, onToggleAll, onClearSelection, onDeleteSelected, onRowContextMenu,
+}: TilesViewProps) {
+  const checkable = !!onToggleRow;
+  const idRows = rows.filter((r) => !!r.id);
+  const checkedCount = checkedIds?.size ?? 0;
+  const allChecked = checkable && !!checkedIds && idRows.length > 0 && idRows.every((r) => checkedIds.has(r.id!));
+  const someChecked = checkedCount > 0 && !allChecked;
+
+  // Conferma a due passi sul pulsante Elimina (coerente con la sidebar): il primo
+  // click arma la conferma, il secondo esegue. Si resetta quando la selezione cambia.
+  const [confirming, setConfirming] = React.useState(false);
+  React.useEffect(() => { setConfirming(false); }, [checkedCount]);
+
   return (
     <div className="ob-tiles">
       <div className="ob-tiles__topbar">
-        <div className="ob-tiles__count">
-          <Icon name="tiles" size={15} />
-          <span className="ob-tiles__count-n">{count}</span>
-          <span className="ob-tiles__count-sep">/</span>
-          <span className="ob-tiles__count-tot">{total}</span>
-          <span className="ob-tiles__count-label">TILES</span>
-        </div>
+        {checkedCount > 0 ? (
+          <div className="ob-tiles__selbar">
+            <span className="ob-tiles__selbar-n">{checkedCount} selezionati</span>
+            <Button variant="ghost" size="sm" onClick={onClearSelection}>Deseleziona</Button>
+          </div>
+        ) : (
+          <div className="ob-tiles__count">
+            <Icon name="tiles" size={15} />
+            <span className="ob-tiles__count-n">{count}</span>
+            <span className="ob-tiles__count-sep">/</span>
+            <span className="ob-tiles__count-tot">{total}</span>
+            <span className="ob-tiles__count-label">TILES</span>
+          </div>
+        )}
         <div style={{ flex: 1 }} />
+        {checkedCount > 0 && onDeleteSelected && (
+          <Button
+            variant="danger"
+            size="sm"
+            icon={<Icon name="trash" size={13} />}
+            onClick={() => {
+              if (confirming) { onDeleteSelected(); setConfirming(false); }
+              else setConfirming(true);
+            }}
+          >
+            {confirming ? `Conferma · elimina ${checkedCount}` : 'Elimina'}
+          </Button>
+        )}
         <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>
           Add tile
         </Button>
@@ -214,7 +287,9 @@ export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile, on
           {COLS.map((c) => (
             <div key={c.key} className={cn('ob-tiles__hcell', c.check && 'ob-tiles__hcell--check')}>
               {c.check ? (
-                <div className="ob-tiles__checkbox" />
+                checkable
+                  ? <Checkbox checked={allChecked} indeterminate={someChecked} onToggle={onToggleAll} ariaLabel="Seleziona tutte" />
+                  : <div className="ob-tiles__checkbox" />
               ) : (
                 <>
                   <span className="ob-tiles__hlabel">{c.label}</span>
@@ -230,6 +305,9 @@ export function TilesView({ rows = ROWS, count = 400, total = 400, onAddTile, on
             row={r}
             active={!!r.id && r.id === selectedId}
             onClick={onRowClick && r.id ? () => onRowClick(r.id!) : undefined}
+            checked={!!r.id && !!checkedIds?.has(r.id)}
+            onToggle={checkable && r.id ? () => onToggleRow!(r.id!) : undefined}
+            onContextMenu={onRowContextMenu && r.id ? (e) => onRowContextMenu(e, r.id!) : undefined}
           />
         ))}
         {footer}

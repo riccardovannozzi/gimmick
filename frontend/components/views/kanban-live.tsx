@@ -47,6 +47,7 @@ function toCard(t: Tile, rootTagId: string | undefined): CardData {
     amber: t.action_type === 'deadline',
     caps: caps.length ? caps : undefined,
     checklist: checklist.length ? checklist : undefined,
+    done: !!t.is_completed,
   };
 }
 

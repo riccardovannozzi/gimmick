@@ -1,12 +1,36 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query';
-import { IconX, IconCheck } from '@tabler/icons-react-native';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { IconX, IconCheck, IconTag } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
+import { usePendingTagStore } from '@/store/pendingTagStore';
 import { usePixelTheme, PixelTextInput } from '@/components/pixel';
-import { sparksApi } from '@/lib/api';
+import { sparksApi, tagsApi } from '@/lib/api';
+import type { Tag } from '@/types';
+
+/** Chiave di confronto: minuscolo, senza accenti, soli alfanumerici. */
+function normKey(s: string): string {
+  return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
+}
+
+/**
+ * Hashtag attivo sotto il cursore: dall'ultimo '#' (a inizio parola) fino al
+ * caret, purché non ci siano spazi in mezzo. Il query è un singolo token; i
+ * nomi composti si scelgono dalla lista (es. "#gol" propone "Golfo del Sole").
+ */
+function activeHashtag(text: string, caret: number): { start: number; query: string } | null {
+  for (let i = caret - 1; i >= 0; i--) {
+    const ch = text[i];
+    if (ch === '#') {
+      if (i === 0 || /\s/.test(text[i - 1])) return { start: i, query: text.slice(i + 1, caret) };
+      return null;
+    }
+    if (/\s/.test(ch)) return null; // spazio prima del '#' → nessun hashtag attivo
+  }
+  return null;
+}
 
 export default function TextCaptureScreen() {
   const theme = usePixelTheme();
@@ -16,8 +40,42 @@ export default function TextCaptureScreen() {
   // the spark is created directly against that tile (skipping the buffer).
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
   const [text, setText] = useState('');
+  const [selection, setSelection] = useState({ start: 0, end: 0 });
   const [saving, setSaving] = useState(false);
   const addItem = useBufferStore((state) => state.addItem);
+  const setPendingTag = usePendingTagStore((s) => s.set);
+  const clearPendingTag = usePendingTagStore((s) => s.clear);
+
+  // Tag dell'utente per l'autocomplete degli #hashtag.
+  const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list(), staleTime: 300_000 });
+  const tags: Tag[] = tagsQuery.data?.data ?? [];
+
+  // Match per prefisso su nome+alias del tag correntemente digitato dopo '#'.
+  // "#golfo" → sia "Golfo" sia "Golfo del Sole" (entrambi iniziano per golfo).
+  const active = activeHashtag(text, selection.start);
+  const tagMatches = !active
+    ? []
+    : tags
+        .filter((t) => {
+          if (t.is_root) return false;
+          const q = normKey(active.query);
+          return normKey(t.name).startsWith(q) || (t.aliases ?? []).some((a) => normKey(a).startsWith(q));
+        })
+        .slice(0, 8);
+
+  /** Inserisce il tag scelto: completa l'hashtag col nome pieno e lo registra
+   *  come tag del tile in creazione (verrà applicato all'invio del buffer). */
+  const applyTag = (tag: Tag) => {
+    if (!active) return;
+    const caret = selection.start;
+    const before = text.slice(0, active.start);
+    const after = text.slice(caret);
+    const insert = `#${tag.name} `;
+    setText(before + insert + after);
+    const newCaret = (before + insert).length;
+    setSelection({ start: newCaret, end: newCaret });
+    setPendingTag(tag.id, tag.name);
+  };
 
   const handleClose = () => {
     router.back();
@@ -41,7 +99,15 @@ export default function TextCaptureScreen() {
           setSaving(false);
           return;
         }
+        // Path diretto (spark su tile esistente): il tag scelto via #hashtag va
+        // applicato subito a QUESTO tile, non al buffer.
+        const pending = usePendingTagStore.getState();
+        if (pending.tagId) {
+          await tagsApi.tagTiles(pending.tagId, [tileId]).catch(() => {});
+          clearPendingTag();
+        }
         queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+        queryClient.invalidateQueries({ queryKey: ['tags'] });
         toast.success('Spark salvato');
         router.back();
       } catch {
@@ -158,7 +224,9 @@ export default function TextCaptureScreen() {
             containerStyle={{ flex: 1 }}
             value={text}
             onChangeText={setText}
-            placeholder="Write your note..."
+            selection={selection}
+            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+            placeholder="Write your note...  (usa #tag per etichettare)"
             multiline
             autoFocus
             style={{
@@ -167,6 +235,31 @@ export default function TextCaptureScreen() {
             }}
           />
         </View>
+
+        {/* Autocomplete #hashtag → tag esistenti (prefisso su nome/alias).
+            Compare sopra il footer mentre digiti un hashtag; toccare un tag
+            completa il testo e lo registra come tag del tile. */}
+        {tagMatches.length > 0 && (
+          <View style={{ maxHeight: 180, borderTopWidth: 2, borderTopColor: theme.border, backgroundColor: theme.surface }}>
+            <ScrollView keyboardShouldPersistTaps="handled">
+              {tagMatches.map((t) => (
+                <Pressable
+                  key={t.id}
+                  onPress={() => applyTag(t)}
+                  style={({ pressed }) => ({
+                    flexDirection: 'row', alignItems: 'center', gap: 10,
+                    paddingHorizontal: 16, minHeight: 44,
+                    backgroundColor: pressed ? theme.surfaceVariant : 'transparent',
+                    borderBottomWidth: 1, borderBottomColor: theme.border,
+                  })}
+                >
+                  <IconTag size={16} color={theme.ink2} strokeWidth={1.8} />
+                  <Text style={{ flex: 1, fontFamily: theme.fontBody, fontSize: 15, color: theme.ink }}>{t.name}</Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Footer — bordo superiore 2px, char count PressStart2P */}
         <View

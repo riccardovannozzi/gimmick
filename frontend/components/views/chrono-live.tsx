@@ -101,6 +101,7 @@ function toColTile(t: Tile): ColTile {
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,
+    done: !!t.is_completed,
   };
 }
 
@@ -550,11 +551,12 @@ export function ChronoLive() {
           kind: t.action_type === 'deadline' ? 'deadline' : 'allday',
           id: t.id,
           color: colorOf(t),
+          done: !!t.is_completed,
         });
       } else {
         const s = frac(refIso);
         const e = t.end_at ? frac(t.end_at) : s + 1;
-        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id, color: colorOf(t) });
+        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id, color: colorOf(t), done: !!t.is_completed });
       }
     }
 
@@ -574,6 +576,7 @@ export function ChronoLive() {
             title: t.title || 'Senza titolo',
             kind: t.action_type === 'deadline' ? 'deadline' : t.all_day ? 'allday' : 'timed',
             color: colorOf(t),
+            done: !!t.is_completed,
           }));
         return { key, num: d.getDate(), inMonth: d.getMonth() === monthInfo.first.getMonth(), isToday: key === todayK, events: cellEvents };
       });
