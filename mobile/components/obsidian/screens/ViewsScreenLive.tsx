@@ -26,12 +26,14 @@ export interface ObsidianViewsScreenLiveProps {
   onHome?: () => void;
   onOpenTile?: (id: string) => void;
   onOpenFlow?: (tileId: string) => void;
-  /** Fired after the internal TopNav switches view, so a host route can keep
-   *  the router in sync with the visible tab (see app/(tabs)/*). */
+  /** Fired after the internal switch, so a host route can keep the router in
+   *  sync with the visible tab (see app/(tabs)/*). */
   onActiveChange?: (id: MobileViewId) => void;
+  /** Ask Gimmick (cerchio a destra nell'header) → chat. */
+  onAsk?: () => void;
 }
 
-export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome }: ObsidianViewsScreenLiveProps) {
+export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
   const [active, setActive] = React.useState<MobileViewId>(initial);
   const handleActive = React.useCallback((id: MobileViewId) => {
     setActive(id);
@@ -139,6 +141,7 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
       errorText={errorText}
       account={{ email: authUser?.email ?? null, onSignIn, onSignOut: signOut }}
       onHome={onHome}
+      onAsk={onAsk}
     />
   );
 }

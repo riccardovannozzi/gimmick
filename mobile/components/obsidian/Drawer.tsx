@@ -12,7 +12,7 @@
 import React from 'react';
 import { Animated, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  IconSettings, IconLayoutGrid, IconRoute, IconCalendarTime,
+  IconSettings, IconLayoutGrid, IconRoute, IconCalendarTime, IconHome,
 } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
@@ -33,9 +33,11 @@ interface ObsidianDrawerProps {
   onSettings?: () => void;
   /** Naviga a una delle viste principali. Omesso → nessun collegamento (preview QA). */
   onNavigateView?: (id: MobileViewId) => void;
+  /** Torna alla Home/Cattura. Omesso (es. sulla Capture stessa) → voce nascosta. */
+  onHome?: () => void;
 }
 
-export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView }: ObsidianDrawerProps) {
+export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome }: ObsidianDrawerProps) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const tx = React.useRef(new Animated.Value(-PANEL)).current;
@@ -76,6 +78,16 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView }: Ob
 
         {/* Viste */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+          {onHome && (
+            <Pressable
+              onPress={() => { onHome(); onClose(); }}
+              android_ripple={{ color: c.accent + '33' }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: OB_BTN_H, borderRadius: 8 }}
+            >
+              <IconHome size={22} color={c.muted} strokeWidth={1.8} />
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Cattura</Text>
+            </Pressable>
+          )}
           {onNavigateView && VIEW_LINKS.map((v) => (
             // Stile statico e non `({pressed}) => …`: passato come funzione non
             // veniva applicato, e senza flexDirection la riga tornava a colonna

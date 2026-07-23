@@ -31,6 +31,7 @@ export function ObsidianViewsTabHost({ view }: { view: MobileViewId }) {
       }}
       onSignIn={() => router.push('/auth/login' as never)}
       onHome={() => router.replace('/' as never)}
+      onAsk={() => router.push('/obsidian-ask' as never)}
       onOpenTile={(id) => router.push(`/obsidian-tile?id=${id}` as never)}
       onOpenFlow={(tileId) => router.push(`/obsidian-tile?id=${tileId}` as never)}
     />

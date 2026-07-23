@@ -10,7 +10,7 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend, IconChevronDown, IconSparkles, IconMenu2,
+  IconSend, IconChevronDown,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX,
 } from '@tabler/icons-react-native';
@@ -596,7 +596,7 @@ export function ObsidianCaptureScreen({
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <ObsidianAppHeader bufferCount={count} onMenu={() => setDrawer(true)} onBuffer={onOpenBuffer} />
+      <ObsidianAppHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} />
 
       {/* paddingTop 14 (era 6): senza il titolo "Cattura" il pulsante Invia
           finirebbe attaccato all'header. */}
@@ -612,21 +612,6 @@ export function ObsidianCaptureScreen({
             cornice), ma gap 10 tra i pulsanti per dare più respiro alla griglia.
             Raggio esterno 14 / interno 8 per curve concentriche a questa
             distanza. */}
-        {/* "Ask Gimmick" — CTA sopra il blocco dei 6 pulsanti, allineata a destra. */}
-        {onAsk && (
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
-            <Pressable
-              onPress={onAsk}
-              android_ripple={{ color: c.accent + '55', borderless: false }}
-              accessibilityLabel="Ask Gimmick"
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 7, height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: c.accent }}
-            >
-              <IconSparkles size={16} color={c.accentInk} strokeWidth={1.8} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: c.accentInk }}>Ask Gimmick</Text>
-            </Pressable>
-          </View>
-        )}
-
         {/* Blocco cattura: contenitore unico (segmented control) con i 6
             pulsanti; sotto, attaccata e centrata, la linguetta "Options". */}
         <View style={{ rowGap: 16, columnGap: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 14, padding: 12 }}>
@@ -691,8 +676,8 @@ export function ObsidianCaptureScreen({
             }}
             android_ripple={{ color: c.accent + '22' }}
             style={{
-              minHeight: OB_BTN_H,
-              paddingHorizontal: 26,
+              minHeight: 32,
+              width: 144,
               alignItems: 'center',
               justifyContent: 'center',
               // Sempre STACCATO dal blocco sopra (marginTop 12). Larghezze bordo
@@ -712,7 +697,10 @@ export function ObsidianCaptureScreen({
               borderBottomRightRadius: optionsOpen ? 0 : 12,
             }}
           >
-            <IconMenu2 size={20} color={optionsOpen ? c.accent : c.muted} strokeWidth={2} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: optionsOpen ? c.accent : c.muted }}>Options</Text>
+              <IconChevronDown size={14} color={optionsOpen ? c.accent : c.muted} strokeWidth={2} style={{ transform: [{ rotate: optionsOpen ? '180deg' : '0deg' }] }} />
+            </View>
           </Pressable>
         </View>
 
@@ -723,7 +711,6 @@ export function ObsidianCaptureScreen({
             dal buffer prima dell'invio. */}
         {list.length > 0 && (
           <View style={{ marginTop: 12, gap: 8 }}>
-            <Eyebrow c={c}>{`SPARK · ${list.length}`}</Eyebrow>
             {list.map((it) => (
               <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
             ))}

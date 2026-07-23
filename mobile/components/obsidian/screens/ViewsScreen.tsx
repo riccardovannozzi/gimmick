@@ -19,7 +19,14 @@ import type { ObTileVM, ObTileGroup, ObFlowVM, ObChronoEvent } from '@/lib/obsid
 import type { FlowHubFilter } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
-import { ObsidianTopNav, type MobileViewId } from '../TopNav';
+import { ObsidianAppHeader } from '../AppHeader';
+import { ObsidianDrawer } from '../Drawer';
+import type { MobileViewId } from '../TopNav';
+
+/** Etichetta mostrata al centro dell'header per la vista attiva. */
+const VIEW_LABEL: Record<MobileViewId, string> = {
+  tiles: 'Tiles', flows: 'Flows', chrono: 'Chrono', settings: 'Settings',
+};
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 function Toggle({ c, value, onValueChange }: { c: ObsidianColors; value: boolean; onValueChange?: (v: boolean) => void }) {
@@ -411,9 +418,11 @@ export interface ObsidianViewsScreenProps {
   errorText?: string | null;
   /** Settings tab — account row + sign in/out. Omit for the mock. */
   account?: { email?: string | null; onSignIn?: () => void; onSignOut?: () => void };
-  /** TopNav home button → the Capture screen. Falls back to the Tiles tab. */
+  /** Home button (nel Drawer) → the Capture screen. Falls back to the Tiles tab. */
   onHome?: () => void;
   onBack?: () => void;
+  /** Cerchio "Ask Gimmick" a destra nell'header → apre la chat. */
+  onAsk?: () => void;
 }
 
 function ErrorBanner({ c, text }: { c: ObsidianColors; text: string }) {
@@ -432,23 +441,39 @@ export function ObsidianViewsScreen({
   chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday,
   onChronoPrev, onChronoNext, onChronoToday, onOpenEvent,
   haptic, onHaptic, confirmDelete, onConfirmDelete, themeMode, onThemeMode,
-  errorText, account, onHome, onBack,
+  errorText, account, onHome, onAsk,
 }: ObsidianViewsScreenProps = {}) {
   const c = useObsidian();
   const [activeState, setActiveState] = React.useState<MobileViewId>(initial);
+  const [drawer, setDrawer] = React.useState(false);
   const active = activeProp ?? activeState;
   const setActive = (v: MobileViewId) => { onActiveChange?.(v); if (activeProp === undefined) setActiveState(v); };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <ObsidianTopNav active={active} onNavigate={setActive} onBack={onBack} onHome={onHome ?? (() => setActive('tiles'))} />
+      {/* Stessa navbar della Capture: hamburger (Drawer) · dropdown vista · Ask. */}
+      <ObsidianAppHeader
+        title={VIEW_LABEL[active]}
+        onMenu={() => setDrawer(true)}
+        onNavigateView={setActive}
+        onAsk={onAsk}
+      />
       {errorText ? <ErrorBanner c={c} text={errorText} /> : null}
       {active === 'tiles' &&<TilesContent c={c} groups={tileGroups} loading={tilesLoading} onOpenTile={onOpenTile} />}
       {active === 'flows' && <FlowsContent c={c} flows={flows} loading={flowsLoading} active={flowFilter} onFilter={onFlowFilter} onOpenFlow={onOpenFlow} />}
       {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onOpenEvent={onOpenEvent} />}
       {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
       <ObsidianNavPill />
+
+      {/* Drawer: viste + Cattura (Home) + Impostazioni. */}
+      <ObsidianDrawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        onNavigateView={setActive}
+        onSettings={() => setActive('settings')}
+        onHome={onHome}
+      />
     </View>
   );
 }

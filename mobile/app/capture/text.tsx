@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, Pressable, KeyboardAvoidingView, Platform, ScrollView, TextInput } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { IconX, IconCheck, IconTag } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
 import { usePendingTagStore } from '@/store/pendingTagStore';
-import { usePixelTheme, PixelTextInput } from '@/components/pixel';
+import { useObsidian } from '@/lib/obsidian';
 import { sparksApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 
@@ -33,7 +33,7 @@ function activeHashtag(text: string, caret: number): { start: number; query: str
 }
 
 export default function TextCaptureScreen() {
-  const theme = usePixelTheme();
+  const c = useObsidian();
   const router = useRouter();
   const queryClient = useQueryClient();
   // When reached from the tile detail (Sparks → text), `?tile=<id>` is set and
@@ -83,7 +83,7 @@ export default function TextCaptureScreen() {
 
   const handleSave = async () => {
     if (!text.trim()) {
-      toast.warning('Please enter some text');
+      toast.warning('Inserisci del testo');
       return;
     }
     if (tileId) {
@@ -123,61 +123,20 @@ export default function TextCaptureScreen() {
       preview: text,
     });
 
-    toast.success('Note added to buffer');
+    toast.success('Nota aggiunta al buffer');
     router.back();
   };
 
   const charCount = text.length;
   const canSave = text.trim().length > 0 && !saving;
 
-  // Pixel header tile: border 2px ink + bg colorato + offset shadow ink.
-  // Pattern Android-safe (View bg + Pressable wrapping View interno).
-  const HeaderTile = ({
-    onPress, bg, disabled, children,
-  }: { onPress: () => void; bg: string; disabled?: boolean; children: React.ReactNode }) => {
-    const sh = theme.shadowOffset;
-    const SIZE = 48;
-    return (
-      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.4 : 1 }}>
-        {sh > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              left: sh, top: sh, right: 0, bottom: 0,
-              backgroundColor: theme.shadowColor,
-            }}
-          />
-        )}
-        <Pressable
-          onPress={onPress}
-          disabled={disabled}
-          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-        >
-          <View
-            style={{
-              width: SIZE,
-              height: SIZE,
-              borderWidth: 2,
-              borderColor: theme.border,
-              backgroundColor: bg,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {children}
-          </View>
-        </Pressable>
-      </View>
-    );
-  };
-
   return (
     <SafeAreaWrapper edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1, backgroundColor: theme.bg1 }}
+        style={{ flex: 1, backgroundColor: c.canvas }}
       >
-        {/* Header — bordo inferiore 2px, X danger + title PressStart2P + ✓ success */}
+        {/* Header — X (chiudi) · titolo · check (salva). Bordo inferiore sottile. */}
         <View
           style={{
             flexDirection: 'row',
@@ -185,102 +144,90 @@ export default function TextCaptureScreen() {
             justifyContent: 'space-between',
             paddingHorizontal: 16,
             paddingVertical: 12,
-            borderBottomWidth: 2,
-            borderBottomColor: theme.border,
+            borderBottomWidth: 1,
+            borderBottomColor: c.line,
           }}
         >
-          <HeaderTile onPress={handleClose} bg={theme.semantic.danger}>
-            <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
-          </HeaderTile>
-
-          <Text
-            style={{
-              fontFamily: theme.fontHead,
-              fontSize: 11,
-              color: theme.ink,
-              letterSpacing: 1.2,
-            }}
+          <Pressable
+            onPress={handleClose}
+            accessibilityLabel="Chiudi"
+            hitSlop={6}
+            android_ripple={{ color: c.line, borderless: true }}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line }}
           >
-            NEW NOTE
-          </Text>
+            <IconX size={19} color={c.text} strokeWidth={1.9} />
+          </Pressable>
 
-          <HeaderTile
+          <Text style={{ fontSize: 16, fontWeight: '700', color: c.text }}>Nuova nota</Text>
+
+          <Pressable
             onPress={handleSave}
             disabled={!canSave}
-            bg={canSave ? theme.semantic.success : theme.surfaceVariant}
+            accessibilityLabel="Salva"
+            hitSlop={6}
+            android_ripple={{ color: c.line, borderless: true }}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: canSave ? c.accent : c.surface2, borderWidth: 1, borderColor: canSave ? c.accent : c.line }}
           >
-            <IconCheck
-              size={22}
-              color={canSave ? '#FFFFFF' : theme.ink3}
-              strokeWidth={2.4}
-            />
-          </HeaderTile>
+            <IconCheck size={20} color={canSave ? c.accentInk : c.subtle} strokeWidth={2.2} />
+          </Pressable>
         </View>
 
-        {/* Text input — PixelTextInput multiline che riempie lo spazio */}
+        {/* Editor — campo Obsidian che riempie lo spazio */}
         <View style={{ flex: 1, padding: 16 }}>
-          <PixelTextInput
-            theme={theme}
-            containerStyle={{ flex: 1 }}
-            value={text}
-            onChangeText={setText}
-            selection={selection}
-            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
-            placeholder="Write your note...  (usa #tag per etichettare)"
-            multiline
-            autoFocus
-            style={{
-              fontSize: 16,
-              lineHeight: 24,
-            }}
-          />
+          <View style={{ flex: 1, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              selection={selection}
+              onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+              placeholder="Scrivi la tua nota…  (usa #tag per etichettare)"
+              placeholderTextColor={c.subtle}
+              multiline
+              autoFocus
+              textAlignVertical="top"
+              style={{ flex: 1, fontSize: 19, lineHeight: 28, color: c.text }}
+            />
+          </View>
         </View>
 
         {/* Autocomplete #hashtag → tag esistenti (prefisso su nome/alias).
             Compare sopra il footer mentre digiti un hashtag; toccare un tag
             completa il testo e lo registra come tag del tile. */}
         {tagMatches.length > 0 && (
-          <View style={{ maxHeight: 180, borderTopWidth: 2, borderTopColor: theme.border, backgroundColor: theme.surface }}>
+          <View style={{ maxHeight: 200, borderTopWidth: 1, borderTopColor: c.line, backgroundColor: c.surface }}>
             <ScrollView keyboardShouldPersistTaps="handled">
               {tagMatches.map((t) => (
                 <Pressable
                   key={t.id}
                   onPress={() => applyTag(t)}
-                  style={({ pressed }) => ({
+                  android_ripple={{ color: c.accent + '22' }}
+                  style={{
                     flexDirection: 'row', alignItems: 'center', gap: 10,
-                    paddingHorizontal: 16, minHeight: 44,
-                    backgroundColor: pressed ? theme.surfaceVariant : 'transparent',
-                    borderBottomWidth: 1, borderBottomColor: theme.border,
-                  })}
+                    paddingHorizontal: 16, minHeight: 46,
+                    borderBottomWidth: 1, borderBottomColor: c.line,
+                  }}
                 >
-                  <IconTag size={16} color={theme.ink2} strokeWidth={1.8} />
-                  <Text style={{ flex: 1, fontFamily: theme.fontBody, fontSize: 15, color: theme.ink }}>{t.name}</Text>
+                  <IconTag size={16} color={c.subtle} strokeWidth={1.8} />
+                  <Text style={{ flex: 1, fontSize: 15, fontWeight: '500', color: c.text }}>{t.name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
           </View>
         )}
 
-        {/* Footer — bordo superiore 2px, char count PressStart2P */}
+        {/* Footer — contatore caratteri */}
         <View
           style={{
             paddingHorizontal: 16,
             paddingVertical: 10,
-            borderTopWidth: 2,
-            borderTopColor: theme.border,
+            borderTopWidth: 1,
+            borderTopColor: c.line,
             flexDirection: 'row',
             justifyContent: 'flex-end',
           }}
         >
-          <Text
-            style={{
-              fontFamily: theme.fontHead,
-              fontSize: 9,
-              color: theme.ink2,
-              letterSpacing: 1,
-            }}
-          >
-            {charCount} CHARS
+          <Text style={{ fontSize: 11, fontWeight: '600', letterSpacing: 0.6, color: c.subtle }}>
+            {charCount} caratteri
           </Text>
         </View>
       </KeyboardAvoidingView>
