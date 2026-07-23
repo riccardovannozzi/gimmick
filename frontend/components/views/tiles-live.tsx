@@ -23,9 +23,11 @@ import { Icon } from '@/components/shell';
 import { TilesView, type TileRow } from '@/components/views/tiles';
 import { useFilterStore } from '@/store/filter-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta } from '@/lib/status-meta';
 import { tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
-import type { Spark, Tile } from '@/types';
+import type { Spark, Status, Tile } from '@/types';
 
 function toAction(t: Tile): 'timed' | 'allday' | 'notes' {
   if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
@@ -60,14 +62,17 @@ const SPARK_KIND: Record<string, 'photo' | 'voice' | 'text' | 'file'> = {
   file: 'file',
 };
 
-function toTileRow(t: Tile): TileRow {
+function toTileRow(t: Tile, statusById: Map<string, Status>): TileRow {
   const tag = (t.tags ?? []).find((tg) => !tg.is_root);
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
+  const stMeta = st ? statusMeta(st.name) : undefined;
   return {
     id: t.id,
     title: t.title || 'Senza titolo',
     action: toAction(t),
     ...toSchedule(t),
     done: !!t.is_completed,
+    status: st && stMeta ? { label: stMeta.label, color: stMeta.color, shape: st.shape } : undefined,
     tags: tag?.name ?? 'Gimmick',
     sparks: (t.sparks ?? []).map((s: Spark) => {
       const kind = SPARK_KIND[s.type] ?? 'file';
@@ -81,6 +86,7 @@ export function TilesLive() {
   const queryClient = useQueryClient();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
+  const { statuses } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
   const clearInspector = useTileSelectionStore((s) => s.clear);
@@ -119,7 +125,8 @@ export function TilesLive() {
     return allTiles.filter((t) => idSet.has(t.id));
   }, [allTiles, aiFilterIds]);
 
-  const rows = useMemo(() => visibleTiles.map(toTileRow), [visibleTiles]);
+  const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
+  const rows = useMemo(() => visibleTiles.map((t) => toTileRow(t, statusById)), [visibleTiles, statusById]);
 
   const toggleRow = useCallback((id: string) => {
     setCheckedIds((prev) => {

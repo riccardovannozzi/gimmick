@@ -10,7 +10,7 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend, IconChevronDown, IconAdjustmentsHorizontal,
+  IconSend, IconChevronDown, IconSparkles, IconMenu2,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX,
 } from '@tabler/icons-react-native';
@@ -19,7 +19,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
-import { tagsApi, typeIconsApi } from '@/lib/api';
+import { tagsApi, typeIconsApi, statusesApi, type StatusEntity } from '@/lib/api';
 import type { ActionType, Tag, BufferItem, SparkType } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
@@ -88,10 +88,29 @@ export type CaptureOptions = {
   end_at: string | null;
   tag_id: string | null;
   type_icon_id: string | null;
+  status_id: string | null;
 };
 export const EMPTY_CAPTURE_OPTIONS: CaptureOptions = {
-  action_type: 'none', all_day: false, start_at: null, end_at: null, tag_id: null, type_icon_id: null,
+  action_type: 'none', all_day: false, start_at: null, end_at: null, tag_id: null, type_icon_id: null, status_id: null,
 };
+
+// Presentazione degli status (etichetta IT + colore semantico), allineata alla
+// sidebar web (lib/status-meta.ts): stessi nomi di sistema, colori sui token
+// Obsidian mobile invece dei --ob-*.
+const STATUS_LABEL: Record<string, string> = {
+  active: 'Attivo', done: 'Completato', paused: 'In pausa', blocked: 'Bloccato', cancelled: 'Annullato',
+};
+const statusLabel = (name: string) => STATUS_LABEL[name] ?? name;
+function statusColor(c: ObsidianColors, name: string): string {
+  switch (name) {
+    case 'active': return c.info;
+    case 'done': return c.success;
+    case 'paused': return c.warning;
+    case 'blocked': return c.error;
+    case 'cancelled': return c.muted;
+    default: return c.muted;
+  }
+}
 
 type ActionOpt = 'note' | 'todo' | 'due' | 'allday' | 'timed';
 
@@ -176,7 +195,7 @@ type DtField = 'date' | 'start' | 'end' | 'due' | null;
 function SetOptionsBody({ options, onChange, suggestText = '' }: { options: CaptureOptions; onChange: (next: CaptureOptions) => void; suggestText?: string }) {
   const c = useObsidian();
   const action = actionKeyOf(options);
-  const [sheet, setSheet] = React.useState<'tag' | 'type' | null>(null);
+  const [sheet, setSheet] = React.useState<'tag' | 'type' | 'status' | null>(null);
   const [dt, setDt] = React.useState<DtField>(null);
   const [tagQuery, setTagQuery] = React.useState('');
   const [suggestActive, setSuggestActive] = React.useState(false);
@@ -185,10 +204,13 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
   // dell'elemento selezionato quando il rispettivo picker è chiuso.
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list(), staleTime: 300_000 });
   const typesQuery = useQuery({ queryKey: ['type-icons'], queryFn: () => typeIconsApi.list(), staleTime: 300_000 });
+  const statusesQuery = useQuery({ queryKey: ['statuses'], queryFn: () => statusesApi.list(), staleTime: 300_000 });
   const tags: Tag[] = (tagsQuery.data?.data ?? []).filter((t) => !t.is_root);
   const types = typesQuery.data?.data ?? [];
+  const statuses: StatusEntity[] = statusesQuery.data?.data ?? [];
   const curTag = tags.find((t) => t.id === options.tag_id) ?? null;
   const curType = types.find((t) => t.id === options.type_icon_id) ?? null;
+  const curStatus = statuses.find((s) => s.id === options.status_id) ?? null;
 
   // Tag visibili: modalità AI → suggeriti dal testo del buffer; altrimenti
   // filtro per nome+alias (case/accent-insensitive), lista piena se vuoto.
@@ -266,7 +288,9 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
   };
 
   return (
-    <View style={{ marginTop: 8, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
+    // marginTop -1: il box copre il bordo inferiore (trasparente) della linguetta
+    // "Options" sopra, saldandosi senza gap né doppia linea (folder-tab).
+    <View style={{ marginTop: -1, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
       <Eyebrow c={c}>AZIONE</Eyebrow>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         <OptBtn id="note" label="Note" Icon={IconNote} />
@@ -311,7 +335,19 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
       </View>
 
       <Eyebrow c={c}>TIPO</Eyebrow>
-      <Field c={c} value={curType ? curType.name : 'Seleziona tipo…'} placeholder={!curType} chev onPress={() => setSheet('type')} />
+      <View style={{ marginBottom: 18 }}>
+        <Field c={c} value={curType ? curType.name : 'Seleziona tipo…'} placeholder={!curType} chev onPress={() => setSheet('type')} />
+      </View>
+
+      <Eyebrow c={c}>STATUS</Eyebrow>
+      <Field
+        c={c}
+        value={curStatus ? statusLabel(curStatus.name) : 'Seleziona status…'}
+        placeholder={!curStatus}
+        dotColor={curStatus ? statusColor(c, curStatus.name) : undefined}
+        chev
+        onPress={() => setSheet('status')}
+      />
 
       {/* Picker data/ora nativo: si monta solo mentre `dt` è attivo. */}
       {dt && (
@@ -372,6 +408,30 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
         </ScrollView>
       </BottomSheet>
 
+      {/* Picker STATUS — pallino colore semantico + etichetta IT, come la sidebar */}
+      <BottomSheet open={sheet === 'status'} onClose={() => setSheet(null)}>
+        <Eyebrow c={c}>SCEGLI UNO STATUS</Eyebrow>
+        <ScrollView style={{ maxHeight: 320 }}>
+          {/* Nessuno */}
+          <Pressable onPress={() => { onChange({ ...options, status_id: null }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+            <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: c.subtle }} />
+            <Text style={{ flex: 1, fontSize: 14, fontWeight: !options.status_id ? '600' : '500', color: !options.status_id ? c.accent : c.text }}>Nessuno</Text>
+            {!options.status_id && <IconCheck size={16} color={c.accent} strokeWidth={2} />}
+          </Pressable>
+          {statuses.length === 0 && <Text style={{ fontSize: 13, color: c.subtle, paddingVertical: 12 }}>Nessuno status disponibile.</Text>}
+          {statuses.map((s) => {
+            const on = s.id === options.status_id;
+            return (
+              <Pressable key={s.id} onPress={() => { onChange({ ...options, status_id: on ? null : s.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: statusColor(c, s.name) }} />
+                <Text style={{ flex: 1, fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{statusLabel(s.name)}</Text>
+                {on && <IconCheck size={16} color={c.accent} strokeWidth={2} />}
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </BottomSheet>
+
       {/* Picker TIPO */}
       <BottomSheet open={sheet === 'type'} onClose={() => setSheet(null)}>
         <Eyebrow c={c}>SCEGLI UN TIPO</Eyebrow>
@@ -391,11 +451,12 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
   );
 }
 
-/** Campo tappabile (data/ora/tag/tipo). Stesso stile del Field di TileScreen. */
-function Field({ c, value, Icon, chev, placeholder, onPress }: { c: ObsidianColors; value: string; Icon?: typeof IconClock; chev?: boolean; placeholder?: boolean; onPress?: () => void }) {
+/** Campo tappabile (data/ora/tag/tipo/status). Stesso stile del Field di TileScreen.
+ *  `dotColor`: pallino colorato al posto dell'icona (usato dallo STATUS). */
+function Field({ c, value, Icon, chev, placeholder, onPress, dotColor }: { c: ObsidianColors; value: string; Icon?: typeof IconClock; chev?: boolean; placeholder?: boolean; onPress?: () => void; dotColor?: string }) {
   return (
     <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, paddingHorizontal: 13, minHeight: OB_BTN_H }}>
-      {Icon ? <Icon size={15} color={placeholder ? c.subtle : c.muted} strokeWidth={1.8} /> : null}
+      {dotColor ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} /> : Icon ? <Icon size={15} color={placeholder ? c.subtle : c.muted} strokeWidth={1.8} /> : null}
       {/* Valore selezionato in colore testo, placeholder in subtle: distingue a
           colpo d'occhio i campi già impostati da quelli vuoti. */}
       <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: placeholder ? c.subtle : c.text }}>{value}</Text>
@@ -488,24 +549,6 @@ function VoiceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   );
 }
 
-// ─── Azioni rotonde (Options / Send) ───────────────────────────────────────────
-// Cerchio con icona + label sotto. Il tocco sta sul Pressable, la grafica su una
-// View con stile statico (in questo ambiente lo `style` in forma-funzione su
-// Pressable non viene applicato).
-function RoundAction({ c, Icon, label, bg, iconColor, labelColor, onPress, disabled }: {
-  c: ObsidianColors; Icon: typeof IconSend; label: string; bg: string; iconColor: string;
-  labelColor: string; onPress?: () => void; disabled?: boolean;
-}) {
-  return (
-    <Pressable onPress={onPress} disabled={disabled} accessibilityLabel={label} style={{ alignItems: 'center', gap: 8, width: 96 }}>
-      <View style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: bg, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={26} color={iconColor} strokeWidth={1.8} />
-      </View>
-      <Text numberOfLines={1} style={{ fontSize: 12.5, fontWeight: '600', color: labelColor }}>{label}</Text>
-    </Pressable>
-  );
-}
-
 // ─── Screen ───────────────────────────────────────────────────────────────────
 export interface ObsidianCaptureScreenProps {
   /** Items waiting in the buffer. */
@@ -526,13 +569,16 @@ export interface ObsidianCaptureScreenProps {
   items?: BufferItem[];
   /** Rimuove uno spark dal buffer (X sulla riga). */
   onRemoveItem?: (id: string) => void;
+  /** Apre la chat "Ask Gimmick" (pillola accanto a Options). */
+  onAsk?: () => void;
 }
 
 export function ObsidianCaptureScreen({
   bufferCount, onCapture, onSend, onOpenBuffer, onNavigateView, onSettings,
-  options, onOptionsChange, suggestText, items, onRemoveItem,
+  options, onOptionsChange, suggestText, items, onRemoveItem, onAsk,
 }: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
+  const insets = useSafeAreaInsets();
   const [drawer, setDrawer] = React.useState(false);
   const [voice, setVoice] = React.useState(false);
   const [optionsOpen, setOptionsOpen] = React.useState(false);
@@ -543,6 +589,9 @@ export function ObsidianCaptureScreen({
   const list = items ?? [];
   // Conteggio reale dal buffer quando disponibile; il 2 resta solo per il mock QA.
   const count = bufferCount ?? (items ? list.length : 2);
+  // Invio possibile solo con handler collegato e almeno uno spark in buffer:
+  // guida la comparsa del FAB "Send" in sovraimpressione.
+  const canSend = !!onSend && count > 0;
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
@@ -551,7 +600,7 @@ export function ObsidianCaptureScreen({
 
       {/* paddingTop 14 (era 6): senza il titolo "Cattura" il pulsante Invia
           finirebbe attaccato all'header. */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 14, paddingBottom: 16 }}>
         {/* Capture grid — stesso linguaggio visivo del gruppo AZIONE nella
             sidebar web: contenitore unico a mo' di segmented control (surface +
             cornice leggera), pulsanti su fondo accent tenue. Le icone sono
@@ -563,7 +612,24 @@ export function ObsidianCaptureScreen({
             cornice), ma gap 10 tra i pulsanti per dare più respiro alla griglia.
             Raggio esterno 14 / interno 8 per curve concentriche a questa
             distanza. */}
-        <View style={{ gap: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 14, padding: 6 }}>
+        {/* "Ask Gimmick" — CTA sopra il blocco dei 6 pulsanti, allineata a destra. */}
+        {onAsk && (
+          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginBottom: 12 }}>
+            <Pressable
+              onPress={onAsk}
+              android_ripple={{ color: c.accent + '55', borderless: false }}
+              accessibilityLabel="Ask Gimmick"
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 7, height: 40, paddingHorizontal: 16, borderRadius: 20, backgroundColor: c.accent }}
+            >
+              <IconSparkles size={16} color={c.accentInk} strokeWidth={1.8} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: c.accentInk }}>Ask Gimmick</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {/* Blocco cattura: contenitore unico (segmented control) con i 6
+            pulsanti; sotto, attaccata e centrata, la linguetta "Options". */}
+        <View style={{ rowGap: 16, columnGap: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 14, padding: 12 }}>
           {CAPTURE_ROWS.map((row, rowIdx) => (
             <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
               {row.map((key) => {
@@ -611,40 +677,44 @@ export function ObsidianCaptureScreen({
           ))}
         </View>
 
-        {/* Options + Send — due azioni rotonde con label sotto.
-            · Options: toggle dell'accordion. Attivo (aperto) = cerchio nero /
-              icona bianca; inattivo = grigio scuro.
-            · Send: invio a Gimmick. Attivo (buffer non vuoto) = cerchio viola;
-              inattivo (buffer vuoto o handler assente) = grigio scuro. */}
-        {(() => {
-          const canSend = !!onSend && count > 0;
-          return (
-            <View style={{ marginTop: 16, flexDirection: 'row', justifyContent: 'center', gap: 40 }}>
-              <RoundAction
-                c={c}
-                Icon={IconAdjustmentsHorizontal}
-                label="Options"
-                bg={optionsOpen ? '#000000' : c.surface2}
-                iconColor={optionsOpen ? '#FFFFFF' : c.muted}
-                labelColor={optionsOpen ? c.text : c.muted}
-                onPress={() => {
-                  LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                  setOptionsOpen((v) => !v);
-                }}
-              />
-              <RoundAction
-                c={c}
-                Icon={IconSend}
-                label="Send Gimmick"
-                bg={canSend ? c.accent : c.surface2}
-                iconColor={canSend ? c.accentInk : c.muted}
-                labelColor={canSend ? c.text : c.muted}
-                onPress={onSend}
-                disabled={!canSend}
-              />
-            </View>
-          );
-        })()}
+        {/* Linguetta "Options" — come un tab: più stretta del blocco e centrata.
+            · Chiusa: attaccata in alto al blocco cattura (top squadrato, niente
+              bordo superiore), angoli bassi arrotondati → sporge sotto il blocco.
+            · Aperta: perde bordo e raggio inferiori e si salda al bordo superiore
+              del box delle options (folder-tab), con velatura + testo accent. */}
+        {/* Riga della linguetta Options — pulsante hamburger centrato. */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' }}>
+          <Pressable
+            onPress={() => {
+              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+              setOptionsOpen((v) => !v);
+            }}
+            android_ripple={{ color: c.accent + '22' }}
+            style={{
+              minHeight: OB_BTN_H,
+              paddingHorizontal: 26,
+              alignItems: 'center',
+              justifyContent: 'center',
+              // Sempre STACCATO dal blocco sopra (marginTop 12). Larghezze bordo
+              // costanti (1px ovunque) → l'icona non si sposta tra i due stati.
+              // · Chiusa: pulsante autonomo con i SOLI bordi (sfondo
+              //   trasparente), tutti gli angoli arrotondati.
+              // · Aperta: velatura accent; lato basso agganciato al box options
+              //   (bordo/angoli inferiori spariscono), lato alto sempre bordato.
+              backgroundColor: optionsOpen ? c.accent + '1F' : 'transparent',
+              borderWidth: 1,
+              borderColor: c.line2,
+              borderBottomColor: optionsOpen ? 'transparent' : c.line2,
+              marginTop: 12,
+              borderTopLeftRadius: 12,
+              borderTopRightRadius: 12,
+              borderBottomLeftRadius: optionsOpen ? 0 : 12,
+              borderBottomRightRadius: optionsOpen ? 0 : 12,
+            }}
+          >
+            <IconMenu2 size={20} color={optionsOpen ? c.accent : c.muted} strokeWidth={2} />
+          </Pressable>
+        </View>
 
         {optionsOpen && <SetOptionsBody options={opts} onChange={setOpts} suggestText={suggestText} />}
 
@@ -662,6 +732,23 @@ export function ObsidianCaptureScreen({
       </ScrollView>
 
       <ObsidianNavPill />
+
+      {/* FAB Send — sovraimpressione in basso a destra, presente SOLO quando c'è
+          almeno uno spark da inviare. Sfondo obsidian (superficie scura del
+          tema), solo icona aeroplanino, nessuna scritta. Ombra per staccarlo
+          dal contenuto sottostante. */}
+      {canSend && (
+        <Pressable
+          onPress={onSend}
+          accessibilityLabel="Invia a Gimmick"
+          android_ripple={{ color: c.accent + '40', borderless: true }}
+          style={{ position: 'absolute', right: 20, bottom: insets.bottom + 24 }}
+        >
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 }}>
+            <IconSend size={24} color={c.text} strokeWidth={1.8} />
+          </View>
+        </Pressable>
+      )}
 
       {/* Overlays */}
       <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} />

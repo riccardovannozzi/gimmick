@@ -16,6 +16,8 @@ import { IconCheck, IconMinus } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
+import type { StatusShape } from '@/types';
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
 interface Col { key: string; label: string; sort?: boolean; check?: boolean }
@@ -48,6 +50,8 @@ export interface TileRow {
   sparks: RowSpark[];
   /** Tile completato (is_completed) → titolo barrato e attenuato. */
   done?: boolean;
+  /** Status del tile (colonna STATUS). */
+  status?: { label: string; color: string; shape: StatusShape };
 }
 
 const ROWS: TileRow[] = [
@@ -194,7 +198,16 @@ function Row({ row, onClick, active, checked, onToggle, onContextMenu }: { row: 
           ? <Control label={row.type} dotColor="var(--ob-error)" square />
           : <Control empty />}
       </div>
-      <div className="ob-tiles__cell ob-tiles__cell--ctrl"><Control empty /></div>
+      <div className="ob-tiles__cell ob-tiles__cell--ctrl">
+        {row.status ? (
+          <div className="ob-tiles__status">
+            <StatusSwatch shape={row.status.shape} color={row.status.color} size={13} />
+            <span className="ob-tiles__ctrl-label">{row.status.label}</span>
+          </div>
+        ) : (
+          <Control empty />
+        )}
+      </div>
       <div className="ob-tiles__cell">
         <div className="ob-tiles__sparks">
           {row.sparks.length

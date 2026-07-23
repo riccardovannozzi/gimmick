@@ -86,6 +86,7 @@
 .ob-tiles__checkbox:hover { border-color: var(--ob-accent); }
 .ob-tiles__checkbox--on { background: var(--ob-accent); border-color: var(--ob-accent); }
 
+.ob-tiles__status { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .ob-tiles__title { font-size: 13.5px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Tile completato: titolo barrato e attenuato. */
 .ob-tiles__title--done { text-decoration: line-through; color: var(--ob-faint); }

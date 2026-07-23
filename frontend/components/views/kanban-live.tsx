@@ -25,7 +25,17 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { tileMatchesFilters, sortTiles, tileDateField } from '@/lib/kanban-helpers';
 import { getDayKey, formatDay } from '@/lib/tile-helpers';
-import type { Tile, Tag, KanbanColumn } from '@/types';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta } from '@/lib/status-meta';
+import type { Tile, Tag, KanbanColumn, Status } from '@/types';
+
+/** Status "di attenzione" (non active/done) reso come swatch sulla card. */
+function cardStatus(t: Tile, statusById: Map<string, Status>) {
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
+  if (!st || st.name === 'active' || st.name === 'done') return undefined;
+  const meta = statusMeta(st.name);
+  return { label: meta.label, color: meta.color, shape: st.shape };
+}
 
 const CAP_FROM: Record<string, 'photo' | 'file' | 'voice' | 'doc' | 'text'> = {
   photo: 'photo',
@@ -36,7 +46,7 @@ const CAP_FROM: Record<string, 'photo' | 'file' | 'voice' | 'doc' | 'text'> = {
   text: 'text',
 };
 
-function toCard(t: Tile, rootTagId: string | undefined): CardData {
+function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>): CardData {
   const tileTag = (t.tags ?? []).find((tg) => tg.id !== rootTagId) ?? t.tags?.[0];
   const caps = Array.from(new Set((t.sparks ?? []).map((s) => CAP_FROM[s.type] ?? 'file')));
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
@@ -48,10 +58,11 @@ function toCard(t: Tile, rootTagId: string | undefined): CardData {
     caps: caps.length ? caps : undefined,
     checklist: checklist.length ? checklist : undefined,
     done: !!t.is_completed,
+    status: cardStatus(t, statusById),
   };
 }
 
-function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: string | undefined): Lane['groups'] {
+function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: string | undefined, statusById: Map<string, Status>): Lane['groups'] {
   const todayKey = getDayKey(new Date().toISOString());
   const groups: Lane['groups'] = [];
   let lastKey: string | null | undefined = undefined;
@@ -67,7 +78,7 @@ function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: s
       });
       lastKey = key;
     }
-    groups[groups.length - 1].tiles.push(toCard(t, rootTagId));
+    groups[groups.length - 1].tiles.push(toCard(t, rootTagId, statusById));
   }
   return groups;
 }
@@ -75,6 +86,7 @@ function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: s
 export function KanbanLive() {
   const queryClient = useQueryClient();
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const { statuses } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
 
@@ -93,6 +105,7 @@ export function KanbanLive() {
   const allTiles = useMemo<Tile[]>(() => tilesData?.data ?? [], [tilesData]);
   const tags = useMemo<Tag[]>(() => tagsData?.data ?? [], [tagsData]);
   const rootTagId = useMemo(() => tags.find((t) => t.is_root)?.id, [tags]);
+  const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
 
   const lanes = useMemo<Lane[]>(
     () =>
@@ -103,10 +116,10 @@ export function KanbanLive() {
           id: col.id,
           label: col.title,
           color: col.bg_color || 'var(--ob-muted)',
-          groups: groupByDay(sorted, col.sort_by, rootTagId),
+          groups: groupByDay(sorted, col.sort_by, rootTagId, statusById),
         };
       }),
-    [columns, allTiles, typeTileIcons, rootTagId],
+    [columns, allTiles, typeTileIcons, rootTagId, statusById],
   );
 
   const tileMutation = useMutation({

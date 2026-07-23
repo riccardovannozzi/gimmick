@@ -15,6 +15,8 @@ import { IconGripVertical, IconDots } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
+import type { StatusShape } from '@/types';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 type CapKind = 'photo' | 'file' | 'voice' | 'doc' | 'text';
@@ -40,6 +42,8 @@ export interface CardData {
   checklist?: boolean[];
   /** Tile completato (is_completed) → pallino verde in alto a destra. */
   done?: boolean;
+  /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
+  status?: { label: string; color: string; shape: StatusShape };
 }
 export interface DateGroup {
   date?: string;
@@ -138,6 +142,7 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
             <CapGlyph kind={c} />
           </span>
         ))}
+        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={14} />}
         <span className="ob-kanban__card-tag">
           <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={12} /></span>
           <span className="ob-kanban__card-tag-label">{t.tag}</span>

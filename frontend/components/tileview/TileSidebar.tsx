@@ -14,6 +14,9 @@ import { resolveCaptureStyle } from '@/lib/pixel-theme';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { useStatuses } from '@/store/statuses-store';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
+import { statusMeta } from '@/lib/status-meta';
 import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
@@ -52,13 +55,14 @@ type PT = ReturnType<typeof usePixelTheme>;
 function obLabel(theme: PT): React.CSSProperties {
   return {
     fontFamily: 'var(--ob-font-mono)',
-    fontSize: 10.5,
+    fontSize: 8,
     fontWeight: 700,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: theme.ink3,
     display: 'block',
-    marginBottom: 6,
+    lineHeight: 1.1,
+    marginBottom: 3,
   };
 }
 
@@ -163,7 +167,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Seleziona tipo...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Type</span>
         )}
         {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
@@ -221,6 +225,111 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 {selected && (
                   <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/** Selettore STATUS del tile — dropdown/popup nello stile di TypeIconPicker. */
+function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string | null) => void }) {
+  const theme = usePixelTheme();
+  const { statuses } = useStatuses();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = statuses.find((s) => s.id === value) || null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (statuses.length === 0) return null;
+
+  const labelStyle = obLabel(theme);
+  const popupItem = (active: boolean): React.CSSProperties => obPopupRow(theme, active);
+  const currentMeta = current ? statusMeta(current.name) : null;
+  const check = (
+    <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  );
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>{'Status'}</label>
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        style={{
+          ...obField(theme),
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.surface})` : theme.surface,
+          padding: '0 10px',
+          height: 36,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        {current && currentMeta ? (
+          <>
+            <StatusSwatch shape={current.shape} color={currentMeta.color} size={18} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Status</span>
+        )}
+        <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
+            padding: 4,
+            maxHeight: 240,
+            overflowY: 'auto',
+          }}
+        >
+          <button onClick={() => { onChange(null); setOpen(false); }} style={popupItem(!value)}>
+            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Nessuno</span>
+            {!value && check}
+          </button>
+          {statuses.map((s) => {
+            const meta = statusMeta(s.name);
+            const selected = value === s.id;
+            return (
+              <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }} style={popupItem(selected)}>
+                <StatusSwatch shape={s.shape} color={meta.color} size={18} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</span>
+                {selected && check}
               </button>
             );
           })}
@@ -1600,6 +1709,12 @@ export function TileSidebar({
 
               {/* Type Icon */}
               <TypeIconPicker tileId={tile.id} />
+
+              {/* Status */}
+              <StatusPicker
+                value={tile.status_id ?? null}
+                onChange={(statusId) => updateTileMutation.mutate({ status_id: statusId })}
+              />
 
               <div style={{ borderTop: `1px solid ${theme.border}` }} />
 

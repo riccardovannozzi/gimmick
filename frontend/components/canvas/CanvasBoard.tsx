@@ -20,7 +20,7 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
@@ -226,7 +226,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
       // resolve against the ALL DAY palette (not the TIMED one used for plain event).
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
   }, [tiles, layout, allStatuses, getActionTypeShape, typeIcons, typeTileIcons]);
 
@@ -713,13 +713,26 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           break;
       }
     });
+    // Trattamento "completato" (is_completed, via il pulsante DONE della
+    // sidebar): stessa velatura scura dello status 'done'. Disegnata PRIMA del
+    // titolo così il testo barrato resta leggibile sopra. Saltata se lo status
+    // shape è già 'shade' per non raddoppiare la velatura.
+    nodeGrps.each(function (d) {
+      if (!d.isCompleted || d.statusShape === 'shade') return;
+      d3.select(this).append('rect')
+        .attr('width', TILE_W).attr('height', TILE_H)
+        .attr('fill', '#000000').attr('opacity', 0.5)
+        .style('pointer-events', 'none');
+    });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
       const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
       const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
       const fg = readableOn(tileBg);
+      // Barrato + attenuato quando completato, come nel titolo della sidebar.
+      const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
       fo.append('xhtml:div')
-        .attr('style', `color:${fg};font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;`)
+        .attr('style', `color:${fg};font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge

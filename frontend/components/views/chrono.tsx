@@ -19,6 +19,8 @@ import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
 import { readableOn } from '@/lib/palette';
 import { Icon, type ShellIconName } from '@/components/shell';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
+import type { StatusShape } from '@/types';
 
 /** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
 export type ChronoColorMode = 'tag' | 'type';
@@ -49,6 +51,8 @@ export interface ColTile {
   deadline?: boolean;
   /** Tile completato (is_completed) → pallino verde in alto a destra. */
   done?: boolean;
+  /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
+  status?: { label: string; color: string; shape: StatusShape };
   spark?: SparkType;
   amber?: boolean;
   checklist?: boolean[];
@@ -93,6 +97,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
             <Icon name={t.spark} size={13} />
           </span>
         )}
+        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={12} />}
         <span className="ob-chrono__card-tag" style={inkStyle}><Icon name="tags" size={13} /></span>
       </div>
     </div>

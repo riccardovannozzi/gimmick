@@ -42,7 +42,17 @@ import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
-import type { Tile } from '@/types';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta } from '@/lib/status-meta';
+import type { Status, Tile } from '@/types';
+
+/** Status "di attenzione" (non active/done) reso come swatch sulla card. */
+function cardStatus(t: Tile, statusById: Map<string, Status>) {
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
+  if (!st || st.name === 'active' || st.name === 'done') return undefined;
+  const meta = statusMeta(st.name);
+  return { label: meta.label, color: meta.color, shape: st.shape };
+}
 
 /** Stato del menu contestuale (tasto destro). `slot` presente → la tile è un
  *  evento timed del calendario: "Incolla" schedula lì la copia. */
@@ -89,7 +99,7 @@ function deriveTitle(t: Tile): string {
   return 'Senza titolo';
 }
 
-function toColTile(t: Tile): ColTile {
+function toColTile(t: Tile, statusById: Map<string, Status>): ColTile {
   const isTodo = t.action_type === 'anytime';
   const sp = t.sparks?.[0];
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
@@ -102,6 +112,7 @@ function toColTile(t: Tile): ColTile {
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,
     done: !!t.is_completed,
+    status: cardStatus(t, statusById),
   };
 }
 
@@ -157,6 +168,8 @@ export function ChronoLive() {
   const copyTile = useTileClipboardStore((s) => s.copy);
   const openFlow = useFlowOpenStore((s) => s.open);
   const tilesWithFlows = useTilesWithFlows();
+  const { statuses } = useStatuses();
+  const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const [menu, setMenu] = useState<ChronoMenu | null>(null);
   // Modalità "posiziona tile": armata dal pulsante +Tile, attiva il click-to-create
   // sugli slot vuoti della griglia.
@@ -243,12 +256,12 @@ export function ChronoLive() {
   const allTiles = useMemo<Tile[]>(() => allTilesData?.data ?? [], [allTilesData]);
 
   const notes = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
-    [allTiles, colorOf],
+    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t, statusById), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById],
   );
   const todos = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
-    [allTiles, colorOf],
+    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById],
   );
 
   // dayIndex (0 = prima colonna) + frazione d'ora → ISO assoluto nel periodo mostrato.

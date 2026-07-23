@@ -97,6 +97,7 @@ export function ObsidianCaptureScreenLive() {
       onCapture={(key) => router.push(CAPTURE_ROUTE[key] as never)}
       onSend={send}
       onOpenBuffer={() => router.push('/obsidian-buffer' as never)}
+      onAsk={() => router.push('/obsidian-ask' as never)}
       onNavigateView={(id) => router.replace(VIEW_ROUTE[id] as never)}
       onSettings={() => router.replace('/settings' as never)}
       options={tileOptions}
