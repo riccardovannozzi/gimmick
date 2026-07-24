@@ -76,8 +76,9 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
           <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Gimmick</Text>
         </View>
 
-        {/* Viste */}
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6 }}>
+        {/* Viste — Impostazioni sta nella stessa colonna, subito sotto gli altri
+            link: unica differenza un separatore che la distingue dalle viste. */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6, paddingBottom: insets.bottom + 6 }}>
           {onHome && (
             <Pressable
               onPress={() => { onHome(); onClose(); }}
@@ -102,17 +103,18 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
               <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>{v.name}</Text>
             </Pressable>
           ))}
-        </ScrollView>
 
-        {/* Footer */}
-        <Pressable
-          onPress={onSettings}
-          android_ripple={{ color: c.accent + '33' }}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, minHeight: OB_BTN_H, paddingBottom: insets.bottom, borderTopWidth: 1, borderTopColor: c.line }}
-        >
-          <IconSettings size={20} color={c.muted} strokeWidth={1.8} />
-          <Text style={{ fontSize: 16, fontWeight: '500', color: c.muted }}>Impostazioni</Text>
-        </Pressable>
+          {/* Separatore dalle viste, poi Impostazioni con lo stesso stile dei link. */}
+          <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: 10, marginVertical: 6 }} />
+          <Pressable
+            onPress={() => { onSettings?.(); onClose(); }}
+            android_ripple={{ color: c.accent + '33' }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: OB_BTN_H, borderRadius: 8 }}
+          >
+            <IconSettings size={22} color={c.muted} strokeWidth={1.8} />
+            <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Impostazioni</Text>
+          </Pressable>
+        </ScrollView>
       </Animated.View>
     </Modal>
   );

@@ -17,9 +17,8 @@
 import * as React from 'react';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
-import { readableOn } from '@/lib/palette';
 import { Icon, type ShellIconName } from '@/components/shell';
-import { StatusSwatch } from '@/components/statuses/status-swatch';
+import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import type { StatusShape } from '@/types';
 
 /** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
@@ -51,8 +50,10 @@ export interface ColTile {
   deadline?: boolean;
   /** Tile completato (is_completed) → pallino verde in alto a destra. */
   done?: boolean;
-  /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
+  /** Status del tile → swatch (forma) nella meta-row. */
   status?: { label: string; color: string; shape: StatusShape };
+  /** Type-icon del tile → chip colorato nella meta-row. */
+  type?: TileMetaType;
   /** Numero di sparks del tile → contatore in basso a destra. */
   sparkCount?: number;
   spark?: SparkType;
@@ -60,21 +61,21 @@ export interface ColTile {
   checklist?: boolean[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
-  /** Colore pieno (hex) del tag/tipo quando la colorazione è attiva; riempie lo
-   *  sfondo della card e il testo si adatta al contrasto (readableOn). */
+  /** Colore (hex) del tag/tipo/status quando la colorazione è attiva; usato come
+   *  --card-c per una VELATURA di sfondo (via CSS), non come colore pieno. */
   bg?: string;
 }
 
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
   const canDrag = !!schedulable && !!t.id;
-  // Sfondo pieno colorato: testo readable (chiaro su scuro / scuro su chiaro).
-  const ink = t.bg ? readableOn(t.bg) : undefined;
-  const inkStyle = ink ? { color: ink } : undefined;
+  // Sfondo a VELATURA del colore (via CSS con --card-c), non pieno: testo di
+  // default leggibile e icone TIPO/STATUS ben visibili.
+  const inkStyle = undefined;
   return (
     <div
       className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
-      style={{ ['--card-c' as string]: t.bg ?? cardC, ...(t.bg ? { background: t.bg, borderColor: t.bg } : {}) }}
+      style={{ ['--card-c' as string]: t.bg ?? cardC }}
       onClick={onClick}
       onContextMenu={onContextMenu}
       role={onClick ? 'button' : undefined}
@@ -83,7 +84,6 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
-      {t.done && <span className="ob-chrono__card-done" title="Completato" aria-label="Completato" />}
       <div className="ob-chrono__card-title" style={inkStyle}>{t.title}</div>
       {t.checklist && (
         <div className="ob-chrono__card-bars">
@@ -95,11 +95,11 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         <span className="ob-chrono__card-action" style={inkStyle}>{t.actionLabel}</span>
         <div style={{ flex: 1 }} />
         {t.spark && (
-          <span className="ob-chrono__card-spark" style={{ color: ink ?? SPARK_COLOR[t.spark] }}>
+          <span className="ob-chrono__card-spark" style={{ color: SPARK_COLOR[t.spark] }}>
             <Icon name={t.spark} size={13} />
           </span>
         )}
-        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={12} />}
+        <TileMeta type={t.type} status={t.status} />
         <span className="ob-chrono__card-tag" style={inkStyle}><Icon name="tags" size={13} /></span>
         {!!t.sparkCount && (
           <span className="ob-tile-sparkn" style={inkStyle} title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
@@ -252,8 +252,8 @@ const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 /** Modalità del calendario: 1 giorno, 3 giorni, settimana, mese. */
 export type ChronoCalView = 'day' | '3day' | 'week' | 'month';
 export interface ChronoDay { dow: string; num: number }
-export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string; done?: boolean }
-export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string; done?: boolean }
+export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string; done?: boolean; type?: TileMetaType; status?: { shape: StatusShape; color: string; label: string } }
+export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string; done?: boolean; type?: TileMetaType; status?: { shape: StatusShape; color: string; label: string } }
 export interface MonthEvent { id?: string; title: string; kind: EventKind; color?: string; done?: boolean }
 export interface MonthCell { key: string; num: number; inMonth: boolean; isToday: boolean; events: MonthEvent[] }
 export interface ChronoCalendar {
@@ -443,6 +443,10 @@ function DayColumn({
         const top = (s - START) * H + 1;
         const height = Math.max((eend - s) * H - 3, 20);
         const tiny = height < 34;
+        // Numero di righe del titolo che stanno nell'altezza del blocco (padding
+        // verticale ~6px, line-height 12px). Se non c'è spazio per due righe →
+        // una sola riga con testo accorciato (ellissi). Cap a 4.
+        const titleLines = Math.max(1, Math.min(4, Math.floor((height - 6) / 12)));
         const click = onEventClick && e.id ? (ev: React.MouseEvent) => { ev.stopPropagation(); onEventClick(e.id!); } : undefined;
         const ctx = onEventContextMenu && e.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEventContextMenu(ev, e.id!, { dayIndex, startFrac: Math.max(e.s, START) }); } : undefined;
         const draggable = !!onEventReschedule && !!e.id;
@@ -455,7 +459,7 @@ function DayColumn({
           <div
             key={e.id ?? j}
             className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active', e.done && 'ob-chrono__event--done')}
-            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e), ...(e.color ? { background: e.color, borderColor: e.color, color: readableOn(e.color) } : {}) }}
+            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e) }}
             onClick={click}
             onContextMenu={ctx}
             role={click ? 'button' : undefined}
@@ -468,8 +472,10 @@ function DayColumn({
               de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: e.id, dur: Math.max(e.e - e.s, SNAP), grab }));
             } : undefined}
           >
-            {e.done && <span className="ob-chrono__event-done" title="Completato" aria-label="Completato" />}
-            <span className="ob-chrono__event-title" style={e.color ? { color: readableOn(e.color) } : undefined}>{e.title}</span>
+            <span className="ob-chrono__event-title" style={{ ['--title-lines' as string]: titleLines }}>{e.title}</span>
+            {(e.type || e.status) && (
+              <span className="ob-chrono__event-meta"><TileMeta type={e.type} status={e.status} compact={tiny} /></span>
+            )}
             {resizable && (
               <div
                 className="ob-chrono__event-resize"
@@ -541,7 +547,6 @@ function MonthGrid({ cells, selectedId, onEventClick, onEventContextMenu }: { ce
                   >
                     <span className="ob-chrono__month-ev-dot" />
                     <span className="ob-chrono__month-ev-title">{e.title}</span>
-                    {e.done && <span className="ob-chrono__month-ev-done" title="Completato" aria-label="Completato" />}
                   </div>
                 );
               })}
@@ -594,7 +599,7 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
           <div
             key={a.id ?? j}
             className={cn('ob-chrono__allday-pill', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active', a.done && 'ob-chrono__allday-pill--done')}
-            style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind], ...(a.color ? { background: a.color, borderColor: a.color } : {}) }}
+            style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind] }}
             onClick={click}
             onContextMenu={ctx}
             draggable={draggable}
@@ -606,8 +611,10 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
             role={click ? 'button' : undefined}
             tabIndex={click ? 0 : undefined}
           >
-            <span className="ob-chrono__allday-title" style={a.color ? { color: readableOn(a.color) } : undefined}>{a.title}</span>
-            {a.done && <span className="ob-chrono__allday-done" title="Completato" aria-label="Completato" />}
+            <span className="ob-chrono__allday-title">{a.title}</span>
+            {(a.type || a.status) && (
+              <span className="ob-chrono__allday-meta"><TileMeta type={a.type} status={a.status} compact /></span>
+            )}
           </div>
         );
       })}

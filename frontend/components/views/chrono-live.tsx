@@ -46,10 +46,11 @@ import { useStatuses } from '@/store/statuses-store';
 import { statusMeta } from '@/lib/status-meta';
 import type { Status, Tile } from '@/types';
 
-/** Status "di attenzione" (non active/done) reso come swatch sulla card. */
+/** Status del tile reso come swatch (forma) nella meta-row della card.
+ *  'active' è lo stato di default/prevalente → non si segnala. */
 function cardStatus(t: Tile, statusById: Map<string, Status>) {
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
-  if (!st || st.name === 'active' || st.name === 'done') return undefined;
+  if (!st || st.name === 'active') return undefined;
   const meta = statusMeta(st.name);
   return { label: meta.label, color: meta.color, shape: st.shape };
 }
@@ -99,7 +100,8 @@ function deriveTitle(t: Tile): string {
   return 'Senza titolo';
 }
 
-function toColTile(t: Tile, statusById: Map<string, Status>): ColTile {
+function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: string) => { icon: string; color?: string } | null): ColTile {
+  const ti = iconOf(t.id);
   const isTodo = t.action_type === 'anytime';
   const sp = t.sparks?.[0];
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
@@ -113,6 +115,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>): ColTile {
     createdAt: t.created_at,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),
+    type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
     sparkCount: (t.sparks ?? []).length,
   };
 }
@@ -201,7 +204,8 @@ export function ChronoLive() {
     }
     if (colorMode === 'status') {
       const st = t.status_id ? statusById.get(t.status_id) : undefined;
-      return st ? statusMeta(st.name).hex : undefined;
+      // 'active' è il default → nessuna colorazione (non si segnala).
+      return st && st.name !== 'active' ? statusMeta(st.name).hex : undefined;
     }
     const tag = t.tags?.find((tg) => !tg.is_root);
     return tag?.tag_type ? (getTagTypeColor(tag.tag_type) ?? undefined) : undefined;
@@ -261,12 +265,12 @@ export function ChronoLive() {
   const allTiles = useMemo<Tile[]>(() => allTilesData?.data ?? [], [allTilesData]);
 
   const notes = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t, statusById), bg: colorOf(t) })),
-    [allTiles, colorOf, statusById],
+    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById, getIconForTile],
   );
   const todos = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById), bg: colorOf(t) })),
-    [allTiles, colorOf, statusById],
+    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById, getIconForTile],
   );
 
   // dayIndex (0 = prima colonna) + frazione d'ora → ISO assoluto nel periodo mostrato.
@@ -563,6 +567,7 @@ export function ChronoLive() {
       const day = dayIndexFrom(refIso, gridStart);
       if (day < 0 || day >= dayCount) continue;
       if (isAllDay) {
+        const ti = getIconForTile(t.id);
         allday.push({
           day,
           title: t.title || 'Senza titolo',
@@ -570,11 +575,19 @@ export function ChronoLive() {
           id: t.id,
           color: colorOf(t),
           done: !!t.is_completed,
+          type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+          status: cardStatus(t, statusById),
         });
       } else {
         const s = frac(refIso);
         const e = t.end_at ? frac(t.end_at) : s + 1;
-        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id, color: colorOf(t), done: !!t.is_completed });
+        const ti = getIconForTile(t.id);
+        timed.push({
+          day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id,
+          color: colorOf(t), done: !!t.is_completed,
+          type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+          status: cardStatus(t, statusById),
+        });
       }
     }
 
@@ -640,7 +653,7 @@ export function ChronoLive() {
       onDblCreateAt: addArmed ? undefined : handleCreateAt,
       onDblCreateAllDay: addArmed ? undefined : handleDblCreateAllDay,
     };
-  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf]);
+  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf, statusById, getIconForTile]);
 
   if (isLoading) {
     return (

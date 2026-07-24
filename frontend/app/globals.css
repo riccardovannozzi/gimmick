@@ -123,59 +123,63 @@
     @apply bg-background text-foreground;
   }
 
-  /* Pixel focus ring — drops accent outline 3px offset 0, no rounding */
+  /* Obsidian focus ring — accent outline con offset, angoli non forzati. */
   :focus-visible {
-    outline: 3px solid var(--px-accent);
-    outline-offset: 0;
-    border-radius: 0;
+    outline: 2px solid var(--ob-accent);
+    outline-offset: 2px;
   }
 
-  /* Selection (highlight) — accent fill with onAccent text */
+  /* Selection (highlight) — accent tenue con testo leggibile. */
   ::selection {
-    background: var(--px-accent);
-    color: var(--px-on-accent);
+    background: color-mix(in srgb, var(--ob-accent) 26%, transparent);
+    color: var(--ob-text);
   }
 }
 
-/* ─── Sonner toast overrides ─── */
+/* ─── Sonner toast overrides — Obsidian chrome ─── */
 [data-sonner-toaster] [data-sonner-toast] {
-  background: var(--px-surface) !important;
-  border: 2px solid var(--px-border) !important;
-  border-radius: 0 !important;
-  box-shadow: var(--px-shadow) !important;
-  color: var(--px-ink) !important;
-  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
-  font-size: 12px !important;
+  background: var(--ob-surface) !important;
+  border: 1px solid var(--ob-line-2) !important;
+  border-radius: var(--ob-radius-card, 12px) !important;
+  box-shadow: var(--ob-shadow-card) !important;
+  color: var(--ob-text) !important;
+  font-family: var(--ob-font-sans) !important;
+  font-size: 13px !important;
 }
 [data-sonner-toaster] [data-sonner-toast][data-type="success"] {
-  border-color: var(--px-border) !important;
+  border-color: color-mix(in srgb, var(--ob-success) 45%, var(--ob-line-2)) !important;
 }
 [data-sonner-toaster] [data-sonner-toast][data-type="error"] {
-  border-color: #E24B4A !important;
+  border-color: color-mix(in srgb, var(--ob-error) 55%, var(--ob-line-2)) !important;
 }
+[data-sonner-toaster] [data-sonner-toast][data-type="success"] [data-icon] { color: var(--ob-success) !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="error"] [data-icon] { color: var(--ob-error) !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="warning"] [data-icon] { color: var(--ob-warning) !important; }
+[data-sonner-toaster] [data-sonner-toast][data-type="info"] [data-icon] { color: var(--ob-info) !important; }
 [data-sonner-toaster] [data-sonner-toast] [data-title] {
-  font-family: var(--font-pixel-head), ui-monospace, monospace !important;
-  font-size: 10px !important;
-  letter-spacing: 0.08em !important;
-  text-transform: uppercase !important;
-  color: var(--px-ink) !important;
+  font-family: var(--ob-font-sans) !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  color: var(--ob-text) !important;
 }
 [data-sonner-toaster] [data-sonner-toast] [data-description] {
-  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
-  font-size: 11px !important;
-  color: var(--px-ink-2) !important;
+  font-family: var(--ob-font-sans) !important;
+  font-size: 12px !important;
+  color: var(--ob-muted) !important;
 }
 
-/* ─── Radix tooltip / popover content — pixel chrome ─── */
+/* ─── Radix tooltip / popover content — Obsidian chrome ─── */
 [data-radix-popper-content-wrapper] [data-slot="tooltip-content"],
 [role="tooltip"] {
-  background: var(--px-surface) !important;
-  color: var(--px-ink) !important;
-  border: 2px solid var(--px-border) !important;
-  border-radius: 0 !important;
-  box-shadow: var(--px-shadow) !important;
-  font-family: var(--font-pixel-body), ui-monospace, monospace !important;
-  font-size: 11px !important;
+  background: var(--ob-surface) !important;
+  color: var(--ob-text) !important;
+  border: 1px solid var(--ob-line-2) !important;
+  border-radius: 8px !important;
+  box-shadow: var(--ob-shadow-card) !important;
+  font-family: var(--ob-font-sans) !important;
+  font-size: 12px !important;
   padding: 6px 10px !important;
 }
 

@@ -29,10 +29,11 @@ import { useStatuses } from '@/store/statuses-store';
 import { statusMeta } from '@/lib/status-meta';
 import type { Tile, Tag, KanbanColumn, Status } from '@/types';
 
-/** Status "di attenzione" (non active/done) reso come swatch sulla card. */
+/** Status del tile reso come swatch (forma) nella meta-row della card.
+ *  'active' è lo stato di default/prevalente → non si segnala. */
 function cardStatus(t: Tile, statusById: Map<string, Status>) {
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
-  if (!st || st.name === 'active' || st.name === 'done') return undefined;
+  if (!st || st.name === 'active') return undefined;
   const meta = statusMeta(st.name);
   return { label: meta.label, color: meta.color, shape: st.shape };
 }
@@ -46,10 +47,13 @@ const CAP_FROM: Record<string, 'photo' | 'file' | 'voice' | 'doc' | 'text'> = {
   text: 'text',
 };
 
-function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>): CardData {
+type IconOf = (tileId: string) => { icon: string; color?: string } | null;
+
+function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): CardData {
   const tileTag = (t.tags ?? []).find((tg) => tg.id !== rootTagId) ?? t.tags?.[0];
   const caps = Array.from(new Set((t.sparks ?? []).map((s) => CAP_FROM[s.type] ?? 'file')));
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
+  const ti = iconOf(t.id);
   return {
     id: t.id,
     title: t.title || 'Senza titolo',
@@ -59,11 +63,12 @@ function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, 
     checklist: checklist.length ? checklist : undefined,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),
+    type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
     sparkCount: (t.sparks ?? []).length,
   };
 }
 
-function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: string | undefined, statusById: Map<string, Status>): Lane['groups'] {
+function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): Lane['groups'] {
   const todayKey = getDayKey(new Date().toISOString());
   const groups: Lane['groups'] = [];
   let lastKey: string | null | undefined = undefined;
@@ -79,7 +84,7 @@ function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: s
       });
       lastKey = key;
     }
-    groups[groups.length - 1].tiles.push(toCard(t, rootTagId, statusById));
+    groups[groups.length - 1].tiles.push(toCard(t, rootTagId, statusById, iconOf));
   }
   return groups;
 }
@@ -87,6 +92,7 @@ function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: s
 export function KanbanLive() {
   const queryClient = useQueryClient();
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const getIconForTile = useTypeIcons((s) => s.getIconForTile);
   const { statuses } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
@@ -117,10 +123,10 @@ export function KanbanLive() {
           id: col.id,
           label: col.title,
           color: col.bg_color || 'var(--ob-muted)',
-          groups: groupByDay(sorted, col.sort_by, rootTagId, statusById),
+          groups: groupByDay(sorted, col.sort_by, rootTagId, statusById, getIconForTile),
         };
       }),
-    [columns, allTiles, typeTileIcons, rootTagId, statusById],
+    [columns, allTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
   );
 
   const tileMutation = useMutation({

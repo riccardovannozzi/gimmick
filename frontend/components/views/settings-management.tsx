@@ -218,12 +218,16 @@ function StatusCard() {
     onError: () => toast.error('Errore aggiornamento status'),
   });
 
+  // 'active' è lo stato di default/prevalente: non viene mai segnalato sui tile,
+  // quindi non è personalizzabile qui.
+  const editable = statuses.filter((s) => s.name !== 'active');
+
   return (
     <Card title="STATUS">
-      {statuses.length === 0 && (
+      {editable.length === 0 && (
         <div className="ob-settings__row-sub" style={{ padding: '4px 2px' }}>Nessuno status disponibile.</div>
       )}
-      {statuses.map((s) => {
+      {editable.map((s) => {
         const meta = statusMeta(s.name);
         return (
           <div className="ob-settings__row" key={s.id}>

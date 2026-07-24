@@ -37,6 +37,7 @@ const VIEW_ROUTE: Record<MobileViewId, string> = {
 export function ObsidianCaptureScreenLive() {
   const router = useRouter();
   const items = useBufferStore((s) => s.items);
+  const addItem = useBufferStore((s) => s.addItem);
   const removeItem = useBufferStore((s) => s.removeItem);
   const clearBuffer = useBufferStore((s) => s.clearBuffer);
   const accessToken = useAuthStore((s) => s.accessToken);
@@ -95,6 +96,7 @@ export function ObsidianCaptureScreenLive() {
     <ObsidianCaptureScreen
       bufferCount={items.length}
       onCapture={(key) => router.push(CAPTURE_ROUTE[key] as never)}
+      onSaveNote={(text) => { addItem({ type: 'text', uri: '', preview: text }); toast.success('Nota aggiunta al buffer'); }}
       onSend={send}
       onOpenBuffer={() => router.push('/obsidian-buffer' as never)}
       onAsk={() => router.push('/obsidian-ask' as never)}

@@ -15,7 +15,7 @@ import { IconGripVertical, IconDots } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
-import { StatusSwatch } from '@/components/statuses/status-swatch';
+import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import type { StatusShape } from '@/types';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
@@ -42,8 +42,10 @@ export interface CardData {
   checklist?: boolean[];
   /** Tile completato (is_completed) → pallino verde in alto a destra. */
   done?: boolean;
-  /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
+  /** Status del tile → swatch (forma) nella meta-row. */
   status?: { label: string; color: string; shape: StatusShape };
+  /** Type-icon del tile → chip colorato nella meta-row. */
+  type?: TileMetaType;
   /** Numero di sparks del tile → contatore in basso a destra. */
   sparkCount?: number;
 }
@@ -125,7 +127,6 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
     >
       <div className="ob-kanban__card-top">
         <div className="ob-kanban__card-title">{t.title}</div>
-        {t.done && <span className="ob-kanban__card-done" title="Completato" aria-label="Completato" />}
         <span className="ob-kanban__card-grip"><IconGripVertical size={14} stroke={1.6} /></span>
       </div>
 
@@ -144,7 +145,7 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
             <CapGlyph kind={c} />
           </span>
         ))}
-        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={14} />}
+        <TileMeta type={t.type} status={t.status} />
         <span className="ob-kanban__card-tag">
           <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={12} /></span>
           <span className="ob-kanban__card-tag-label">{t.tag}</span>

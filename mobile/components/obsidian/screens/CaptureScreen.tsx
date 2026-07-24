@@ -1,16 +1,19 @@
 /**
  * Gimmick · Obsidian — Mobile Capture screen.
  *
- * Capture home: AppHeader + "Invia a Gimmick" + the capture grid (see
- * CAPTURE_ROWS) + "Set options". Overlays: the tag Drawer (menu), the voice
- * recording sheet (tapping Voice) and the Set-options sheet. Reuses the
- * Obsidian mobile shell + tokens.
+ * Home a "composer": in alto l'header VAULT/Gimmick (menu + Ask), poi la card di
+ * scrittura nota con la toolbar dei canali di cattura (photo/video/voice/
+ * gallery/file) e il pulsante Salva; sotto, il toggle "Azione" che apre il
+ * pannello AZIONE (tipo d'azione + data/ora + Tag/Tipo/Status). In fondo la lista
+ * degli spark già in buffer (invariata) e il FAB Invia. Reusa il buffer + la
+ * pipeline di upload esistenti.
  */
 import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend, IconChevronDown,
+  IconSend, IconChevronDown, IconChevronUp, IconPlus,
+  IconMenu2, IconSparkles, IconLayoutGrid, IconRoute, IconCalendarTime,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX,
 } from '@tabler/icons-react-native';
@@ -18,12 +21,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
 import { useObsidian } from '@/lib/obsidian';
+import { toast } from '@/store';
+import { useDictation } from '@/hooks/useDictation';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { tagsApi, typeIconsApi, statusesApi, type StatusEntity } from '@/lib/api';
 import type { ActionType, Tag, BufferItem, SparkType } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
-import { ObsidianAppHeader } from '../AppHeader';
 import { ObsidianDrawer } from '../Drawer';
 import type { MobileViewId } from '../TopNav';
 
@@ -38,19 +42,96 @@ const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
 };
 
 /**
- * Disposizione della griglia di cattura, una riga per array.
- *
- * Non è un wrap automatico: la larghezza dei pulsanti esprime la gerarchia dei
- * canali. Text da solo in prima riga perché è la cattura più frequente e
- * l'unica che non dipende da permessi o hardware; poi i tre canali di
- * registrazione dal vivo; in fondo i due di importazione, che partono da
- * contenuto già esistente.
+ * Canali della toolbar del composer, in ordine. Text non compare: è il campo di
+ * scrittura stesso. Restano i cinque canali "media" (registrazione dal vivo +
+ * import), scorciatoie per allegare uno spark diverso alla stessa cattura.
  */
-const CAPTURE_ROWS: CapKey[][] = [
-  ['text'],
-  ['photo', 'video', 'voice'],
-  ['gallery', 'file'],
+const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
+
+// Stacco dell'header dall'alto (safe-area a parte).
+const HEADER_GAP = 20;
+
+const NAV_ITEMS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayoutGrid }> = [
+  { id: 'tiles', label: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'flows', label: 'Flows', Icon: IconRoute },
+  { id: 'chrono', label: 'Chrono', Icon: IconCalendarTime },
 ];
+
+// ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
+// Titolo del vault a sinistra (con dropdown viste), menu + Ask a destra. Sostituisce
+// l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
+function CaptureHeader({ onMenu, onAsk, onNavigateView }: { onMenu?: () => void; onAsk?: () => void; onNavigateView?: (id: MobileViewId) => void }) {
+  const c = useObsidian();
+  const insets = useSafeAreaInsets();
+  const [navOpen, setNavOpen] = React.useState(false);
+
+  const sqBtn = {
+    width: 42, height: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
+    borderWidth: 1,
+  };
+
+  return (
+    <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
+      {/* Sinistra — VAULT / Gimmick ⌄ (apre il dropdown viste) */}
+      <Pressable onPress={() => setNavOpen(true)} accessibilityLabel="Cambia vista" hitSlop={6}>
+        <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle, marginBottom: 2 }}>VAULT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
+          <IconChevronDown size={17} color={c.muted} strokeWidth={2} />
+        </View>
+      </Pressable>
+
+      {/* Destra — menu (Drawer) + Ask (chat) */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Pressable
+          onPress={onMenu}
+          accessibilityLabel="Menu"
+          hitSlop={6}
+          android_ripple={{ color: c.line, borderless: true }}
+          style={[sqBtn, { backgroundColor: c.surface2, borderColor: c.line }]}
+        >
+          <IconMenu2 size={19} color={c.text} strokeWidth={1.9} />
+        </Pressable>
+        <Pressable
+          onPress={onAsk}
+          accessibilityLabel="Ask Gimmick"
+          hitSlop={6}
+          android_ripple={{ color: c.accent + '40', borderless: true }}
+          style={[sqBtn, { backgroundColor: c.accent + '2E', borderColor: c.accent + '55' }]}
+        >
+          <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
+        </Pressable>
+      </View>
+
+      {/* Dropdown viste — Modal per stare sopra il contenuto; allineato a sinistra
+          sotto il titolo. */}
+      <Modal visible={navOpen} transparent animationType="fade" onRequestClose={() => setNavOpen(false)} statusBarTranslucent>
+        <Pressable style={{ flex: 1 }} onPress={() => setNavOpen(false)} accessibilityLabel="Chiudi">
+          <View style={{ position: 'absolute', top: insets.top + HEADER_GAP + 58, left: 16 }}>
+            <View
+              style={{
+                minWidth: 200, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 6,
+                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12,
+              }}
+            >
+              {NAV_ITEMS.map((it) => (
+                <Pressable
+                  key={it.id}
+                  onPress={() => { setNavOpen(false); onNavigateView?.(it.id); }}
+                  android_ripple={{ color: c.accent + '22' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 46, paddingHorizontal: 12, borderRadius: 9 }}
+                >
+                  <it.Icon size={18} color={c.muted} strokeWidth={1.8} />
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{it.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </Pressable>
+      </Modal>
+    </View>
+  );
+}
 
 // ─── Bottom sheet shell ───────────────────────────────────────────────────────
 function BottomSheet({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
@@ -72,12 +153,11 @@ function Eyebrow({ c, children }: { c: ObsidianColors; children: React.ReactNode
   return <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle, marginBottom: 9 }}>{children}</Text>;
 }
 
-// ─── Set-options (accordion inline nella home) ──────────────────────────────────
-// Il contenuto vive nel corpo della schermata, espanso dal toggle "Set options".
+// ─── AZIONE (pannello a toggle) ─────────────────────────────────────────────────
 // AZIONE è un'unica scelta esclusiva di 5 (come il selettore action_type nella
-// sidebar web): Note/To-do e Due/Daily/Timing NON sono due gruppi indipendenti,
-// un tile ha un solo tipo d'azione. Il pannello è CONTROLLED: lo stato reale
-// vive nel parent (…Live) e viene persistito da uploadBufferItems all'invio.
+// sidebar web): Note/To-do e Due/Daily/Timing NON sono gruppi indipendenti, un
+// tile ha un solo tipo d'azione. Il pannello è CONTROLLED: lo stato reale vive nel
+// parent (…Live) e viene persistito da uploadBufferItems all'invio.
 
 /** Metadati che il pannello pre-imposta sul tile. Superset accettato da
  *  `uploadBufferItems` (action_type/date/all_day + tag + type-icon). */
@@ -192,7 +272,20 @@ const fmtDur = (a: string, b: string) => {
 
 type DtField = 'date' | 'start' | 'end' | 'due' | null;
 
-function SetOptionsBody({ options, onChange, suggestText = '' }: { options: CaptureOptions; onChange: (next: CaptureOptions) => void; suggestText?: string }) {
+/** Pillola dropdown compatta (Tag / Tipo / Status) per la riga in fondo al
+ *  pannello AZIONE. `active` → contorno/testo accent; `dotColor` → pallino al
+ *  posto dell'icona (STATUS). */
+function Pill({ c, label, Icon, active, dotColor, onPress }: { c: ObsidianColors; label: string; Icon?: typeof IconTag; active?: boolean; dotColor?: string; onPress?: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 36, borderRadius: 9, borderWidth: 1, borderColor: active ? c.accent : c.line2, backgroundColor: active ? c.accent + '14' : 'transparent', paddingHorizontal: 8 }}>
+      {dotColor ? <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: dotColor }} /> : Icon ? <Icon size={13} color={active ? c.accent : c.muted} strokeWidth={1.8} /> : null}
+      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12.5, fontWeight: '600', color: active ? c.accent : c.muted }}>{label}</Text>
+      <IconChevronDown size={12} color={active ? c.accent : c.subtle} strokeWidth={2} />
+    </Pressable>
+  );
+}
+
+function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { options: CaptureOptions; onChange: (next: CaptureOptions) => void; onClose: () => void; suggestText?: string }) {
   const c = useObsidian();
   const action = actionKeyOf(options);
   const [sheet, setSheet] = React.useState<'tag' | 'type' | 'status' | null>(null);
@@ -276,27 +369,32 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
 
   const OptBtn = ({ id, label, Icon }: { id: ActionOpt; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
-    // Stile attivo IDENTICO al web: fondo accent tenue (~18%) + bordo accent +
-    // testo/icona accent; l'inattivo ha comunque una velatura accent (~8%) e
-    // bordo trasparente — l'attivo si distingue per contorno, non per blocco.
+    // Attivo: fondo accent tenue + bordo/testo accent. Inattivo: fondo surface2 +
+    // bordo line2 (definito, come nel mockup), testo pieno e icona muted.
     return (
-      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 9, backgroundColor: c.accent + (on ? '2E' : '14'), borderWidth: 1, borderColor: on ? c.accent : 'transparent' }}>
-        <Icon size={14} color={on ? c.accent : c.muted} strokeWidth={1.8} />
+      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 9, backgroundColor: on ? c.accent + '26' : c.surface2, borderWidth: 1, borderColor: on ? c.accent : c.line2 }}>
+        <Icon size={15} color={on ? c.accent : c.muted} strokeWidth={1.8} />
         <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: on ? c.accent : c.text }}>{label}</Text>
       </Pressable>
     );
   };
 
   return (
-    // marginTop -1: il box copre il bordo inferiore (trasparente) della linguetta
-    // "Options" sopra, saldandosi senza gap né doppia linea (folder-tab).
-    <View style={{ marginTop: -1, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
-      <Eyebrow c={c}>AZIONE</Eyebrow>
+    <View style={{ marginTop: 14, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
+      {/* Intestazione AZIONE + Chiudi (chiude il pannello). */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+        <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>AZIONE</Text>
+        <Pressable onPress={onClose} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: c.muted }}>Chiudi</Text>
+          <IconChevronUp size={13} color={c.muted} strokeWidth={2} />
+        </Pressable>
+      </View>
+
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         <OptBtn id="note" label="Note" Icon={IconNote} />
         <OptBtn id="todo" label="To-do" Icon={IconCheckbox} />
       </View>
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18 }}>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
         <OptBtn id="due" label="Due" Icon={IconBolt} />
         <OptBtn id="allday" label="Daily" Icon={IconCalendar} />
         <OptBtn id="timed" label="Timing" Icon={IconClock} />
@@ -304,50 +402,37 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
 
       {/* DATA E ORARIO — solo per le azioni con tempo (come sul web). */}
       {(action === 'due' || action === 'allday' || action === 'timed') && (
-        <>
+        <View style={{ marginTop: 16 }}>
           <Eyebrow c={c}>DATA E ORARIO</Eyebrow>
           {(() => {
             // Data di riferimento: end_at per le deadline, start_at per gli eventi.
             const dateIso = action === 'due' ? options.end_at : options.start_at;
             return (
-          <View style={{ gap: 8, marginBottom: 18 }}>
-            <Field c={c} value={dateIso ? fmtDate(dateIso) : 'Seleziona data'} placeholder={!dateIso} Icon={IconCalendar} chev onPress={() => setDt('date')} />
-            {action === 'timed' && (
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={{ flex: 1 }}><Field c={c} value={options.start_at ? fmtTime(options.start_at) : '--:--'} placeholder={!options.start_at} Icon={IconClock} onPress={() => setDt('start')} /></View>
-                {/* Durata: sola lettura, deriva da inizio/fine (si cambia con la fine). */}
-                <View style={{ flex: 1 }}><Field c={c} value={options.start_at && options.end_at ? fmtDur(options.start_at, options.end_at) : '—'} placeholder /></View>
-                <View style={{ flex: 1 }}><Field c={c} value={options.end_at ? fmtTime(options.end_at) : '--:--'} placeholder={!options.end_at} Icon={IconClock} onPress={() => setDt('end')} /></View>
+              <View style={{ gap: 8 }}>
+                <Field c={c} value={dateIso ? fmtDate(dateIso) : 'Seleziona data'} placeholder={!dateIso} Icon={IconCalendar} chev onPress={() => setDt('date')} />
+                {action === 'timed' && (
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <View style={{ flex: 1 }}><Field c={c} value={options.start_at ? fmtTime(options.start_at) : '--:--'} placeholder={!options.start_at} Icon={IconClock} onPress={() => setDt('start')} /></View>
+                    {/* Durata: sola lettura, deriva da inizio/fine (si cambia con la fine). */}
+                    <View style={{ flex: 1 }}><Field c={c} value={options.start_at && options.end_at ? fmtDur(options.start_at, options.end_at) : '—'} placeholder /></View>
+                    <View style={{ flex: 1 }}><Field c={c} value={options.end_at ? fmtTime(options.end_at) : '--:--'} placeholder={!options.end_at} Icon={IconClock} onPress={() => setDt('end')} /></View>
+                  </View>
+                )}
+                {action === 'due' && (
+                  <Field c={c} value={options.end_at ? fmtTime(options.end_at) : 'Scadenza'} placeholder={!options.end_at} Icon={IconClock} onPress={() => setDt('due')} />
+                )}
               </View>
-            )}
-            {action === 'due' && (
-              <Field c={c} value={options.end_at ? fmtTime(options.end_at) : 'Scadenza'} placeholder={!options.end_at} Icon={IconClock} onPress={() => setDt('due')} />
-            )}
-          </View>
             );
           })()}
-        </>
+        </View>
       )}
 
-      <Eyebrow c={c}>TAG</Eyebrow>
-      <View style={{ marginBottom: 18 }}>
-        <Field c={c} value={curTag ? curTag.name : 'Seleziona tag…'} placeholder={!curTag} Icon={IconTag} chev onPress={openTagSheet} />
+      {/* Tag / Tipo / Status — pillole dropdown compatte in un'unica riga. */}
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+        <Pill c={c} label={curTag ? curTag.name : 'Tag'} Icon={IconTag} active={!!curTag} onPress={openTagSheet} />
+        <Pill c={c} label={curType ? curType.name : 'Tipo'} active={!!curType} onPress={() => setSheet('type')} />
+        <Pill c={c} label={curStatus ? statusLabel(curStatus.name) : 'Status'} active={!!curStatus} dotColor={curStatus ? statusColor(c, curStatus.name) : undefined} onPress={() => setSheet('status')} />
       </View>
-
-      <Eyebrow c={c}>TIPO</Eyebrow>
-      <View style={{ marginBottom: 18 }}>
-        <Field c={c} value={curType ? curType.name : 'Seleziona tipo…'} placeholder={!curType} chev onPress={() => setSheet('type')} />
-      </View>
-
-      <Eyebrow c={c}>STATUS</Eyebrow>
-      <Field
-        c={c}
-        value={curStatus ? statusLabel(curStatus.name) : 'Seleziona status…'}
-        placeholder={!curStatus}
-        dotColor={curStatus ? statusColor(c, curStatus.name) : undefined}
-        chev
-        onPress={() => setSheet('status')}
-      />
 
       {/* Picker data/ora nativo: si monta solo mentre `dt` è attivo. */}
       {dt && (
@@ -451,8 +536,7 @@ function SetOptionsBody({ options, onChange, suggestText = '' }: { options: Capt
   );
 }
 
-/** Campo tappabile (data/ora/tag/tipo/status). Stesso stile del Field di TileScreen.
- *  `dotColor`: pallino colorato al posto dell'icona (usato dallo STATUS). */
+/** Campo tappabile (data/ora). Stesso stile del Field di TileScreen. */
 function Field({ c, value, Icon, chev, placeholder, onPress, dotColor }: { c: ObsidianColors; value: string; Icon?: typeof IconClock; chev?: boolean; placeholder?: boolean; onPress?: () => void; dotColor?: string }) {
   return (
     <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, paddingHorizontal: 13, minHeight: OB_BTN_H }}>
@@ -555,6 +639,8 @@ export interface ObsidianCaptureScreenProps {
   bufferCount?: number;
   /** Start a capture flow. Omitted → the static QA mock (voice sheet only). */
   onCapture?: (key: CapKey) => void;
+  /** Salva la nota scritta inline come spark testuale nel buffer. */
+  onSaveNote?: (text: string) => void;
   onSend?: () => void;
   onOpenBuffer?: () => void;
   onNavigateView?: (id: MobileViewId) => void;
@@ -569,19 +655,25 @@ export interface ObsidianCaptureScreenProps {
   items?: BufferItem[];
   /** Rimuove uno spark dal buffer (X sulla riga). */
   onRemoveItem?: (id: string) => void;
-  /** Apre la chat "Ask Gimmick" (pillola accanto a Options). */
+  /** Apre la chat "Ask Gimmick" (pulsante sparkles nell'header). */
   onAsk?: () => void;
 }
 
 export function ObsidianCaptureScreen({
-  bufferCount, onCapture, onSend, onOpenBuffer, onNavigateView, onSettings,
+  bufferCount, onCapture, onSaveNote, onSend, onOpenBuffer, onNavigateView, onSettings,
   options, onOptionsChange, suggestText, items, onRemoveItem, onAsk,
 }: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const [drawer, setDrawer] = React.useState(false);
   const [voice, setVoice] = React.useState(false);
-  const [optionsOpen, setOptionsOpen] = React.useState(false);
+  const [actionOpen, setActionOpen] = React.useState(false);
+  // Testo della nota in composizione (spark testuale creato al tocco di Salva).
+  const [note, setNote] = React.useState('');
+  const hasNote = note.trim().length > 0;
+  // Dettatura vocale live: il mic in sovraimpressione scrive nel campo, come il
+  // microfono della tastiera (motore on-device, richiede la build nativa).
+  const dictation = useDictation({ onText: setNote, onError: (m) => toast.warning(m) });
   // Fallback effimero quando il parent non controlla le opzioni (mock).
   const [localOpts, setLocalOpts] = React.useState<CaptureOptions>(EMPTY_CAPTURE_OPTIONS);
   const opts = options ?? localOpts;
@@ -593,124 +685,105 @@ export function ObsidianCaptureScreen({
   // guida la comparsa del FAB "Send" in sovraimpressione.
   const canSend = !!onSend && count > 0;
 
-  return (
-    <View style={{ flex: 1, backgroundColor: c.canvas }}>
-      <ObsidianStatusBar />
-      <ObsidianAppHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} />
+  const saveNote = () => {
+    const t = note.trim();
+    if (!t) return;
+    onSaveNote?.(t);
+    setNote('');
+  };
 
-      {/* paddingTop 14 (era 6): senza il titolo "Cattura" il pulsante Invia
-          finirebbe attaccato all'header. */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 14, paddingBottom: 16 }}>
-        {/* Capture grid — stesso linguaggio visivo del gruppo AZIONE nella
-            sidebar web: contenitore unico a mo' di segmented control (surface +
-            cornice leggera), pulsanti su fondo accent tenue. Le icone sono
-            colorate per canale con la scala `c.cap` (identica ai token
-            `--ob-type-*` della web app), così ogni tipo di cattura è
-            riconoscibile a colpo d'occhio. */}
-        {/* padding 6 verso i bordi (a 3px come sul web l'annidamento non si
-            legge sulla densità di un telefono e i pulsanti sembrano toccare la
-            cornice), ma gap 10 tra i pulsanti per dare più respiro alla griglia.
-            Raggio esterno 14 / interno 8 per curve concentriche a questa
-            distanza. */}
-        {/* Blocco cattura: contenitore unico (segmented control) con i 6
-            pulsanti; sotto, attaccata e centrata, la linguetta "Options". */}
-        <View style={{ rowGap: 16, columnGap: 10, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 14, padding: 12 }}>
-          {CAPTURE_ROWS.map((row, rowIdx) => (
-            <View key={rowIdx} style={{ flexDirection: 'row', gap: 10 }}>
-              {row.map((key) => {
-                const { label, Icon } = CAPS[key];
+  return (
+    <View style={{ flex: 1, backgroundColor: c.dark ? '#000000' : c.canvas }}>
+      <ObsidianStatusBar />
+      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} />
+
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 18, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
+        {/* Composer nota — campo di scrittura + toolbar (canali media + Salva).
+            Il testo digitato è lo spark "text"; i cinque pulsanti avviano gli
+            altri canali di cattura, il Salva aggiunge la nota al buffer. */}
+        <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 16, padding: 14 }}>
+          <TextInput
+            value={note}
+            onChangeText={setNote}
+            placeholder="Scrivi una nota…"
+            placeholderTextColor={c.subtle}
+            multiline
+            textAlignVertical="top"
+            // paddingRight: lascia spazio al mic in alto a destra così la prima
+            // riga di testo non ci finisce sotto.
+            style={{ minHeight: 96, fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 34 }}
+          />
+
+          {/* Mic in sovraimpressione (dettatura vocale). In ascolto → accent
+              acceso; a riposo → subtle. Equivale al microfono della tastiera. */}
+          <Pressable
+            onPress={() => dictation.toggle(note)}
+            accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
+            hitSlop={8}
+            android_ripple={{ color: c.accent + '33', borderless: true }}
+            style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
+          >
+            <IconMicrophone size={17} color={dictation.listening ? c.accent : c.subtle} strokeWidth={1.9} />
+          </Pressable>
+
+          {/* Nota vuota → canali di cattura. Mentre scrivi → solo Salva (le
+              icone spariscono): la barra ha una funzione sola alla volta. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 }}>
+            {hasNote ? (
+              <>
+                <View style={{ flex: 1 }} />
+                <Pressable
+                  onPress={saveNote}
+                  accessibilityLabel="Salva nota"
+                  android_ripple={{ color: c.accent + '33' }}
+                  style={{ paddingHorizontal: 18, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent + '1F', borderWidth: 1, borderColor: c.accent }}
+                >
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: c.accent }}>Salva</Text>
+                </Pressable>
+              </>
+            ) : (
+              TOOLBAR.map((key) => {
+                const { Icon, label } = CAPS[key];
                 return (
-                  // Il Pressable porta SOLO `flex: 1` (stile statico) e la
-                  // gestione del tocco; tutta la grafica sta sulla View interna
-                  // con un oggetto di stile statico. Gli stili passati a
-                  // Pressable come funzione `({pressed}) => …` non venivano
-                  // applicati in questo ambiente — è la ragione per cui i
-                  // pulsanti comparivano senza fondo né altezza.
                   <Pressable
                     key={key}
                     onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
+                    accessibilityLabel={label}
                     android_ripple={{ color: c.accent + '33', borderless: false }}
-                    style={{ flex: 1 }}
+                    style={{ width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.line2 }}
                   >
-                    <View
-                      style={{
-                        flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-                        // 48 e non 32 come sul web: è il bersaglio di tocco
-                        // minimo di Material/accessibilità Android. Qui il
-                        // Pressable avvolge esattamente questa View senza
-                        // padding, quindi l'altezza disegnata coincide con
-                        // l'area toccabile e deve reggere da sola la soglia.
-                        minHeight: OB_BTN_H,
-                        borderRadius: 8,
-                        backgroundColor: c.accent + '14',
-                        borderWidth: 1,
-                        borderColor: 'transparent',
-                      }}
-                    >
-                      <Icon size={18} color={c.cap[key]} strokeWidth={1.8} />
-                      {/* numberOfLines={1}: su schermi stretti una riga da tre
-                          non deve mandare l'etichetta a capo e sfalsare le
-                          altezze dei pulsanti affiancati. */}
-                      <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: c.text }}>
-                        {label}
-                      </Text>
-                    </View>
+                    <Icon size={23} color={c.muted} strokeWidth={1.8} />
                   </Pressable>
                 );
-              })}
-            </View>
-          ))}
+              })
+            )}
+          </View>
         </View>
 
-        {/* Linguetta "Options" — come un tab: più stretta del blocco e centrata.
-            · Chiusa: attaccata in alto al blocco cattura (top squadrato, niente
-              bordo superiore), angoli bassi arrotondati → sporge sotto il blocco.
-            · Aperta: perde bordo e raggio inferiori e si salda al bordo superiore
-              del box delle options (folder-tab), con velatura + testo accent. */}
-        {/* Riga della linguetta Options — pulsante hamburger centrato. */}
-        <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-start' }}>
+        {/* Azione — toggle: chiuso è la pillola "+ Azione", aperto è il pannello
+            AZIONE (che porta il proprio "Chiudi"). */}
+        {actionOpen ? (
+          <SetOptionsBody
+            options={opts}
+            onChange={setOpts}
+            onClose={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(false); }}
+            suggestText={suggestText}
+          />
+        ) : (
           <Pressable
-            onPress={() => {
-              LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-              setOptionsOpen((v) => !v);
-            }}
+            onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(true); }}
             android_ripple={{ color: c.accent + '22' }}
-            style={{
-              minHeight: 32,
-              width: 144,
-              alignItems: 'center',
-              justifyContent: 'center',
-              // Sempre STACCATO dal blocco sopra (marginTop 12). Larghezze bordo
-              // costanti (1px ovunque) → l'icona non si sposta tra i due stati.
-              // · Chiusa: pulsante autonomo con i SOLI bordi (sfondo
-              //   trasparente), tutti gli angoli arrotondati.
-              // · Aperta: velatura accent; lato basso agganciato al box options
-              //   (bordo/angoli inferiori spariscono), lato alto sempre bordato.
-              backgroundColor: optionsOpen ? c.accent + '1F' : 'transparent',
-              borderWidth: 1,
-              borderColor: c.line2,
-              borderBottomColor: optionsOpen ? 'transparent' : c.line2,
-              marginTop: 12,
-              borderTopLeftRadius: 12,
-              borderTopRightRadius: 12,
-              borderBottomLeftRadius: optionsOpen ? 0 : 12,
-              borderBottomRightRadius: optionsOpen ? 0 : 12,
-            }}
+            style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 10, borderWidth: 1, borderColor: c.line2, marginTop: 14 }}
           >
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={{ fontSize: 13, fontWeight: '600', color: optionsOpen ? c.accent : c.muted }}>Options</Text>
-              <IconChevronDown size={14} color={optionsOpen ? c.accent : c.muted} strokeWidth={2} style={{ transform: [{ rotate: optionsOpen ? '180deg' : '0deg' }] }} />
-            </View>
+            <IconPlus size={15} color={c.muted} strokeWidth={2} />
+            <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>Azione</Text>
           </Pressable>
-        </View>
+        )}
 
-        {optionsOpen && <SetOptionsBody options={opts} onChange={setOpts} suggestText={suggestText} />}
-
-        {/* Spark catturati — anteprima sotto le options, man mano che vengono
-            generati. Ogni riga mostra tipo/anteprima e permette di rimuoverla
-            dal buffer prima dell'invio. */}
+        {/* Spark catturati — anteprima sotto le options, invariata. Ogni riga
+            mostra tipo/anteprima e permette di rimuoverla dal buffer. */}
         {list.length > 0 && (
-          <View style={{ marginTop: 12, gap: 8 }}>
+          <View style={{ marginTop: 14, gap: 8 }}>
             {list.map((it) => (
               <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
             ))}
@@ -721,9 +794,7 @@ export function ObsidianCaptureScreen({
       <ObsidianNavPill />
 
       {/* FAB Send — sovraimpressione in basso a destra, presente SOLO quando c'è
-          almeno uno spark da inviare. Sfondo obsidian (superficie scura del
-          tema), solo icona aeroplanino, nessuna scritta. Ombra per staccarlo
-          dal contenuto sottostante. */}
+          almeno uno spark da inviare. */}
       {canSend && (
         <Pressable
           onPress={onSend}

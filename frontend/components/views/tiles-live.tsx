@@ -64,8 +64,10 @@ const SPARK_KIND: Record<string, 'photo' | 'voice' | 'text' | 'file'> = {
 
 function toTileRow(t: Tile, statusById: Map<string, Status>): TileRow {
   const tag = (t.tags ?? []).find((tg) => !tg.is_root);
+  // 'active' è lo stato di default/prevalente → non si segnala (colonna vuota).
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
-  const stMeta = st ? statusMeta(st.name) : undefined;
+  const showStatus = st && st.name !== 'active';
+  const stMeta = showStatus ? statusMeta(st.name) : undefined;
   return {
     id: t.id,
     title: t.title || 'Senza titolo',

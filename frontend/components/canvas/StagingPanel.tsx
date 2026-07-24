@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import * as TablerIcons from '@tabler/icons-react';
 import {
   IconLayoutSidebarLeftCollapse,
   IconLayoutSidebarLeftExpand,
@@ -18,8 +17,9 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
-import { StatusPattern } from '@/components/statuses/status-pattern';
 import { ActionBadge } from '@/components/actions/action-badge';
+import { TileMeta } from '@/components/tileview/TileMeta';
+import { statusMeta } from '@/lib/status-meta';
 import type { Tile, StatusShape } from '@/types';
 
 interface Props {
@@ -258,11 +258,18 @@ export function StagingPanel({
         ? theme.ink2
         : ((actionColors as Record<string, string>)[actionKey] as string)
           || FALLBACK_COLOR;
-    const tileBg = si?.color ? `${si.color}CC` : theme.surface;
+    // Velatura (come Kanban/Chrono/Canvas): base surface + tinta del tipo molto
+    // attenuata, così testo e badge restano leggibili.
+    const tint = si?.color ? `${si.color}24` : 'transparent';
+    const borderColor = actionKey === 'deadline' ? '#E24B4A' : (si?.color ? `${si.color}3A` : theme.border);
     const isSelected = selectedTileId === t.id;
     const hasFlow = tilesWithFlows.has(t.id);
+    const isDone = !!t.is_completed;
+    // Status per TileMeta: 'active' (prevalente) non viene mai mostrato.
+    const statusName = t.status_id ? statuses.find((s) => s.id === t.status_id)?.name : undefined;
+    const showStatus = !!statusName && statusName !== 'active';
+    const sMeta = showStatus ? statusMeta(statusName) : null;
     const shape = resolveShape(t);
-    const shapeColor = actionKey === 'none' ? theme.ink : actionColor;
     return (
       <div
         key={t.id}
@@ -277,15 +284,19 @@ export function StagingPanel({
             flexShrink: 0,
             overflow: 'hidden',
             cursor: 'grab',
-            background: tileBg,
+            background: theme.surface,
             width: TILE_W,
             height: TILE_H,
             borderRadius: radius,
-            border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${theme.border}`,
+            border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${borderColor}`,
             boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : 'none',
           }}
           title={t.title || 'Senza titolo'}
         >
+          {/* Tinta del tipo sopra la base surface. */}
+          {tint !== 'transparent' && (
+            <div style={{ position: 'absolute', inset: 0, background: tint, pointerEvents: 'none' }} />
+          )}
           <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: 6 }}>
             <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <p
@@ -293,13 +304,14 @@ export function StagingPanel({
                   fontFamily: bodyFont,
                   fontSize: 11,
                   lineHeight: '14px',
-                  color: readableOn(tileBg),
+                  color: readableOn(theme.surface),
                   display: '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: 'hidden',
                   wordBreak: 'break-word',
                   margin: 0,
+                  ...(isDone ? { textDecoration: 'line-through', opacity: 0.65 } : null),
                 }}
               >
                 {t.title || 'Senza titolo'}
@@ -307,9 +319,11 @@ export function StagingPanel({
             </div>
             <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4, position: 'relative', zIndex: 10 }}>
               <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
-              {si && <TypeBadgeMini iconName={si.icon} color={si.color} borderColor={theme.border} />}
+              <TileMeta
+                type={si ? { icon: si.icon, color: si.color ?? '#5C5868' } : undefined}
+                status={showStatus && sMeta ? { shape, color: sMeta.color, label: sMeta.label } : undefined}
+              />
             </div>
-            <StatusPattern shape={shape} color={shapeColor} bg={tileBg} />
           </div>
         </div>
         {/* FLOW badge — pixel chip floating past the tile's top-right corner */}
@@ -609,24 +623,3 @@ export function StagingPanel({
   );
 }
 
-function TypeBadgeMini({ iconName, color, borderColor }: { iconName: string; color?: string; borderColor: string }) {
-  const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>)[iconName];
-  if (!Comp) return null;
-  const bg = color || '#27272A';
-  return (
-    <div
-      style={{
-        width: 14,
-        height: 14,
-        background: bg,
-        border: `2px solid ${borderColor}`,
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <Comp size={8} color={readableOn(bg)} />
-    </div>
-  );
-}

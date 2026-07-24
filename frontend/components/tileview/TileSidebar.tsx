@@ -236,6 +236,25 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 }
 
 /** Selettore STATUS del tile — dropdown/popup nello stile di TypeIconPicker. */
+/** Swatch "default" per lo status prevalente (active): una sfumatura neutra
+ *  leggerissima, senza bordo — così nel picker non sembra un badge vero e
+ *  proprio (che sui tile non viene mai mostrato per gli attivi). */
+function DefaultSwatch({ size = 18 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 4,
+        flexShrink: 0,
+        display: 'inline-block',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--ob-muted) 16%, transparent), color-mix(in srgb, var(--ob-muted) 4%, transparent))',
+      }}
+    />
+  );
+}
+
 function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string) => void }) {
   const theme = usePixelTheme();
   const { statuses } = useStatuses();
@@ -282,7 +301,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.surface})` : theme.surface,
+          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.surface})` : theme.surface,
           padding: '0 10px',
           height: 36,
           cursor: 'pointer',
@@ -291,7 +310,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
       >
         {current && currentMeta ? (
           <>
-            <StatusSwatch shape={current.shape} color={currentMeta.color} size={18} />
+            {current.name === 'active' ? <DefaultSwatch size={18} /> : <StatusSwatch shape={current.shape} color={currentMeta.color} size={18} />}
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
           </>
         ) : (
@@ -322,7 +341,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             const selected = value === s.id;
             return (
               <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }} style={popupItem(selected)}>
-                <StatusSwatch shape={s.shape} color={meta.color} size={18} />
+                {s.name === 'active' ? <DefaultSwatch size={18} /> : <StatusSwatch shape={s.shape} color={meta.color} size={18} />}
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</span>
                 {selected && check}
               </button>

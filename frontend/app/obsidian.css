@@ -188,3 +188,15 @@
   font-weight: 700;
   line-height: 1;
 }
+
+/* ── Meta-row del tile: chip TIPO + swatch STATUS (Variante A) ── */
+.ob-tilemeta { display: inline-flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.ob-tilemeta__type {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -9,6 +9,8 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
+import { statusMeta } from '@/lib/status-meta';
+import { TileMeta } from '@/components/tileview/TileMeta';
 import { TextEditor } from './TextEditor';
 
 const TILE_W = 130;
@@ -20,7 +22,7 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
@@ -214,9 +216,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // status_id is now the single source of truth for "done"; the visual
       // treatment for completed tiles comes from the system 'done' row.
       let shape = 'solid';
+      let statusName: string | undefined;
       if (t.status_id) {
         const st = allStatuses.find((s) => s.id === t.status_id);
-        if (st) shape = st.shape;
+        if (st) { shape = st.shape; statusName = st.name; }
       } else {
         shape = getActionTypeShape(t.action_type || 'none');
       }
@@ -226,7 +229,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
       // resolve against the ALL DAY palette (not the TIMED one used for plain event).
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, statusName, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
   }, [tiles, layout, allStatuses, getActionTypeShape, typeIcons, typeTileIcons]);
 
@@ -630,105 +633,28 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
-    // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
+    // Sfondo a VELATURA (come Kanban/Chrono): base surface opaca + tinta del
+    // tipo molto attenuata, così i badge e il testo restano leggibili. Lo status
+    // NON è più un pattern a tutta tile: è uno swatch nel footer (vedi TileMeta).
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
-      .attr('fill', (d) => d.typeColor ? d.typeColor + 'CC' : theme.surface)
-      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : theme.border)
+      .attr('fill', theme.surface)
+      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : (d.typeColor ? d.typeColor + '3A' : theme.border))
       .attr('stroke-width', SW)
       .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
-    // Status shape overlay (uses SVG <pattern> elements under the hood)
-    let patIdx = 0;
+    // Tinta del tipo (velatura) sopra la base surface.
     nodeGrps.each(function (d) {
-      if (!d.statusShape || d.statusShape === 'solid') return;
-      const g = d3.select(this);
-      // For NOTES (action_type === 'none'), patterns use a visible neutral gray
-      // so they stand out even without a colored action palette.
-      const color = d.actionType === 'none' ? theme.ink : getColor(d.actionType);
-      const o = 0.2;
-      const pid = `cpat-${patIdx++}`;
-      const clip = g.append('clipPath').attr('id', `${pid}-clip`);
-      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX);
-      const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
-      switch (d.statusShape) {
-        case 'diagonal_ltr': {
-          const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
-          const ink = readableOn(tileBg);
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(45)')
-            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', ink).attr('stroke-width', 1.5).attr('stroke-opacity', 1);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
-          break;
-        }
-        case 'diagonal_rtl':
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
-            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 0).attr('fill', `url(#${pid})`);
-          break;
-        case 'vertical':
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 16).attr('height', 20)
-            .append('line').attr('x1', 8).attr('y1', 0).attr('x2', 8).attr('y2', 20).attr('stroke', color).attr('stroke-width', 6).attr('stroke-opacity', o);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
-          break;
-        case 'bubble': {
-          // Scattered across the tile (padding 10, TILE_W=130 TILE_H=90), varied sizes.
-          const bubbles: Array<[number, number, number, number]> = [
-            [20, 20, 6, o + 0.05], [44, 16, 4, o], [68, 22, 7, o + 0.1], [94, 18, 5, o], [114, 24, 4, o - 0.02],
-            [28, 45, 4, o], [54, 47, 6, o + 0.08], [80, 43, 5, o + 0.05], [104, 47, 4, o],
-            [22, 70, 5, o + 0.05], [46, 72, 4, o], [70, 68, 6, o + 0.08], [96, 72, 4, o], [116, 68, 5, o + 0.05],
-          ];
-          bubbles.forEach(([cx, cy, r, op]) => {
-            pg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r)
-              .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', op);
-          });
-          break;
-        }
-        case 'cross':
-          // 10-unit padding from edges (TILE_W=130, TILE_H=90), thicker stroke.
-          pg.append('line').attr('x1', 10).attr('y1', 10).attr('x2', TILE_W - 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
-          pg.append('line').attr('x1', TILE_W - 10).attr('y1', 10).attr('x2', 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
-          break;
-        case 'hourglass': {
-          // Two triangles meeting at apex, centered. TILE_W=130, TILE_H=90.
-          pg.append('path')
-            .attr('d', 'M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z')
-            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 4)
-            .attr('stroke-opacity', o + 0.25).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
-          break;
-        }
-        case 'pause_bars':
-          pg.append('rect').attr('x', 57).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
-          pg.append('rect').attr('x', 67).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
-          break;
-        case 'lock':
-          pg.append('path')
-            .attr('d', 'M58,41 V35 a7,7 0 0 1 14,0 V41')
-            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
-            .attr('stroke-opacity', o + 0.15).attr('stroke-linecap', 'round');
-          pg.append('rect').attr('x', 53).attr('y', 41).attr('width', 24).attr('height', 20).attr('rx', 0).attr('fill', color).attr('fill-opacity', o + 0.1);
-          pg.append('circle').attr('cx', 65).attr('cy', 51).attr('r', 2).attr('fill', theme.bg1);
-          break;
-        case 'shade':
-          // 50% dark overlay covering the whole tile — the "faded / done" treatment.
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', '#000000').attr('opacity', 0.5);
-          break;
-      }
-    });
-    // Trattamento "completato" (is_completed, via il pulsante DONE della
-    // sidebar): stessa velatura scura dello status 'done'. Disegnata PRIMA del
-    // titolo così il testo barrato resta leggibile sopra. Saltata se lo status
-    // shape è già 'shade' per non raddoppiare la velatura.
-    nodeGrps.each(function (d) {
-      if (!d.isCompleted || d.statusShape === 'shade') return;
+      if (!d.typeColor) return;
       d3.select(this).append('rect')
-        .attr('width', TILE_W).attr('height', TILE_H)
-        .attr('fill', '#000000').attr('opacity', 0.5)
+        .attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
+        .attr('fill', d.typeColor).attr('opacity', 0.14)
         .style('pointer-events', 'none');
     });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
       const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
-      const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
-      const fg = readableOn(tileBg);
+      // Testo su velatura chiara → colore leggibile sulla surface.
+      const fg = readableOn(theme.surface);
       // Barrato + attenuato quando completato, come nel titolo della sidebar.
       const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
       fo.append('xhtml:div')
@@ -862,20 +788,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       });
     });
 
-    // Type icon — rounded-square colored badge + white icon in bottom-right.
+    // Badge TIPO + STATUS in basso a destra — stesso componente/logica delle
+    // altre viste (TileMeta): chip colorato del tipo + swatch dello status.
+    // Lo status 'active' (default/prevalente) non viene mai mostrato.
     nodeGrps.each(function (d) {
-      if (!d.typeIcon) return;
-      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
-      if (!IconComp) return;
+      const showType = !!d.typeIcon;
+      const showStatus = !!d.statusName && d.statusName !== 'active';
+      if (!showType && !showStatus) return;
       const g = d3.select(this);
-      const typeBg = d.typeColor || theme.surfaceVariant;
-      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', RX_BADGE).attr('fill', typeBg);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(typeBg) }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 19).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
+      const meta = showStatus ? statusMeta(d.statusName!) : null;
+      const html = renderToString(React.createElement(TileMeta, {
+        type: showType ? { icon: d.typeIcon, color: d.typeColor || '#5C5868' } : undefined,
+        // token Obsidian come nelle altre viste (theme-aware, stesso rendering).
+        status: showStatus && meta ? { shape: d.statusShape, color: meta.color, label: meta.label } : undefined,
+      }));
+      const fo = g.append('foreignObject').attr('x', TILE_W - 62).attr('y', TILE_H - 24).attr('width', 56).attr('height', 20).style('pointer-events', 'none');
       const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
+      container.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;width:56px;height:20px;';
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
