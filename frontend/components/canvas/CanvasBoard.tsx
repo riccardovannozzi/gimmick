@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors } from '@/store/action-colors-store';
@@ -168,6 +168,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onTileDragEndRef = useRef(onTileDragEnd); onTileDragEndRef.current = onTileDragEnd;
   const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
 
+  // Text box in editing (inserimento testo). Di default un text box è in
+  // modalità "sposta" (overlay non interattivo → il gruppo D3 gestisce il
+  // drag); il doppio click entra in editing, il click esterno/Esc esce.
+  const [editingBoxId, setEditingBoxId] = useState<string | null>(null);
+  const setEditingBoxIdRef = useRef(setEditingBoxId); setEditingBoxIdRef.current = setEditingBoxId;
+
   // Publish a viewport→canvas-local coordinate converter to the parent (used
   // for staging-panel drops). The function reads zoomTransformRef on every
   // call, so it always reflects the latest pan/zoom.
@@ -187,6 +193,48 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (screenToLocalRef) screenToLocalRef.current = null;
     };
   }, [screenToLocalRef]);
+
+  // Click esterno / Esc → esce dall'editing del text box. Il click DENTRO il
+  // box in editing o sulla bubble-menu di TipTap non deve chiudere.
+  useEffect(() => {
+    if (!editingBoxId) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest?.('.tiptap-bubble')) return;
+      if (t.closest?.(`[data-box-id="${editingBoxId}"]`)) return;
+      setEditingBoxId(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingBoxId(null); };
+    document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [editingBoxId]);
+
+  // Auto-editing per un text box appena creato: entra in inserimento solo se il
+  // box è NUOVO e VUOTO (contenuto ancora da scrivere). Al reload i box salvati
+  // hanno già del testo → restano in modalità "sposta" (cursore move), non in
+  // inserimento. Evita anche di dover fare doppio click dopo aver disegnato una
+  // casella nuova.
+  const knownTextBoxIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const known = knownTextBoxIdsRef.current;
+    for (const b of textBoxes) {
+      if (b.type !== 'text') continue;
+      if (!known.has(b.id)) {
+        known.add(b.id);
+        const html = (b as { content?: { html?: string } }).content?.html ?? '';
+        const isEmpty = html.replace(/<[^>]*>/g, '').trim() === '';
+        if (isEmpty) setEditingBoxId(b.id);
+      }
+    }
+    // Pulisce gli id spariti così un eventuale riuso non resti "già noto".
+    const alive = new Set(textBoxes.map((b) => b.id));
+    for (const id of known) if (!alive.has(id)) known.delete(id);
+  }, [textBoxes]);
 
   // Pending HTML save timers per text box — debounce TipTap onUpdate calls.
   const editorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -1079,7 +1127,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Drag to move (on background rect, not on ports/resize/text). Supports multi-drag
         // when this text box is part of selectedIds (moves all selected tiles + text boxes).
-        g.select('rect').style('cursor', moveRef.current ? 'grab' : 'default');
+        // Cursore "move" (freccia di spostamento) quando il box non è in editing.
+        g.select('rect').style('cursor', moveRef.current ? 'move' : 'default');
         g.call((() => {
           let prev: [number, number] | null = null;
           let multi = false;
@@ -1112,6 +1161,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               if (!prev) { prev = cur; return; }
               const dx = cur[0] - prev[0], dy = cur[1] - prev[1];
               prev = cur;
+              // L'editor di testo vive nell'overlay HTML (fuori dall'SVG) ed è
+              // posizionato da React solo a fine drag: qui aggiorniamo la sua
+              // posizione in tempo reale così il testo segue il frame D3.
+              const syncOverlay = (id: string, x: number, y: number) => {
+                const el = overlayInnerRef.current?.querySelector(`[data-box-id="${id}"]`) as HTMLElement | null;
+                if (el) { el.style.left = `${x + TB_PAD}px`; el.style.top = `${y + TB_PAD}px`; }
+              };
               if (multi) {
                 for (const n of mTiles) { n.x += dx; n.y += dy; }
                 for (const t of mTbs) { t.x += dx; t.y += dy; }
@@ -1123,11 +1179,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                   const id = (this as SVGGElement).getAttribute('data-tb-id');
                   if (!id || !tbIdSet.has(id)) return;
                   const t = mTbs.find((tt) => tt.id === id);
-                  if (t) d3.select(this).attr('transform', `translate(${t.x},${t.y})`);
+                  if (t) { d3.select(this).attr('transform', `translate(${t.x},${t.y})`); syncOverlay(t.id, t.x, t.y); }
                 });
               } else {
                 tb.x += dx; tb.y += dy;
                 g.attr('transform', `translate(${tb.x},${tb.y})`);
+                syncOverlay(tb.id, tb.x, tb.y);
               }
               drawEdges();
             })
@@ -1150,6 +1207,18 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               multi = false; mTiles = []; mTbs = [];
             });
         })() as any);
+
+        // L'editor (overlay HTML) va tenuto allineato a posizione E dimensione
+        // del frame SVG durante il resize: React aggiorna il div solo a fine
+        // drag, quindi qui lo sincronizziamo in tempo reale.
+        const syncOverlayBox = () => {
+          const el = overlayInnerRef.current?.querySelector(`[data-box-id="${tb.id}"]`) as HTMLElement | null;
+          if (!el) return;
+          el.style.left = `${tb.x + TB_PAD}px`;
+          el.style.top = `${tb.y + TB_PAD}px`;
+          el.style.width = `${tb.w - 2 * TB_PAD}px`;
+          el.style.height = `${tb.h - 2 * TB_PAD}px`;
+        };
 
         // Resize handles on edges (not on ports)
         const RESIZE_W = 6;
@@ -1193,6 +1262,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // Redraw this text box
               drawTextBoxes();
               drawEdges();
+              syncOverlayBox();
             })
             .on('end', () => {
               resizeStart = null;
@@ -1251,6 +1321,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }
             drawTextBoxes();
             drawEdges();
+            syncOverlayBox();
           })
           .on('end', () => {
             cornerStart = null;
@@ -1266,6 +1337,16 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           ev.preventDefault(); ev.stopPropagation();
           onTextBoxContextMenuRef.current({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
         });
+
+        // Doppio click su un box di testo → entra in inserimento testo. Con
+        // l'overlay non interattivo (modalità sposta) il dblclick passa al
+        // gruppo D3; qui attiviamo l'editing (l'overlay diventa interattivo).
+        if (tb.type === 'text') {
+          g.on('dblclick', (ev: MouseEvent) => {
+            ev.preventDefault(); ev.stopPropagation();
+            setEditingBoxIdRef.current(tb.id);
+          });
+        }
       });
     };
     drawTextBoxes();
@@ -1400,15 +1481,28 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             <div
               key={tb.id}
               data-box-id={tb.id}
-              className="absolute pointer-events-auto"
+              className="absolute"
               style={{
                 left: tb.x + TB_PAD,
                 top: tb.y + TB_PAD,
                 width: tb.w - 2 * TB_PAD,
                 height: tb.h - 2 * TB_PAD,
+                // Interattivo solo in editing: altrimenti click/drag passano al
+                // gruppo D3 sotto (modalità sposta, cursore "move").
+                pointerEvents: editingBoxId === tb.id ? 'auto' : 'none',
+                cursor: editingBoxId === tb.id ? 'text' : 'move',
+              }}
+              // Il tasto destro sul testo (editor TipTap in overlay, fuori
+              // dall'SVG) non raggiunge il gruppo D3: intercettiamo qui per
+              // aprire il menu del text box invece di quello nativo del browser.
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTextBoxContextMenuRef.current({ x: e.clientX, y: e.clientY, textBoxId: tb.id });
               }}
             >
               <TextEditor
+                editing={editingBoxId === tb.id}
                 initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
                 onChange={(html) => {
                   // Keep local box in sync so D3 drag-end save uses the latest HTML.

@@ -203,7 +203,13 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
           groups={groups}
           count={count}
           activeChildId={activeChildId}
-          onSelectChild={(id) => selectOnly(id)}
+          onSelectChild={(id) => {
+            selectOnly(id);
+            // In Canvas il click sul tag apre direttamente la sua lavagna
+            // (senza dover usare l'icona "Apri nel Canvas"). Nelle altre viste
+            // resta una semplice selezione/filtro.
+            if (activeView === 'canvas') handleOpenCanvas(id);
+          }}
           filter={tagFilter}
           onFilterChange={setTagFilter}
           pinnedLabel="Pinned"

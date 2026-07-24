@@ -1126,7 +1126,7 @@ export default function CanvasPage() {
                   }}
                 >
                   <IconTrash size={14} />
-                  Delete
+                  Elimina
                 </button>
               </div>
             </>,
