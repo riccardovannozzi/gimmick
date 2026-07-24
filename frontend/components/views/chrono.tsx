@@ -23,7 +23,7 @@ import { StatusSwatch } from '@/components/statuses/status-swatch';
 import type { StatusShape } from '@/types';
 
 /** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
-export type ChronoColorMode = 'tag' | 'type';
+export type ChronoColorMode = 'tag' | 'type' | 'status';
 
 // ─── Tokens for semantic event kinds ──────────────────────────────────────────
 type EventKind = 'timed' | 'allday' | 'deadline' | 'anytime';
@@ -53,6 +53,8 @@ export interface ColTile {
   done?: boolean;
   /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
   status?: { label: string; color: string; shape: StatusShape };
+  /** Numero di sparks del tile → contatore in basso a destra. */
+  sparkCount?: number;
   spark?: SparkType;
   amber?: boolean;
   checklist?: boolean[];
@@ -99,6 +101,9 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         )}
         {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={12} />}
         <span className="ob-chrono__card-tag" style={inkStyle}><Icon name="tags" size={13} /></span>
+        {!!t.sparkCount && (
+          <span className="ob-tile-sparkn" style={inkStyle} title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
+        )}
       </div>
     </div>
   );
@@ -762,9 +767,10 @@ export function ChronoView({
           <Icon name="plus" size={13} />Tile
         </button>
         {colorMode && onSetColorMode && (
-          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag o per Tipo">
+          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag, per Tipo o per Status">
             <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'tag' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('tag')}>By Tag</button>
             <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'type' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('type')}>By Type</button>
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'status' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('status')}>By Status</button>
           </div>
         )}
         <div style={{ flex: 1 }} />

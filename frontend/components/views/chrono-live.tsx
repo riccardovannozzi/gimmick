@@ -113,6 +113,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>): ColTile {
     createdAt: t.created_at,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),
+    sparkCount: (t.sparks ?? []).length,
   };
 }
 
@@ -180,7 +181,7 @@ export function ChronoLive() {
   const [colorMode, setColorMode] = useState<ChronoColorMode>('tag');
   useIsomorphicLayoutEffect(() => {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
-    if (s === 'tag' || s === 'type') setColorMode(s);
+    if (s === 'tag' || s === 'type' || s === 'status') setColorMode(s);
   }, []);
   const selectColorMode = useCallback((m: ChronoColorMode) => {
     setColorMode(m);
@@ -198,10 +199,14 @@ export function ChronoLive() {
     if (colorMode === 'type') {
       return getIconForTile(t.id)?.color ?? undefined;
     }
+    if (colorMode === 'status') {
+      const st = t.status_id ? statusById.get(t.status_id) : undefined;
+      return st ? statusMeta(st.name).hex : undefined;
+    }
     const tag = t.tags?.find((tg) => !tg.is_root);
     return tag?.tag_type ? (getTagTypeColor(tag.tag_type) ?? undefined) : undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons]);
+  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons, statusById]);
 
   // Numero di colonne-giorno per la vista corrente (month gestito a parte).
   const dayCount = view === 'day' ? 1 : view === '3day' ? 3 : 7;

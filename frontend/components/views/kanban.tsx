@@ -44,6 +44,8 @@ export interface CardData {
   done?: boolean;
   /** Status "di attenzione" (non active/done) → swatch nel piede della card. */
   status?: { label: string; color: string; shape: StatusShape };
+  /** Numero di sparks del tile → contatore in basso a destra. */
+  sparkCount?: number;
 }
 export interface DateGroup {
   date?: string;
@@ -147,6 +149,9 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
           <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={12} /></span>
           <span className="ob-kanban__card-tag-label">{t.tag}</span>
         </span>
+        {!!t.sparkCount && (
+          <span className="ob-tile-sparkn" title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
+        )}
       </div>
     </div>
   );

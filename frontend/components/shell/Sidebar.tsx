@@ -9,7 +9,7 @@
  */
 import * as React from 'react';
 import * as TablerIcons from '@tabler/icons-react';
-import { IconPin, IconPinFilled } from '@tabler/icons-react';
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/primitives';
 import { Icon, type ShellIconName } from './icons';
@@ -25,6 +25,8 @@ export interface SidebarChild {
   id: string;
   name: string;
   pinned?: boolean;
+  /** Tag archiviato → visibile solo nella tab "Storage". */
+  archived?: boolean;
 }
 
 export interface SidebarGroup {
@@ -50,8 +52,12 @@ export interface SidebarProps {
   onFilterChange?: (value: string) => void;
   /** Label for the "pinned" segment (e.g. "Pinned · 2"). */
   pinnedLabel?: string;
+  /** Label for the "storage" segment (e.g. "Storage · 3"). */
+  storageLabel?: string;
   /** Toggle pin su un tag (figlio). `pinned` = nuovo stato desiderato. */
   onTogglePin?: (tagId: string, pinned: boolean) => void;
+  /** Sposta un tag in Storage / ripristinalo in Tags. `archived` = nuovo stato. */
+  onToggleArchive?: (tagId: string, archived: boolean) => void;
   /** Apri il tag selezionato nel Canvas. */
   onOpenCanvas?: (tagId: string) => void;
 }
@@ -64,7 +70,9 @@ export function Sidebar({
   filter = 'all',
   onFilterChange,
   pinnedLabel = 'Pinned',
+  storageLabel = 'Storage',
   onTogglePin,
+  onToggleArchive,
   onOpenCanvas,
 }: SidebarProps) {
   const [open, setOpen] = React.useState<Record<string, boolean>>(() =>
@@ -84,18 +92,14 @@ export function Sidebar({
 
   return (
     <aside className="ob-sb ob-scroll">
-      <div className="ob-sb__head">
-        <span className="ob-sb__head-label">TAG</span>
-        {count != null && <span className="ob-sb__count">{count}</span>}
-      </div>
-
       <div className="ob-sb__seg">
         <SegmentedControl
           aria-label="Filtro tag"
           value={filter}
           onChange={(v) => onFilterChange?.(v)}
           items={[
-            { value: 'all', label: 'Tutti i tag' },
+            { value: 'storage', label: storageLabel },
+            { value: 'all', label: 'Tags' },
             { value: 'pinned', label: pinnedLabel },
           ]}
         />
@@ -122,14 +126,19 @@ export function Sidebar({
       </button>
 
       {groups.map((g) => {
-        // Filtro "Pinned": mostra solo i tag pinnati (e nascondi i gruppi vuoti).
-        let kids = (g.children ?? []).filter((c) => filter !== 'pinned' || c.pinned);
+        // Filtro per tab: Storage → solo archiviati; Pinned → pinnati non
+        // archiviati; Tags → attivi (non archiviati).
+        let kids = (g.children ?? []).filter((c) => {
+          if (filter === 'storage') return c.archived;
+          if (filter === 'pinned') return !c.archived && c.pinned;
+          return !c.archived;
+        });
         // Ricerca: se il nome del gruppo combacia mostra tutti i suoi tag,
         // altrimenti solo i tag che combaciano; nascondi i gruppi senza match.
         const groupMatches = q !== '' && g.name.toLowerCase().includes(q);
         if (q && !groupMatches) kids = kids.filter((c) => c.name.toLowerCase().includes(q));
-        if (filter === 'pinned' && kids.length === 0) return null;
-        if (q && kids.length === 0 && !groupMatches) return null;
+        // Nascondi i gruppi senza tag visibili nella tab corrente.
+        if (kids.length === 0) return null;
         // Durante la ricerca i gruppi con match sono sempre espansi.
         const isOpen = q ? true : open[g.id];
         // Il tag-type salva il glyph come nome Tabler in `emoji`; se risolvibile
@@ -164,7 +173,7 @@ export function Sidebar({
                         <span className="ob-sb-child__name">{c.name}</span>
                       </button>
                       <div className="ob-sb-child__actions">
-                        {onTogglePin && (
+                        {onTogglePin && !c.archived && (
                           <button
                             type="button"
                             className={cn('ob-sb-child__act', c.pinned && 'ob-sb-child__act--on')}
@@ -173,6 +182,16 @@ export function Sidebar({
                             onClick={(e) => { e.stopPropagation(); onTogglePin(c.id, !c.pinned); }}
                           >
                             {c.pinned ? <IconPinFilled size={13} /> : <IconPin size={13} />}
+                          </button>
+                        )}
+                        {onToggleArchive && (
+                          <button
+                            type="button"
+                            className="ob-sb-child__act"
+                            title={c.archived ? 'Ripristina in Tags' : 'Sposta in Storage'}
+                            onClick={(e) => { e.stopPropagation(); onToggleArchive(c.id, !c.archived); }}
+                          >
+                            {c.archived ? <IconArchiveOff size={13} /> : <IconArchive size={13} />}
                           </button>
                         )}
                         {onOpenCanvas && (

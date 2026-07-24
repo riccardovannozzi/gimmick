@@ -12,22 +12,25 @@
 
 export interface StatusMeta {
   label: string;
+  /** Colore semantico come token Obsidian (per swatch/picker theme-aware). */
   color: string;
+  /** Colore esadecimale (per fill/sfondo dove serve un hex, es. `readableOn`). */
+  hex: string;
 }
 
-/** Presentazione dei 5 status di sistema. */
+/** Presentazione dei 5 status di sistema (hex = valori semantici tema chiaro). */
 export const STATUS_META: Record<string, StatusMeta> = {
-  active: { label: 'Attivo', color: 'var(--ob-info)' },
-  done: { label: 'Completato', color: 'var(--ob-success)' },
-  paused: { label: 'In pausa', color: 'var(--ob-warning)' },
-  blocked: { label: 'Bloccato', color: 'var(--ob-error)' },
-  cancelled: { label: 'Annullato', color: 'var(--ob-muted)' },
+  active: { label: 'Attivo', color: 'var(--ob-info)', hex: '#4F86EE' },
+  done: { label: 'Completato', color: 'var(--ob-success)', hex: '#3FAE72' },
+  paused: { label: 'In pausa', color: 'var(--ob-warning)', hex: '#C99220' },
+  blocked: { label: 'Bloccato', color: 'var(--ob-error)', hex: '#E0544F' },
+  cancelled: { label: 'Annullato', color: 'var(--ob-muted)', hex: '#5C5868' },
 };
 
-export const STATUS_FALLBACK: StatusMeta = { label: 'Status', color: 'var(--ob-muted)' };
+export const STATUS_FALLBACK: StatusMeta = { label: 'Status', color: 'var(--ob-muted)', hex: '#5C5868' };
 
 /** Presentazione per nome di status; fallback per righe rinominate/custom. */
 export function statusMeta(name: string | undefined | null): StatusMeta {
   if (!name) return STATUS_FALLBACK;
-  return STATUS_META[name] ?? { label: name, color: STATUS_FALLBACK.color };
+  return STATUS_META[name] ?? { label: name, color: STATUS_FALLBACK.color, hex: STATUS_FALLBACK.hex };
 }

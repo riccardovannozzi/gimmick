@@ -41,7 +41,8 @@ export function tagsToSidebarGroups(
   tags: Tag[],
   tagTypes: TagTypeMeta[] = [],
 ): TagsToGroupsResult {
-  const nonRoot = tags.filter((t) => !t.is_root && !t.is_archived);
+  // Include gli archiviati: la Sidebar li filtra per tab (Storage vs Tags).
+  const nonRoot = tags.filter((t) => !t.is_root);
 
   // Ordine dei gruppi: prima i tag-type configurati, poi eventuali tipi extra
   // presenti sui tag ma non ancora in lista.
@@ -56,7 +57,7 @@ export function tagsToSidebarGroups(
       const meta = tagTypes.find((t) => t.slug === slug);
       const children = nonRoot
         .filter((t) => t.tag_type === slug)
-        .map((t) => ({ id: t.id, name: t.name, pinned: t.is_pinned }));
+        .map((t) => ({ id: t.id, name: t.name, pinned: t.is_pinned, archived: !!t.is_archived }));
       return {
         id: slug,
         name: meta?.name ?? slug,
@@ -69,5 +70,6 @@ export function tagsToSidebarGroups(
     })
     .filter((g) => (g.children?.length ?? 0) > 0);
 
-  return { groups, count: nonRoot.length };
+  // Count = tag "attivi" (non archiviati), coerente con la tab Tags.
+  return { groups, count: nonRoot.filter((t) => !t.is_archived).length };
 }

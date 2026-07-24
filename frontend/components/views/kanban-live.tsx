@@ -59,6 +59,7 @@ function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, 
     checklist: checklist.length ? checklist : undefined,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),
+    sparkCount: (t.sparks ?? []).length,
   };
 }
 

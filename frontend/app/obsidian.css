@@ -165,3 +165,26 @@
 [data-ob='on'] ::-webkit-scrollbar-corner {
   background: transparent;
 }
+
+/* ── Contatore sparks del tile ──────────────────────────────────────────────
+   Badge riutilizzabile mostrato in basso a destra dei tile-card (Kanban,
+   Chrono, …) per evidenziare quanti spark contiene il tile. Il tint di sfondo
+   usa `currentColor`, così si adatta al colore del testo del piede (ink su
+   card colorate, muted altrove). */
+.ob-tile-sparkn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 4px;
+  margin-left: 2px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  color: var(--ob-muted);
+  background: color-mix(in srgb, currentColor 16%, transparent);
+  font-family: var(--ob-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}

@@ -236,7 +236,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
 }
 
 /** Selettore STATUS del tile — dropdown/popup nello stile di TypeIconPicker. */
-function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string | null) => void }) {
+function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string) => void }) {
   const theme = usePixelTheme();
   const { statuses } = useStatuses();
   const [open, setOpen] = useState(false);
@@ -317,11 +317,6 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             overflowY: 'auto',
           }}
         >
-          <button onClick={() => { onChange(null); setOpen(false); }} style={popupItem(!value)}>
-            <span style={{ width: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3 }}>—</span>
-            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Nessuno</span>
-            {!value && check}
-          </button>
           {statuses.map((s) => {
             const meta = statusMeta(s.name);
             const selected = value === s.id;

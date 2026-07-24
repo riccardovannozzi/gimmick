@@ -156,17 +156,24 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
   }, [queryClient]);
 
+  // Sposta un tag in Storage (archivia) o lo ripristina in Tags, con
+  // aggiornamento ottimistico della cache ['tags']. Archiviare un tag lo
+  // rimuove anche dai pinnati (uno stato archiviato non ha senso "in evidenza").
+  const handleToggleArchive = React.useCallback((tagId: string, archived: boolean) => {
+    queryClient.setQueryData(['tags'], (old: { data?: Tag[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === tagId ? { ...t, is_archived: archived, is_pinned: archived ? false : t.is_pinned } : t)) };
+    });
+    const updates = archived ? { is_archived: true, is_pinned: false } : { is_archived: false };
+    tagsApi.update(tagId, updates)
+      .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
+  }, [queryClient]);
+
   // Apri il tag nel Canvas (con navigazione ottimistica come i tab).
   const handleOpenCanvas = React.useCallback((tagId: string) => {
     setOptimisticView('canvas');
     startTransition(() => router.push(`/canvas?tag=${tagId}`));
   }, [router]);
-
-  // Conteggio pinnati per l'etichetta del segmento.
-  const pinnedCount = React.useMemo(
-    () => ((tagsData?.data ?? []) as Tag[]).filter((t) => t.is_pinned && !t.is_root).length,
-    [tagsData],
-  );
 
   // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
   // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
@@ -199,8 +206,10 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
           onSelectChild={(id) => selectOnly(id)}
           filter={tagFilter}
           onFilterChange={setTagFilter}
-          pinnedLabel={pinnedCount > 0 ? `Pinned · ${pinnedCount}` : 'Pinned'}
+          pinnedLabel="Pinned"
+          storageLabel="Storage"
           onTogglePin={handleTogglePin}
+          onToggleArchive={handleToggleArchive}
           onOpenCanvas={handleOpenCanvas}
         />
       }
