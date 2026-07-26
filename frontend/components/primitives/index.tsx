@@ -13,6 +13,7 @@ export {
   IconButton,
   Field,
   Select,
+  Dropdown,
   Toggle,
   SegmentedControl,
 } from './controls';
@@ -24,6 +25,8 @@ export type {
   FieldProps,
   SelectProps,
   SelectOption,
+  DropdownProps,
+  DropdownOption,
   ToggleProps,
   SegmentedControlProps,
   SegmentedItem,

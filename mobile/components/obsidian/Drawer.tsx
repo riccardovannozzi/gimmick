@@ -1,62 +1,47 @@
 /**
- * Gimmick · Obsidian — Drawer (tag / cartelle).
+ * Gimmick · Obsidian — Drawer di navigazione.
  *
- * Slide-in left drawer: logo + tag count, search, collapsible tag groups with
- * children, and a Settings footer. Reference: the Capture DC's `drawer`. Uses
- * an RN Modal for the overlay (handles Android back) + Animated slide-in.
- * Single tag per tile → children select exclusively.
+ * Pannello a scorrimento da sinistra con i collegamenti alle altre viste
+ * dell'app, più Impostazioni a piè di pagina. La schermata Capture non ha
+ * TopNav — il menu del suo AppHeader è l'unica navigazione che possiede — quindi
+ * senza queste voci Capture sarebbe un vicolo cieco.
+ *
+ * Usa una Modal RN per l'overlay (gestisce il tasto Indietro di Android) con
+ * scorrimento Animated.
  */
 import React from 'react';
 import { Animated, Modal, Pressable, ScrollView, Text, View } from 'react-native';
 import {
-  IconChevronRight, IconChevronDown, IconSearch, IconSettings,
-  IconHome, IconSun, IconRipple, IconCurrencyEuro,
+  IconSettings, IconLayoutGrid, IconRoute, IconCalendarTime, IconHome,
 } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_BTN_H } from '@/constants/obsidian';
+import type { MobileViewId } from './TopNav';
 
 const PANEL = 290;
 
-export interface DrawerChild { id: string; name: string }
-export interface DrawerGroup {
-  id: string;
-  name: string;
-  Icon: typeof IconHome;
-  color: string;
-  defaultOpen?: boolean;
-  children?: DrawerChild[];
-}
-
-export const DEFAULT_DRAWER_GROUPS: DrawerGroup[] = [
-  { id: 'home', name: 'Home', Icon: IconHome, color: '#6FCF97' },
-  {
-    id: 'gds', name: 'Golfo del Sole', Icon: IconSun, color: '#E0B341', defaultOpen: true,
-    children: [{ id: 'gds-report', name: 'GDS_Report' }, { id: 'gds-fv', name: 'GDS_Fotovoltaico' }, { id: 'gds-varie', name: 'GDS_Varie' }],
-  },
-  { id: 'om', name: 'Ortano Mare', Icon: IconRipple, color: '#5B8DEF' },
-  { id: 'money', name: 'Money', Icon: IconCurrencyEuro, color: '#6FCF97' },
+const VIEW_LINKS: Array<{ id: MobileViewId; name: string; Icon: typeof IconLayoutGrid }> = [
+  { id: 'tiles', name: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'flows', name: 'Flows', Icon: IconRoute },
+  { id: 'chrono', name: 'Chrono', Icon: IconCalendarTime },
 ];
 
 interface ObsidianDrawerProps {
   open: boolean;
   onClose: () => void;
-  groups?: DrawerGroup[];
-  count?: number;
-  activeChildId?: string;
-  onSelectChild?: (id: string) => void;
   onSettings?: () => void;
+  /** Naviga a una delle viste principali. Omesso → nessun collegamento (preview QA). */
+  onNavigateView?: (id: MobileViewId) => void;
+  /** Torna alla Home/Cattura. Omesso (es. sulla Capture stessa) → voce nascosta. */
+  onHome?: () => void;
 }
 
-export function ObsidianDrawer({
-  open, onClose, groups = DEFAULT_DRAWER_GROUPS, count = 26, activeChildId = 'gds-report', onSelectChild, onSettings,
-}: ObsidianDrawerProps) {
+export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome }: ObsidianDrawerProps) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const tx = React.useRef(new Animated.Value(-PANEL)).current;
   const fade = React.useRef(new Animated.Value(0)).current;
-  const [openState, setOpenState] = React.useState<Record<string, boolean>>(() =>
-    Object.fromEntries(groups.map((g) => [g.id, g.defaultOpen ?? false])),
-  );
 
   React.useEffect(() => {
     if (open) {
@@ -69,8 +54,6 @@ export function ObsidianDrawer({
       fade.setValue(0);
     }
   }, [open, tx, fade]);
-
-  const toggle = (id: string) => setOpenState((o) => ({ ...o, [id]: !o[id] }));
 
   return (
     <Modal visible={open} transparent animationType="none" onRequestClose={onClose} statusBarTranslucent>
@@ -91,58 +74,47 @@ export function ObsidianDrawer({
             <View style={{ width: 9, height: 9, borderRadius: 3, backgroundColor: c.accentInk }} />
           </View>
           <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Gimmick</Text>
-          <Text style={{ fontSize: 11, fontWeight: '600', color: c.muted, backgroundColor: c.surface2, paddingHorizontal: 8, paddingVertical: 2, borderRadius: 7, fontVariant: ['tabular-nums'] }}>
-            {count}
-          </Text>
         </View>
 
-        {/* Search */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginHorizontal: 14, marginBottom: 8, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9 }}>
-          <IconSearch size={14} color={c.subtle} strokeWidth={1.8} />
-          <Text style={{ fontSize: 13, color: c.subtle }}>Cerca tag…</Text>
-        </View>
+        {/* Viste — Impostazioni sta nella stessa colonna, subito sotto gli altri
+            link: unica differenza un separatore che la distingue dalle viste. */}
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6, paddingBottom: insets.bottom + 6 }}>
+          {onHome && (
+            <Pressable
+              onPress={() => { onHome(); onClose(); }}
+              android_ripple={{ color: c.accent + '33' }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: OB_BTN_H, borderRadius: 8 }}
+            >
+              <IconHome size={22} color={c.muted} strokeWidth={1.8} />
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Cattura</Text>
+            </Pressable>
+          )}
+          {onNavigateView && VIEW_LINKS.map((v) => (
+            // Stile statico e non `({pressed}) => …`: passato come funzione non
+            // veniva applicato, e senza flexDirection la riga tornava a colonna
+            // con l'icona sopra l'etichetta.
+            <Pressable
+              key={v.id}
+              onPress={() => { onNavigateView(v.id); onClose(); }}
+              android_ripple={{ color: c.accent + '33' }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: OB_BTN_H, borderRadius: 8 }}
+            >
+              <v.Icon size={22} color={c.muted} strokeWidth={1.8} />
+              <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>{v.name}</Text>
+            </Pressable>
+          ))}
 
-        {/* Groups */}
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingVertical: 6 }}>
-          {groups.map((g) => {
-            const isOpen = openState[g.id];
-            const Chevron = isOpen ? IconChevronDown : IconChevronRight;
-            return (
-              <View key={g.id} style={{ marginBottom: 2 }}>
-                <Pressable onPress={() => toggle(g.id)} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 8, paddingVertical: 9 }}>
-                  <Chevron size={13} color={c.subtle} strokeWidth={1.8} />
-                  <g.Icon size={17} color={g.color} strokeWidth={1.8} />
-                  <Text style={{ flex: 1, fontSize: 14, fontWeight: '600', color: c.text }}>{g.name}</Text>
-                </Pressable>
-                {isOpen && g.children && g.children.length > 0 && (
-                  <View style={{ marginLeft: 15, paddingLeft: 13, borderLeftWidth: 1, borderLeftColor: c.line }}>
-                    {g.children.map((k) => {
-                      const on = k.id === activeChildId;
-                      return (
-                        <Pressable
-                          key={k.id}
-                          onPress={() => onSelectChild?.(k.id)}
-                          style={{ paddingHorizontal: 9, paddingVertical: 8, borderRadius: 8, backgroundColor: on ? c.accentSoft : 'transparent' }}
-                        >
-                          <Text style={{ fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{k.name}</Text>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                )}
-              </View>
-            );
-          })}
+          {/* Separatore dalle viste, poi Impostazioni con lo stesso stile dei link. */}
+          <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: 10, marginVertical: 6 }} />
+          <Pressable
+            onPress={() => { onSettings?.(); onClose(); }}
+            android_ripple={{ color: c.accent + '33' }}
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, minHeight: OB_BTN_H, borderRadius: 8 }}
+          >
+            <IconSettings size={22} color={c.muted} strokeWidth={1.8} />
+            <Text style={{ flex: 1, fontSize: 17, fontWeight: '600', color: c.text }}>Impostazioni</Text>
+          </Pressable>
         </ScrollView>
-
-        {/* Footer */}
-        <Pressable
-          onPress={onSettings}
-          style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 18, paddingVertical: 13, paddingBottom: 13 + insets.bottom, borderTopWidth: 1, borderTopColor: c.line }}
-        >
-          <IconSettings size={16} color={c.muted} strokeWidth={1.8} />
-          <Text style={{ fontSize: 14, fontWeight: '500', color: c.muted }}>Impostazioni</Text>
-        </Pressable>
       </Animated.View>
     </Modal>
   );

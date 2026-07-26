@@ -15,6 +15,8 @@ import { IconGripVertical, IconDots } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
+import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
+import type { StatusShape } from '@/types';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 type CapKind = 'photo' | 'file' | 'voice' | 'doc' | 'text';
@@ -38,6 +40,14 @@ export interface CardData {
   amber?: boolean;
   caps?: CapKind[];
   checklist?: boolean[];
+  /** Tile completato (is_completed) → pallino verde in alto a destra. */
+  done?: boolean;
+  /** Status del tile → swatch (forma) nella meta-row. */
+  status?: { label: string; color: string; shape: StatusShape };
+  /** Type-icon del tile → chip colorato nella meta-row. */
+  type?: TileMetaType;
+  /** Numero di sparks del tile → contatore in basso a destra. */
+  sparkCount?: number;
 }
 export interface DateGroup {
   date?: string;
@@ -102,7 +112,7 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
   const draggable = !!t.id;
   return (
     <div
-      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable')}
+      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', t.done && 'ob-kanban__card--done')}
       style={{ ['--card-c' as string]: cardC }}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
@@ -135,10 +145,14 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
             <CapGlyph kind={c} />
           </span>
         ))}
+        <TileMeta type={t.type} status={t.status} />
         <span className="ob-kanban__card-tag">
           <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={12} /></span>
           <span className="ob-kanban__card-tag-label">{t.tag}</span>
         </span>
+        {!!t.sparkCount && (
+          <span className="ob-tile-sparkn" title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
+        )}
       </div>
     </div>
   );

@@ -1,51 +1,112 @@
 /**
  * Gimmick · Obsidian — AppHeader (capture / home header).
  *
- * 54px header used on the capture home: menu (opens the Drawer) · logo +
- * Gimmick · buffer pill (spark + count) · avatar. Reference: the Capture DC's
- * `appHeader`. Distinct from ObsidianTopNav (the view switcher).
+ * 54px header con la logica "chat": due pulsanti circolari agli estremi + un
+ * dropdown centrale.
+ *   · Sinistra — hamburger in un cerchio → apre il Drawer (settings e simili).
+ *   · Centro   — titolo con chevron: dropdown per cambiare vista (Tiles / Flows
+ *                / Chrono).
+ *   · Destra   — "Ask Gimmick" in un cerchio → apre la chat.
+ * Navigation-agnostic: tutto passa dai callback.
  */
 import React from 'react';
-import { View, Text, Pressable } from 'react-native';
-import { IconMenu2, IconSparkles } from '@tabler/icons-react-native';
+import { View, Text, Pressable, Modal } from 'react-native';
+import {
+  IconMenu2, IconSparkles, IconChevronDown,
+  IconLayoutGrid, IconRoute, IconCalendarTime,
+} from '@tabler/icons-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
+import type { MobileViewId } from './TopNav';
+
+const NAV_ITEMS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayoutGrid }> = [
+  { id: 'tiles', label: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'flows', label: 'Flows', Icon: IconRoute },
+  { id: 'chrono', label: 'Chrono', Icon: IconCalendarTime },
+];
 
 interface ObsidianAppHeaderProps {
-  appName?: string;
-  bufferCount?: number;
-  userInitials?: string;
+  /** Etichetta al centro (titolo del dropdown). */
+  title?: string;
+  /** Hamburger a sinistra → Drawer (settings e simili). */
   onMenu?: () => void;
-  onBuffer?: () => void;
-  onAvatar?: () => void;
+  /** "Ask Gimmick" a destra → chat. */
+  onAsk?: () => void;
+  /** Voce scelta nel dropdown centrale. */
+  onNavigateView?: (id: MobileViewId) => void;
 }
 
-export function ObsidianAppHeader({
-  appName = 'Gimmick', bufferCount = 0, userInitials = 'RI', onMenu, onBuffer, onAvatar,
-}: ObsidianAppHeaderProps) {
+// Spazio tra la status bar (spacer safe-area) e la navbar.
+const HEADER_GAP = 20;
+
+export function ObsidianAppHeader({ title = 'Gimmick', onMenu, onAsk, onNavigateView }: ObsidianAppHeaderProps) {
   const c = useObsidian();
+  const insets = useSafeAreaInsets();
+  const [navOpen, setNavOpen] = React.useState(false);
+
   return (
-    <View style={{ height: 54, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, backgroundColor: c.canvas }}>
-      <Pressable onPress={onMenu} accessibilityLabel="Apri menu" hitSlop={6} style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
-        <IconMenu2 size={19} color={c.muted} strokeWidth={1.8} />
+    // zIndex alto: il dropdown (Modal) è indipendente, ma teniamo l'header sopra
+    // eventuali overlay dello stesso livello. marginTop = stacco dall'alto.
+    <View style={{ height: 54, marginTop: HEADER_GAP, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, backgroundColor: c.canvas, zIndex: 10 }}>
+      {/* Sinistra — hamburger in cerchio (apre Drawer/settings) */}
+      <Pressable
+        onPress={onMenu}
+        accessibilityLabel="Menu"
+        hitSlop={6}
+        android_ripple={{ color: c.line, borderless: true }}
+        style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line }}
+      >
+        <IconMenu2 size={19} color={c.text} strokeWidth={1.9} />
       </Pressable>
 
-      <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <View style={{ width: 24, height: 24, borderRadius: 7, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <View style={{ width: 8, height: 8, borderRadius: 2.5, backgroundColor: c.accentInk }} />
-        </View>
-        <Text style={{ fontSize: 17, fontWeight: '600', color: c.text }}>{appName}</Text>
-      </View>
+      {/* Centro — titolo + chevron: apre il dropdown delle viste */}
+      <Pressable
+        onPress={() => setNavOpen(true)}
+        accessibilityLabel="Cambia vista"
+        hitSlop={6}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}
+      >
+        <Text style={{ fontSize: 17, fontWeight: '700', color: c.text }}>{title}</Text>
+        <IconChevronDown size={16} color={c.muted} strokeWidth={2} />
+      </Pressable>
 
-      {bufferCount > 0 && (
-        <Pressable onPress={onBuffer} style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line, borderRadius: 20, paddingVertical: 4, paddingLeft: 8, paddingRight: 11, opacity: pressed ? 0.7 : 1 })}>
-          <IconSparkles size={16} color={c.accent} strokeWidth={1.8} />
-          <Text style={{ fontSize: 13, fontWeight: '600', color: c.text }}>{bufferCount}</Text>
+      {/* Destra — Ask Gimmick in cerchio */}
+      <Pressable
+        onPress={onAsk}
+        accessibilityLabel="Ask Gimmick"
+        hitSlop={6}
+        android_ripple={{ color: c.line, borderless: true }}
+        style={{ width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line }}
+      >
+        <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
+      </Pressable>
+
+      {/* Dropdown centrale — Modal per stare sopra il contenuto senza problemi di
+          z-order. Backdrop trasparente che chiude al tap fuori. */}
+      <Modal visible={navOpen} transparent animationType="fade" onRequestClose={() => setNavOpen(false)} statusBarTranslucent>
+        <Pressable style={{ flex: 1 }} onPress={() => setNavOpen(false)} accessibilityLabel="Chiudi">
+          <View style={{ position: 'absolute', top: insets.top + HEADER_GAP + 54 + 4, left: 0, right: 0, alignItems: 'center' }}>
+            <View
+              style={{
+                minWidth: 200, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 6,
+                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12,
+              }}
+            >
+              {NAV_ITEMS.map((it) => (
+                <Pressable
+                  key={it.id}
+                  onPress={() => { setNavOpen(false); onNavigateView?.(it.id); }}
+                  android_ripple={{ color: c.accent + '22' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 46, paddingHorizontal: 12, borderRadius: 9 }}
+                >
+                  <it.Icon size={18} color={c.muted} strokeWidth={1.8} />
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{it.label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
         </Pressable>
-      )}
-
-      <Pressable onPress={onAvatar} accessibilityLabel="Profilo" style={({ pressed }) => ({ width: 34, height: 34, borderRadius: 17, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', marginLeft: 2, opacity: pressed ? 0.85 : 1 })}>
-        <Text style={{ fontSize: 12, fontWeight: '700', color: c.accentInk }}>{userInitials}</Text>
-      </Pressable>
+      </Modal>
     </View>
   );
 }

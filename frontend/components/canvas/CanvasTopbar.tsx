@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto } from '@tabler/icons-react';
+import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
@@ -42,9 +42,11 @@ interface CanvasTopbarProps {
   textMode: boolean;
   tileMode: boolean;
   imageMode: boolean;
+  selectMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
   onToggleImageMode: () => void;
+  onToggleSelectMode: () => void;
   onFit: () => void;
   onZoom100: () => void;
   pinnedTags?: Tag[];
@@ -54,7 +56,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
@@ -261,8 +263,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, onToggleTextM
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+        <ToolbarToggle icon={<IconLasso size={12} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
         <ToolbarToggle icon={<IconLayoutGrid size={12} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ToolbarToggle icon={<IconNote size={12} />} label="Testo" active={textMode} onClick={onToggleTextMode} />
+        <ToolbarToggle icon={<IconNote size={12} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolbarToggle icon={<IconPhoto size={12} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
         <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px' }} />
         <ToolbarButton icon={<IconMaximize size={12} />} label="Fit" onClick={onFit} />

@@ -14,7 +14,8 @@
  * gli editor inline di azione/tipo/stato/tag della tabella arcade NON sono
  * ancora portati qui (vedi MIGRATION_PLAN.md, gap noti di Fase 3).
  */
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Button } from '@/components/primitives';
@@ -22,9 +23,11 @@ import { Icon } from '@/components/shell';
 import { TilesView, type TileRow } from '@/components/views/tiles';
 import { useFilterStore } from '@/store/filter-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta } from '@/lib/status-meta';
 import { tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
-import type { Spark, Tile } from '@/types';
+import type { Spark, Status, Tile } from '@/types';
 
 function toAction(t: Tile): 'timed' | 'allday' | 'notes' {
   if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
@@ -59,13 +62,19 @@ const SPARK_KIND: Record<string, 'photo' | 'voice' | 'text' | 'file'> = {
   file: 'file',
 };
 
-function toTileRow(t: Tile): TileRow {
+function toTileRow(t: Tile, statusById: Map<string, Status>): TileRow {
   const tag = (t.tags ?? []).find((tg) => !tg.is_root);
+  // 'active' è lo stato di default/prevalente → non si segnala (colonna vuota).
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
+  const showStatus = st && st.name !== 'active';
+  const stMeta = showStatus ? statusMeta(st.name) : undefined;
   return {
     id: t.id,
     title: t.title || 'Senza titolo',
     action: toAction(t),
     ...toSchedule(t),
+    done: !!t.is_completed,
+    status: st && stMeta ? { label: stMeta.label, color: stMeta.color, shape: st.shape } : undefined,
     tags: tag?.name ?? 'Gimmick',
     sparks: (t.sparks ?? []).map((s: Spark) => {
       const kind = SPARK_KIND[s.type] ?? 'file';
@@ -79,8 +88,16 @@ export function TilesLive() {
   const queryClient = useQueryClient();
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const { tileIds: aiFilterIds, clearFilter } = useFilterStore();
+  const { statuses } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
+  const clearInspector = useTileSelectionStore((s) => s.clear);
+
+  // Multi-selezione per azioni bulk (es. eliminazione). Set di tile id spuntati.
+  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+
+  // Menu contestuale (tasto destro su una riga).
+  const [menu, setMenu] = useState<{ x: number; y: number; tileId: string } | null>(null);
 
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ['tiles'],
@@ -110,7 +127,71 @@ export function TilesLive() {
     return allTiles.filter((t) => idSet.has(t.id));
   }, [allTiles, aiFilterIds]);
 
-  const rows = useMemo(() => visibleTiles.map(toTileRow), [visibleTiles]);
+  const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
+  const rows = useMemo(() => visibleTiles.map((t) => toTileRow(t, statusById)), [visibleTiles, statusById]);
+
+  const toggleRow = useCallback((id: string) => {
+    setCheckedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleAll = useCallback(() => {
+    setCheckedIds((prev) => {
+      const ids = visibleTiles.map((t) => t.id);
+      const allChecked = ids.length > 0 && ids.every((id) => prev.has(id));
+      return allChecked ? new Set() : new Set(ids);
+    });
+  }, [visibleTiles]);
+
+  const clearSelection = useCallback(() => setCheckedIds(new Set()), []);
+
+  const deleteSelected = useCallback(async () => {
+    const ids = Array.from(checkedIds);
+    if (ids.length === 0) return;
+    const results = await Promise.allSettled(ids.map((id) => tilesApi.delete(id)));
+    const ok = results.filter((r) => r.status === 'fulfilled' && r.value.success).length;
+    const failed = ids.length - ok;
+    // Se il tile aperto nell'Inspector è stato eliminato, chiudi il dettaglio.
+    if (selectedTileId && checkedIds.has(selectedTileId)) clearInspector();
+    setCheckedIds(new Set());
+    invalidateTileCaches(queryClient, ['tags', 'flow-hub']);
+    if (ok > 0) toast.success(`${ok} tile eliminat${ok === 1 ? 'a' : 'e'}`);
+    if (failed > 0) toast.error(`Errore su ${failed} tile`);
+  }, [checkedIds, selectedTileId, clearInspector, queryClient]);
+
+  const deleteTile = useCallback(async (id: string) => {
+    try {
+      const res = await tilesApi.delete(id);
+      if (!res.success) { toast.error('Errore eliminazione'); return; }
+      if (selectedTileId === id) clearInspector();
+      setCheckedIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev); next.delete(id); return next;
+      });
+      invalidateTileCaches(queryClient, ['tags', 'flow-hub']);
+      toast.success('Tile eliminata');
+    } catch {
+      toast.error('Errore eliminazione');
+    }
+  }, [selectedTileId, clearInspector, queryClient]);
+
+  const openRowMenu = useCallback((e: React.MouseEvent, tileId: string) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, tileId });
+  }, []);
+
+  const closeMenu = useCallback(() => setMenu(null), []);
+
+  // Chiusura del menu con Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
 
   // Infinite scroll: osserva la sentinella in coda alla lista.
   useEffect(() => {
@@ -192,6 +273,12 @@ export function TilesLive() {
           selectedId={selectedTileId ?? undefined}
           onRowClick={(id) => selectTile(id)}
           onAddTile={handleAddTile}
+          checkedIds={checkedIds}
+          onToggleRow={toggleRow}
+          onToggleAll={toggleAll}
+          onClearSelection={clearSelection}
+          onDeleteSelected={deleteSelected}
+          onRowContextMenu={openRowMenu}
           footer={
             <div ref={loadMoreRef} style={{ height: 1 }} aria-hidden>
               {isFetchingNextPage && (
@@ -211,6 +298,33 @@ export function TilesLive() {
           }
         />
       </div>
+
+      {menu && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Backdrop: click o tasto destro fuori → chiude. */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={closeMenu}
+            onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
+          />
+          <div
+            className="ob-ctx"
+            style={{
+              top: Math.min(menu.y, (typeof window !== 'undefined' ? window.innerHeight : 9999) - 80),
+              left: Math.min(menu.x, (typeof window !== 'undefined' ? window.innerWidth : 9999) - 196),
+            }}
+          >
+            <button
+              type="button"
+              className="ob-ctx__item ob-ctx__item--danger"
+              onClick={() => { const id = menu.tileId; setMenu(null); deleteTile(id); }}
+            >
+              <Icon name="trash" size={14} /> Elimina
+            </button>
+          </div>
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

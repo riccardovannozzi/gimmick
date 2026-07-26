@@ -21,7 +21,8 @@ export default {
       infoPlist: {
         NSCameraUsageDescription: "Gimmick needs camera access to capture photos",
         NSMicrophoneUsageDescription: "Gimmick needs microphone access to record audio",
-        NSPhotoLibraryUsageDescription: "Gimmick needs photo library access to select images"
+        NSPhotoLibraryUsageDescription: "Gimmick needs photo library access to select images",
+        NSSpeechRecognitionUsageDescription: "Gimmick usa il riconoscimento vocale per dettare le note."
       }
     },
     android: {
@@ -61,6 +62,14 @@ export default {
         "expo-image-picker",
         {
           photosPermission: "Allow Gimmick to access your photos to select images."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          microphonePermission: "Gimmick usa il microfono per dettare le note.",
+          speechRecognitionPermission: "Gimmick usa il riconoscimento vocale per dettare le note.",
+          androidSpeechServicePackages: ["com.google.android.googlequicksearchbox"]
         }
       ],
       // Pixel Arcade design system fonts. Files must be downloaded manually

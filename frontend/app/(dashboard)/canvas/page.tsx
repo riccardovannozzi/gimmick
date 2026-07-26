@@ -5,15 +5,19 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel } from '@/components/canvas/StagingPanel';
+import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
+import { useTypeIcons } from '@/store/type-icons-store';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
@@ -35,11 +39,19 @@ export default function CanvasPage() {
 
   const [textMode, setTextMode] = useState(false);
   const [tileMode, setTileMode] = useState(false);
-  // Tile copiata in attesa di posizionamento: quando valorizzata, il prossimo
-  // click sul canvas piazza una COPIA di questo tile nel punto scelto.
-  const [copySource, setCopySource] = useState<string | null>(null);
+  // Appunti canvas (copia/incolla). Copiando un elemento (tile/testo/immagine)
+  // si memorizza qui; l'incolla avviene SOLO col tasto destro sul punto target
+  // (menu "Incolla"), non più col click sinistro.
+  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image'; id: string } | null>(null);
+  // Menu contestuale "Incolla" sullo sfondo del canvas (posizione + coord locali).
+  const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; localX: number; localY: number } | null>(null);
   const [imageMode, setImageMode] = useState(false);
+  // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
+  // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
+  const [selectMode, setSelectMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  // Box (testo/immagine) selezionato con click singolo → contorno obsidian.
+  const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
   const openFlow = useFlowOpenStore((s) => s.open);
@@ -128,6 +140,9 @@ export default function CanvasPage() {
   const allTagTiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
   // Set of tile ids that own at least one Flow node — drives the FLOW badge.
   const tilesWithFlows = useTilesWithFlows();
+  // Associazioni tile→type-icon: servono per copiare il TIPO in fase di incolla.
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
+  const assignTypeIcon = useTypeIcons((s) => s.assignIcon);
 
   // Deep-link applier — once tag is resolved AND the tile exists in the loaded
   // set, select it. When ?flow= is also present (arriving from the FlowHub),
@@ -185,7 +200,9 @@ export default function CanvasPage() {
   const STAGING_MAX_W = 700;
   const [stagingWidth, setStagingWidth] = useState<number>(176);
   const [stagingOpen, setStagingOpen] = useState<boolean>(true);
-  useEffect(() => {
+  // Layout-effect: evita che il pannello venga disegnato alla larghezza di
+  // default (176px) prima di saltare a quella salvata.
+  useIsomorphicLayoutEffect(() => {
     try {
       const raw = localStorage.getItem('canvas_staging_width');
       if (raw) {
@@ -255,19 +272,34 @@ export default function CanvasPage() {
     id: g.id,
     label: g.label || '',
     nodeIds: g.node_ids || [],
+    bgColor: g.bg_color ?? null,
+    borderColor: g.border_color ?? null,
+    borderWidth: g.border_width ?? null,
+    borderStyle: g.border_style ?? null,
   })), [groupsData]);
+
+  // Serializza un gruppo (camelCase interno → snake_case DB) per cache e API.
+  const serializeGroup = (g: CanvasGroup) => ({
+    id: g.id,
+    label: g.label,
+    node_ids: g.nodeIds,
+    bg_color: g.bgColor ?? null,
+    border_color: g.borderColor ?? null,
+    border_width: g.borderWidth ?? null,
+    border_style: g.borderStyle ?? null,
+  });
 
   const saveGroupsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleGroupsChange = useCallback((newGroups: CanvasGroup[]) => {
     if (!tagId) return;
     // Optimistic update
     queryClient.setQueryData(['canvas-groups', tagId], {
-      data: newGroups.map((g) => ({ id: g.id, label: g.label, node_ids: g.nodeIds })),
+      data: newGroups.map(serializeGroup),
     });
     // Debounce save
     if (saveGroupsTimer.current) clearTimeout(saveGroupsTimer.current);
     saveGroupsTimer.current = setTimeout(() => {
-      canvasApi.saveGroups(tagId, newGroups.map((g) => ({ id: g.id, label: g.label, node_ids: g.nodeIds })));
+      canvasApi.saveGroups(tagId, newGroups.map(serializeGroup));
     }, 800);
   }, [tagId, queryClient]);
 
@@ -447,33 +479,17 @@ export default function CanvasPage() {
   // Text box context menu
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
 
-  // Add new tile at position
-  // Click sul canvas in modalità +Tile (nuova) o "incolla copia" (copySource).
-  // È l'unico punto che crea+posiziona un tile via click: senza una delle due
-  // modalità attive il click non inserisce nulla.
+  // Add new tile at position — SOLO in modalità +Tile. Un click "nudo" sullo
+  // sfondo non deve mai aggiungere un tile. (L'incolla di una copia avviene col
+  // tasto destro → menu "Incolla", vedi handlePasteAt.)
   const handleAddTileAt = useCallback(async (x: number, y: number) => {
     if (!tagId) return;
-    // Guardia: crea SOLO se una modalità di inserimento è armata (+Tile o Copia).
-    // Un click "nudo" sullo sfondo non deve mai aggiungere un tile.
-    if (!tileMode && !copySource) return;
-    const sourceId = copySource;
+    if (!tileMode) return;
     setTileMode(false);
-    setCopySource(null);
     try {
-      const source = sourceId ? tiles.find((t) => t.id === sourceId) : null;
-      const res = await tilesApi.create({ title: source ? source.title : 'Nuovo tile' });
+      const res = await tilesApi.create({ title: 'Nuovo tile' });
       const newId = res?.data?.id;
       if (!newId) return;
-      // In copia: replica i metadati del sorgente (non lo scheduling/evento).
-      if (source) {
-        const updates: Parameters<typeof tilesApi.update>[1] = {};
-        if (source.action_type) updates.action_type = source.action_type;
-        if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
-        if (source.status_id) updates.status_id = source.status_id;
-        if (Object.keys(updates).length > 0) {
-          try { await tilesApi.update(newId, updates); } catch { /* non bloccante */ }
-        }
-      }
       // Assign tag
       const tag = tags.find((t: Tag) => t.id === tagId);
       if (tag) await tagsApi.tagTiles(tag.id, [newId]);
@@ -489,7 +505,76 @@ export default function CanvasPage() {
       setSelectedTileId(newId);
       setSidebarOpen(true);
     } catch { /* ignore */ }
-  }, [tagId, tags, tiles, tileMode, copySource, queryClient]);
+  }, [tagId, tags, tileMode, queryClient]);
+
+  // Incolla l'elemento negli appunti nel punto (coord locali canvas). Supporta
+  // tile, testo e immagine. Gli appunti restano attivi → si può incollare più
+  // volte finché non si copia altro o si preme Esc.
+  const handlePasteAt = useCallback(async (localX: number, localY: number) => {
+    if (!tagId || !clipboard) return;
+    const { kind, id } = clipboard;
+    if (kind === 'tile') {
+      try {
+        const source = tiles.find((t) => t.id === id);
+        const res = await tilesApi.create({ title: source ? source.title : 'Nuovo tile' });
+        const newId = res?.data?.id;
+        if (!newId) return;
+        if (source) {
+          const updates: Parameters<typeof tilesApi.update>[1] = {};
+          if (source.action_type) updates.action_type = source.action_type;
+          if (source.is_cta !== undefined) updates.is_cta = source.is_cta;
+          if (source.status_id) updates.status_id = source.status_id;
+          // Daily vs Timing hanno lo stesso action_type ('event'): la distinzione
+          // è `all_day`. Senza copiarlo, un Daily diventava un Timing. Replichiamo
+          // anche is_event e la data/ora per un clone fedele.
+          if (source.is_event !== undefined) updates.is_event = source.is_event;
+          if (source.all_day !== undefined) updates.all_day = source.all_day;
+          if (source.start_at !== undefined) updates.start_at = source.start_at;
+          if (source.end_at !== undefined) updates.end_at = source.end_at;
+          if (Object.keys(updates).length > 0) {
+            try { await tilesApi.update(newId, updates); } catch { /* non bloccante */ }
+          }
+        }
+        // TAG: replica i tag del sorgente (fallback: il tag del canvas corrente).
+        const sourceTagIds = (source?.tags ?? []).filter((t) => !t.is_root).map((t) => t.id);
+        const tagIdsToAssign = sourceTagIds.length > 0 ? sourceTagIds : (tagId ? [tagId] : []);
+        for (const tid of tagIdsToAssign) {
+          try { await tagsApi.tagTiles(tid, [newId]); } catch { /* non bloccante */ }
+        }
+        // TIPO: replica l'associazione type-icon del sorgente.
+        const srcIcon = typeTileIcons[id];
+        if (srcIcon) assignTypeIcon(newId, srcIcon);
+        const currentLayout = (queryClient.getQueryData(['canvas-layout', tagId]) as any)?.data || [];
+        const newLayout = [...currentLayout, { tile_id: newId, x: localX, y: localY }];
+        queryClient.setQueryData(['canvas-layout', tagId], { data: newLayout });
+        canvasApi.saveLayout(tagId, newLayout);
+        queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
+        queryClient.invalidateQueries({ queryKey: ['tags'] });
+      } catch { /* ignore */ }
+    } else {
+      // Text / image box: replica contenuto e dimensioni del sorgente.
+      const src = textBoxes.find((b) => b.id === id);
+      if (!src) return;
+      const payload = { type: kind, content: src.content as Record<string, unknown>, x: localX, y: localY, w: src.w, h: src.h };
+      const tempId = `temp-paste-${Date.now()}`;
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+        data: [...(old?.data || []), { id: tempId, ...payload }],
+      }));
+      try {
+        const res = await canvasApi.addBox(tagId, payload);
+        if (res?.data) {
+          const d = res.data as any;
+          queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+            data: (old?.data || []).map((b: any) => (b.id === tempId ? d : b)),
+          }));
+        }
+      } catch {
+        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+          data: (old?.data || []).filter((b: any) => b.id !== tempId),
+        }));
+      }
+    }
+  }, [tagId, clipboard, tiles, tags, textBoxes, typeTileIcons, assignTypeIcon, queryClient]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -557,6 +642,9 @@ export default function CanvasPage() {
   // IDs are mixed: bare UUID = tile, "tb:<uuid>" = text box.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionBbox, setSelectionBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Gruppo selezionato (click sinistro): dati nella sidebar destra + punti di
+  // aggancio evidenziati sul canvas.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Derived splits
   const selectedTileIds = useMemo(() => selectedIds.filter((id) => !id.startsWith('tb:')), [selectedIds]);
@@ -565,6 +653,11 @@ export default function CanvasPage() {
   const handleSelectionChange = useCallback((ids: string[], bbox: { x: number; y: number; w: number; h: number } | null) => {
     setSelectedIds(ids);
     setSelectionBbox(bbox);
+    // Cambio selezione → azzera gruppo e tile singolo (onTileClick li ri-imposta
+    // subito dopo nel flusso di click singolo). Su click vuoto restano azzerati.
+    setSelectedGroupId(null);
+    setSelectedTileId(null);
+    setSelectedTextBoxId(null);
     // Auto-open sidebar on multi-selection so the bulk editor is immediately visible
     if (ids.length >= 2) setSidebarOpen(true);
   }, []);
@@ -574,23 +667,25 @@ export default function CanvasPage() {
     setSelectionBbox(null);
   }, []);
 
-  // Esc clears selection
+  // Esc clears selection (multi, gruppo, tile singolo, box)
   useEffect(() => {
-    if (selectedIds.length === 0) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [selectedIds.length, clearSelection]);
-
-  // Esc disarma le modalità di inserimento (+Tile / incolla copia).
-  useEffect(() => {
-    if (!tileMode && !copySource) return;
+    if (selectedIds.length === 0 && !selectedGroupId && !selectedTileId && !selectedTextBoxId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setTileMode(false); setCopySource(null); }
+      if (e.key === 'Escape') { clearSelection(); setSelectedGroupId(null); setSelectedTileId(null); setSelectedTextBoxId(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [tileMode, copySource]);
+  }, [selectedIds.length, selectedGroupId, selectedTileId, selectedTextBoxId, clearSelection]);
+
+  // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
+  useEffect(() => {
+    if (!tileMode && !clipboard && !pasteMenu) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { setTileMode(false); setClipboard(null); setPasteMenu(null); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [tileMode, clipboard, pasteMenu]);
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
@@ -624,10 +719,69 @@ export default function CanvasPage() {
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !ids.includes(nid)) }))
       .filter((g) => g.nodeIds.length >= 2);
-    ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
+    ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
     clearSelection();
   }, [selectedTileIds, selectedTextBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
+
+  // Modalità "Raggruppa a contorno": i tile catturati dal rettangolo formano
+  // subito un nuovo gruppo. Rimuove gli id dai gruppi esistenti (un tile sta in
+  // un solo gruppo) e scarta i gruppi rimasti con <2 tile.
+  const handleGroupTiles = useCallback((ids: string[]) => {
+    // Il pulsante Group si disattiva dopo ogni uso (come Tile/Text/Image).
+    setSelectMode(false);
+    if (ids.length < 2) return;
+    const idSet = new Set(ids);
+    const ng = canvasGroups
+      .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
+      .filter((g) => g.nodeIds.length >= 2);
+    ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
+    handleGroupsChange(ng);
+  }, [canvasGroups, handleGroupsChange]);
+
+  // Menu del gruppo (Rinomina / Elimina) + modale di rinomina in stile Obsidian.
+  const [groupCtx, setGroupCtx] = useState<{ x: number; y: number; groupId: string } | null>(null);
+  const [renameGroup, setRenameGroup] = useState<{ id: string; name: string } | null>(null);
+
+  const handleGroupClick = useCallback((groupId: string) => {
+    // Selezione esclusiva: un gruppo selezionato azzera selezione tile/box/multi.
+    setSelectedGroupId(groupId);
+    setSelectedTileId(null);
+    setSelectedTextBoxId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+    setSidebarOpen(true);
+  }, []);
+
+  // Click singolo su un box (testo/immagine): selezione esclusiva → solo contorno
+  // obsidian, nessun menu (i box non hanno sidebar né multi-menu da singoli).
+  const handleTextBoxClick = useCallback((id: string) => {
+    setSelectedTextBoxId(id);
+    setSelectedTileId(null);
+    setSelectedGroupId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+  }, []);
+
+  const handleGroupContextMenu = useCallback((e: { x: number; y: number; groupId: string }) => {
+    setGroupCtx(e);
+  }, []);
+
+  // Elimina il gruppo: rimuove SOLO il contenitore (i tile restano sul canvas,
+  // come "Ungroup" ma su tutto il gruppo).
+  const handleDeleteGroup = useCallback((groupId: string) => {
+    handleGroupsChange(canvasGroups.filter((g) => g.id !== groupId));
+    setSelectedGroupId((cur) => (cur === groupId ? null : cur));
+  }, [canvasGroups, handleGroupsChange]);
+
+  const handleRenameGroup = useCallback((groupId: string, name: string) => {
+    handleGroupsChange(canvasGroups.map((g) => g.id === groupId ? { ...g, label: name.trim() } : g));
+  }, [canvasGroups, handleGroupsChange]);
+
+  // Aggiorna proprietà del gruppo (nome/stile) in modo generico.
+  const handleUpdateGroup = useCallback((groupId: string, patch: Partial<CanvasGroup>) => {
+    handleGroupsChange(canvasGroups.map((g) => g.id === groupId ? { ...g, ...patch } : g));
+  }, [canvasGroups, handleGroupsChange]);
 
   // Tile context menu
   const [tileCtx, setTileCtx] = useState<{ x: number; y: number; tileId: string; inGroup: boolean } | null>(null);
@@ -658,17 +812,21 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tileCtx, tagId, queryClient]);
 
-  // "Copia": memorizza il tile sorgente ed entra in modalità posizionamento —
-  // la copia viene creata al click sul punto target (vedi handleAddTileAt),
-  // non automaticamente. Disattiva +Tile per evitare modalità in conflitto.
+  // "Copia": memorizza il tile negli appunti. L'incolla avviene col tasto
+  // destro sul punto target (menu "Incolla"), vedi handlePasteAt.
   const handleCopyTile = useCallback(() => {
     if (!tileCtx) return;
-    setCopySource(tileCtx.tileId);
-    setTileMode(false);
-    setTextMode(false);
-    setImageMode(false);
+    setClipboard({ kind: 'tile', id: tileCtx.tileId });
     setTileCtx(null);
   }, [tileCtx]);
+
+  // "Copia" per un box di testo/immagine → appunti.
+  const handleCopyBox = useCallback(() => {
+    if (!tbCtx) return;
+    const box = textBoxes.find((b) => b.id === tbCtx.textBoxId);
+    if (box) setClipboard({ kind: box.type, id: box.id });
+    setTbCtx(null);
+  }, [tbCtx, textBoxes]);
 
   return (
     <div className={`flex flex-col h-full flex-1 min-w-0`} style={{ background: theme.bg1 }}>
@@ -720,9 +878,11 @@ export default function CanvasPage() {
             textMode={textMode}
             tileMode={tileMode}
             imageMode={imageMode}
-            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setCopySource(null); }}
-            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setCopySource(null); }}
-            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setCopySource(null); }}
+            selectMode={selectMode}
+            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); }}
+            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); }}
+            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setSelectMode(false); }}
+            onToggleSelectMode={() => { setSelectMode((v) => !v); setTextMode(false); setTileMode(false); setImageMode(false); }}
             onFit={handleFit}
             onZoom100={handleZoom100}
             pinnedTags={pinnedTags}
@@ -740,7 +900,17 @@ export default function CanvasPage() {
           <div
             ref={canvasWrapperRef}
             className="flex-1 relative overflow-hidden"
-            style={{ cursor: (textMode || tileMode || imageMode || copySource) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode) ? 'crosshair' : undefined }}
+            // Disabilita il menu contestuale del browser su TUTTO il canvas.
+            // I menu di tile/box/edge partono dai loro handler D3 (che fanno
+            // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
+            // destro sullo SFONDO vuoto → menu "Incolla" (se ci sono appunti).
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (!clipboard) return;
+              const local = canvasScreenToLocalRef.current?.(e.clientX, e.clientY) ?? { x: e.clientX, y: e.clientY };
+              setPasteMenu({ x: e.clientX, y: e.clientY, localX: local.x, localY: local.y });
+            }}
             onDragOver={(e) => {
               // Allow drops only when a staging tile is being dragged.
               if (!e.dataTransfer.types.includes('text/x-canvas-tile-id')) return;
@@ -777,8 +947,16 @@ export default function CanvasPage() {
               moveEnabled={true}
               linkEnabled={true}
               textMode={textMode}
-              tileMode={tileMode || !!copySource}
+              tileMode={tileMode}
               imageMode={imageMode}
+              selectMode={selectMode}
+              onGroupTiles={handleGroupTiles}
+              onGroupContextMenu={handleGroupContextMenu}
+              onGroupClick={handleGroupClick}
+              selectedGroupId={selectedGroupId}
+              selectedTileId={selectedTileId}
+              selectedTextBoxId={selectedTextBoxId}
+              onTextBoxClick={handleTextBoxClick}
               onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
               onPositionChange={handlePositionChange}
@@ -787,16 +965,13 @@ export default function CanvasPage() {
               onEdgeContextMenu={handleEdgeContextMenu}
               onTileContextMenu={handleTileContextMenu}
               onTileClick={(id) => {
-                // Merge with cached tile to preserve sparks already fetched
-                const t = tiles.find((tile) => tile.id === id);
-                if (t) {
-                  const canvasTag = tag ? { id: tag.id, name: tag.name, tag_type: tag.tag_type } : null;
-                  const tileWithTag = { ...t, tags: canvasTag ? [canvasTag] : (t.tags || []) };
-                  queryClient.setQueryData(['tile-detail', id], (old: any) => ({
-                    data: { ...tileWithTag, sparks: old?.data?.sparks }
-                  }));
-                  queryClient.invalidateQueries({ queryKey: ['tile-detail', id] });
-                }
+                // La TileSidebar carica da sé il tile autorevole (`tile-detail`,
+                // con status/tipo/subtasks/description/sparks) via tileId.
+                // NIENTE overwrite ottimistico con la proiezione ridotta della
+                // lista canvas: sovrascriveva i dati completi lasciando la
+                // sidebar senza corrispondenza con il tile selezionato.
+                setSelectedGroupId(null);
+                setSelectedTextBoxId(null);
                 setSelectedTileId(id);
                 setSidebarOpen(true);
               }}
@@ -854,9 +1029,20 @@ export default function CanvasPage() {
           </div>
         </div>
 
-          {/* 5 — SIDEBAR DESTRA. MultiTileSidebar solo per multi-selezioni di SOLI tile (≥2);
-              le note (text box) non hanno proprietà strutturate da bulk-editare. */}
-          {selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
+          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo selezionato → MultiTileSidebar
+              (≥2 tile) → TileSidebar. Le note (text box) non hanno proprietà
+              strutturate da bulk-editare. */}
+          {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
+            <GroupSidebar
+              group={canvasGroups.find((g) => g.id === selectedGroupId)!}
+              tiles={tiles}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
+              onDelete={() => handleDeleteGroup(selectedGroupId)}
+              onSelectTile={(id) => { setSelectedGroupId(null); setSelectedTileId(id); setSidebarOpen(true); }}
+            />
+          ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar
               tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
               open={sidebarOpen}
@@ -1106,6 +1292,26 @@ export default function CanvasPage() {
                 }}
               >
                 <button
+                  onClick={handleCopyBox}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: theme.ink2,
+                    fontFamily: ('var(--ob-font-sans)'),
+                    fontSize: 12,
+                  }}
+                >
+                  <IconCopy size={14} />
+                  Copia
+                </button>
+                <button
                   onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }}
                   style={{
                     display: 'flex',
@@ -1123,12 +1329,181 @@ export default function CanvasPage() {
                   }}
                 >
                   <IconTrash size={14} />
-                  Delete
+                  Elimina
                 </button>
               </div>
             </>,
             document.body
           )}
+
+          {/* Paste context menu — tasto destro sullo sfondo con appunti attivi */}
+          {pasteMenu && createPortal(
+            <>
+              <div className="fixed inset-0 z-[9998]" onClick={() => setPasteMenu(null)} onContextMenu={(e) => { e.preventDefault(); setPasteMenu(null); }} />
+              <div
+                className="fixed"
+                style={{
+                  top: pasteMenu.y,
+                  left: pasteMenu.x,
+                  zIndex: 9999,
+                  width: 168,
+                  background: theme.surface,
+                  border: `1px solid ${theme.border}`,
+                  boxShadow: 'var(--ob-shadow-card)',
+                  borderRadius: 12,
+                  padding: 4,
+                }}
+              >
+                <button
+                  onClick={() => { handlePasteAt(pasteMenu.localX, pasteMenu.localY); setPasteMenu(null); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: theme.ink2,
+                    fontFamily: ('var(--ob-font-sans)'),
+                    fontSize: 12,
+                  }}
+                >
+                  <IconClipboard size={14} />
+                  Incolla {clipboard?.kind === 'tile' ? 'tile' : clipboard?.kind === 'image' ? 'immagine' : 'testo'}
+                </button>
+              </div>
+            </>,
+            document.body
+          )}
+
+          {/* Group context menu — click/tasto destro sulla zona del gruppo senza tile */}
+          {groupCtx && createPortal(
+            (() => {
+              const menuItem: React.CSSProperties = {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 10px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.ink2,
+                fontFamily: 'var(--ob-font-sans)',
+                fontSize: 12,
+              };
+              const group = canvasGroups.find((g) => g.id === groupCtx.groupId);
+              return (
+                <>
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setGroupCtx(null)} onContextMenu={(e) => { e.preventDefault(); setGroupCtx(null); }} />
+                  <div
+                    className="fixed"
+                    style={{
+                      top: groupCtx.y,
+                      left: groupCtx.x,
+                      zIndex: 9999,
+                      width: 184,
+                      background: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      boxShadow: 'var(--ob-shadow-card)',
+                      borderRadius: 12,
+                      padding: 4,
+                    }}
+                  >
+                    <button
+                      onClick={() => { setRenameGroup({ id: groupCtx.groupId, name: group?.label || '' }); setGroupCtx(null); }}
+                      style={menuItem}
+                    >
+                      <IconPencil size={14} />
+                      Rinomina gruppo
+                    </button>
+                    <button
+                      onClick={() => { handleDeleteGroup(groupCtx.groupId); setGroupCtx(null); }}
+                      style={{ ...menuItem, color: '#E24B4A' }}
+                    >
+                      <IconTrash size={14} />
+                      Elimina gruppo
+                    </button>
+                  </div>
+                </>
+              );
+            })(),
+            document.body
+          )}
+
+          {/* Rinomina gruppo — modale in stile Obsidian */}
+          <Modal
+            open={!!renameGroup}
+            onClose={() => setRenameGroup(null)}
+            title="Rinomina gruppo"
+            maxWidth={380}
+          >
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!renameGroup) return;
+                handleRenameGroup(renameGroup.id, renameGroup.name);
+                setRenameGroup(null);
+              }}
+              style={{ display: 'flex', flexDirection: 'column', gap: 16 }}
+            >
+              <input
+                autoFocus
+                value={renameGroup?.name ?? ''}
+                onChange={(e) => setRenameGroup((r) => r ? { ...r, name: e.target.value } : r)}
+                placeholder="Nome del gruppo"
+                style={{
+                  width: '100%',
+                  padding: '9px 12px',
+                  background: theme.bg1,
+                  border: `1px solid ${theme.border}`,
+                  borderRadius: 8,
+                  color: theme.ink,
+                  fontFamily: 'var(--ob-font-sans)',
+                  fontSize: 13,
+                  outline: 'none',
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setRenameGroup(null)}
+                  style={{
+                    padding: '8px 14px',
+                    background: 'transparent',
+                    border: `1px solid ${theme.border}`,
+                    borderRadius: 8,
+                    color: theme.ink2,
+                    fontFamily: 'var(--ob-font-sans)',
+                    fontSize: 12.5,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Annulla
+                </button>
+                <button
+                  type="submit"
+                  style={{
+                    padding: '8px 14px',
+                    background: theme.accent,
+                    border: `1px solid ${theme.accent}`,
+                    borderRadius: 8,
+                    color: theme.onAccent,
+                    fontFamily: 'var(--ob-font-sans)',
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Salva
+                </button>
+              </div>
+            </form>
+          </Modal>
 
           {/* Edge context menu */}
           {edgeCtx && createPortal(
@@ -1180,9 +1555,11 @@ export default function CanvasPage() {
             textMode={false}
             tileMode={false}
             imageMode={false}
+            selectMode={false}
             onToggleTextMode={() => {}}
             onToggleTileMode={() => {}}
             onToggleImageMode={() => {}}
+            onToggleSelectMode={() => {}}
             onFit={() => {}}
             onZoom100={() => {}}
             pinnedTags={pinnedTags}

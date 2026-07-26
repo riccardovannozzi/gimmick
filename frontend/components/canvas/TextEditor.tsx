@@ -9,7 +9,9 @@ import { cn } from '@/lib/utils';
 interface TextEditorProps {
   initialHtml: string;
   onChange: (html: string) => void;
-  autoFocus?: boolean;
+  /** true = inserimento testo attivo (editable + focus); false = sola lettura
+   *  (la casella è in modalità "sposta", gestita dal gruppo D3 sottostante). */
+  editing?: boolean;
 }
 
 /**
@@ -17,7 +19,7 @@ interface TextEditorProps {
  * Mounted via ReactDOM.createRoot() inside a foreignObject by CanvasBoard.
  * BubbleMenu appears above selection with B/I/H/list/code/quote.
  */
-export function TextEditor({ initialHtml, onChange, autoFocus = false }: TextEditorProps) {
+export function TextEditor({ initialHtml, onChange, editing = false }: TextEditorProps) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -25,6 +27,7 @@ export function TextEditor({ initialHtml, onChange, autoFocus = false }: TextEdi
       }),
     ],
     content: initialHtml || '',
+    editable: editing,
     editorProps: {
       attributes: {
         class: 'tiptap-canvas focus:outline-none w-full h-full overflow-auto',
@@ -37,11 +40,13 @@ export function TextEditor({ initialHtml, onChange, autoFocus = false }: TextEdi
     immediatelyRender: false,
   });
 
+  // Sincronizza editable con lo stato di editing e, quando si entra, porta il
+  // focus in coda al testo.
   useEffect(() => {
-    if (autoFocus && editor) {
-      editor.commands.focus('end');
-    }
-  }, [autoFocus, editor]);
+    if (!editor) return;
+    editor.setEditable(editing);
+    if (editing) editor.commands.focus('end');
+  }, [editing, editor]);
 
   if (!editor) return null;
 
@@ -53,7 +58,7 @@ export function TextEditor({ initialHtml, onChange, autoFocus = false }: TextEdi
     <>
       <BubbleMenu
         editor={editor}
-        className="flex items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-white/10 shadow-xl"
+        className="tiptap-bubble flex items-center gap-1 p-1 rounded-lg bg-zinc-900 border border-white/10 shadow-xl"
       >
         <button
           type="button"

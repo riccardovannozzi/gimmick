@@ -35,13 +35,25 @@ import {
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
-import type { Tile } from '@/types';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta } from '@/lib/status-meta';
+import type { Status, Tile } from '@/types';
+
+/** Status del tile reso come swatch (forma) nella meta-row della card.
+ *  'active' è lo stato di default/prevalente → non si segnala. */
+function cardStatus(t: Tile, statusById: Map<string, Status>) {
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
+  if (!st || st.name === 'active') return undefined;
+  const meta = statusMeta(st.name);
+  return { label: meta.label, color: meta.color, shape: st.shape };
+}
 
 /** Stato del menu contestuale (tasto destro). `slot` presente → la tile è un
  *  evento timed del calendario: "Incolla" schedula lì la copia. */
@@ -88,7 +100,8 @@ function deriveTitle(t: Tile): string {
   return 'Senza titolo';
 }
 
-function toColTile(t: Tile): ColTile {
+function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: string) => { icon: string; color?: string } | null): ColTile {
+  const ti = iconOf(t.id);
   const isTodo = t.action_type === 'anytime';
   const sp = t.sparks?.[0];
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
@@ -100,6 +113,10 @@ function toColTile(t: Tile): ColTile {
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,
+    done: !!t.is_completed,
+    status: cardStatus(t, statusById),
+    type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+    sparkCount: (t.sparks ?? []).length,
   };
 }
 
@@ -138,7 +155,9 @@ export function ChronoLive() {
   const [weekOffset, setWeekOffset] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   // Vista calendario persistita (init 'week' per evitare mismatch di idratazione).
-  useEffect(() => {
+  // Ripristino in layout-effect: gira prima del paint, così il default 'week'
+  // non viene mai disegnato e il segmented non "salta" al rimonto della vista.
+  useIsomorphicLayoutEffect(() => {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-cal-view') : null;
     if (s === 'day' || s === '3day' || s === 'week' || s === 'month') setViewState(s);
   }, []);
@@ -153,6 +172,8 @@ export function ChronoLive() {
   const copyTile = useTileClipboardStore((s) => s.copy);
   const openFlow = useFlowOpenStore((s) => s.open);
   const tilesWithFlows = useTilesWithFlows();
+  const { statuses } = useStatuses();
+  const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const [menu, setMenu] = useState<ChronoMenu | null>(null);
   // Modalità "posiziona tile": armata dal pulsante +Tile, attiva il click-to-create
   // sugli slot vuoti della griglia.
@@ -161,9 +182,9 @@ export function ChronoLive() {
   // Colorazione dei tile: per Tag (colore del tag_type) o per Tipo (type-icon).
   // Persistita in localStorage; init 'tag' per evitare mismatch di idratazione.
   const [colorMode, setColorMode] = useState<ChronoColorMode>('tag');
-  useEffect(() => {
+  useIsomorphicLayoutEffect(() => {
     const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
-    if (s === 'tag' || s === 'type') setColorMode(s);
+    if (s === 'tag' || s === 'type' || s === 'status') setColorMode(s);
   }, []);
   const selectColorMode = useCallback((m: ChronoColorMode) => {
     setColorMode(m);
@@ -181,10 +202,15 @@ export function ChronoLive() {
     if (colorMode === 'type') {
       return getIconForTile(t.id)?.color ?? undefined;
     }
+    if (colorMode === 'status') {
+      const st = t.status_id ? statusById.get(t.status_id) : undefined;
+      // 'active' è il default → nessuna colorazione (non si segnala).
+      return st && st.name !== 'active' ? statusMeta(st.name).hex : undefined;
+    }
     const tag = t.tags?.find((tg) => !tg.is_root);
     return tag?.tag_type ? (getTagTypeColor(tag.tag_type) ?? undefined) : undefined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons]);
+  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons, statusById]);
 
   // Numero di colonne-giorno per la vista corrente (month gestito a parte).
   const dayCount = view === 'day' ? 1 : view === '3day' ? 3 : 7;
@@ -239,12 +265,12 @@ export function ChronoLive() {
   const allTiles = useMemo<Tile[]>(() => allTilesData?.data ?? [], [allTilesData]);
 
   const notes = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
-    [allTiles, colorOf],
+    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById, getIconForTile],
   );
   const todos = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t), bg: colorOf(t) })),
-    [allTiles, colorOf],
+    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById, getIconForTile],
   );
 
   // dayIndex (0 = prima colonna) + frazione d'ora → ISO assoluto nel periodo mostrato.
@@ -541,17 +567,27 @@ export function ChronoLive() {
       const day = dayIndexFrom(refIso, gridStart);
       if (day < 0 || day >= dayCount) continue;
       if (isAllDay) {
+        const ti = getIconForTile(t.id);
         allday.push({
           day,
           title: t.title || 'Senza titolo',
           kind: t.action_type === 'deadline' ? 'deadline' : 'allday',
           id: t.id,
           color: colorOf(t),
+          done: !!t.is_completed,
+          type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+          status: cardStatus(t, statusById),
         });
       } else {
         const s = frac(refIso);
         const e = t.end_at ? frac(t.end_at) : s + 1;
-        timed.push({ day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id, color: colorOf(t) });
+        const ti = getIconForTile(t.id);
+        timed.push({
+          day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id,
+          color: colorOf(t), done: !!t.is_completed,
+          type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+          status: cardStatus(t, statusById),
+        });
       }
     }
 
@@ -571,6 +607,7 @@ export function ChronoLive() {
             title: t.title || 'Senza titolo',
             kind: t.action_type === 'deadline' ? 'deadline' : t.all_day ? 'allday' : 'timed',
             color: colorOf(t),
+            done: !!t.is_completed,
           }));
         return { key, num: d.getDate(), inMonth: d.getMonth() === monthInfo.first.getMonth(), isToday: key === todayK, events: cellEvents };
       });
@@ -616,7 +653,7 @@ export function ChronoLive() {
       onDblCreateAt: addArmed ? undefined : handleCreateAt,
       onDblCreateAllDay: addArmed ? undefined : handleDblCreateAllDay,
     };
-  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf]);
+  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf, statusById, getIconForTile]);
 
   if (isLoading) {
     return (

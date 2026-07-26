@@ -100,6 +100,36 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     for (const path of Object.values(VIEW_TO_PATH)) router.prefetch(path);
   }, [router]);
 
+  // Prefetch dei DATI di TUTTE le viste quando il browser è inattivo. L'hover
+  // sul tab copriva solo il mouse (e solo se ci passavi sopra abbastanza): al
+  // clic diretto la vista montava e restava ad aspettare la rete. Scaldando la
+  // cache a idle, il cambio vista trova i dati già pronti. Le viste diverse da
+  // quella corrente vengono scaldate in coda, una per callback di idle, per non
+  // competere con il rendering della vista attiva.
+  React.useEffect(() => {
+    const others = (Object.keys(VIEW_TO_PATH) as ViewId[]).filter((v) => v !== activeView);
+    let cancelled = false;
+    type IdleWindow = Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+    };
+    const w = window as IdleWindow;
+    const schedule = (cb: () => void) =>
+      w.requestIdleCallback ? w.requestIdleCallback(cb, { timeout: 2000 }) : window.setTimeout(cb, 300);
+
+    const next = (i: number) => {
+      if (cancelled || i >= others.length) return;
+      schedule(() => {
+        if (cancelled) return;
+        prefetchView(queryClient, others[i]);
+        next(i + 1);
+      });
+    };
+    next(0);
+    return () => { cancelled = true; };
+    // Si rilancia al cambio vista: la nuova "corrente" esce dalla coda e le
+    // altre restano calde.
+  }, [activeView, queryClient]);
+
   const handleViewChange = React.useCallback((v: ViewId) => {
     if (v === activeView) return;
     setOptimisticView(v); // feedback immediato sul tab
@@ -126,17 +156,24 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
   }, [queryClient]);
 
+  // Sposta un tag in Storage (archivia) o lo ripristina in Tags, con
+  // aggiornamento ottimistico della cache ['tags']. Archiviare un tag lo
+  // rimuove anche dai pinnati (uno stato archiviato non ha senso "in evidenza").
+  const handleToggleArchive = React.useCallback((tagId: string, archived: boolean) => {
+    queryClient.setQueryData(['tags'], (old: { data?: Tag[] } | undefined) => {
+      if (!old?.data) return old;
+      return { ...old, data: old.data.map((t) => (t.id === tagId ? { ...t, is_archived: archived, is_pinned: archived ? false : t.is_pinned } : t)) };
+    });
+    const updates = archived ? { is_archived: true, is_pinned: false } : { is_archived: false };
+    tagsApi.update(tagId, updates)
+      .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
+  }, [queryClient]);
+
   // Apri il tag nel Canvas (con navigazione ottimistica come i tab).
   const handleOpenCanvas = React.useCallback((tagId: string) => {
     setOptimisticView('canvas');
     startTransition(() => router.push(`/canvas?tag=${tagId}`));
   }, [router]);
-
-  // Conteggio pinnati per l'etichetta del segmento.
-  const pinnedCount = React.useMemo(
-    () => ((tagsData?.data ?? []) as Tag[]).filter((t) => t.is_pinned && !t.is_root).length,
-    [tagsData],
-  );
 
   // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
   // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
@@ -166,11 +203,19 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
           groups={groups}
           count={count}
           activeChildId={activeChildId}
-          onSelectChild={(id) => selectOnly(id)}
+          onSelectChild={(id) => {
+            selectOnly(id);
+            // In Canvas il click sul tag apre direttamente la sua lavagna
+            // (senza dover usare l'icona "Apri nel Canvas"). Nelle altre viste
+            // resta una semplice selezione/filtro.
+            if (activeView === 'canvas') handleOpenCanvas(id);
+          }}
           filter={tagFilter}
           onFilterChange={setTagFilter}
-          pinnedLabel={pinnedCount > 0 ? `Pinned · ${pinnedCount}` : 'Pinned'}
+          pinnedLabel="Pinned"
+          storageLabel="Storage"
           onTogglePin={handleTogglePin}
+          onToggleArchive={handleToggleArchive}
           onOpenCanvas={handleOpenCanvas}
         />
       }

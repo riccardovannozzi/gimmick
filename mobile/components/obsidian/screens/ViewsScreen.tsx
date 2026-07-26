@@ -14,12 +14,19 @@ import {
   IconDeviceMobileVibration, IconBell, IconWorld, IconSparkles,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import type { ObTileVM, ObTileGroup, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
 import type { FlowHubFilter } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
-import { ObsidianTopNav, type MobileViewId } from '../TopNav';
+import { ObsidianAppHeader } from '../AppHeader';
+import { ObsidianDrawer } from '../Drawer';
+import type { MobileViewId } from '../TopNav';
+
+/** Etichetta mostrata al centro dell'header per la vista attiva. */
+const VIEW_LABEL: Record<MobileViewId, string> = {
+  tiles: 'Tiles', flows: 'Flows', chrono: 'Chrono', settings: 'Settings',
+};
 
 // ─── Shared atoms ─────────────────────────────────────────────────────────────
 function Toggle({ c, value, onValueChange }: { c: ObsidianColors; value: boolean; onValueChange?: (v: boolean) => void }) {
@@ -35,7 +42,7 @@ function Segmented<T extends string>({ c, value, onChange, items }: { c: Obsidia
       {items.map((it) => {
         const on = it.value === value;
         return (
-          <Pressable key={it.value} onPress={() => onChange?.(it.value)} style={{ flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 7, backgroundColor: on ? c.accentSoft : 'transparent' }}>
+          <Pressable key={it.value} onPress={() => onChange?.(it.value)} style={{ flex: 1, alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 7, backgroundColor: on ? c.accentSoft : 'transparent' }}>
             <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{it.label}</Text>
           </Pressable>
         );
@@ -278,11 +285,12 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, onPrev, onNext, 
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 type ThemeMode = 'light' | 'dark' | 'system';
-function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confirmProp, onConfirmDelete, theme: themeProp, onTheme }: {
+function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confirmProp, onConfirmDelete, theme: themeProp, onTheme, account }: {
   c: ObsidianColors;
   haptic?: boolean; onHaptic?: (v: boolean) => void;
   confirmDelete?: boolean; onConfirmDelete?: (v: boolean) => void;
   theme?: ThemeMode; onTheme?: (v: ThemeMode) => void;
+  account?: { email?: string | null; onSignIn?: () => void; onSignOut?: () => void };
 }) {
   // Controlled when a setter is provided (live), otherwise local state (mock).
   const [hapticState, setHapticState] = React.useState(true);
@@ -320,8 +328,39 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
     </View>
   );
 
+  // Account section. The app has no auth guard on the root layout, so an
+  // unauthenticated session lands straight on the tabs with every list silently
+  // empty — this is the only way back to the login screen.
+  const AccountSection = !account ? null : (
+    <>
+      <SectionHead>ACCOUNT</SectionHead>
+      {account.email ? (
+        <View style={{ gap: 9 }}>
+          <Row Icon={IconUser} label={account.email} sub="Connesso" control={<View />} />
+          <Pressable
+            onPress={account.onSignOut}
+            style={({ pressed }) => ({ alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, opacity: pressed ? 0.75 : 1 })}
+          >
+            <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.deadline }}>Esci</Text>
+          </Pressable>
+        </View>
+      ) : (
+        <View style={{ gap: 9 }}>
+          <Row Icon={IconAlertCircle} label="Non hai effettuato l'accesso" sub="Senza login le liste restano vuote" control={<View />} />
+          <Pressable
+            onPress={account.onSignIn}
+            style={({ pressed }) => ({ alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.accent, opacity: pressed ? 0.85 : 1 })}
+          >
+            <Text style={{ fontSize: 13.5, fontWeight: '700', color: '#fff' }}>Accedi</Text>
+          </Pressable>
+        </View>
+      )}
+    </>
+  );
+
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 24 }}>
+      {AccountSection}
       <View style={{ gap: 9 }}>
         <Row Icon={IconDeviceMobileVibration} label="Feedback aptico" sub="Vibrazione su cattura e invio" control={<Toggle c={c} value={haptic} onValueChange={setHaptic} />} />
         <Row Icon={IconTrash} label="Conferma eliminazione" control={<Toggle c={c} value={confirmDelete} onValueChange={setConfirmDelete} />} />
@@ -374,6 +413,25 @@ export interface ObsidianViewsScreenProps {
   onConfirmDelete?: (v: boolean) => void;
   themeMode?: ThemeMode;
   onThemeMode?: (v: ThemeMode) => void;
+  /** Message from a failed query for the active tab. Rendered as a banner so a
+   *  broken fetch can't masquerade as an empty list. */
+  errorText?: string | null;
+  /** Settings tab — account row + sign in/out. Omit for the mock. */
+  account?: { email?: string | null; onSignIn?: () => void; onSignOut?: () => void };
+  /** Home button (nel Drawer) → the Capture screen. Falls back to the Tiles tab. */
+  onHome?: () => void;
+  onBack?: () => void;
+  /** Cerchio "Ask Gimmick" a destra nell'header → apre la chat. */
+  onAsk?: () => void;
+}
+
+function ErrorBanner({ c, text }: { c: ObsidianColors; text: string }) {
+  return (
+    <View style={{ marginHorizontal: 16, marginTop: 10, padding: 11, borderRadius: 11, backgroundColor: c.deadline + (c.dark ? '22' : '14'), borderWidth: 1, borderColor: c.deadline + (c.dark ? '3a' : '30'), flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+      <IconAlertCircle size={15} color={c.deadline} strokeWidth={1.9} style={{ marginTop: 1 }} />
+      <Text style={{ flex: 1, fontSize: 12.5, lineHeight: 17, color: c.text }}>{text}</Text>
+    </View>
+  );
 }
 
 export function ObsidianViewsScreen({
@@ -383,21 +441,39 @@ export function ObsidianViewsScreen({
   chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday,
   onChronoPrev, onChronoNext, onChronoToday, onOpenEvent,
   haptic, onHaptic, confirmDelete, onConfirmDelete, themeMode, onThemeMode,
+  errorText, account, onHome, onAsk,
 }: ObsidianViewsScreenProps = {}) {
   const c = useObsidian();
   const [activeState, setActiveState] = React.useState<MobileViewId>(initial);
+  const [drawer, setDrawer] = React.useState(false);
   const active = activeProp ?? activeState;
   const setActive = (v: MobileViewId) => { onActiveChange?.(v); if (activeProp === undefined) setActiveState(v); };
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
-      <ObsidianTopNav active={active} onNavigate={setActive} onHome={() => setActive('tiles')} />
-      {active === 'tiles' && <TilesContent c={c} groups={tileGroups} loading={tilesLoading} onOpenTile={onOpenTile} />}
+      {/* Stessa navbar della Capture: hamburger (Drawer) · dropdown vista · Ask. */}
+      <ObsidianAppHeader
+        title={VIEW_LABEL[active]}
+        onMenu={() => setDrawer(true)}
+        onNavigateView={setActive}
+        onAsk={onAsk}
+      />
+      {errorText ? <ErrorBanner c={c} text={errorText} /> : null}
+      {active === 'tiles' &&<TilesContent c={c} groups={tileGroups} loading={tilesLoading} onOpenTile={onOpenTile} />}
       {active === 'flows' && <FlowsContent c={c} flows={flows} loading={flowsLoading} active={flowFilter} onFilter={onFlowFilter} onOpenFlow={onOpenFlow} />}
       {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onOpenEvent={onOpenEvent} />}
-      {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} />}
+      {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
       <ObsidianNavPill />
+
+      {/* Drawer: viste + Cattura (Home) + Impostazioni. */}
+      <ObsidianDrawer
+        open={drawer}
+        onClose={() => setDrawer(false)}
+        onNavigateView={setActive}
+        onSettings={() => setActive('settings')}
+        onHome={onHome}
+      />
     </View>
   );
 }

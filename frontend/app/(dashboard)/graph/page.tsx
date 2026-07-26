@@ -23,7 +23,7 @@ type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'te
 const filterConfig: { key: FilterKey; label: string }[] = [
   { key: 'tiles', label: 'Tiles' },
   { key: 'photo', label: 'Foto' },
-  { key: 'image', label: 'Galleria' },
+  { key: 'image', label: 'Image' },
   { key: 'video', label: 'Video' },
   { key: 'audio_recording', label: 'Voce' },
   { key: 'text', label: 'Testo' },

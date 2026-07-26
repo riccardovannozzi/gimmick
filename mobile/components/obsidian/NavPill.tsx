@@ -15,8 +15,10 @@ export function ObsidianNavPill() {
   return (
     <View
       style={{
-        height: 24,
-        paddingBottom: insets.bottom ? insets.bottom - 8 : 0,
+        // Inset di sistema PIENO + margine extra, così sopra i pulsanti/gesture
+        // bar di Android resta sempre spazio (prima sottraeva 8 e li toccava).
+        height: 40,
+        paddingBottom: (insets.bottom || 0) + 12,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: c.canvas,

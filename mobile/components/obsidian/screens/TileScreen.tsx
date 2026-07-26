@@ -14,7 +14,7 @@ import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import type { Tile, Spark } from '@/types';
 import { formatDuration } from '@/utils/formatters';
 import { ObsidianStatusBar } from '../StatusBar';
@@ -46,7 +46,7 @@ const WHEN = [
 const CAPS: Array<{ key: string; label: string; color: (c: ObsidianColors) => string; Icon: typeof IconCamera }> = [
   { key: 'photo', label: 'Photo', color: (c) => c.cap.photo, Icon: IconCamera },
   { key: 'video', label: 'Video', color: (c) => c.cap.video, Icon: IconVideo },
-  { key: 'gallery', label: 'Gallery', color: (c) => c.cap.gallery, Icon: IconPhoto },
+  { key: 'gallery', label: 'Image', color: (c) => c.cap.gallery, Icon: IconPhoto },
   { key: 'text', label: 'Text', color: (c) => c.cap.text, Icon: IconAlignLeft },
   { key: 'voice', label: 'Voice', color: (c) => c.cap.voice, Icon: IconMicrophone },
   { key: 'file', label: 'File', color: (c) => c.cap.file, Icon: IconPaperclip },
@@ -103,7 +103,7 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
   const ActionBtn = ({ id, label, Icon }: { id: 'note' | 'todo'; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
     return (
-      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 11, borderRadius: 10, backgroundColor: on ? c.accentSoft : c.field, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
+      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: OB_BTN_H, borderRadius: 10, backgroundColor: on ? c.accentSoft : c.field, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
         <Icon size={15} color={on ? c.accent : c.muted} strokeWidth={1.8} />
         <Text style={{ fontSize: 13.5, fontWeight: '500', color: on ? c.accent : c.text }}>{label}</Text>
       </Pressable>
@@ -143,7 +143,7 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
           {WHEN.map((w) => {
             const on = when === w.id;
             return (
-              <Pressable key={w.id} onPress={() => setWhen(w.id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 9, borderRadius: 8, backgroundColor: on ? c.accentSoft : 'transparent' }}>
+              <Pressable key={w.id} onPress={() => setWhen(w.id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 8, backgroundColor: on ? c.accentSoft : 'transparent' }}>
                 <w.Icon size={13} color={on ? c.accent : c.muted} strokeWidth={1.8} />
                 <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{w.label}</Text>
               </Pressable>
@@ -231,10 +231,10 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
 
       {/* Save bar */}
       <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: c.line }}>
-        <Pressable onPress={onBack} style={{ flex: 1, height: 46, borderRadius: 12, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable onPress={onBack} style={{ flex: 1, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 14, fontWeight: '600', color: c.muted }}>Annulla</Text>
         </Pressable>
-        <Pressable style={{ flex: 2, height: 46, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <Pressable style={{ flex: 2, minHeight: OB_BTN_H, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 14, fontWeight: '600', color: c.accentInk }}>Salva</Text>
         </Pressable>
       </View>

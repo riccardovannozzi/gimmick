@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox, IconSearch, IconWand, IconCheck } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox, IconSearch, IconWand } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -14,6 +14,8 @@ import { resolveCaptureStyle } from '@/lib/pixel-theme';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
+import { useStatuses } from '@/store/statuses-store';
+import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
@@ -21,6 +23,7 @@ import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
 import { MarkdownPreview } from '@/components/markdown/markdown-preview';
 import { MarkdownEditorModal } from '@/components/markdown/markdown-editor-modal';
+import { CameraCapture, type CaptureMode, type CapturedMedia } from '@/components/capture/CameraCapture';
 import type { Tile, Spark } from '@/types';
 
 function toLocalInput(iso: string): string {
@@ -51,13 +54,14 @@ type PT = ReturnType<typeof usePixelTheme>;
 function obLabel(theme: PT): React.CSSProperties {
   return {
     fontFamily: 'var(--ob-font-mono)',
-    fontSize: 10.5,
+    fontSize: 8,
     fontWeight: 700,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: theme.ink3,
     display: 'block',
-    marginBottom: 6,
+    lineHeight: 1.1,
+    marginBottom: 3,
   };
 }
 
@@ -162,7 +166,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Seleziona tipo...</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Type</span>
         )}
         {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
@@ -220,6 +224,139 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 {selected && (
                   <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                 )}
+              </button>
+            );
+          })}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+
+/** Selettore STATUS del tile — dropdown/popup nello stile di TypeIconPicker. */
+/** Swatch "default" per lo status prevalente (active): una sfumatura neutra
+ *  leggerissima, senza bordo — così nel picker non sembra un badge vero e
+ *  proprio (che sui tile non viene mai mostrato per gli attivi). */
+function DefaultSwatch({ size = 18 }: { size?: number }) {
+  return (
+    <span
+      aria-hidden
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 4,
+        flexShrink: 0,
+        display: 'inline-block',
+        background: 'linear-gradient(135deg, color-mix(in srgb, var(--ob-muted) 16%, transparent), color-mix(in srgb, var(--ob-muted) 4%, transparent))',
+      }}
+    />
+  );
+}
+
+/** Rappresentazione visiva dello status nel picker, coerente con la colonna del
+ *  tile: icona colorata (done→pallino, pausa, bloccato→lucchetto) oppure testo
+ *  (cancelled→DELETE). 'active' = swatch neutro. Legge dalla config `statusGlyph`. */
+function StatusGlyphView({ name, size = 18 }: { name: string; size?: number }) {
+  const meta = statusMeta(name);
+  const glyph = statusGlyph(name);
+  const box: React.CSSProperties = { width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
+  if (glyph.kind === 'none') return <DefaultSwatch size={size} />;
+  if (glyph.kind === 'dot') return <span style={box}><span style={{ width: size * 0.44, height: size * 0.44, borderRadius: '50%', background: meta.hex }} /></span>;
+  if (glyph.kind === 'text') return <span style={{ ...box, width: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: meta.hex }}>{glyph.text}</span>;
+  const Icon = AllIcons[glyph.icon];
+  return <span style={box}>{Icon ? <Icon size={Math.round(size * 0.72)} color={meta.hex} /> : null}</span>;
+}
+
+function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string) => void }) {
+  const theme = usePixelTheme();
+  const { statuses } = useStatuses();
+  const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropRef = useRef<HTMLDivElement>(null);
+  const [dropPos, setDropPos] = useState<{ top: number; left: number; width: number } | null>(null);
+
+  const current = statuses.find((s) => s.id === value) || null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setDropPos({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    const handler = (e: MouseEvent) => {
+      if (triggerRef.current?.contains(e.target as Node)) return;
+      if (dropRef.current?.contains(e.target as Node)) return;
+      setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  if (statuses.length === 0) return null;
+
+  const labelStyle = obLabel(theme);
+  const popupItem = (active: boolean): React.CSSProperties => obPopupRow(theme, active);
+  const currentMeta = current ? statusMeta(current.name) : null;
+  const check = (
+    <svg width={12} height={12} style={{ color: theme.accent, flexShrink: 0 }} viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+  );
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <label style={labelStyle}>{'Status'}</label>
+      <button
+        ref={triggerRef}
+        onClick={() => setOpen(!open)}
+        style={{
+          ...obField(theme),
+          width: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.surface})` : theme.surface,
+          padding: '0 10px',
+          height: 36,
+          cursor: 'pointer',
+          textAlign: 'left',
+        }}
+      >
+        {current && currentMeta ? (
+          <>
+            <StatusGlyphView name={current.name} size={18} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
+          </>
+        ) : (
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Status</span>
+        )}
+        <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />
+      </button>
+      {open && dropPos && createPortal(
+        <div
+          ref={dropRef}
+          className="fixed"
+          style={{
+            top: dropPos.top,
+            left: dropPos.left,
+            width: dropPos.width,
+            zIndex: 9999,
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 12,
+            boxShadow: 'var(--ob-shadow-card)',
+            padding: 4,
+            maxHeight: 240,
+            overflowY: 'auto',
+          }}
+        >
+          {statuses.map((s) => {
+            const meta = statusMeta(s.name);
+            const selected = value === s.id;
+            return (
+              <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }} style={popupItem(selected)}>
+                <StatusGlyphView name={s.name} size={18} />
+                <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</span>
+                {selected && check}
               </button>
             );
           })}
@@ -1011,6 +1148,9 @@ export function TileSidebar({
   const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const actionColors = useActionColors();
+  // "Completato" ha come UNICA fonte di verità il menu a discesa status
+  // (status_id = riga di sistema 'done'). Non c'è più il toggle sul titolo.
+  const { doneStatusId } = useStatuses();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -1127,7 +1267,14 @@ export function TileSidebar({
       const mime = file.type;
       let sparkType: string = 'file';
       let folder = 'files';
-      if (mime.startsWith('image/')) { sparkType = 'photo'; folder = 'photos'; }
+      // Import da file → 'image', mai 'photo'. La distinzione è semantica e non
+      // cosmetica: 'photo' significa "catturata ora dal dispositivo", quindi con
+      // timestamp attendibile; 'image' significa "contenuto preesistente, data di
+      // creazione ignota". Un file scelto dal picker è per definizione il
+      // secondo caso — marcarlo 'photo' sarebbe un'affermazione falsa, e
+      // porterebbe fuori strada un'eventuale estrazione date sulle immagini.
+      // La cattura da webcam (che produrrà 'photo') arriva in un passo separato.
+      if (mime.startsWith('image/')) { sparkType = 'image'; folder = 'photos'; }
       else if (mime.startsWith('video/')) { sparkType = 'video'; folder = 'videos'; }
       else if (mime.startsWith('audio/')) { sparkType = 'audio_recording'; folder = 'audio'; }
       try {
@@ -1148,6 +1295,40 @@ export function TileSidebar({
     }
     invalidateAll();
   }, [tileId, invalidateAll]);
+
+  // `null` = modale chiusa; altrimenti è anche la modalità di cattura attiva.
+  const [cameraMode, setCameraMode] = useState<CaptureMode | null>(null);
+
+  /**
+   * Salva una cattura da webcam. Non passa da `handleFileSelect` di proposito:
+   * quello deriva il tipo dal MIME e marcherebbe uno scatto come 'image', cioè
+   * "contenuto preesistente". Qui sappiamo che il contenuto è stato creato
+   * adesso, quindi scriviamo il tipo esplicitamente.
+   */
+  const handleCameraCapture = useCallback(async ({ file, duration }: CapturedMedia) => {
+    if (!tileId || !cameraMode) return;
+    const isVideo = cameraMode === 'video';
+    try {
+      const uploadRes = await uploadApi.uploadFile(file, isVideo ? 'videos' : 'photos');
+      if (!uploadRes.data) throw new Error('Upload failed');
+      await sparksApi.create({
+        tile_id: tileId,
+        type: isVideo ? 'video' : 'photo',
+        storage_path: uploadRes.data.path,
+        file_name: uploadRes.data.file_name,
+        mime_type: uploadRes.data.mime_type,
+        file_size: uploadRes.data.file_size,
+        ...(duration ? { duration } : {}),
+      });
+      toast.success(isVideo ? 'Video aggiunto' : 'Foto aggiunta');
+      setCameraMode(null);
+      invalidateAll();
+    } catch {
+      // La modale resta aperta: la cattura è ancora in anteprima e si può
+      // ritentare l'upload senza rifarla.
+      toast.error('Errore upload');
+    }
+  }, [tileId, cameraMode, invalidateAll]);
 
   const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
@@ -1279,49 +1460,32 @@ export function TileSidebar({
               <div>
                 <label style={labelStyle}>{'Titolo'}</label>
                 <div style={{ position: 'relative' }}>
-                  <textarea
-                    value={editTitle}
-                    onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
-                    onBlur={saveTitle}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
-                    rows={2}
-                    style={{
-                      ...obField(theme),
-                      display: 'block',
-                      width: '100%',
-                      padding: '8px 36px 8px 10px',
-                      lineHeight: '20px',
-                      outline: 'none',
-                      resize: 'none',
-                      textDecoration: tile.is_completed ? 'line-through' : 'none',
-                      color: tile.is_completed ? theme.ink3 : theme.ink,
-                    }}
-                    placeholder={'Titolo…'}
-                  />
-                  {/* Overlay COMPLETATO: check vuoto/verde in basso a destra. */}
-                  <button
-                    type="button"
-                    onClick={() => updateTileMutation.mutate({ is_completed: !tile.is_completed })}
-                    title={tile.is_completed ? 'Segna come da completare' : 'Segna come completato'}
-                    aria-pressed={!!tile.is_completed}
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      bottom: 8,
-                      width: 20,
-                      height: 20,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: tile.is_completed ? 'var(--ob-success)' : 'transparent',
-                      border: `1.5px solid ${tile.is_completed ? 'var(--ob-success)' : theme.ink3}`,
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    {tile.is_completed && <IconCheck size={13} color="#fff" stroke={3} />}
-                  </button>
+                  {(() => {
+                    // "Completato" deriva SOLO dallo status (menu a discesa),
+                    // non più da un toggle sul titolo.
+                    const isDone = !!doneStatusId && tile.status_id === doneStatusId;
+                    return (
+                      <textarea
+                        value={editTitle}
+                        onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
+                        onBlur={saveTitle}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
+                        rows={2}
+                        style={{
+                          ...obField(theme),
+                          display: 'block',
+                          width: '100%',
+                          padding: '8px 10px',
+                          lineHeight: '20px',
+                          outline: 'none',
+                          resize: 'none',
+                          textDecoration: isDone ? 'line-through' : 'none',
+                          color: isDone ? theme.ink3 : theme.ink,
+                        }}
+                        placeholder={'Titolo…'}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
 
@@ -1559,6 +1723,12 @@ export function TileSidebar({
               {/* Type Icon */}
               <TypeIconPicker tileId={tile.id} />
 
+              {/* Status */}
+              <StatusPicker
+                value={tile.status_id ?? null}
+                onChange={(statusId) => updateTileMutation.mutate({ status_id: statusId })}
+              />
+
               <div style={{ borderTop: `1px solid ${theme.border}` }} />
 
               <div>
@@ -1576,9 +1746,15 @@ export function TileSidebar({
                   }}
                 >
                   {[
-                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: 'image/*' },
-                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: 'video/*' },
-                    { id: 'gallery', label: 'Gallery', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    // Due canali immagine con significati distinti e veri:
+                    // Photo apre la webcam e produce spark 'photo' (catturata
+                    // ora, timestamp attendibile); Image apre il file picker e
+                    // produce 'image' (contenuto preesistente, data ignota).
+                    { id: 'photo', label: 'Photo', icon: IconCamera, capKey: 'photo' as const, accept: null },
+                    { id: 'image', label: 'Image', icon: IconPhoto, capKey: 'gallery' as const, accept: 'image/*' },
+                    // Video registra dalla webcam, non importa: aprire un file
+                    // picker qui duplicherebbe File, che l'importazione la fa già.
+                    { id: 'video', label: 'Video', icon: IconVideo, capKey: 'video' as const, accept: null },
                     { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
                     { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
                     { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
@@ -1596,6 +1772,8 @@ export function TileSidebar({
                         onClick={() => {
                           if (opt.id === 'text') {
                             setShowNewText(true);
+                          } else if (opt.id === 'photo' || opt.id === 'video') {
+                            setCameraMode(opt.id);
                           } else {
                             const input = document.createElement('input');
                             input.type = 'file';
@@ -1783,6 +1961,20 @@ export function TileSidebar({
           </div>
         )}
       </>)}
+
+      {/* Fuori dai blocchi condizionali della barra di cattura: la modale si
+          monta in un portale a `position: fixed`, quindi non dipende dallo
+          stato di apertura di nessuna sezione della sidebar. */}
+      <CameraCapture
+        open={cameraMode !== null}
+        // `key` forza il rimonto al cambio modalità: la modale acquisisce lo
+        // stream all'apertura, e riusare la stessa istanza fra photo e video la
+        // lascerebbe con uno stream senza traccia audio.
+        key={cameraMode ?? 'closed'}
+        mode={cameraMode ?? 'photo'}
+        onCancel={() => setCameraMode(null)}
+        onCapture={handleCameraCapture}
+      />
     </div>
   );
 }

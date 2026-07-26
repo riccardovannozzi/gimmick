@@ -513,6 +513,12 @@ async function downloadFile(storagePath: string): Promise<ArrayBuffer | null> {
 // Tile auto-metadata
 // ---------------------------------------------------------------------------
 
+/** Prime `n` parole di un testo, verbatim (spazi collassati, niente troncamento
+ *  a metà parola). Usato per il titolo letterale del tile. */
+function firstWords(text: string, n: number): string {
+  return text.trim().split(/\s+/).slice(0, n).join(' ');
+}
+
 async function tryUpdateTileMetadata(tileId: string): Promise<void> {
   const { data: tile } = await supabaseAdmin
     .from('tiles')
@@ -537,11 +543,35 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
 
   const { data: sparks } = await supabaseAdmin
     .from('sparks')
-    .select('metadata, type')
-    .eq('tile_id', tileId);
+    .select('content, metadata, type, created_at')
+    .eq('tile_id', tileId)
+    .order('created_at', { ascending: true });
 
   if (!sparks || sparks.length === 0) return;
 
+  // Titolo = testo registrato dall'utente, VERBATIM (prime ≤10 parole), senza
+  // parafrasi AI. La generazione AI produceva titoli semantici spesso
+  // fuorvianti rispetto al contenuto reale (es. "Documentazione Tecnica" per un
+  // testo "Inviare note di calcolo a giovanni"). Sorgenti del "testo registrato",
+  // in ordine di priorità: contenuto di un testo, poi trascrizione di un audio.
+  // Si usa il primo spark idoneo (ordinati per created_at).
+  const textSpark = sparks.find((s) => s.type === 'text' && (s.content ?? '').trim());
+  const audioSpark = sparks.find(
+    (s) => s.type === 'audio_recording' && ((s.metadata as SparkMetadata)?.transcript ?? '').trim(),
+  );
+  const recorded = (textSpark?.content ?? (audioSpark?.metadata as SparkMetadata | undefined)?.transcript ?? '').trim();
+  if (recorded) {
+    const title = firstWords(recorded, 10);
+    await supabaseAdmin
+      .from('tiles')
+      .update({ title, updated_at: new Date().toISOString() })
+      .eq('id', tileId);
+    console.log(`[Indexing] Tile ${tileId} titled from recorded text: "${title}"`);
+    return;
+  }
+
+  // Fallback per i tile SENZA testo registrato (solo foto/file): qui un titolo
+  // letterale non esiste, quindi resta la sintesi AI dai riassunti degli spark.
   const summaries = sparks
     .map((s) => (s.metadata as SparkMetadata)?.summary)
     .filter(Boolean)

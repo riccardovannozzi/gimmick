@@ -3,13 +3,19 @@ import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { TopNav } from '@/components/layout/TopNav';
 import { usePixelTheme } from '@/components/pixel';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
 export default function TabsLayout() {
   const theme = usePixelTheme();
 
+  // Strangler: every Obsidian tab now draws its own chrome — the views a
+  // TopNav, Capture an AppHeader whose drawer carries the view links — so the
+  // legacy strip would only double up.
+  const showLegacyNav = !isObsidianShellEnabled();
+
   return (
     <View style={{ flex: 1, backgroundColor: theme.bg1 }}>
-      <TopNav />
+      {showLegacyNav && <TopNav />}
       {/* overflow:hidden impedisce alla scene di disegnare sotto la TopNav
          su Android Fabric, dove <Tabs> non sempre rispetta i bounds del flex
          parent. */}

@@ -1,7 +1,9 @@
 /**
- * Toast notification — stile Pixel Arcade.
- * Border 2px ink, offset shadow ink, font Press Start 2P per label, mini-card
- * con icon-tile colorato (success/error/info/warning → semantic colors).
+ * Toast notification — stile Obsidian.
+ *
+ * Discreto e poco invasivo: card scura (surface + bordo sottile), icona
+ * semantica piccola a sinistra, messaggio, X per chiudere. Niente tile colorato,
+ * label "OK/WARN" o font pixel — coerente con la shell Obsidian mobile.
  */
 import React, { useEffect } from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -12,15 +14,15 @@ import Animated, {
   withSpring,
   runOnJS,
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   IconCheck,
   IconX as IconXClose,
   IconAlertTriangle,
   IconInfoCircle,
-  IconExclamationMark,
 } from '@tabler/icons-react-native';
 import { config } from '@/constants';
-import { usePixelTheme } from '@/components/pixel';
+import { useObsidian } from '@/lib/obsidian';
 import type { ToastType } from '@/types';
 import { useToastStore } from '@/store';
 
@@ -31,13 +33,13 @@ interface ToastItemProps {
 }
 
 function ToastItem({ id, type, message }: ToastItemProps) {
-  const theme = usePixelTheme();
+  const c = useObsidian();
   const hideToast = useToastStore((state) => state.hideToast);
-  const translateY = useSharedValue(-100);
+  const translateY = useSharedValue(-24);
   const opacity = useSharedValue(0);
 
   useEffect(() => {
-    translateY.value = withSpring(0, { damping: 15 });
+    translateY.value = withSpring(0, { damping: 16 });
     opacity.value = withTiming(1, { duration: config.animation.fast });
   }, []);
 
@@ -52,99 +54,45 @@ function ToastItem({ id, type, message }: ToastItemProps) {
     opacity: opacity.value,
   }));
 
-  // Map semantic role → icon-tile color + label glyph
-  const palette: Record<ToastType, { bg: string; Icon: typeof IconCheck; label: string }> = {
-    success: { bg: theme.semantic.success, Icon: IconCheck, label: 'OK' },
-    error:   { bg: theme.semantic.danger,  Icon: IconXClose, label: 'ERR' },
-    info:    { bg: theme.semantic.info,    Icon: IconInfoCircle, label: 'INFO' },
-    warning: { bg: theme.semantic.warning, Icon: IconAlertTriangle, label: 'WARN' },
+  // Ruolo semantico → icona + colore (token Obsidian). Solo l'icona è colorata:
+  // il messaggio resta in colore testo, così l'avviso non è aggressivo.
+  const palette: Record<ToastType, { color: string; Icon: typeof IconCheck }> = {
+    success: { color: c.success, Icon: IconCheck },
+    error: { color: c.error, Icon: IconAlertTriangle },
+    info: { color: c.info, Icon: IconInfoCircle },
+    warning: { color: c.warning, Icon: IconAlertTriangle },
   };
-  const { bg, Icon, label } = palette[type];
-  const sh = theme.shadowOffset;
+  const { color, Icon } = palette[type];
 
   return (
-    <Animated.View
-      style={[
-        animatedStyle,
-        { marginHorizontal: 12, marginBottom: 8, position: 'relative', paddingRight: sh, paddingBottom: sh },
-      ]}
-    >
-      {/* Offset shadow Android-safe */}
-      {sh > 0 && (
-        <View
-          style={{
-            position: 'absolute',
-            left: sh, top: sh, right: 0, bottom: 0,
-            backgroundColor: theme.shadowColor,
-          }}
-        />
-      )}
+    <Animated.View style={[animatedStyle, { marginHorizontal: 12, marginBottom: 8 }]}>
       <View
         style={{
           flexDirection: 'row',
           alignItems: 'center',
-          borderWidth: 2,
-          borderColor: theme.border,
-          backgroundColor: theme.surface,
-          paddingHorizontal: 10,
-          paddingVertical: 10,
           gap: 10,
+          backgroundColor: c.surface,
+          borderWidth: 1,
+          borderColor: c.line,
+          borderRadius: 12,
+          paddingHorizontal: 12,
+          paddingVertical: 10,
+          shadowColor: '#000',
+          shadowOpacity: 0.28,
+          shadowRadius: 12,
+          shadowOffset: { width: 0, height: 5 },
+          elevation: 6,
         }}
       >
-        {/* Icon tile color-coded */}
-        <View
-          style={{
-            width: 32,
-            height: 32,
-            borderWidth: 2,
-            borderColor: theme.border,
-            backgroundColor: bg,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        <Icon size={17} color={color} strokeWidth={2} />
+        <Text
+          numberOfLines={3}
+          style={{ flex: 1, fontSize: 13, lineHeight: 18, color: c.text }}
         >
-          <Icon size={16} color="#FFFFFF" strokeWidth={2.6} />
-        </View>
-
-        {/* Label sopra + message sotto */}
-        <View style={{ flex: 1 }}>
-          <Text
-            style={{
-              fontFamily: theme.fontHead,
-              fontSize: 8,
-              color: bg,
-              letterSpacing: 1,
-            }}
-          >
-            {label}
-          </Text>
-          <Text
-            numberOfLines={2}
-            style={{
-              fontFamily: theme.fontBody,
-              fontSize: 12,
-              color: theme.ink,
-              marginTop: 2,
-              lineHeight: 16,
-            }}
-          >
-            {message}
-          </Text>
-        </View>
-
-        {/* Dismiss X */}
-        <Pressable
-          onPress={handleDismiss}
-          hitSlop={8}
-          style={({ pressed }) => ({
-            width: 28, height: 28,
-            borderWidth: 2, borderColor: theme.border,
-            backgroundColor: theme.surfaceVariant,
-            alignItems: 'center', justifyContent: 'center',
-            opacity: pressed ? 0.7 : 1,
-          })}
-        >
-          <IconXClose size={14} color={theme.ink} strokeWidth={2.4} />
+          {message}
+        </Text>
+        <Pressable onPress={handleDismiss} hitSlop={10} accessibilityLabel="Chiudi notifica">
+          <IconXClose size={15} color={c.subtle} strokeWidth={1.9} />
         </Pressable>
       </View>
     </Animated.View>
@@ -153,11 +101,12 @@ function ToastItem({ id, type, message }: ToastItemProps) {
 
 export function ToastContainer() {
   const toasts = useToastStore((state) => state.toasts);
+  const insets = useSafeAreaInsets();
 
   if (toasts.length === 0) return null;
 
   return (
-    <View style={{ position: 'absolute', top: 48, left: 0, right: 0, zIndex: 50 }}>
+    <View style={{ position: 'absolute', top: insets.top + 8, left: 0, right: 0, zIndex: 50 }}>
       {toasts.map((toast) => (
         <ToastItem
           key={toast.id}

@@ -13,7 +13,7 @@ import {
   IconAlignLeft, IconCamera, IconVideo, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import type { ObBufferVM } from '@/lib/obsidian-adapters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
@@ -147,7 +147,7 @@ function EmptyState({ c, onCapture }: { c: ObsidianColors; onCapture?: () => voi
       </View>
       <Text style={{ fontSize: 20, fontWeight: '700', color: c.text, marginBottom: 8 }}>Buffer vuoto</Text>
       <Text style={{ fontSize: 14, lineHeight: 21, color: c.muted, textAlign: 'center', maxWidth: 240 }}>Hai smistato tutto. I nuovi spark che catturi appariranno qui.</Text>
-      <Pressable onPress={onCapture} style={({ pressed }) => ({ marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 8, height: 46, paddingHorizontal: 22, borderRadius: 13, backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 })}>
+      <Pressable onPress={onCapture} style={({ pressed }) => ({ marginTop: 26, flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: OB_BTN_H, paddingHorizontal: 22, borderRadius: 13, backgroundColor: c.accent, opacity: pressed ? 0.9 : 1 })}>
         <IconMicrophone size={16} color={c.accentInk} strokeWidth={1.8} />
         <Text style={{ fontSize: 14, fontWeight: '600', color: c.accentInk }}>Cattura qualcosa</Text>
       </Pressable>

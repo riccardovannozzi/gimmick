@@ -10,10 +10,12 @@ export { ObsidianNavPill } from './NavPill';
 export { ObsidianTopNav } from './TopNav';
 export type { MobileViewId } from './TopNav';
 export { ObsidianAppHeader } from './AppHeader';
-export { ObsidianDrawer, DEFAULT_DRAWER_GROUPS } from './Drawer';
-export type { DrawerGroup, DrawerChild } from './Drawer';
+export { ObsidianDrawer } from './Drawer';
 
 export { ObsidianCaptureScreen } from './screens/CaptureScreen';
+export type { ObsidianCaptureScreenProps } from './screens/CaptureScreen';
+export { ObsidianCaptureScreenLive } from './screens/CaptureScreenLive';
+export { ObsidianViewsTabHost } from './ViewsTabHost';
 export {
   ObsidianCaptureFlowsHub,
   CameraFlow, VideoFlow, VoiceFlow, TextFlow, GalleryFlow, FileFlow, SaveSparkScreen,

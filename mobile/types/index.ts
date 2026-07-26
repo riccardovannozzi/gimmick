@@ -27,6 +27,13 @@ export interface BufferItem {
   width?: number;         // Image/video width in pixels
   height?: number;        // Image/video height in pixels
   createdAt: Date;
+  /** Stato nell'outbox: assente = in composizione (nel composer); 'queued' =
+   *  committato da un invio, in coda per la sincronizzazione. */
+  status?: 'queued' | 'uploading' | 'failed';
+  /** Id del "batch" (= tile) a cui l'item appartiene una volta committato in
+   *  coda. Raggruppa gli item di uno stesso invio così sincronizzano come un
+   *  unico tile. Assente finché è in composizione. */
+  batchId?: string;
 }
 
 /**

@@ -7,6 +7,8 @@
  *   Month   — 6×7 grid with event dots; tap a day → switch to Daily on it
  */
 import React, { useCallback, useMemo, useState } from 'react';
+import { ObsidianViewsTabHost } from '@/components/obsidian/ViewsTabHost';
+import { isObsidianShellEnabled } from '@/lib/feature-flags';
 import { View, Text, Pressable } from 'react-native';
 import { useRouter } from 'expo-router';
 import {
@@ -34,7 +36,12 @@ import { MonthView } from '@/components/chrono/MonthView';
 
 type ChronoView = 'daily' | 'week' | 'month';
 
-export default function ChronoScreen() {
+export default function ChronoRoute() {
+  if (isObsidianShellEnabled()) return <ObsidianViewsTabHost view="chrono" />;
+  return <ChronoScreenLegacy />;
+}
+
+function ChronoScreenLegacy() {
   const router = useRouter();
   const theme = usePixelTheme();
   const [view, setView] = useState<ChronoView>('daily');

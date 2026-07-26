@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef, useCallback, useState } from 'react';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors } from '@/store/action-colors-store';
@@ -9,10 +9,12 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
+import { statusMeta, statusGlyph } from '@/lib/status-meta';
+import { TileMeta } from '@/components/tileview/TileMeta';
 import { TextEditor } from './TextEditor';
 
-const TILE_W = 130;
-const TILE_H = 90;
+const TILE_W = 150;
+const TILE_H = 80;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -20,11 +22,21 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
-export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
+export type GroupBorderStyle = 'solid' | 'dashed' | 'dotted';
+export interface CanvasGroup {
+  id: string;
+  label: string;
+  nodeIds: string[];
+  /** Stile opzionale: sfondo, colore/spessore/tipologia del bordo. */
+  bgColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  borderStyle?: GroupBorderStyle | null;
+}
 // Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
 //   type 'text'  → content = { html: string }
 //   type 'image' → content = { src: string; alt?: string }
@@ -72,6 +84,29 @@ interface CanvasBoardProps {
       picker opens; the picked image fills the rectangle. */
   imageMode?: boolean;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
+  /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
+   *  SENZA bisogno di modificatori e i tile catturati formano subito un gruppo.
+   *  Sinistra→destra cattura i tile INTERAMENTE contenuti; destra→sinistra
+   *  anche quelli solo INTERSECATI dal contorno. */
+  selectMode?: boolean;
+  /** Chiamata a fine contorno (modalità Raggruppa) con gli id dei tile catturati
+   *  (≥2). Il parent crea il CanvasGroup. I box di testo non entrano nei gruppi. */
+  onGroupTiles?: (tileIds: string[]) => void;
+  /** Tasto destro sulla zona del gruppo SENZA tile (sfondo/etichetta): il parent
+   *  apre il menu del gruppo (Rinomina / Elimina). */
+  onGroupContextMenu?: (e: { x: number; y: number; groupId: string }) => void;
+  /** Click sinistro sulla zona del gruppo SENZA tile: il parent seleziona il
+   *  gruppo (evidenzia i punti di aggancio + mostra i dati nella sidebar). */
+  onGroupClick?: (groupId: string) => void;
+  /** Id del gruppo selezionato: ne evidenzia il contorno (obsidian). */
+  selectedGroupId?: string | null;
+  /** Id del tile selezionato con click singolo: mostra il contorno obsidian e
+   *  sopprime i suoi punti di aggancio (che restano solo in hover sui non-selezionati). */
+  selectedTileId?: string | null;
+  /** Id del box (testo/immagine) selezionato con click singolo → contorno obsidian. */
+  selectedTextBoxId?: string | null;
+  /** Click singolo su un box → il parent lo seleziona (solo contorno, niente menu). */
+  onTextBoxClick?: (id: string) => void;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
@@ -106,10 +141,12 @@ interface CanvasBoardProps {
 
 export const CanvasBoard = React.memo(function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
-  moveEnabled, linkEnabled, textMode, tileMode, imageMode, onAddTileAt,
+  moveEnabled, linkEnabled, textMode, tileMode, imageMode, selectMode, onAddTileAt,
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
+  onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
+  selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
   tilesWithFlows, onFlowBadgeClick,
@@ -120,8 +157,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const theme = usePixelTheme();
   // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
   // nel codice D3 sotto.
-  const RX = 12;        // card / group / clip corner radius
-  const RX_SEL = 14;    // selection ring radius
+  const RX = 8;         // card / group / clip corner radius (tile + gruppi + box)
+  const RX_SEL = 8;     // selection ring radius
   const RX_BADGE = 4;   // footer action/type badge radius
   const SW = 1;         // card hairline stroke width
   const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
@@ -136,7 +173,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
-  const { statuses: allStatuses, getActionTypeShape } = useStatuses();
+  const { statuses: allStatuses } = useStatuses();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
@@ -144,6 +181,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
   const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
   const imageModeRef = useRef(imageMode); imageModeRef.current = imageMode;
+  const selectModeRef = useRef(selectMode); selectModeRef.current = selectMode;
+  const onGroupTilesRef = useRef(onGroupTiles); onGroupTilesRef.current = onGroupTiles;
+  const onGroupContextMenuRef = useRef(onGroupContextMenu); onGroupContextMenuRef.current = onGroupContextMenu;
+  const onGroupClickRef = useRef(onGroupClick); onGroupClickRef.current = onGroupClick;
+  const selectedGroupIdRef = useRef(selectedGroupId); selectedGroupIdRef.current = selectedGroupId;
+  const selectedTileIdRef = useRef(selectedTileId); selectedTileIdRef.current = selectedTileId;
+  const selectedTextBoxIdRef = useRef(selectedTextBoxId); selectedTextBoxIdRef.current = selectedTextBoxId;
+  const onTextBoxClickRef = useRef(onTextBoxClick); onTextBoxClickRef.current = onTextBoxClick;
+  // Ref al drawGroups corrente: permette a un effect di ridisegnare SOLO i gruppi
+  // quando cambia la selezione del gruppo, senza ricostruire tutto l'SVG.
+  const drawGroupsRef = useRef<(() => void) | null>(null);
   const onAddImageBoxRef = useRef(onAddImageBox); onAddImageBoxRef.current = onAddImageBox;
 
   // Refs for callbacks to avoid re-render of the entire SVG
@@ -166,6 +214,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onTileDragEndRef = useRef(onTileDragEnd); onTileDragEndRef.current = onTileDragEnd;
   const selectedIdsRef = useRef<string[]>(selectedIds || []); selectedIdsRef.current = selectedIds || [];
 
+  // Text box in editing (inserimento testo). Di default un text box è in
+  // modalità "sposta" (overlay non interattivo → il gruppo D3 gestisce il
+  // drag); il doppio click entra in editing, il click esterno/Esc esce.
+  const [editingBoxId, setEditingBoxId] = useState<string | null>(null);
+  const setEditingBoxIdRef = useRef(setEditingBoxId); setEditingBoxIdRef.current = setEditingBoxId;
+
   // Publish a viewport→canvas-local coordinate converter to the parent (used
   // for staging-panel drops). The function reads zoomTransformRef on every
   // call, so it always reflects the latest pan/zoom.
@@ -185,6 +239,48 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (screenToLocalRef) screenToLocalRef.current = null;
     };
   }, [screenToLocalRef]);
+
+  // Click esterno / Esc → esce dall'editing del text box. Il click DENTRO il
+  // box in editing o sulla bubble-menu di TipTap non deve chiudere.
+  useEffect(() => {
+    if (!editingBoxId) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest?.('.tiptap-bubble')) return;
+      if (t.closest?.(`[data-box-id="${editingBoxId}"]`)) return;
+      setEditingBoxId(null);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingBoxId(null); };
+    document.addEventListener('mousedown', onDown, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [editingBoxId]);
+
+  // Auto-editing per un text box appena creato: entra in inserimento solo se il
+  // box è NUOVO e VUOTO (contenuto ancora da scrivere). Al reload i box salvati
+  // hanno già del testo → restano in modalità "sposta" (cursore move), non in
+  // inserimento. Evita anche di dover fare doppio click dopo aver disegnato una
+  // casella nuova.
+  const knownTextBoxIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const known = knownTextBoxIdsRef.current;
+    for (const b of textBoxes) {
+      if (b.type !== 'text') continue;
+      if (!known.has(b.id)) {
+        known.add(b.id);
+        const html = (b as { content?: { html?: string } }).content?.html ?? '';
+        const isEmpty = html.replace(/<[^>]*>/g, '').trim() === '';
+        if (isEmpty) setEditingBoxId(b.id);
+      }
+    }
+    // Pulisce gli id spariti così un eventuale riuso non resti "già noto".
+    const alive = new Set(textBoxes.map((b) => b.id));
+    for (const id of known) if (!alive.has(id)) known.delete(id);
+  }, [textBoxes]);
 
   // Pending HTML save timers per text box — debounce TipTap onUpdate calls.
   const editorSaveTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
@@ -214,11 +310,18 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // status_id is now the single source of truth for "done"; the visual
       // treatment for completed tiles comes from the system 'done' row.
       let shape = 'solid';
+      let statusName: string | undefined;
       if (t.status_id) {
         const st = allStatuses.find((s) => s.id === t.status_id);
-        if (st) shape = st.shape;
+        if (st) { shape = st.shape; statusName = st.name; }
       } else {
-        shape = getActionTypeShape(t.action_type || 'none');
+        // Fallback per tile legacy senza status_id: forma dello status linkato
+        // all'action_type. Inline su `allStatuses` (stabile) invece di
+        // `getActionTypeShape`, che useStatuses ricrea ad ogni render e faceva
+        // cambiare identità a buildNodes → render → ricostruzione continua
+        // dell'SVG (che rompeva i click "dopo un po'").
+        const linked = allStatuses.find((s) => s.action_type === (t.action_type || 'none'));
+        shape = linked?.shape || 'solid';
       }
       // Type icon
       const tiId = typeTileIcons[t.id];
@@ -226,9 +329,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
       // resolve against the ALL DAY palette (not the TIMED one used for plain event).
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, statusName, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
-  }, [tiles, layout, allStatuses, getActionTypeShape, typeIcons, typeTileIcons]);
+  }, [tiles, layout, allStatuses, typeIcons, typeTileIcons]);
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
@@ -306,7 +409,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image mode
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image/select mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -362,34 +465,69 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       };
     };
 
-    // ── Selection rect (ctrl/cmd/shift + drag → multi-select) ──
-    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '4,3').attr('opacity', 0);
+    // ── Selection rect (marquee) ──
+    // Si attiva con ctrl/cmd/shift + drag OPPURE con la modalità "Seleziona"
+    // (pulsante toolbar) senza modificatori. Direzione del gesto (stile CAD):
+    //   • sinistra→destra  → "window": seleziona SOLO i tile INTERAMENTE
+    //     contenuti nel rettangolo (tratto continuo).
+    //   • destra→sinistra  → "crossing": seleziona ANCHE i tile solo
+    //     INTERSECATI dal rettangolo (tratto tratteggiato).
+    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('opacity', 0);
     let selStart: [number, number] | null = null;
     const isSelectModifier = (e: MouseEvent) => e.ctrlKey || e.metaKey || e.shiftKey;
-    d3svg.on('mousedown.sel', (e: MouseEvent) => { if (!isSelectModifier(e) || e.button || e.target !== svg) return; e.preventDefault(); selStart = d3.pointer(e, boardNode) as [number, number]; selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0).attr('opacity', 1); });
-    d3svg.on('mousemove.sel', (e: MouseEvent) => { if (!selStart) return; const [mx, my] = d3.pointer(e, boardNode); selRect.attr('x', Math.min(selStart[0], mx)).attr('y', Math.min(selStart[1], my)).attr('width', Math.abs(mx - selStart[0])).attr('height', Math.abs(my - selStart[1])); });
+    d3svg.on('mousedown.sel', (e: MouseEvent) => {
+      if ((!isSelectModifier(e) && !selectModeRef.current) || e.button || e.target !== svg) return;
+      e.preventDefault();
+      selStart = d3.pointer(e, boardNode) as [number, number];
+      selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0)
+        .attr('stroke-dasharray', null).attr('opacity', 1);
+    });
+    d3svg.on('mousemove.sel', (e: MouseEvent) => {
+      if (!selStart) return;
+      const [mx, my] = d3.pointer(e, boardNode);
+      const crossing = mx < selStart[0]; // destra→sinistra = intersezione
+      selRect.attr('x', Math.min(selStart[0], mx)).attr('y', Math.min(selStart[1], my))
+        .attr('width', Math.abs(mx - selStart[0])).attr('height', Math.abs(my - selStart[1]))
+        .attr('stroke-dasharray', crossing ? '4,3' : null);
+    });
     d3svg.on('mouseup.sel', (e: MouseEvent) => {
       if (!selStart) return;
       const [mx, my] = d3.pointer(e, boardNode);
+      const crossing = mx < selStart[0]; // direzione del gesto (usa le coord grezze)
       const [x1, y1] = [Math.min(selStart[0], mx), Math.min(selStart[1], my)];
       const [x2, y2] = [Math.max(selStart[0], mx), Math.max(selStart[1], my)];
       selStart = null; selRect.attr('opacity', 0);
       if (x2 - x1 < 20 || y2 - y1 < 20) return;
-      const insideTiles = nodes.filter((n) => n.x + TILE_W / 2 >= x1 && n.x + TILE_W / 2 <= x2 && n.y + TILE_H / 2 >= y1 && n.y + TILE_H / 2 <= y2);
-      const insideTbs = textBoxes.filter((tb) => tb.x + tb.w / 2 >= x1 && tb.x + tb.w / 2 <= x2 && tb.y + tb.h / 2 >= y1 && tb.y + tb.h / 2 <= y2);
+      // window (L→R): rettangolo del tile TUTTO dentro. crossing (R→L): basta
+      // che il rettangolo del tile TOCCHI il contorno (overlap dei bbox).
+      const hit = (bx: number, by: number, bw: number, bh: number) =>
+        crossing
+          ? (bx < x2 && bx + bw > x1 && by < y2 && by + bh > y1)
+          : (bx >= x1 && by >= y1 && bx + bw <= x2 && by + bh <= y2);
+      const insideTiles = nodes.filter((n) => hit(n.x, n.y, TILE_W, TILE_H));
+      // Modalità "Group" (pulsante toolbar): ogni contorno valido chiude
+      // l'operazione — il parent disattiva il pulsante. I tile catturati (≥2,
+      // guardia lato parent) formano un gruppo; i box di testo restano fuori
+      // (i gruppi sono solo di tile).
+      if (selectModeRef.current) {
+        onGroupTilesRef.current?.(insideTiles.map((n) => n.id));
+        return;
+      }
+      const insideTbs = textBoxes.filter((tb) => hit(tb.x, tb.y, tb.w, tb.h));
       if (insideTiles.length + insideTbs.length < 1) return;
       const ids = [...insideTiles.map((n) => n.id), ...insideTbs.map((tb) => `tb:${tb.id}`)];
       selectedIdsRef.current = ids;
       onSelectionChangeRef.current?.(ids, computeSelectionScreenBbox());
     });
 
-    // Clear selection on plain click on empty canvas
+    // Clear selection on plain click on empty canvas (tile/multi E gruppo).
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
       if (textModeRef.current || tileModeRef.current || imageModeRef.current) return;
-      if (selectedIdsRef.current.length === 0) return;
+      if (selectedIdsRef.current.length === 0 && !selectedGroupIdRef.current && !selectedTileIdRef.current && !selectedTextBoxIdRef.current) return;
       selectedIdsRef.current = [];
+      // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
       onSelectionChangeRef.current?.([], null);
     });
 
@@ -452,7 +590,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
-      groupsBg.selectAll('rect').attr('stroke', 'none');
+      groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
+        const r = d3.select(this);
+        r.attr('stroke', r.attr('data-base-stroke') || 'none')
+         .attr('stroke-width', r.attr('data-base-sw') || 0)
+         .attr('stroke-dasharray', r.attr('data-base-dash') || null);
+      });
       // Highlight target
       if (dropTarget.current) {
         if (dropTarget.current.groupId) {
@@ -476,7 +619,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
-      groupsBg.selectAll('rect').attr('stroke', 'none');
+      groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
+        const r = d3.select(this);
+        r.attr('stroke', r.attr('data-base-stroke') || 'none')
+         .attr('stroke-width', r.attr('data-base-sw') || 0)
+         .attr('stroke-dasharray', r.attr('data-base-dash') || null);
+      });
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
       const sp = linkSrc.current.port;
@@ -491,13 +639,41 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const groupsBg = board.append('g').attr('class', 'gbg');
     const drawGroups = () => {
       groupsBg.selectAll('*').remove();
+      // Click / tasto destro sulla zona del gruppo (sfondo o etichetta, dove NON
+      // ci sono tile) → menu del gruppo (Rinomina / Elimina) gestito dal parent.
+      const openGroupMenu = (ev: MouseEvent, id: string) => {
+        onGroupContextMenuRef.current?.({ x: ev.clientX, y: ev.clientY, groupId: id });
+      };
       groupsRef.current.forEach((grp) => {
         const b = getGroupBounds(grp, nodes);
         if (!b) return;
+        const isSel = grp.id === selectedGroupIdRef.current;
+        // Stile per-gruppo (sfondo/bordo). In selezione il bordo passa all'accento
+        // (mantenendo spessore/tipologia) per rendere evidente la selezione.
+        const gBg = grp.bgColor || theme.surface;
+        const gBw = grp.borderWidth ?? 0;
+        const gStroke = isSel ? theme.accent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
+        const gStrokeW = isSel ? Math.max(1.5, gBw) : gBw;
+        const dashFor = (style: string | null | undefined, w: number): string | null => {
+          if (style === 'dashed') return `${Math.max(4, w * 3)},${Math.max(3, w * 2)}`;
+          if (style === 'dotted') return `${Math.max(1, w)},${Math.max(3, w * 2)}`;
+          return null;
+        };
+        const gDash = dashFor(grp.borderStyle, gStrokeW);
         const gw = groupsBg.append('g');
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
-          .attr('fill', theme.surface).attr('stroke', 'none')
+          .attr('fill', gBg)
+          .attr('stroke', gStroke).attr('stroke-width', gStrokeW)
+          .attr('stroke-dasharray', gDash)
+          .attr('stroke-linecap', grp.borderStyle === 'dotted' ? 'round' : 'butt')
+          // Stile base memorizzato: il link-drag evidenzia temporaneamente il
+          // bordo del gruppo target e poi lo ripristina da questi attributi.
+          .attr('data-base-stroke', gStroke).attr('data-base-sw', gStrokeW).attr('data-base-dash', gDash || '')
           .style('cursor', moveRef.current ? 'grab' : 'default')
+          // Click sinistro → seleziona il gruppo (sidebar + punti di aggancio).
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
+          // Tasto destro → menu del gruppo (Rinomina / Elimina).
+          .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); })
           .call((() => {
             let prev: [number, number] | null = null;
             return d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
@@ -513,9 +689,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               })
               .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
           })());
-        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', theme.ink3).attr('font-size', 11).attr('font-weight', 500)
-          .text(grp.label || 'Gruppo').style('cursor', 'text')
-          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); const nl = prompt('Nome del gruppo:', grp.label || ''); if (nl !== null) onGroupsChange(groupsRef.current.map((g) => g.id === grp.id ? { ...g, label: nl } : g)); });
+        // Nome leggibile sullo sfondo del gruppo: chiaro su scuro e viceversa.
+        // Senza sfondo, colore muted (o accento se selezionato).
+        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? theme.accent : theme.ink3);
+        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', 11).attr('font-weight', isSel ? 600 : 500)
+          .text(grp.label || 'Gruppo').style('cursor', 'pointer')
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
+          .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); });
         // Group ports
         const gPorts: { key: PortKey; cx: number; cy: number }[] = [
           { key: 'top', cx: b.x + b.w / 2, cy: b.y - LABEL_H },
@@ -523,17 +703,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           { key: 'bottom', cx: b.x + b.w / 2, cy: b.y + b.h },
           { key: 'left', cx: b.x, cy: b.y + (b.h - LABEL_H) / 2 },
         ];
+        const gPcs: { pc: d3.Selection<SVGCircleElement, unknown, null, undefined>; cx: number; cy: number }[] = [];
         gPorts.forEach(({ key: pk, cx, cy }) => {
-          const pc = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
+          // Punti di aggancio: NON evidenziati alla selezione (contorno obsidian).
+          const pc = gw.append('circle').attr('class', 'g-port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
+          gPcs.push({ pc, cx, cy });
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
-          ha.on('mouseenter', () => { if (linkRef.current) pc.attr('opacity', 1); }).on('mouseleave', () => { if (!linkSrc.current) pc.attr('opacity', 0); });
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
             .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, `g:${pk}`, ev); pc.attr('opacity', 1); })
             .on('drag', dragLink)
-            .on('end', () => { endLink(); pc.attr('opacity', 0); }) as any);
+            .on('end', () => { endLink(); gPcs.forEach((p) => p.pc.attr('opacity', 0)); }) as any);
         });
+        // In hover mostra SOLO il punto di aggancio più vicino al cursore (non tutti
+        // e 4): meno "disturbante". Escluso in selezione o durante un link attivo.
+        gw.on('mousemove.ports', (ev: MouseEvent) => {
+          if (!linkRef.current || linkSrc.current || selectedGroupIdRef.current === grp.id) return;
+          const [mx, my] = d3.pointer(ev, boardNode);
+          let best: typeof gPcs[number] | null = null, bestDist = Infinity;
+          for (const p of gPcs) { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = p; } }
+          gPcs.forEach((p) => p.pc.attr('opacity', p === best ? 1 : 0));
+        });
+        gw.on('mouseleave.ports', () => { if (!linkSrc.current) gPcs.forEach((p) => p.pc.attr('opacity', 0)); });
       });
     };
+    drawGroupsRef.current = drawGroups;
 
     // ── Draw edges ──
     const edgesG = board.append('g');
@@ -630,96 +823,108 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
-    // Subtle border slightly lighter than the bg. Action/type are communicated by footer icons.
+
+    // Click / context on tiles — agganciati SUBITO (prima del disegno di badge/
+    // velatura). Così, anche se un passo di disegno fallisce, le tile restano
+    // selezionabili: la selezione apre il tile nella sidebar.
+    // - CTRL/CMD/SHIFT + click → toggle nella multi-selezione (niente sidebar)
+    // - Click semplice → azzera la multi-selezione e apre il tile nella sidebar
+    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => {
+      ev.stopPropagation();
+      if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+        const cur = selectedIdsRef.current;
+        const has = cur.includes(d.id);
+        const next = has ? cur.filter((id) => id !== d.id) : [...cur, d.id];
+        selectedIdsRef.current = next;
+        onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+        return;
+      }
+      if (selectedIdsRef.current.length > 0) {
+        selectedIdsRef.current = [];
+        onSelectionChangeRef.current?.([], null);
+      }
+      onTileClickRef.current(d.id);
+    });
+    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
+    // Sfondo a VELATURA (come Kanban/Chrono): base surface opaca + tinta del
+    // tipo molto attenuata, così i badge e il testo restano leggibili. Lo status
+    // NON è più un pattern a tutta tile: è uno swatch nel footer (vedi TileMeta).
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
-      .attr('fill', (d) => d.typeColor ? d.typeColor + 'CC' : theme.surface)
-      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : theme.border)
+      .attr('fill', theme.surface)
+      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : (d.typeColor ? d.typeColor + '3A' : theme.border))
       .attr('stroke-width', SW)
       .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
-    // Status shape overlay (uses SVG <pattern> elements under the hood)
-    let patIdx = 0;
+    // Tinta del tipo (velatura) sopra la base surface.
     nodeGrps.each(function (d) {
-      if (!d.statusShape || d.statusShape === 'solid') return;
+      if (!d.typeColor) return;
+      d3.select(this).append('rect')
+        .attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
+        .attr('fill', d.typeColor).attr('opacity', 0.14)
+        .style('pointer-events', 'none');
+    });
+    // Colonna verticale di STATUS (a sinistra): una vera colonna, senza bordo né
+    // margini, ma rientrata dello spessore del bordo del tile (SW) così NON lo
+    // copre. Angoli sinistri arrotondati coerenti col tile. Per ora solo la
+    // traccia vuota — il riempimento in base allo status verrà aggiunto dopo.
+    const STRIP_W = 16;                 // bordo destro della colonna
+    const CONTENT_X = STRIP_W + 8;      // margine sinistro del contenuto = 24
+    const IN = SW;                      // rientro = spessore bordo tile (non lo copre)
+    const RR = RX - IN;                 // raggio interno degli angoli sinistri
+    const YB = TILE_H - IN;
+    const stripPath = `M ${IN} ${IN + RR} Q ${IN} ${IN} ${IN + RR} ${IN} H ${STRIP_W} V ${YB} H ${IN + RR} Q ${IN} ${YB} ${IN} ${YB - RR} Z`;
+    nodeGrps.each(function () {
       const g = d3.select(this);
-      // For NOTES (action_type === 'none'), patterns use a visible neutral gray
-      // so they stand out even without a colored action palette.
-      const color = d.actionType === 'none' ? theme.ink : getColor(d.actionType);
-      const o = 0.2;
-      const pid = `cpat-${patIdx++}`;
-      const clip = g.append('clipPath').attr('id', `${pid}-clip`);
-      clip.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX);
-      const pg = g.append('g').attr('clip-path', `url(#${pid}-clip)`).style('pointer-events', 'none');
-      switch (d.statusShape) {
-        case 'diagonal_ltr': {
-          const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
-          const ink = readableOn(tileBg);
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(45)')
-            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', ink).attr('stroke-width', 1.5).attr('stroke-opacity', 1);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
-          break;
-        }
-        case 'diagonal_rtl':
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 10).attr('height', 10).attr('patternTransform', 'rotate(-60)')
-            .append('line').attr('x1', 0).attr('y1', 0).attr('x2', 0).attr('y2', 10).attr('stroke', color).attr('stroke-width', 5).attr('stroke-opacity', o);
-          pg.append('rect').attr('x', 5).attr('y', 5).attr('width', TILE_W - 10).attr('height', TILE_H - 10).attr('rx', 0).attr('fill', `url(#${pid})`);
-          break;
-        case 'vertical':
-          pg.append('defs').append('pattern').attr('id', pid).attr('patternUnits', 'userSpaceOnUse').attr('width', 16).attr('height', 20)
-            .append('line').attr('x1', 8).attr('y1', 0).attr('x2', 8).attr('y2', 20).attr('stroke', color).attr('stroke-width', 6).attr('stroke-opacity', o);
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', `url(#${pid})`);
-          break;
-        case 'bubble': {
-          // Scattered across the tile (padding 10, TILE_W=130 TILE_H=90), varied sizes.
-          const bubbles: Array<[number, number, number, number]> = [
-            [20, 20, 6, o + 0.05], [44, 16, 4, o], [68, 22, 7, o + 0.1], [94, 18, 5, o], [114, 24, 4, o - 0.02],
-            [28, 45, 4, o], [54, 47, 6, o + 0.08], [80, 43, 5, o + 0.05], [104, 47, 4, o],
-            [22, 70, 5, o + 0.05], [46, 72, 4, o], [70, 68, 6, o + 0.08], [96, 72, 4, o], [116, 68, 5, o + 0.05],
-          ];
-          bubbles.forEach(([cx, cy, r, op]) => {
-            pg.append('circle').attr('cx', cx).attr('cy', cy).attr('r', r)
-              .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 1.5).attr('stroke-opacity', op);
-          });
-          break;
-        }
-        case 'cross':
-          // 10-unit padding from edges (TILE_W=130, TILE_H=90), thicker stroke.
-          pg.append('line').attr('x1', 10).attr('y1', 10).attr('x2', TILE_W - 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
-          pg.append('line').attr('x1', TILE_W - 10).attr('y1', 10).attr('x2', 10).attr('y2', TILE_H - 10).attr('stroke', color).attr('stroke-width', 12).attr('stroke-opacity', o * 0.9).attr('stroke-linecap', 'round');
-          break;
-        case 'hourglass': {
-          // Two triangles meeting at apex, centered. TILE_W=130, TILE_H=90.
-          pg.append('path')
-            .attr('d', 'M55,30 L75,30 L65,45 L75,60 L55,60 L65,45 Z')
-            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 4)
-            .attr('stroke-opacity', o + 0.25).attr('stroke-linejoin', 'round').attr('stroke-linecap', 'round');
-          break;
-        }
-        case 'pause_bars':
-          pg.append('rect').attr('x', 57).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
-          pg.append('rect').attr('x', 67).attr('y', 26).attr('width', 6).attr('height', 38).attr('rx', 1).attr('fill', color).attr('fill-opacity', o + 0.15);
-          break;
-        case 'lock':
-          pg.append('path')
-            .attr('d', 'M58,41 V35 a7,7 0 0 1 14,0 V41')
-            .attr('fill', 'none').attr('stroke', color).attr('stroke-width', 2)
-            .attr('stroke-opacity', o + 0.15).attr('stroke-linecap', 'round');
-          pg.append('rect').attr('x', 53).attr('y', 41).attr('width', 24).attr('height', 20).attr('rx', 0).attr('fill', color).attr('fill-opacity', o + 0.1);
-          pg.append('circle').attr('cx', 65).attr('cy', 51).attr('r', 2).attr('fill', theme.bg1);
-          break;
-        case 'shade':
-          // 50% dark overlay covering the whole tile — the "faded / done" treatment.
-          pg.append('rect').attr('width', TILE_W).attr('height', TILE_H).attr('fill', '#000000').attr('opacity', 0.5);
-          break;
+      g.append('g').attr('class', 'status-strip').append('path')
+        .attr('class', 'status-strip-track')
+        .attr('d', stripPath)
+        .attr('fill', theme.bg1)
+        .style('pointer-events', 'none');
+    });
+    // STATUS nella colonna — guidato dalla config centralizzata `statusGlyph`
+    // (single source of truth condivisa con staging e picker). Due tipologie:
+    // ICONA/DOT colorato oppure TESTO. 'none' (active) non mostra nulla.
+    nodeGrps.each(function (d) {
+      const glyph = statusGlyph(d.statusName);
+      if (glyph.kind === 'none') return;
+      const g = d3.select(this);
+      const meta = statusMeta(d.statusName!);
+      const cx = (IN + STRIP_W) / 2;
+      const cy = TILE_H / 2;
+      if (glyph.kind === 'dot') {
+        g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 4)
+          .attr('fill', meta.hex).style('pointer-events', 'none');
+      } else if (glyph.kind === 'text') {
+        g.append('text')
+          .attr('x', cx).attr('y', cy)
+          .attr('transform', `rotate(-90, ${cx}, ${cy})`)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('fill', meta.hex).attr('font-family', labelFont)
+          .attr('font-size', 9).attr('font-weight', 700)
+          .style('letter-spacing', '0.15em').style('pointer-events', 'none')
+          .text(glyph.text);
+      } else if (glyph.kind === 'icon') {
+        const IconComp = (TablerIcons as unknown as Record<string, any>)[glyph.icon];
+        if (!IconComp) return;
+        const React = require('react');
+        const { renderToString } = require('react-dom/server');
+        const html = renderToString(React.createElement(IconComp, { size: 12, color: meta.hex }));
+        const fo = g.append('foreignObject').attr('x', cx - 6).attr('y', cy - 6).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
+        container.innerHTML = html;
+        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
       }
     });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
-      const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
-      const tileBg = d.typeColor ? d.typeColor + 'CC' : theme.surface;
-      const fg = readableOn(tileBg);
+      const fo = g.append('foreignObject').attr('x', CONTENT_X).attr('y', 6).attr('width', TILE_W - CONTENT_X - 6).attr('height', TILE_H - 26);
+      // Testo su velatura chiara → colore leggibile sulla surface.
+      const fg = readableOn(theme.surface);
+      // Barrato + attenuato quando completato, come nel titolo della sidebar.
+      const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
       fo.append('xhtml:div')
-        .attr('style', `color:${fg};font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;`)
+        .attr('style', `color:${fg};font-size:12px;font-weight:300;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge
@@ -743,8 +948,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         timeLine = formatTime(d.startAt);
         if (d.endAt) timeLine += ` - ${formatTime(d.endAt)}`;
       }
-      // Left-aligned just past the action badge (badge ends at x=22; pad 8px to x=30).
-      const textX = 30;
+      // Left-aligned just past the action badge (che parte da CONTENT_X, largo 16).
+      const textX = CONTENT_X + 24;
       if (dateLine && timeLine) {
         g.append('text').attr('x', textX).attr('y', TILE_H - 16)
           .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
@@ -761,8 +966,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const items = d.subtasks || [];
       if (items.length === 0) return;
       const g = d3.select(this);
-      const innerX = 6;
-      const innerW = TILE_W - 12;
+      const innerX = CONTENT_X;
+      const innerW = TILE_W - CONTENT_X - 6;
       const y = TILE_H - 34;
       const h = 4;
       const gap = 2;
@@ -796,14 +1001,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const g = d3.select(this);
       const actionColor = getColor(d.actionType);
       g.append('rect')
-        .attr('x', 6).attr('y', TILE_H - 22)
+        .attr('x', CONTENT_X).attr('y', TILE_H - 22)
         .attr('width', 16).attr('height', 16).attr('rx', RX_BADGE)
         .attr('fill', actionColor)
         .attr('stroke', theme.border).attr('stroke-width', SW);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
-      const fo = g.append('foreignObject').attr('x', 9).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
+      const fo = g.append('foreignObject').attr('x', CONTENT_X + 3).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
       const container = document.createElement('div');
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
       container.innerHTML = html;
@@ -849,36 +1054,59 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       });
     });
 
-    // Type icon — rounded-square colored badge + white icon in bottom-right.
+    // Badge TIPO + STATUS in basso a destra — stesso componente/logica delle
+    // altre viste (TileMeta): chip colorato del tipo + swatch dello status.
+    // Lo status 'active' (default/prevalente) non viene mai mostrato.
     nodeGrps.each(function (d) {
-      if (!d.typeIcon) return;
-      const IconComp = (TablerIcons as unknown as Record<string, any>)[d.typeIcon];
-      if (!IconComp) return;
+      const showType = !!d.typeIcon;
+      // Gli status gestiti dalla colonna (STATUS_COLUMN_ICONS) NON vanno anche
+      // nel footer → evita doppioni. Gli altri usano ancora lo swatch nel footer.
+      // Ogni status con una rappresentazione (icona/dot/testo) vive nella colonna
+      // → mai nel footer. Solo 'active' (glyph 'none') non è in colonna.
+      const inColumn = statusGlyph(d.statusName).kind !== 'none';
+      const showStatus = !!d.statusName && d.statusName !== 'active' && !inColumn;
+      if (!showType && !showStatus) return;
       const g = d3.select(this);
-      const typeBg = d.typeColor || theme.surfaceVariant;
-      g.append('rect').attr('x', TILE_W - 22).attr('y', TILE_H - 22).attr('width', 16).attr('height', 16).attr('rx', RX_BADGE).attr('fill', typeBg);
-      const React = require('react');
-      const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(typeBg) }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 19).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
-      const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
-      container.innerHTML = html;
-      (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+      try {
+        const React = require('react');
+        const { renderToString } = require('react-dom/server');
+        const meta = showStatus ? statusMeta(d.statusName!) : null;
+        const html = renderToString(React.createElement(TileMeta, {
+          type: showType ? { icon: d.typeIcon, color: d.typeColor || '#5C5868' } : undefined,
+          // token Obsidian come nelle altre viste (theme-aware, stesso rendering).
+          status: showStatus && meta ? { shape: d.statusShape, color: meta.color, label: meta.label } : undefined,
+        }));
+        const fo = g.append('foreignObject').attr('x', TILE_W - 62).attr('y', TILE_H - 24).attr('width', 56).attr('height', 20).style('pointer-events', 'none');
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;width:56px;height:20px;';
+        container.innerHTML = html;
+        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+      } catch { /* un badge non renderizzabile non deve rompere il disegno/l'interazione della board */ }
     });
 
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
       .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', RX_SEL)
-      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
+      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
       .style('pointer-events', 'none')
-      .attr('opacity', (d) => selectedIdsRef.current.includes((d as CanvasNode).id) ? 1 : 0);
+      .attr('opacity', (d) => { const id = (d as CanvasNode).id; return (selectedIdsRef.current.includes(id) || selectedTileIdRef.current === id) ? 1 : 0; });
 
     // Tile ports
-    const portG = nodeGrps.append('g').attr('class', 'ports').attr('opacity', 0);
-    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).style('cursor', 'crosshair'); });
-    nodeGrps.on('mouseenter', function () { if (linkRef.current) d3.select(this).select('.ports').attr('opacity', 1); })
-      .on('mouseleave', function () { if (!linkSrc.current) d3.select(this).select('.ports').attr('opacity', 0); });
+    const portG = nodeGrps.append('g').attr('class', 'ports');
+    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('cursor', 'crosshair'); });
+    // In hover mostra SOLO il punto di aggancio più vicino al cursore (non tutti
+    // e 4). Escluso se il tile è selezionato (solo contorno obsidian) o durante
+    // un collegamento attivo.
+    nodeGrps.on('mousemove.ports', function (ev) {
+      const d = d3.select(this).datum() as CanvasNode;
+      const selected = !!d && (selectedTileIdRef.current === d.id || selectedIdsRef.current.includes(d.id));
+      if (!linkRef.current || linkSrc.current || selected) { d3.select(this).selectAll('.port').attr('opacity', 0); return; }
+      const [mx, my] = d3.pointer(ev, this);
+      let best = -1, bestDist = Infinity;
+      PORTS.forEach((p, i) => { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = i; } });
+      d3.select(this).selectAll<SVGCircleElement, unknown>('.port').attr('opacity', (_d, i) => (i === best ? 1 : 0));
+    })
+      .on('mouseleave.ports', function () { if (!linkSrc.current) d3.select(this).selectAll('.port').attr('opacity', 0); });
 
     // Tile port drag
     const portDrag = d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
@@ -889,7 +1117,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         startLink(nd.id, nd.x + pcx, nd.y + pcy, pk, ev);
       })
       .on('drag', dragLink)
-      .on('end', () => { endLink(); nodeGrps.selectAll('.ports').attr('opacity', 0); });
+      .on('end', () => { endLink(); nodeGrps.selectAll('.port').attr('opacity', 0); });
     portG.selectAll('circle.port').call(portDrag as any);
 
     // Node drag (supports multi-drag including text boxes when the dragged tile is part of selectedIds).
@@ -1012,26 +1240,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         }
       }));
 
-    // Click / context on tiles.
-    // - CTRL/CMD/SHIFT + click → toggle the tile in the multi-selection (no sidebar open)
-    // - Plain click → clear any active multi-selection and open the tile in the sidebar
-    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => {
-      ev.stopPropagation();
-      if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
-        const cur = selectedIdsRef.current;
-        const has = cur.includes(d.id);
-        const next = has ? cur.filter((id) => id !== d.id) : [...cur, d.id];
-        selectedIdsRef.current = next;
-        onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
-        return;
-      }
-      if (selectedIdsRef.current.length > 0) {
-        selectedIdsRef.current = [];
-        onSelectionChangeRef.current?.([], null);
-      }
-      onTileClickRef.current(d.id);
-    });
-    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
 
     // ── Text boxes ──
     const tbG = board.append('g').attr('class', 'textboxes');
@@ -1067,9 +1275,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
           .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', RX_SEL)
-          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
+          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
           .style('pointer-events', 'none')
-          .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);
+          .attr('opacity', (selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id) ? 1 : 0);
 
         // Type-specific content. Image stays in SVG via foreignObject (lightweight,
         // no React state). Text editors are rendered in the HTML overlay (sibling
@@ -1092,21 +1300,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             .attr('style', 'display:block;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;-webkit-user-drag:none;');
         }
 
-        // Multi-selection toggle via CTRL/CMD/SHIFT + click on the box background
-        // rect. Plain click is handled by TipTap (text) or no-op (image).
+        // CTRL/CMD/SHIFT + click → toggle nella multi-selezione. Click semplice →
+        // seleziona SOLO questo box (contorno obsidian, senza menu), come i tile.
         g.on('click.select', (ev: MouseEvent) => {
-          if (!ev.ctrlKey && !ev.metaKey && !ev.shiftKey) return;
-          ev.stopPropagation();
           const tbId = `tb:${tb.id}`;
-          const cur = selectedIdsRef.current;
-          const has = cur.includes(tbId);
-          const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
-          selectedIdsRef.current = next;
-          onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+          if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+            ev.stopPropagation();
+            const cur = selectedIdsRef.current;
+            const has = cur.includes(tbId);
+            const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
+            selectedIdsRef.current = next;
+            onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+            return;
+          }
+          ev.stopPropagation();
+          onTextBoxClickRef.current?.(tb.id);
         });
 
         // 4 ports
-        const tbPorts = g.append('g').attr('class', 'tb-ports').attr('opacity', 0);
+        const tbPorts = g.append('g').attr('class', 'tb-ports');
         const tbPortList = [
           { key: 'top', cx: tw / 2, cy: 0 },
           { key: 'right', cx: tw, cy: th / 2 },
@@ -1116,11 +1328,20 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         tbPortList.forEach(({ key, cx, cy }) => {
           tbPorts.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy)
             .attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2)
-            .style('cursor', 'crosshair');
+            .attr('opacity', 0).style('cursor', 'crosshair');
         });
 
-        g.on('mouseenter', () => { if (linkRef.current) tbPorts.attr('opacity', 1); });
-        g.on('mouseleave', () => { if (!linkSrc.current) tbPorts.attr('opacity', 0); });
+        // In hover mostra SOLO il punto più vicino al cursore (non tutti e 4).
+        // Escluso in selezione (contorno obsidian) o durante un link attivo.
+        g.on('mousemove.ports', function (ev) {
+          const selected = selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id;
+          if (!linkRef.current || linkSrc.current || selected) { tbPorts.selectAll('.port').attr('opacity', 0); return; }
+          const [mx, my] = d3.pointer(ev, this);
+          let best = -1, bestDist = Infinity;
+          tbPortList.forEach((p, i) => { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = i; } });
+          tbPorts.selectAll<SVGCircleElement, unknown>('.port').attr('opacity', (_d, i) => (i === best ? 1 : 0));
+        });
+        g.on('mouseleave.ports', () => { if (!linkSrc.current) tbPorts.selectAll('.port').attr('opacity', 0); });
 
         // Port drag on text box
         const tbPortDrag = d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
@@ -1130,12 +1351,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             startLink(`tb:${tb.id}`, tb.x + pcx, tb.y + pcy, `t:${pk}`, ev);
           })
           .on('drag', dragLink)
-          .on('end', () => { endLink(); tbPorts.attr('opacity', 0); });
+          .on('end', () => { endLink(); tbPorts.selectAll('.port').attr('opacity', 0); });
         tbPorts.selectAll('circle.port').call(tbPortDrag as any);
 
         // Drag to move (on background rect, not on ports/resize/text). Supports multi-drag
         // when this text box is part of selectedIds (moves all selected tiles + text boxes).
-        g.select('rect').style('cursor', moveRef.current ? 'grab' : 'default');
+        // Cursore "move" (freccia di spostamento) quando il box non è in editing.
+        g.select('rect').style('cursor', moveRef.current ? 'move' : 'default');
         g.call((() => {
           let prev: [number, number] | null = null;
           let multi = false;
@@ -1168,6 +1390,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               if (!prev) { prev = cur; return; }
               const dx = cur[0] - prev[0], dy = cur[1] - prev[1];
               prev = cur;
+              // L'editor di testo vive nell'overlay HTML (fuori dall'SVG) ed è
+              // posizionato da React solo a fine drag: qui aggiorniamo la sua
+              // posizione in tempo reale così il testo segue il frame D3.
+              const syncOverlay = (id: string, x: number, y: number) => {
+                const el = overlayInnerRef.current?.querySelector(`[data-box-id="${id}"]`) as HTMLElement | null;
+                if (el) { el.style.left = `${x + TB_PAD}px`; el.style.top = `${y + TB_PAD}px`; }
+              };
               if (multi) {
                 for (const n of mTiles) { n.x += dx; n.y += dy; }
                 for (const t of mTbs) { t.x += dx; t.y += dy; }
@@ -1179,11 +1408,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                   const id = (this as SVGGElement).getAttribute('data-tb-id');
                   if (!id || !tbIdSet.has(id)) return;
                   const t = mTbs.find((tt) => tt.id === id);
-                  if (t) d3.select(this).attr('transform', `translate(${t.x},${t.y})`);
+                  if (t) { d3.select(this).attr('transform', `translate(${t.x},${t.y})`); syncOverlay(t.id, t.x, t.y); }
                 });
               } else {
                 tb.x += dx; tb.y += dy;
                 g.attr('transform', `translate(${tb.x},${tb.y})`);
+                syncOverlay(tb.id, tb.x, tb.y);
               }
               drawEdges();
             })
@@ -1206,6 +1436,18 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               multi = false; mTiles = []; mTbs = [];
             });
         })() as any);
+
+        // L'editor (overlay HTML) va tenuto allineato a posizione E dimensione
+        // del frame SVG durante il resize: React aggiorna il div solo a fine
+        // drag, quindi qui lo sincronizziamo in tempo reale.
+        const syncOverlayBox = () => {
+          const el = overlayInnerRef.current?.querySelector(`[data-box-id="${tb.id}"]`) as HTMLElement | null;
+          if (!el) return;
+          el.style.left = `${tb.x + TB_PAD}px`;
+          el.style.top = `${tb.y + TB_PAD}px`;
+          el.style.width = `${tb.w - 2 * TB_PAD}px`;
+          el.style.height = `${tb.h - 2 * TB_PAD}px`;
+        };
 
         // Resize handles on edges (not on ports)
         const RESIZE_W = 6;
@@ -1249,6 +1491,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // Redraw this text box
               drawTextBoxes();
               drawEdges();
+              syncOverlayBox();
             })
             .on('end', () => {
               resizeStart = null;
@@ -1307,6 +1550,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }
             drawTextBoxes();
             drawEdges();
+            syncOverlayBox();
           })
           .on('end', () => {
             cornerStart = null;
@@ -1317,11 +1561,27 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }
           }) as any);
 
+        // Le porte (nodi di aggancio) stanno al centro dei bordi, dove passano
+        // anche le maniglie di resize. Portandole in cima vincono l'interazione
+        // nel loro punto → il nodo di aggancio resta afferrabile (non lo copre
+        // la maniglia di stretch).
+        tbPorts.raise();
+
         // Context menu
         g.on('contextmenu', (ev: MouseEvent) => {
           ev.preventDefault(); ev.stopPropagation();
           onTextBoxContextMenuRef.current({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
         });
+
+        // Doppio click su un box di testo → entra in inserimento testo. Con
+        // l'overlay non interattivo (modalità sposta) il dblclick passa al
+        // gruppo D3; qui attiviamo l'editing (l'overlay diventa interattivo).
+        if (tb.type === 'text') {
+          g.on('dblclick', (ev: MouseEvent) => {
+            ev.preventDefault(); ev.stopPropagation();
+            setEditingBoxIdRef.current(tb.id);
+          });
+        }
       });
     };
     drawTextBoxes();
@@ -1403,11 +1663,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     if (!svg) return;
     const ids = new Set(selectedIds || []);
     d3.select(svg).selectAll<SVGGElement, CanvasNode>('g.tile-node').each(function (d) {
-      d3.select(this).select('.sel-ring').attr('opacity', ids.has(d.id) ? 1 : 0);
+      const sel = ids.has(d.id) || selectedTileId === d.id;
+      d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
+      // Da selezionato niente nodi di aggancio: nasconde subito le porte anche se
+      // erano comparse in hover prima del click.
+      if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
     d3.select(svg).selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
       const id = (this as SVGGElement).getAttribute('data-tb-id');
-      d3.select(this).select('.sel-ring').attr('opacity', id && ids.has(`tb:${id}`) ? 1 : 0);
+      const sel = !!id && (ids.has(`tb:${id}`) || selectedTextBoxId === id);
+      d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
+      if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
     // Edges between two selected items
     d3.select(svg).selectAll<SVGGElement, unknown>('g.edge-node').each(function () {
@@ -1417,7 +1683,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const isSel = !!(src && tgt && ids.has(src) && ids.has(tgt) && ids.size >= 2);
       d3.select(el).select('line.edge-visible').attr('stroke', isSel ? theme.accent : theme.border).attr('stroke-width', isSel ? 2.5 : 1.5);
     });
-  }, [selectedIds, theme.accent, theme.border]);
+  }, [selectedIds, selectedTileId, selectedTextBoxId, theme.accent, theme.border]);
+
+  // Cambio di selezione del gruppo → ridisegna SOLO il layer dei gruppi
+  // (contorno + punti di aggancio), senza ricostruire l'intero SVG.
+  useEffect(() => {
+    drawGroupsRef.current?.();
+  }, [selectedGroupId]);
 
   useEffect(() => {
     if (!fitTrigger) return;
@@ -1456,15 +1728,28 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             <div
               key={tb.id}
               data-box-id={tb.id}
-              className="absolute pointer-events-auto"
+              className="absolute"
               style={{
                 left: tb.x + TB_PAD,
                 top: tb.y + TB_PAD,
                 width: tb.w - 2 * TB_PAD,
                 height: tb.h - 2 * TB_PAD,
+                // Interattivo solo in editing: altrimenti click/drag passano al
+                // gruppo D3 sotto (modalità sposta, cursore "move").
+                pointerEvents: editingBoxId === tb.id ? 'auto' : 'none',
+                cursor: editingBoxId === tb.id ? 'text' : 'move',
+              }}
+              // Il tasto destro sul testo (editor TipTap in overlay, fuori
+              // dall'SVG) non raggiunge il gruppo D3: intercettiamo qui per
+              // aprire il menu del text box invece di quello nativo del browser.
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTextBoxContextMenuRef.current({ x: e.clientX, y: e.clientY, textBoxId: tb.id });
               }}
             >
               <TextEditor
+                editing={editingBoxId === tb.id}
                 initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
                 onChange={(html) => {
                   // Keep local box in sync so D3 drag-end save uses the latest HTML.
