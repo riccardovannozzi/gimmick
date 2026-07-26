@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox, IconSearch, IconWand, IconCheck } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamera, IconPhoto, IconVideo, IconMicrophone, IconEdit, IconPaperclip, IconFileText, IconFile, IconPlayerPlay, IconTrash, IconExternalLink, IconBolt, IconClock, IconCalendar, IconMaximize, IconX, IconList, IconShare2, IconChevronDown, IconNote, IconCheckbox, IconSearch, IconWand } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
@@ -15,8 +15,7 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
-import { StatusSwatch } from '@/components/statuses/status-swatch';
-import { statusMeta } from '@/lib/status-meta';
+import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
@@ -255,6 +254,20 @@ function DefaultSwatch({ size = 18 }: { size?: number }) {
   );
 }
 
+/** Rappresentazione visiva dello status nel picker, coerente con la colonna del
+ *  tile: icona colorata (done→pallino, pausa, bloccato→lucchetto) oppure testo
+ *  (cancelled→DELETE). 'active' = swatch neutro. Legge dalla config `statusGlyph`. */
+function StatusGlyphView({ name, size = 18 }: { name: string; size?: number }) {
+  const meta = statusMeta(name);
+  const glyph = statusGlyph(name);
+  const box: React.CSSProperties = { width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
+  if (glyph.kind === 'none') return <DefaultSwatch size={size} />;
+  if (glyph.kind === 'dot') return <span style={box}><span style={{ width: size * 0.44, height: size * 0.44, borderRadius: '50%', background: meta.hex }} /></span>;
+  if (glyph.kind === 'text') return <span style={{ ...box, width: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: meta.hex }}>{glyph.text}</span>;
+  const Icon = AllIcons[glyph.icon];
+  return <span style={box}>{Icon ? <Icon size={Math.round(size * 0.72)} color={meta.hex} /> : null}</span>;
+}
+
 function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string) => void }) {
   const theme = usePixelTheme();
   const { statuses } = useStatuses();
@@ -310,7 +323,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
       >
         {current && currentMeta ? (
           <>
-            {current.name === 'active' ? <DefaultSwatch size={18} /> : <StatusSwatch shape={current.shape} color={currentMeta.color} size={18} />}
+            <StatusGlyphView name={current.name} size={18} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
           </>
         ) : (
@@ -341,7 +354,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             const selected = value === s.id;
             return (
               <button key={s.id} onClick={() => { onChange(s.id); setOpen(false); }} style={popupItem(selected)}>
-                {s.name === 'active' ? <DefaultSwatch size={18} /> : <StatusSwatch shape={s.shape} color={meta.color} size={18} />}
+                <StatusGlyphView name={s.name} size={18} />
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{meta.label}</span>
                 {selected && check}
               </button>
@@ -1135,6 +1148,9 @@ export function TileSidebar({
   const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const actionColors = useActionColors();
+  // "Completato" ha come UNICA fonte di verità il menu a discesa status
+  // (status_id = riga di sistema 'done'). Non c'è più il toggle sul titolo.
+  const { doneStatusId } = useStatuses();
   const { data, isLoading } = useQuery({
     queryKey: ['tile-detail', tileId],
     queryFn: () => tilesApi.get(tileId!),
@@ -1444,49 +1460,32 @@ export function TileSidebar({
               <div>
                 <label style={labelStyle}>{'Titolo'}</label>
                 <div style={{ position: 'relative' }}>
-                  <textarea
-                    value={editTitle}
-                    onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
-                    onBlur={saveTitle}
-                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
-                    rows={2}
-                    style={{
-                      ...obField(theme),
-                      display: 'block',
-                      width: '100%',
-                      padding: '8px 36px 8px 10px',
-                      lineHeight: '20px',
-                      outline: 'none',
-                      resize: 'none',
-                      textDecoration: tile.is_completed ? 'line-through' : 'none',
-                      color: tile.is_completed ? theme.ink3 : theme.ink,
-                    }}
-                    placeholder={'Titolo…'}
-                  />
-                  {/* Overlay COMPLETATO: check vuoto/verde in basso a destra. */}
-                  <button
-                    type="button"
-                    onClick={() => updateTileMutation.mutate({ is_completed: !tile.is_completed })}
-                    title={tile.is_completed ? 'Segna come da completare' : 'Segna come completato'}
-                    aria-pressed={!!tile.is_completed}
-                    style={{
-                      position: 'absolute',
-                      right: 8,
-                      bottom: 8,
-                      width: 20,
-                      height: 20,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: tile.is_completed ? 'var(--ob-success)' : 'transparent',
-                      border: `1.5px solid ${tile.is_completed ? 'var(--ob-success)' : theme.ink3}`,
-                      borderRadius: 6,
-                      cursor: 'pointer',
-                      padding: 0,
-                    }}
-                  >
-                    {tile.is_completed && <IconCheck size={13} color="#fff" stroke={3} />}
-                  </button>
+                  {(() => {
+                    // "Completato" deriva SOLO dallo status (menu a discesa),
+                    // non più da un toggle sul titolo.
+                    const isDone = !!doneStatusId && tile.status_id === doneStatusId;
+                    return (
+                      <textarea
+                        value={editTitle}
+                        onChange={(e) => { setEditTitle(e.target.value); titleDirty.current = true; }}
+                        onBlur={saveTitle}
+                        onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveTitle(); } }}
+                        rows={2}
+                        style={{
+                          ...obField(theme),
+                          display: 'block',
+                          width: '100%',
+                          padding: '8px 10px',
+                          lineHeight: '20px',
+                          outline: 'none',
+                          resize: 'none',
+                          textDecoration: isDone ? 'line-through' : 'none',
+                          color: isDone ? theme.ink3 : theme.ink,
+                        }}
+                        placeholder={'Titolo…'}
+                      />
+                    );
+                  })()}
                 </div>
               </div>
 

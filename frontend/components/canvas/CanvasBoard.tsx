@@ -9,12 +9,12 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
-import { statusMeta } from '@/lib/status-meta';
+import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { TextEditor } from './TextEditor';
 
-const TILE_W = 130;
-const TILE_H = 90;
+const TILE_W = 150;
+const TILE_H = 80;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -26,7 +26,17 @@ export interface CanvasNode { id: string; title: string; actionType: string; sta
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
-export interface CanvasGroup { id: string; label: string; nodeIds: string[]; }
+export type GroupBorderStyle = 'solid' | 'dashed' | 'dotted';
+export interface CanvasGroup {
+  id: string;
+  label: string;
+  nodeIds: string[];
+  /** Stile opzionale: sfondo, colore/spessore/tipologia del bordo. */
+  bgColor?: string | null;
+  borderColor?: string | null;
+  borderWidth?: number | null;
+  borderStyle?: GroupBorderStyle | null;
+}
 // Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
 //   type 'text'  → content = { html: string }
 //   type 'image' → content = { src: string; alt?: string }
@@ -82,9 +92,21 @@ interface CanvasBoardProps {
   /** Chiamata a fine contorno (modalità Raggruppa) con gli id dei tile catturati
    *  (≥2). Il parent crea il CanvasGroup. I box di testo non entrano nei gruppi. */
   onGroupTiles?: (tileIds: string[]) => void;
-  /** Click o tasto destro sulla zona del gruppo SENZA tile (sfondo/etichetta):
-   *  il parent apre il menu del gruppo (Rinomina / Elimina). */
+  /** Tasto destro sulla zona del gruppo SENZA tile (sfondo/etichetta): il parent
+   *  apre il menu del gruppo (Rinomina / Elimina). */
   onGroupContextMenu?: (e: { x: number; y: number; groupId: string }) => void;
+  /** Click sinistro sulla zona del gruppo SENZA tile: il parent seleziona il
+   *  gruppo (evidenzia i punti di aggancio + mostra i dati nella sidebar). */
+  onGroupClick?: (groupId: string) => void;
+  /** Id del gruppo selezionato: ne evidenzia il contorno (obsidian). */
+  selectedGroupId?: string | null;
+  /** Id del tile selezionato con click singolo: mostra il contorno obsidian e
+   *  sopprime i suoi punti di aggancio (che restano solo in hover sui non-selezionati). */
+  selectedTileId?: string | null;
+  /** Id del box (testo/immagine) selezionato con click singolo → contorno obsidian. */
+  selectedTextBoxId?: string | null;
+  /** Click singolo su un box → il parent lo seleziona (solo contorno, niente menu). */
+  onTextBoxClick?: (id: string) => void;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
@@ -123,7 +145,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
-  onGroupTiles, onGroupContextMenu,
+  onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
+  selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
   tilesWithFlows, onFlowBadgeClick,
@@ -134,8 +157,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const theme = usePixelTheme();
   // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
   // nel codice D3 sotto.
-  const RX = 12;        // card / group / clip corner radius
-  const RX_SEL = 14;    // selection ring radius
+  const RX = 8;         // card / group / clip corner radius (tile + gruppi + box)
+  const RX_SEL = 8;     // selection ring radius
   const RX_BADGE = 4;   // footer action/type badge radius
   const SW = 1;         // card hairline stroke width
   const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
@@ -161,6 +184,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const selectModeRef = useRef(selectMode); selectModeRef.current = selectMode;
   const onGroupTilesRef = useRef(onGroupTiles); onGroupTilesRef.current = onGroupTiles;
   const onGroupContextMenuRef = useRef(onGroupContextMenu); onGroupContextMenuRef.current = onGroupContextMenu;
+  const onGroupClickRef = useRef(onGroupClick); onGroupClickRef.current = onGroupClick;
+  const selectedGroupIdRef = useRef(selectedGroupId); selectedGroupIdRef.current = selectedGroupId;
+  const selectedTileIdRef = useRef(selectedTileId); selectedTileIdRef.current = selectedTileId;
+  const selectedTextBoxIdRef = useRef(selectedTextBoxId); selectedTextBoxIdRef.current = selectedTextBoxId;
+  const onTextBoxClickRef = useRef(onTextBoxClick); onTextBoxClickRef.current = onTextBoxClick;
+  // Ref al drawGroups corrente: permette a un effect di ridisegnare SOLO i gruppi
+  // quando cambia la selezione del gruppo, senza ricostruire tutto l'SVG.
+  const drawGroupsRef = useRef<(() => void) | null>(null);
   const onAddImageBoxRef = useRef(onAddImageBox); onAddImageBoxRef.current = onAddImageBox;
 
   // Refs for callbacks to avoid re-render of the entire SVG
@@ -489,13 +520,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       onSelectionChangeRef.current?.(ids, computeSelectionScreenBbox());
     });
 
-    // Clear selection on plain click on empty canvas
+    // Clear selection on plain click on empty canvas (tile/multi E gruppo).
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
       if (textModeRef.current || tileModeRef.current || imageModeRef.current) return;
-      if (selectedIdsRef.current.length === 0) return;
+      if (selectedIdsRef.current.length === 0 && !selectedGroupIdRef.current && !selectedTileIdRef.current && !selectedTextBoxIdRef.current) return;
       selectedIdsRef.current = [];
+      // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
       onSelectionChangeRef.current?.([], null);
     });
 
@@ -558,7 +590,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
-      groupsBg.selectAll('rect').attr('stroke', 'none');
+      groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
+        const r = d3.select(this);
+        r.attr('stroke', r.attr('data-base-stroke') || 'none')
+         .attr('stroke-width', r.attr('data-base-sw') || 0)
+         .attr('stroke-dasharray', r.attr('data-base-dash') || null);
+      });
       // Highlight target
       if (dropTarget.current) {
         if (dropTarget.current.groupId) {
@@ -582,7 +619,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
-      groupsBg.selectAll('rect').attr('stroke', 'none');
+      groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
+        const r = d3.select(this);
+        r.attr('stroke', r.attr('data-base-stroke') || 'none')
+         .attr('stroke-width', r.attr('data-base-sw') || 0)
+         .attr('stroke-dasharray', r.attr('data-base-dash') || null);
+      });
       if (!linkSrc.current) return;
       const sid = linkSrc.current.id;
       const sp = linkSrc.current.port;
@@ -605,11 +647,32 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       groupsRef.current.forEach((grp) => {
         const b = getGroupBounds(grp, nodes);
         if (!b) return;
+        const isSel = grp.id === selectedGroupIdRef.current;
+        // Stile per-gruppo (sfondo/bordo). In selezione il bordo passa all'accento
+        // (mantenendo spessore/tipologia) per rendere evidente la selezione.
+        const gBg = grp.bgColor || theme.surface;
+        const gBw = grp.borderWidth ?? 0;
+        const gStroke = isSel ? theme.accent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
+        const gStrokeW = isSel ? Math.max(1.5, gBw) : gBw;
+        const dashFor = (style: string | null | undefined, w: number): string | null => {
+          if (style === 'dashed') return `${Math.max(4, w * 3)},${Math.max(3, w * 2)}`;
+          if (style === 'dotted') return `${Math.max(1, w)},${Math.max(3, w * 2)}`;
+          return null;
+        };
+        const gDash = dashFor(grp.borderStyle, gStrokeW);
         const gw = groupsBg.append('g');
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
-          .attr('fill', theme.surface).attr('stroke', 'none')
+          .attr('fill', gBg)
+          .attr('stroke', gStroke).attr('stroke-width', gStrokeW)
+          .attr('stroke-dasharray', gDash)
+          .attr('stroke-linecap', grp.borderStyle === 'dotted' ? 'round' : 'butt')
+          // Stile base memorizzato: il link-drag evidenzia temporaneamente il
+          // bordo del gruppo target e poi lo ripristina da questi attributi.
+          .attr('data-base-stroke', gStroke).attr('data-base-sw', gStrokeW).attr('data-base-dash', gDash || '')
           .style('cursor', moveRef.current ? 'grab' : 'default')
-          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); openGroupMenu(ev, grp.id); })
+          // Click sinistro → seleziona il gruppo (sidebar + punti di aggancio).
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
+          // Tasto destro → menu del gruppo (Rinomina / Elimina).
           .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); })
           .call((() => {
             let prev: [number, number] | null = null;
@@ -626,9 +689,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               })
               .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
           })());
-        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', theme.ink3).attr('font-size', 11).attr('font-weight', 500)
+        // Nome leggibile sullo sfondo del gruppo: chiaro su scuro e viceversa.
+        // Senza sfondo, colore muted (o accento se selezionato).
+        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? theme.accent : theme.ink3);
+        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', 11).attr('font-weight', isSel ? 600 : 500)
           .text(grp.label || 'Gruppo').style('cursor', 'pointer')
-          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); openGroupMenu(ev, grp.id); })
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
           .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); });
         // Group ports
         const gPorts: { key: PortKey; cx: number; cy: number }[] = [
@@ -637,17 +703,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           { key: 'bottom', cx: b.x + b.w / 2, cy: b.y + b.h },
           { key: 'left', cx: b.x, cy: b.y + (b.h - LABEL_H) / 2 },
         ];
+        const gPcs: { pc: d3.Selection<SVGCircleElement, unknown, null, undefined>; cx: number; cy: number }[] = [];
         gPorts.forEach(({ key: pk, cx, cy }) => {
-          const pc = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
+          // Punti di aggancio: NON evidenziati alla selezione (contorno obsidian).
+          const pc = gw.append('circle').attr('class', 'g-port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R + 1).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('pointer-events', 'none');
+          gPcs.push({ pc, cx, cy });
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
-          ha.on('mouseenter', () => { if (linkRef.current) pc.attr('opacity', 1); }).on('mouseleave', () => { if (!linkSrc.current) pc.attr('opacity', 0); });
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
             .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, `g:${pk}`, ev); pc.attr('opacity', 1); })
             .on('drag', dragLink)
-            .on('end', () => { endLink(); pc.attr('opacity', 0); }) as any);
+            .on('end', () => { endLink(); gPcs.forEach((p) => p.pc.attr('opacity', 0)); }) as any);
         });
+        // In hover mostra SOLO il punto di aggancio più vicino al cursore (non tutti
+        // e 4): meno "disturbante". Escluso in selezione o durante un link attivo.
+        gw.on('mousemove.ports', (ev: MouseEvent) => {
+          if (!linkRef.current || linkSrc.current || selectedGroupIdRef.current === grp.id) return;
+          const [mx, my] = d3.pointer(ev, boardNode);
+          let best: typeof gPcs[number] | null = null, bestDist = Infinity;
+          for (const p of gPcs) { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = p; } }
+          gPcs.forEach((p) => p.pc.attr('opacity', p === best ? 1 : 0));
+        });
+        gw.on('mouseleave.ports', () => { if (!linkSrc.current) gPcs.forEach((p) => p.pc.attr('opacity', 0)); });
       });
     };
+    drawGroupsRef.current = drawGroups;
 
     // ── Draw edges ──
     const edgesG = board.append('g');
@@ -784,15 +863,68 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         .attr('fill', d.typeColor).attr('opacity', 0.14)
         .style('pointer-events', 'none');
     });
+    // Colonna verticale di STATUS (a sinistra): una vera colonna, senza bordo né
+    // margini, ma rientrata dello spessore del bordo del tile (SW) così NON lo
+    // copre. Angoli sinistri arrotondati coerenti col tile. Per ora solo la
+    // traccia vuota — il riempimento in base allo status verrà aggiunto dopo.
+    const STRIP_W = 16;                 // bordo destro della colonna
+    const CONTENT_X = STRIP_W + 8;      // margine sinistro del contenuto = 24
+    const IN = SW;                      // rientro = spessore bordo tile (non lo copre)
+    const RR = RX - IN;                 // raggio interno degli angoli sinistri
+    const YB = TILE_H - IN;
+    const stripPath = `M ${IN} ${IN + RR} Q ${IN} ${IN} ${IN + RR} ${IN} H ${STRIP_W} V ${YB} H ${IN + RR} Q ${IN} ${YB} ${IN} ${YB - RR} Z`;
+    nodeGrps.each(function () {
+      const g = d3.select(this);
+      g.append('g').attr('class', 'status-strip').append('path')
+        .attr('class', 'status-strip-track')
+        .attr('d', stripPath)
+        .attr('fill', theme.bg1)
+        .style('pointer-events', 'none');
+    });
+    // STATUS nella colonna — guidato dalla config centralizzata `statusGlyph`
+    // (single source of truth condivisa con staging e picker). Due tipologie:
+    // ICONA/DOT colorato oppure TESTO. 'none' (active) non mostra nulla.
+    nodeGrps.each(function (d) {
+      const glyph = statusGlyph(d.statusName);
+      if (glyph.kind === 'none') return;
+      const g = d3.select(this);
+      const meta = statusMeta(d.statusName!);
+      const cx = (IN + STRIP_W) / 2;
+      const cy = TILE_H / 2;
+      if (glyph.kind === 'dot') {
+        g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 4)
+          .attr('fill', meta.hex).style('pointer-events', 'none');
+      } else if (glyph.kind === 'text') {
+        g.append('text')
+          .attr('x', cx).attr('y', cy)
+          .attr('transform', `rotate(-90, ${cx}, ${cy})`)
+          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+          .attr('fill', meta.hex).attr('font-family', labelFont)
+          .attr('font-size', 9).attr('font-weight', 700)
+          .style('letter-spacing', '0.15em').style('pointer-events', 'none')
+          .text(glyph.text);
+      } else if (glyph.kind === 'icon') {
+        const IconComp = (TablerIcons as unknown as Record<string, any>)[glyph.icon];
+        if (!IconComp) return;
+        const React = require('react');
+        const { renderToString } = require('react-dom/server');
+        const html = renderToString(React.createElement(IconComp, { size: 12, color: meta.hex }));
+        const fo = g.append('foreignObject').attr('x', cx - 6).attr('y', cy - 6).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
+        container.innerHTML = html;
+        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+      }
+    });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
-      const fo = g.append('foreignObject').attr('x', 6).attr('y', 6).attr('width', TILE_W - 12).attr('height', TILE_H - 26);
+      const fo = g.append('foreignObject').attr('x', CONTENT_X).attr('y', 6).attr('width', TILE_W - CONTENT_X - 6).attr('height', TILE_H - 26);
       // Testo su velatura chiara → colore leggibile sulla surface.
       const fg = readableOn(theme.surface);
       // Barrato + attenuato quando completato, come nel titolo della sidebar.
       const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
       fo.append('xhtml:div')
-        .attr('style', `color:${fg};font-size:11px;font-weight:400;line-height:14px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
+        .attr('style', `color:${fg};font-size:12px;font-weight:300;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge
@@ -816,8 +948,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         timeLine = formatTime(d.startAt);
         if (d.endAt) timeLine += ` - ${formatTime(d.endAt)}`;
       }
-      // Left-aligned just past the action badge (badge ends at x=22; pad 8px to x=30).
-      const textX = 30;
+      // Left-aligned just past the action badge (che parte da CONTENT_X, largo 16).
+      const textX = CONTENT_X + 24;
       if (dateLine && timeLine) {
         g.append('text').attr('x', textX).attr('y', TILE_H - 16)
           .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
@@ -834,8 +966,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const items = d.subtasks || [];
       if (items.length === 0) return;
       const g = d3.select(this);
-      const innerX = 6;
-      const innerW = TILE_W - 12;
+      const innerX = CONTENT_X;
+      const innerW = TILE_W - CONTENT_X - 6;
       const y = TILE_H - 34;
       const h = 4;
       const gap = 2;
@@ -869,14 +1001,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const g = d3.select(this);
       const actionColor = getColor(d.actionType);
       g.append('rect')
-        .attr('x', 6).attr('y', TILE_H - 22)
+        .attr('x', CONTENT_X).attr('y', TILE_H - 22)
         .attr('width', 16).attr('height', 16).attr('rx', RX_BADGE)
         .attr('fill', actionColor)
         .attr('stroke', theme.border).attr('stroke-width', SW);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
-      const fo = g.append('foreignObject').attr('x', 9).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
+      const fo = g.append('foreignObject').attr('x', CONTENT_X + 3).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
       const container = document.createElement('div');
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
       container.innerHTML = html;
@@ -927,7 +1059,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // Lo status 'active' (default/prevalente) non viene mai mostrato.
     nodeGrps.each(function (d) {
       const showType = !!d.typeIcon;
-      const showStatus = !!d.statusName && d.statusName !== 'active';
+      // Gli status gestiti dalla colonna (STATUS_COLUMN_ICONS) NON vanno anche
+      // nel footer → evita doppioni. Gli altri usano ancora lo swatch nel footer.
+      // Ogni status con una rappresentazione (icona/dot/testo) vive nella colonna
+      // → mai nel footer. Solo 'active' (glyph 'none') non è in colonna.
+      const inColumn = statusGlyph(d.statusName).kind !== 'none';
+      const showStatus = !!d.statusName && d.statusName !== 'active' && !inColumn;
       if (!showType && !showStatus) return;
       const g = d3.select(this);
       try {
@@ -950,15 +1087,26 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
       .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', RX_SEL)
-      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
+      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
       .style('pointer-events', 'none')
-      .attr('opacity', (d) => selectedIdsRef.current.includes((d as CanvasNode).id) ? 1 : 0);
+      .attr('opacity', (d) => { const id = (d as CanvasNode).id; return (selectedIdsRef.current.includes(id) || selectedTileIdRef.current === id) ? 1 : 0; });
 
     // Tile ports
-    const portG = nodeGrps.append('g').attr('class', 'ports').attr('opacity', 0);
-    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).style('cursor', 'crosshair'); });
-    nodeGrps.on('mouseenter', function () { if (linkRef.current) d3.select(this).select('.ports').attr('opacity', 1); })
-      .on('mouseleave', function () { if (!linkSrc.current) d3.select(this).select('.ports').attr('opacity', 0); });
+    const portG = nodeGrps.append('g').attr('class', 'ports');
+    PORTS.forEach(({ cx, cy }) => { portG.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy).attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2).attr('opacity', 0).style('cursor', 'crosshair'); });
+    // In hover mostra SOLO il punto di aggancio più vicino al cursore (non tutti
+    // e 4). Escluso se il tile è selezionato (solo contorno obsidian) o durante
+    // un collegamento attivo.
+    nodeGrps.on('mousemove.ports', function (ev) {
+      const d = d3.select(this).datum() as CanvasNode;
+      const selected = !!d && (selectedTileIdRef.current === d.id || selectedIdsRef.current.includes(d.id));
+      if (!linkRef.current || linkSrc.current || selected) { d3.select(this).selectAll('.port').attr('opacity', 0); return; }
+      const [mx, my] = d3.pointer(ev, this);
+      let best = -1, bestDist = Infinity;
+      PORTS.forEach((p, i) => { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = i; } });
+      d3.select(this).selectAll<SVGCircleElement, unknown>('.port').attr('opacity', (_d, i) => (i === best ? 1 : 0));
+    })
+      .on('mouseleave.ports', function () { if (!linkSrc.current) d3.select(this).selectAll('.port').attr('opacity', 0); });
 
     // Tile port drag
     const portDrag = d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
@@ -969,7 +1117,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         startLink(nd.id, nd.x + pcx, nd.y + pcy, pk, ev);
       })
       .on('drag', dragLink)
-      .on('end', () => { endLink(); nodeGrps.selectAll('.ports').attr('opacity', 0); });
+      .on('end', () => { endLink(); nodeGrps.selectAll('.port').attr('opacity', 0); });
     portG.selectAll('circle.port').call(portDrag as any);
 
     // Node drag (supports multi-drag including text boxes when the dragged tile is part of selectedIds).
@@ -1127,9 +1275,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
           .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', RX_SEL)
-          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 3)
+          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
           .style('pointer-events', 'none')
-          .attr('opacity', selectedIdsRef.current.includes(`tb:${tb.id}`) ? 1 : 0);
+          .attr('opacity', (selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id) ? 1 : 0);
 
         // Type-specific content. Image stays in SVG via foreignObject (lightweight,
         // no React state). Text editors are rendered in the HTML overlay (sibling
@@ -1152,21 +1300,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             .attr('style', 'display:block;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;-webkit-user-drag:none;');
         }
 
-        // Multi-selection toggle via CTRL/CMD/SHIFT + click on the box background
-        // rect. Plain click is handled by TipTap (text) or no-op (image).
+        // CTRL/CMD/SHIFT + click → toggle nella multi-selezione. Click semplice →
+        // seleziona SOLO questo box (contorno obsidian, senza menu), come i tile.
         g.on('click.select', (ev: MouseEvent) => {
-          if (!ev.ctrlKey && !ev.metaKey && !ev.shiftKey) return;
-          ev.stopPropagation();
           const tbId = `tb:${tb.id}`;
-          const cur = selectedIdsRef.current;
-          const has = cur.includes(tbId);
-          const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
-          selectedIdsRef.current = next;
-          onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+          if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+            ev.stopPropagation();
+            const cur = selectedIdsRef.current;
+            const has = cur.includes(tbId);
+            const next = has ? cur.filter((id) => id !== tbId) : [...cur, tbId];
+            selectedIdsRef.current = next;
+            onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+            return;
+          }
+          ev.stopPropagation();
+          onTextBoxClickRef.current?.(tb.id);
         });
 
         // 4 ports
-        const tbPorts = g.append('g').attr('class', 'tb-ports').attr('opacity', 0);
+        const tbPorts = g.append('g').attr('class', 'tb-ports');
         const tbPortList = [
           { key: 'top', cx: tw / 2, cy: 0 },
           { key: 'right', cx: tw, cy: th / 2 },
@@ -1176,11 +1328,20 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         tbPortList.forEach(({ key, cx, cy }) => {
           tbPorts.append('circle').attr('class', 'port').attr('cx', cx).attr('cy', cy)
             .attr('r', PORT_R).attr('fill', theme.accent).attr('stroke', theme.bg1).attr('stroke-width', 2)
-            .style('cursor', 'crosshair');
+            .attr('opacity', 0).style('cursor', 'crosshair');
         });
 
-        g.on('mouseenter', () => { if (linkRef.current) tbPorts.attr('opacity', 1); });
-        g.on('mouseleave', () => { if (!linkSrc.current) tbPorts.attr('opacity', 0); });
+        // In hover mostra SOLO il punto più vicino al cursore (non tutti e 4).
+        // Escluso in selezione (contorno obsidian) o durante un link attivo.
+        g.on('mousemove.ports', function (ev) {
+          const selected = selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id;
+          if (!linkRef.current || linkSrc.current || selected) { tbPorts.selectAll('.port').attr('opacity', 0); return; }
+          const [mx, my] = d3.pointer(ev, this);
+          let best = -1, bestDist = Infinity;
+          tbPortList.forEach((p, i) => { const dd = (mx - p.cx) ** 2 + (my - p.cy) ** 2; if (dd < bestDist) { bestDist = dd; best = i; } });
+          tbPorts.selectAll<SVGCircleElement, unknown>('.port').attr('opacity', (_d, i) => (i === best ? 1 : 0));
+        });
+        g.on('mouseleave.ports', () => { if (!linkSrc.current) tbPorts.selectAll('.port').attr('opacity', 0); });
 
         // Port drag on text box
         const tbPortDrag = d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
@@ -1190,7 +1351,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             startLink(`tb:${tb.id}`, tb.x + pcx, tb.y + pcy, `t:${pk}`, ev);
           })
           .on('drag', dragLink)
-          .on('end', () => { endLink(); tbPorts.attr('opacity', 0); });
+          .on('end', () => { endLink(); tbPorts.selectAll('.port').attr('opacity', 0); });
         tbPorts.selectAll('circle.port').call(tbPortDrag as any);
 
         // Drag to move (on background rect, not on ports/resize/text). Supports multi-drag
@@ -1400,6 +1561,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }
           }) as any);
 
+        // Le porte (nodi di aggancio) stanno al centro dei bordi, dove passano
+        // anche le maniglie di resize. Portandole in cima vincono l'interazione
+        // nel loro punto → il nodo di aggancio resta afferrabile (non lo copre
+        // la maniglia di stretch).
+        tbPorts.raise();
+
         // Context menu
         g.on('contextmenu', (ev: MouseEvent) => {
           ev.preventDefault(); ev.stopPropagation();
@@ -1496,11 +1663,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     if (!svg) return;
     const ids = new Set(selectedIds || []);
     d3.select(svg).selectAll<SVGGElement, CanvasNode>('g.tile-node').each(function (d) {
-      d3.select(this).select('.sel-ring').attr('opacity', ids.has(d.id) ? 1 : 0);
+      const sel = ids.has(d.id) || selectedTileId === d.id;
+      d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
+      // Da selezionato niente nodi di aggancio: nasconde subito le porte anche se
+      // erano comparse in hover prima del click.
+      if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
     d3.select(svg).selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
       const id = (this as SVGGElement).getAttribute('data-tb-id');
-      d3.select(this).select('.sel-ring').attr('opacity', id && ids.has(`tb:${id}`) ? 1 : 0);
+      const sel = !!id && (ids.has(`tb:${id}`) || selectedTextBoxId === id);
+      d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
+      if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
     // Edges between two selected items
     d3.select(svg).selectAll<SVGGElement, unknown>('g.edge-node').each(function () {
@@ -1510,7 +1683,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const isSel = !!(src && tgt && ids.has(src) && ids.has(tgt) && ids.size >= 2);
       d3.select(el).select('line.edge-visible').attr('stroke', isSel ? theme.accent : theme.border).attr('stroke-width', isSel ? 2.5 : 1.5);
     });
-  }, [selectedIds, theme.accent, theme.border]);
+  }, [selectedIds, selectedTileId, selectedTextBoxId, theme.accent, theme.border]);
+
+  // Cambio di selezione del gruppo → ridisegna SOLO il layer dei gruppi
+  // (contorno + punti di aggancio), senza ricostruire l'intero SVG.
+  useEffect(() => {
+    drawGroupsRef.current?.();
+  }, [selectedGroupId]);
 
   useEffect(() => {
     if (!fitTrigger) return;

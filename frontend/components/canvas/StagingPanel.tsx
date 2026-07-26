@@ -8,6 +8,8 @@ import {
   IconArrowNarrowUp,
   IconArrowNarrowDown,
   IconChevronDown,
+  IconLock,
+  IconPlayerPause,
 } from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
@@ -19,8 +21,14 @@ import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { ActionBadge } from '@/components/actions/action-badge';
 import { TileMeta } from '@/components/tileview/TileMeta';
-import { statusMeta } from '@/lib/status-meta';
-import type { Tile, StatusShape } from '@/types';
+import { statusMeta, statusGlyph } from '@/lib/status-meta';
+import type { Tile } from '@/types';
+
+// Icone usate dalla colonna status (config `statusGlyph`, kind 'icon').
+const STATUS_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
+  IconLock,
+  IconPlayerPause,
+};
 
 interface Props {
   tiles: Tile[];
@@ -34,8 +42,8 @@ interface Props {
   onToggle?: () => void;
 }
 
-const TILE_W = 130;
-const TILE_H = 90;
+const TILE_W = 150;
+const TILE_H = 80;
 const FALLBACK_COLOR = '#94A3B8';
 
 type SortDir = 'asc' | 'desc';
@@ -119,14 +127,7 @@ export function StagingPanel({
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
-  const { statuses, getActionTypeShape } = useStatuses();
-  const resolveShape = useCallback((tile: Tile): StatusShape => {
-    if (tile.status_id) {
-      const st = statuses.find((s) => s.id === tile.status_id);
-      if (st) return st.shape as StatusShape;
-    }
-    return getActionTypeShape(tile.action_type || 'none');
-  }, [statuses, getActionTypeShape]);
+  const { statuses } = useStatuses();
   const tilesWithFlows = useTilesWithFlows();
   const openFlow = useFlowOpenStore((s) => s.open);
   const getIconForTile = useCallback(
@@ -265,11 +266,30 @@ export function StagingPanel({
     const isSelected = selectedTileId === t.id;
     const hasFlow = tilesWithFlows.has(t.id);
     const isDone = !!t.is_completed;
-    // Status per TileMeta: 'active' (prevalente) non viene mai mostrato.
+    // Status: identico al canvas → vive nella COLONNA a sinistra (icona/pallino/
+    // DELETE), non più nel footer. 'active' non mostra nulla.
     const statusName = t.status_id ? statuses.find((s) => s.id === t.status_id)?.name : undefined;
-    const showStatus = !!statusName && statusName !== 'active';
-    const sMeta = showStatus ? statusMeta(statusName) : null;
-    const shape = resolveShape(t);
+    const sMeta = statusName ? statusMeta(statusName) : null;
+    const statusCol = (() => {
+      const glyph = statusGlyph(statusName);
+      if (glyph.kind === 'none' || !sMeta) return null;
+      if (glyph.kind === 'dot') return <span style={{ width: 8, height: 8, borderRadius: '50%', background: sMeta.hex }} />;
+      if (glyph.kind === 'text') return (
+        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
+      );
+      const Icon = STATUS_ICONS[glyph.icon];
+      return Icon ? <Icon size={12} color={sMeta.hex} /> : null;
+    })();
+    // Data/ora nel footer (come canvas): solo per deadline/event/allday con date.
+    const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const fmtTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+    let dateLine = '', timeLine = '';
+    if ((actionKey === 'deadline' || actionKey === 'event' || actionKey === 'allday') && (t.start_at || t.end_at)) {
+      if (actionKey === 'deadline' && t.end_at) dateLine = fmtDate(t.end_at);
+      else if (t.all_day && t.start_at) dateLine = fmtDate(t.start_at);
+      else if (t.start_at) { dateLine = fmtDate(t.start_at); timeLine = fmtTime(t.start_at); if (t.end_at) timeLine += ` - ${fmtTime(t.end_at)}`; }
+    }
+    const subs = t.subtasks || [];
     return (
       <div
         key={t.id}
@@ -297,32 +317,53 @@ export function StagingPanel({
           {tint !== 'transparent' && (
             <div style={{ position: 'absolute', inset: 0, background: tint, pointerEvents: 'none' }} />
           )}
-          <div style={{ position: 'relative', height: '100%', display: 'flex', flexDirection: 'column', padding: 6 }}>
-            <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-              <p
-                style={{
-                  fontFamily: bodyFont,
-                  fontSize: 11,
-                  lineHeight: '14px',
-                  color: readableOn(theme.surface),
-                  display: '-webkit-box',
-                  WebkitLineClamp: 2,
-                  WebkitBoxOrient: 'vertical',
-                  overflow: 'hidden',
-                  wordBreak: 'break-word',
-                  margin: 0,
-                  ...(isDone ? { textDecoration: 'line-through', opacity: 0.65 } : null),
-                }}
-              >
-                {t.title || 'Senza titolo'}
-              </p>
+          <div style={{ position: 'relative', height: '100%', display: 'flex' }}>
+            {/* Colonna STATUS (come canvas): icona/pallino/DELETE centrati. */}
+            <div style={{ width: 16, flexShrink: 0, background: theme.bg1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {statusCol}
             </div>
-            <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 4, position: 'relative', zIndex: 10 }}>
-              <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
-              <TileMeta
-                type={si ? { icon: si.icon, color: si.color ?? '#5C5868' } : undefined}
-                status={showStatus && sMeta ? { shape, color: sMeta.color, label: sMeta.label } : undefined}
-              />
+            {/* Contenuto */}
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '6px 6px 6px 8px' }}>
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+                <p
+                  style={{
+                    fontFamily: bodyFont,
+                    fontSize: 12,
+                    fontWeight: 300,
+                    lineHeight: '16px',
+                    color: readableOn(theme.surface),
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    wordBreak: 'break-word',
+                    margin: 0,
+                    ...(isDone ? { textDecoration: 'line-through', opacity: 0.65 } : null),
+                  }}
+                >
+                  {t.title || 'Senza titolo'}
+                </p>
+              </div>
+              {/* Barra checklist (LIST) */}
+              {subs.length > 0 && (
+                <div style={{ display: 'flex', gap: 2, marginBottom: 4 }}>
+                  {subs.map((s, i) => (
+                    <span key={i} style={{ flex: subs.length <= 10 ? '0 0 8px' : '1 1 0', height: 4, borderRadius: 1, background: s.is_done ? '#20C933' : '#F82B60' }} />
+                  ))}
+                </div>
+              )}
+              {/* Footer: azione + data + tipo */}
+              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, position: 'relative', zIndex: 10 }}>
+                <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
+                {(dateLine || timeLine) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05, minWidth: 0 }}>
+                    {dateLine && <span style={{ fontSize: 9, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
+                    {timeLine && <span style={{ fontSize: 8, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
+                  </div>
+                )}
+                <div style={{ marginLeft: 'auto' }} />
+                <TileMeta type={si ? { icon: si.icon, color: si.color ?? '#5C5868' } : undefined} />
+              </div>
             </div>
           </div>
         </div>

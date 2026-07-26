@@ -9,6 +9,8 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { ToastContainer } from '@/components/ui/Toast';
 import { useAuthStore, useSettingsStore } from '@/store';
+import { useOutboxSync } from '@/hooks/useOutboxSync';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { ThemeProvider, useTheme } from '@/lib/theme';
 import { PixelThemeProvider } from '@/components/pixel';
 
@@ -36,6 +38,11 @@ function AppContent() {
   useEffect(() => {
     initialize();
   }, []);
+
+  // Outbox offline: ritenta l'invio della coda quando torna la rete.
+  useOutboxSync();
+  // Indicatore di raggiungibilità del backend (pallino online/offline header).
+  useConnectivity();
 
   // Auth guard. Without it an unauthenticated session lands straight on the
   // tabs and every list renders empty with no explanation — the requests just

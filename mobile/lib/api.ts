@@ -14,6 +14,7 @@ import type {
   FlowHubFilter,
 } from '@/types';
 import Constants from 'expo-constants';
+import { useConnectivityStore } from '@/store/connectivityStore';
 
 const PRODUCTION_API_URL = 'https://gimmick-backend-production.up.railway.app';
 
@@ -38,6 +39,11 @@ function getApiUrl(): string {
 }
 
 const API_URL = getApiUrl();
+
+/** Base URL risolto del backend — usato dal ping di raggiungibilità (/health). */
+export function apiBaseUrl(): string {
+  return API_URL;
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -172,6 +178,9 @@ async function apiRequest<T>(
       headers,
     });
 
+    // Il server ha risposto (a qualunque status) → siamo online.
+    useConnectivityStore.getState().setOnline(true);
+
     // On 401, try refreshing token and retry once
     if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
       const newToken = await handleTokenRefresh();
@@ -201,6 +210,8 @@ async function apiRequest<T>(
 
     return data;
   } catch (error) {
+    // Fetch ha lanciato → rete assente/irraggiungibile: segnala offline.
+    useConnectivityStore.getState().setOnline(false);
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Network error',
@@ -840,9 +851,12 @@ export async function uploadBufferItems(
   items: BufferItem[],
   tagIds?: string[],
   tileOptions?: TileUploadOptions,
-): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile }> {
+): Promise<{ success: boolean; results: Spark[]; errors: string[]; tile?: Tile; uploadedIds: string[] }> {
   const results: Spark[] = [];
   const errors: string[] = [];
+  // Id (buffer) degli item effettivamente caricati: l'outbox li rimuove dalla
+  // coda in modo selettivo, così un invio parziale non ri-carica i già inviati.
+  const uploadedIds: string[] = [];
   let tile: Tile | undefined;
 
   // If multiple items, create a tile first to group them
@@ -902,6 +916,7 @@ export async function uploadBufferItems(
 
       if (sparkResult.success && sparkResult.data) {
         results.push(sparkResult.data);
+        uploadedIds.push(item.id);
       } else {
         errors.push(`Failed to create spark: ${sparkResult.error}`);
       }
@@ -957,5 +972,6 @@ export async function uploadBufferItems(
     results,
     errors,
     tile,
+    uploadedIds,
   };
 }

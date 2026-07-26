@@ -160,7 +160,7 @@ canvasRouter.get('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_groups')
-      .select('id, label, node_ids')
+      .select('id, label, node_ids, bg_color, border_color, border_width, border_style')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
 
@@ -191,12 +191,16 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
       .eq('tag_id', tagId);
 
     if (groups.length > 0) {
-      const rows = groups.map((g: { id: string; label: string; node_ids: string[] }) => ({
+      const rows = groups.map((g: { id: string; label: string; node_ids: string[]; bg_color?: string | null; border_color?: string | null; border_width?: number | null; border_style?: string | null }) => ({
         id: g.id,
         user_id: req.user!.id,
         tag_id: tagId,
         label: g.label || '',
         node_ids: g.node_ids,
+        bg_color: g.bg_color ?? null,
+        border_color: g.border_color ?? null,
+        border_width: g.border_width ?? null,
+        border_style: g.border_style ?? null,
       }));
       const { error } = await supabaseAdmin.from('canvas_groups').insert(rows);
       if (error) throw error;

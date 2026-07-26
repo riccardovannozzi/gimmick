@@ -34,3 +34,29 @@ export function statusMeta(name: string | undefined | null): StatusMeta {
   if (!name) return STATUS_FALLBACK;
   return STATUS_META[name] ?? { label: name, color: STATUS_FALLBACK.color, hex: STATUS_FALLBACK.hex };
 }
+
+/**
+ * Rappresentazione visiva dello status (colonna del tile + picker). Due
+ * tipologie: un'ICONA colorata (es. done→pallino, pausa, bloccato→lucchetto)
+ * oppure un TESTO (es. cancelled→"DELETE"). 'none' = nessuna rappresentazione
+ * (status 'active', prevalente). È la SINGLE SOURCE OF TRUTH usata da canvas,
+ * staging e status picker, così le tre viste restano allineate.
+ */
+export type StatusGlyph =
+  | { kind: 'none' }
+  | { kind: 'icon'; icon: string }   // nome componente Tabler (es. 'IconLock')
+  | { kind: 'dot' }                  // pallino pieno del colore dello status
+  | { kind: 'text'; text: string };  // etichetta breve (es. 'DELETE')
+
+export const STATUS_GLYPH: Record<string, StatusGlyph> = {
+  active: { kind: 'none' },
+  done: { kind: 'dot' },
+  paused: { kind: 'icon', icon: 'IconPlayerPause' },
+  blocked: { kind: 'icon', icon: 'IconLock' },
+  cancelled: { kind: 'text', text: 'DELETE' },
+};
+
+export function statusGlyph(name: string | undefined | null): StatusGlyph {
+  if (!name) return { kind: 'none' };
+  return STATUS_GLYPH[name] ?? { kind: 'none' };
+}

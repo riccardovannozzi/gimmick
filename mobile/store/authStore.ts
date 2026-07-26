@@ -52,20 +52,16 @@ export const useAuthStore = create<AuthState>()(
             // Register auto-logout on auth failure
             setOnAuthFailed(() => get().signOut());
 
-            // Check if token is expired
+            // Token scaduto → prova a rinnovarlo, ma NON sloggare se fallisce.
+            // Offline il refresh fallisce SEMPRE: azzerare la sessione qui
+            // chiuderebbe l'utente fuori dall'app (niente nemmeno cattura
+            // offline). La sessione locale resta valida per lavorare offline; il
+            // token si rinnova al ritorno online (401 → refresh in apiRequest) e
+            // un refresh token davvero non valido farà logout al primo 401 online
+            // via onAuthFailed → signOut.
             const now = Math.floor(Date.now() / 1000);
             if (state.expiresAt && state.expiresAt < now) {
-              // Try to refresh
-              const refreshed = await get().refreshSession();
-              if (!refreshed) {
-                // Refresh failed, clear auth
-                set({
-                  user: null,
-                  accessToken: null,
-                  refreshToken: null,
-                  expiresAt: null,
-                });
-              }
+              await get().refreshSession();
             }
           }
 

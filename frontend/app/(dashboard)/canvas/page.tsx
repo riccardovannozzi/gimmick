@@ -12,6 +12,7 @@ import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel } from '@/components/canvas/StagingPanel';
+import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
@@ -49,6 +50,8 @@ export default function CanvasPage() {
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
+  // Box (testo/immagine) selezionato con click singolo → contorno obsidian.
+  const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
   const openFlow = useFlowOpenStore((s) => s.open);
@@ -269,19 +272,34 @@ export default function CanvasPage() {
     id: g.id,
     label: g.label || '',
     nodeIds: g.node_ids || [],
+    bgColor: g.bg_color ?? null,
+    borderColor: g.border_color ?? null,
+    borderWidth: g.border_width ?? null,
+    borderStyle: g.border_style ?? null,
   })), [groupsData]);
+
+  // Serializza un gruppo (camelCase interno → snake_case DB) per cache e API.
+  const serializeGroup = (g: CanvasGroup) => ({
+    id: g.id,
+    label: g.label,
+    node_ids: g.nodeIds,
+    bg_color: g.bgColor ?? null,
+    border_color: g.borderColor ?? null,
+    border_width: g.borderWidth ?? null,
+    border_style: g.borderStyle ?? null,
+  });
 
   const saveGroupsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleGroupsChange = useCallback((newGroups: CanvasGroup[]) => {
     if (!tagId) return;
     // Optimistic update
     queryClient.setQueryData(['canvas-groups', tagId], {
-      data: newGroups.map((g) => ({ id: g.id, label: g.label, node_ids: g.nodeIds })),
+      data: newGroups.map(serializeGroup),
     });
     // Debounce save
     if (saveGroupsTimer.current) clearTimeout(saveGroupsTimer.current);
     saveGroupsTimer.current = setTimeout(() => {
-      canvasApi.saveGroups(tagId, newGroups.map((g) => ({ id: g.id, label: g.label, node_ids: g.nodeIds })));
+      canvasApi.saveGroups(tagId, newGroups.map(serializeGroup));
     }, 800);
   }, [tagId, queryClient]);
 
@@ -624,6 +642,9 @@ export default function CanvasPage() {
   // IDs are mixed: bare UUID = tile, "tb:<uuid>" = text box.
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [selectionBbox, setSelectionBbox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  // Gruppo selezionato (click sinistro): dati nella sidebar destra + punti di
+  // aggancio evidenziati sul canvas.
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Derived splits
   const selectedTileIds = useMemo(() => selectedIds.filter((id) => !id.startsWith('tb:')), [selectedIds]);
@@ -632,6 +653,11 @@ export default function CanvasPage() {
   const handleSelectionChange = useCallback((ids: string[], bbox: { x: number; y: number; w: number; h: number } | null) => {
     setSelectedIds(ids);
     setSelectionBbox(bbox);
+    // Cambio selezione → azzera gruppo e tile singolo (onTileClick li ri-imposta
+    // subito dopo nel flusso di click singolo). Su click vuoto restano azzerati.
+    setSelectedGroupId(null);
+    setSelectedTileId(null);
+    setSelectedTextBoxId(null);
     // Auto-open sidebar on multi-selection so the bulk editor is immediately visible
     if (ids.length >= 2) setSidebarOpen(true);
   }, []);
@@ -641,13 +667,15 @@ export default function CanvasPage() {
     setSelectionBbox(null);
   }, []);
 
-  // Esc clears selection
+  // Esc clears selection (multi, gruppo, tile singolo, box)
   useEffect(() => {
-    if (selectedIds.length === 0) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') clearSelection(); };
+    if (selectedIds.length === 0 && !selectedGroupId && !selectedTileId && !selectedTextBoxId) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { clearSelection(); setSelectedGroupId(null); setSelectedTileId(null); setSelectedTextBoxId(null); }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selectedIds.length, clearSelection]);
+  }, [selectedIds.length, selectedGroupId, selectedTileId, selectedTextBoxId, clearSelection]);
 
   // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
   useEffect(() => {
@@ -691,7 +719,7 @@ export default function CanvasPage() {
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !ids.includes(nid)) }))
       .filter((g) => g.nodeIds.length >= 2);
-    ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
+    ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
     clearSelection();
   }, [selectedTileIds, selectedTextBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
@@ -707,13 +735,33 @@ export default function CanvasPage() {
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
       .filter((g) => g.nodeIds.length >= 2);
-    ng.push({ id: `grp-${Date.now()}`, label: '', nodeIds: ids });
+    ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
   }, [canvasGroups, handleGroupsChange]);
 
   // Menu del gruppo (Rinomina / Elimina) + modale di rinomina in stile Obsidian.
   const [groupCtx, setGroupCtx] = useState<{ x: number; y: number; groupId: string } | null>(null);
   const [renameGroup, setRenameGroup] = useState<{ id: string; name: string } | null>(null);
+
+  const handleGroupClick = useCallback((groupId: string) => {
+    // Selezione esclusiva: un gruppo selezionato azzera selezione tile/box/multi.
+    setSelectedGroupId(groupId);
+    setSelectedTileId(null);
+    setSelectedTextBoxId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+    setSidebarOpen(true);
+  }, []);
+
+  // Click singolo su un box (testo/immagine): selezione esclusiva → solo contorno
+  // obsidian, nessun menu (i box non hanno sidebar né multi-menu da singoli).
+  const handleTextBoxClick = useCallback((id: string) => {
+    setSelectedTextBoxId(id);
+    setSelectedTileId(null);
+    setSelectedGroupId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+  }, []);
 
   const handleGroupContextMenu = useCallback((e: { x: number; y: number; groupId: string }) => {
     setGroupCtx(e);
@@ -723,10 +771,16 @@ export default function CanvasPage() {
   // come "Ungroup" ma su tutto il gruppo).
   const handleDeleteGroup = useCallback((groupId: string) => {
     handleGroupsChange(canvasGroups.filter((g) => g.id !== groupId));
+    setSelectedGroupId((cur) => (cur === groupId ? null : cur));
   }, [canvasGroups, handleGroupsChange]);
 
   const handleRenameGroup = useCallback((groupId: string, name: string) => {
     handleGroupsChange(canvasGroups.map((g) => g.id === groupId ? { ...g, label: name.trim() } : g));
+  }, [canvasGroups, handleGroupsChange]);
+
+  // Aggiorna proprietà del gruppo (nome/stile) in modo generico.
+  const handleUpdateGroup = useCallback((groupId: string, patch: Partial<CanvasGroup>) => {
+    handleGroupsChange(canvasGroups.map((g) => g.id === groupId ? { ...g, ...patch } : g));
   }, [canvasGroups, handleGroupsChange]);
 
   // Tile context menu
@@ -898,6 +952,11 @@ export default function CanvasPage() {
               selectMode={selectMode}
               onGroupTiles={handleGroupTiles}
               onGroupContextMenu={handleGroupContextMenu}
+              onGroupClick={handleGroupClick}
+              selectedGroupId={selectedGroupId}
+              selectedTileId={selectedTileId}
+              selectedTextBoxId={selectedTextBoxId}
+              onTextBoxClick={handleTextBoxClick}
               onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
               onPositionChange={handlePositionChange}
@@ -911,6 +970,8 @@ export default function CanvasPage() {
                 // NIENTE overwrite ottimistico con la proiezione ridotta della
                 // lista canvas: sovrascriveva i dati completi lasciando la
                 // sidebar senza corrispondenza con il tile selezionato.
+                setSelectedGroupId(null);
+                setSelectedTextBoxId(null);
                 setSelectedTileId(id);
                 setSidebarOpen(true);
               }}
@@ -968,9 +1029,20 @@ export default function CanvasPage() {
           </div>
         </div>
 
-          {/* 5 — SIDEBAR DESTRA. MultiTileSidebar solo per multi-selezioni di SOLI tile (≥2);
-              le note (text box) non hanno proprietà strutturate da bulk-editare. */}
-          {selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
+          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo selezionato → MultiTileSidebar
+              (≥2 tile) → TileSidebar. Le note (text box) non hanno proprietà
+              strutturate da bulk-editare. */}
+          {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
+            <GroupSidebar
+              group={canvasGroups.find((g) => g.id === selectedGroupId)!}
+              tiles={tiles}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
+              onDelete={() => handleDeleteGroup(selectedGroupId)}
+              onSelectTile={(id) => { setSelectedGroupId(null); setSelectedTileId(id); setSidebarOpen(true); }}
+            />
+          ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar
               tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
               open={sidebarOpen}

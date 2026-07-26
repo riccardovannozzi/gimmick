@@ -9,14 +9,15 @@
  * pipeline di upload esistenti.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend, IconChevronDown, IconChevronUp, IconPlus,
+  IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
   IconMenu2, IconSparkles, IconLayoutGrid, IconRoute, IconCalendarTime,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
-  IconSearch, IconWand, IconCheck, IconX,
+  IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot,
 } from '@tabler/icons-react-native';
+import * as TablerIcons from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
@@ -24,12 +25,18 @@ import { useObsidian } from '@/lib/obsidian';
 import { toast } from '@/store';
 import { useDictation } from '@/hooks/useDictation';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
-import { tagsApi, typeIconsApi, statusesApi, type StatusEntity } from '@/lib/api';
+import { tagsApi, typeIconsApi, statusesApi, tagTypesApi, type StatusEntity, type TypeIconEntity } from '@/lib/api';
 import type { ActionType, Tag, BufferItem, SparkType } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianDrawer } from '../Drawer';
 import type { MobileViewId } from '../TopNav';
+
+// Risoluzione icone Tabler per nome (come il web): i tipi salvano il glifo in
+// `icon`, i tag-type in `emoji` (es. "IconBuilding").
+type TablerGlyph = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const TablerMap = TablerIcons as unknown as Record<string, TablerGlyph>;
+const resolveGlyph = (name?: string | null): TablerGlyph | undefined => (name ? TablerMap[name] : undefined);
 
 type CapKey = 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
 const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
@@ -60,21 +67,48 @@ const NAV_ITEMS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayou
 // ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
 // Titolo del vault a sinistra (con dropdown viste), menu + Ask a destra. Sostituisce
 // l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
-function CaptureHeader({ onMenu, onAsk, onNavigateView }: { onMenu?: () => void; onAsk?: () => void; onNavigateView?: (id: MobileViewId) => void }) {
+function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; onNavigateView?: (id: MobileViewId) => void; connection?: ConnectionStatus; pendingCount?: number }) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const [navOpen, setNavOpen] = React.useState(false);
 
   const sqBtn = {
     width: 42, height: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
-    borderWidth: 1,
   };
+
+  // Pallino di stato: verde = online + account ok, arancio = offline + account
+  // ok, rosso = account non valido (non autenticato).
+  const dot = connection === 'signed-out'
+    ? { color: c.error, label: 'Non connesso · account non valido' }
+    : connection === 'offline'
+    ? { color: c.warning, label: 'Offline · account ok' }
+    : connection === 'online'
+    ? { color: c.success, label: 'Online · account ok' }
+    : null;
 
   return (
     <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
       {/* Sinistra — VAULT / Gimmick ⌄ (apre il dropdown viste) */}
       <Pressable onPress={() => setNavOpen(true)} accessibilityLabel="Cambia vista" hitSlop={6}>
-        <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle, marginBottom: 2 }}>VAULT</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle }}>VAULT</Text>
+          {dot && (
+            <View
+              accessibilityLabel={dot.label}
+              style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: dot.color }}
+            />
+          )}
+          {/* Contatore elementi in coda (outbox) ancora da sincronizzare col
+              server. Tinto col colore dello stato; assente se 0. */}
+          {typeof pendingCount === 'number' && pendingCount > 0 && (
+            <View
+              accessibilityLabel={`${pendingCount} in attesa di sincronizzazione`}
+              style={{ minWidth: 17, height: 17, borderRadius: 8.5, paddingHorizontal: 5, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Text style={{ fontSize: 10.5, fontWeight: '700', color: dot ? dot.color : c.muted }}>{pendingCount}</Text>
+            </View>
+          )}
+        </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
           <IconChevronDown size={17} color={c.muted} strokeWidth={2} />
@@ -88,7 +122,7 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView }: { onMenu?: () => void;
           accessibilityLabel="Menu"
           hitSlop={6}
           android_ripple={{ color: c.line, borderless: true }}
-          style={[sqBtn, { backgroundColor: c.surface2, borderColor: c.line }]}
+          style={[sqBtn, { backgroundColor: c.surface2 }]}
         >
           <IconMenu2 size={19} color={c.text} strokeWidth={1.9} />
         </Pressable>
@@ -97,7 +131,7 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView }: { onMenu?: () => void;
           accessibilityLabel="Ask Gimmick"
           hitSlop={6}
           android_ripple={{ color: c.accent + '40', borderless: true }}
-          style={[sqBtn, { backgroundColor: c.accent + '2E', borderColor: c.accent + '55' }]}
+          style={[sqBtn, { backgroundColor: c.accent + '2E' }]}
         >
           <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
         </Pressable>
@@ -272,21 +306,9 @@ const fmtDur = (a: string, b: string) => {
 
 type DtField = 'date' | 'start' | 'end' | 'due' | null;
 
-/** Pillola dropdown compatta (Tag / Tipo / Status) per la riga in fondo al
- *  pannello AZIONE. `active` → contorno/testo accent; `dotColor` → pallino al
- *  posto dell'icona (STATUS). */
-function Pill({ c, label, Icon, active, dotColor, onPress }: { c: ObsidianColors; label: string; Icon?: typeof IconTag; active?: boolean; dotColor?: string; onPress?: () => void }) {
-  return (
-    <Pressable onPress={onPress} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, minHeight: 36, borderRadius: 9, borderWidth: 1, borderColor: active ? c.accent : c.line2, backgroundColor: active ? c.accent + '14' : 'transparent', paddingHorizontal: 8 }}>
-      {dotColor ? <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: dotColor }} /> : Icon ? <Icon size={13} color={active ? c.accent : c.muted} strokeWidth={1.8} /> : null}
-      <Text numberOfLines={1} style={{ flexShrink: 1, fontSize: 12.5, fontWeight: '600', color: active ? c.accent : c.muted }}>{label}</Text>
-      <IconChevronDown size={12} color={active ? c.accent : c.subtle} strokeWidth={2} />
-    </Pressable>
-  );
-}
-
 function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { options: CaptureOptions; onChange: (next: CaptureOptions) => void; onClose: () => void; suggestText?: string }) {
   const c = useObsidian();
+  const insets = useSafeAreaInsets();
   const action = actionKeyOf(options);
   const [sheet, setSheet] = React.useState<'tag' | 'type' | 'status' | null>(null);
   const [dt, setDt] = React.useState<DtField>(null);
@@ -298,12 +320,24 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
   const tagsQuery = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list(), staleTime: 300_000 });
   const typesQuery = useQuery({ queryKey: ['type-icons'], queryFn: () => typeIconsApi.list(), staleTime: 300_000 });
   const statusesQuery = useQuery({ queryKey: ['statuses'], queryFn: () => statusesApi.list(), staleTime: 300_000 });
+  // Tag-type: dà icona (`emoji` = glifo Tabler) e colore ai tag, come sul web.
+  const tagTypesQuery = useQuery({ queryKey: ['tag-types'], queryFn: () => tagTypesApi.list(), staleTime: 300_000 });
   const tags: Tag[] = (tagsQuery.data?.data ?? []).filter((t) => !t.is_root);
   const types = typesQuery.data?.data ?? [];
   const statuses: StatusEntity[] = statusesQuery.data?.data ?? [];
+  const tagTypes = tagTypesQuery.data?.data ?? [];
   const curTag = tags.find((t) => t.id === options.tag_id) ?? null;
   const curType = types.find((t) => t.id === options.type_icon_id) ?? null;
   const curStatus = statuses.find((s) => s.id === options.status_id) ?? null;
+
+  // Icona + colore di un tag (dal suo tag-type) e di un tipo — stesse icone del web.
+  const tagVisual = (t: Tag) => {
+    const tt = tagTypes.find((x) => x.slug === t.tag_type || x.id === t.tag_type);
+    return { Glyph: resolveGlyph(tt?.emoji), color: tt?.color ?? undefined };
+  };
+  const typeVisual = (ty: TypeIconEntity) => ({ Glyph: resolveGlyph(ty.icon), color: ty.color ?? undefined });
+  const curTagVisual = curTag ? tagVisual(curTag) : null;
+  const curTypeVisual = curType ? typeVisual(curType) : null;
 
   // Tag visibili: modalità AI → suggeriti dal testo del buffer; altrimenti
   // filtro per nome+alias (case/accent-insensitive), lista piena se vuoto.
@@ -369,18 +403,33 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
 
   const OptBtn = ({ id, label, Icon }: { id: ActionOpt; label: string; Icon: typeof IconNote }) => {
     const on = action === id;
-    // Attivo: fondo accent tenue + bordo/testo accent. Inattivo: fondo surface2 +
-    // bordo line2 (definito, come nel mockup), testo pieno e icona muted.
+    // Niente bordo: l'attivo si distingue per fondo accent tenue + testo/icona
+    // accent; l'inattivo ha fondo surface2 e testo pieno.
     return (
-      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 9, backgroundColor: on ? c.accent + '26' : c.surface2, borderWidth: 1, borderColor: on ? c.accent : c.line2 }}>
-        <Icon size={15} color={on ? c.accent : c.muted} strokeWidth={1.8} />
-        <Text numberOfLines={1} style={{ fontSize: 13, fontWeight: '600', color: on ? c.accent : c.text }}>{label}</Text>
+      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 9, backgroundColor: on ? c.accent + '33' : c.surface2 }}>
+        <Icon size={16} color={on ? c.accent : c.muted} strokeWidth={1.8} />
+        <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: on ? c.accent : c.text }}>{label}</Text>
+      </Pressable>
+    );
+  };
+
+  // Select a tutta larghezza (Tag/Tipo/Status): etichetta a sinistra, chevron a
+  // destra; apre il selettore a tutto schermo. `open` ruota il chevron.
+  // Selezionato → il pulsante si "colora" col colore PROPRIO dell'elemento
+  // (fondo tinto + icona + chevron), come nella sidebar; testo bianco.
+  const SelectBtn = ({ label, Icon, dotColor, color, active, open, onPress }: { label: string; Icon?: TablerGlyph; dotColor?: string; color?: string; active?: boolean; open?: boolean; onPress?: () => void }) => {
+    const col = color ?? c.accent;
+    return (
+      <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 56, borderRadius: 10, backgroundColor: active ? col + '26' : c.surface, paddingHorizontal: 14 }}>
+        {dotColor ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} /> : Icon ? <Icon size={18} color={active ? col : c.muted} strokeWidth={1.8} /> : null}
+        <Text numberOfLines={1} style={{ flex: 1, fontSize: 16, fontWeight: '600', color: c.text }}>{label}</Text>
+        <IconChevronDown size={16} color={active || open ? col : c.subtle} strokeWidth={2} style={{ transform: [{ rotate: open ? '180deg' : '0deg' }] }} />
       </Pressable>
     );
   };
 
   return (
-    <View style={{ marginTop: 14, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accent + '40', borderRadius: 12, padding: 14 }}>
+    <View style={{ flexGrow: 1, marginTop: 24, marginBottom: 24, backgroundColor: c.accentSoft, borderRadius: 12, padding: 14 }}>
       {/* Intestazione AZIONE + Chiudi (chiude il pannello). */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>ACTIONS</Text>
@@ -430,13 +479,13 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
       {/* Divider orizzontale tra le azioni e le opzioni. */}
       <View style={{ height: 1, backgroundColor: c.line2, marginTop: 16, marginBottom: 14 }} />
 
-      {/* OPTIONS — label come quella delle azioni + Tag/Tipo/Status in un box
-          con fondo dedicato (leggermente incassato rispetto al pannello). */}
+      {/* OPTIONS — Tag/Tipo/Status: select a tutta larghezza, in colonna. Il tap
+          apre il selettore a tutto schermo (sotto). */}
       <Eyebrow c={c}>OPTIONS</Eyebrow>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pill c={c} label={curTag ? curTag.name : 'Tag'} Icon={IconTag} active={!!curTag} onPress={openTagSheet} />
-        <Pill c={c} label={curType ? curType.name : 'Tipo'} active={!!curType} onPress={() => setSheet('type')} />
-        <Pill c={c} label={curStatus ? statusLabel(curStatus.name) : 'Status'} active={!!curStatus} dotColor={curStatus ? statusColor(c, curStatus.name) : undefined} onPress={() => setSheet('status')} />
+      <View style={{ gap: 8 }}>
+        <SelectBtn label={curTag ? curTag.name : 'Tag'} Icon={curTagVisual?.Glyph ?? IconTag} color={curTagVisual?.color} active={!!curTag} open={sheet === 'tag'} onPress={openTagSheet} />
+        <SelectBtn label={curType ? curType.name : 'Tipo'} Icon={curTypeVisual?.Glyph ?? IconCategory} color={curTypeVisual?.color} active={!!curType} open={sheet === 'type'} onPress={() => setSheet('type')} />
+        <SelectBtn label={curStatus ? statusLabel(curStatus.name) : 'Status'} Icon={IconCircleDot} dotColor={curStatus ? statusColor(c, curStatus.name) : undefined} color={curStatus ? statusColor(c, curStatus.name) : undefined} active={!!curStatus} open={sheet === 'status'} onPress={() => setSheet('status')} />
       </View>
 
       {/* Picker data/ora nativo: si monta solo mentre `dt` è attivo. */}
@@ -449,94 +498,97 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
         />
       )}
 
-      {/* Picker TAG — search + bacchetta AI (euristica locale), come sul web */}
-      <BottomSheet open={sheet === 'tag'} onClose={() => setSheet(null)}>
-        <Eyebrow c={c}>SCEGLI UN TAG</Eyebrow>
-        {/* Barra di ricerca con la bacchetta a destra. In modalità AI l'input è
-            disabilitato e mostra "Suggeriti dal testo"; la X esce dalla modalità. */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, paddingHorizontal: 11, minHeight: OB_BTN_H, marginBottom: 10 }}>
-          <IconSearch size={15} color={c.subtle} strokeWidth={1.8} />
-          {suggestActive ? (
-            <Text style={{ flex: 1, fontSize: 13, color: c.accent, fontWeight: '600' }}>Suggeriti dal testo</Text>
-          ) : (
-            <TextInput
-              value={tagQuery}
-              onChangeText={setTagQuery}
-              placeholder="Cerca tag…"
-              placeholderTextColor={c.subtle}
-              style={{ flex: 1, fontSize: 13, color: c.text, padding: 0 }}
-            />
+      {/* Selettore a tutto schermo (Tag/Tipo/Status). Header con titolo + X,
+          lista scrollabile che riempie lo schermo. */}
+      <Modal visible={sheet !== null} animationType="slide" onRequestClose={() => setSheet(null)} statusBarTranslucent>
+        <View style={{ flex: 1, backgroundColor: c.canvas, paddingTop: insets.top }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.line }}>
+            <Text style={{ flex: 1, fontSize: 18, fontWeight: '700', color: c.text }}>
+              {sheet === 'tag' ? 'Scegli un tag' : sheet === 'type' ? 'Scegli un tipo' : 'Scegli uno status'}
+            </Text>
+            <Pressable onPress={() => setSheet(null)} hitSlop={8} accessibilityLabel="Chiudi" style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2 }}>
+              <IconX size={19} color={c.text} strokeWidth={1.9} />
+            </Pressable>
+          </View>
+
+          {/* TAG — ricerca + bacchetta AI + lista */}
+          {sheet === 'tag' && (
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, paddingHorizontal: 12, minHeight: OB_BTN_H, marginHorizontal: 16, marginTop: 12 }}>
+                <IconSearch size={15} color={c.subtle} strokeWidth={1.8} />
+                {suggestActive ? (
+                  <Text style={{ flex: 1, fontSize: 14, color: c.accent, fontWeight: '600' }}>Suggeriti dal testo</Text>
+                ) : (
+                  <TextInput value={tagQuery} onChangeText={setTagQuery} placeholder="Cerca tag…" placeholderTextColor={c.subtle} style={{ flex: 1, fontSize: 14, color: c.text, padding: 0 }} />
+                )}
+                {suggestActive ? (
+                  <Pressable onPress={() => setSuggestActive(false)} hitSlop={8}><IconX size={16} color={c.subtle} strokeWidth={1.8} /></Pressable>
+                ) : (
+                  <Pressable onPress={() => { setTagQuery(''); setSuggestActive(true); }} hitSlop={8} disabled={!hasSuggestText}><IconWand size={16} color={hasSuggestText ? c.accent : c.subtle} strokeWidth={1.8} /></Pressable>
+                )}
+              </View>
+              <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
+                {visibleTags.length === 0 && (
+                  <Text style={{ fontSize: 14, color: c.subtle, paddingVertical: 14 }}>{tags.length === 0 ? 'Nessun tag disponibile.' : suggestActive ? 'Nessun tag pertinente al testo.' : 'Nessun risultato.'}</Text>
+                )}
+                {visibleTags.map((t) => {
+                  const on = t.id === options.tag_id;
+                  const v = tagVisual(t);
+                  const G = v.Glyph ?? IconTag;
+                  return (
+                    <Pressable key={t.id} onPress={() => { onChange({ ...options, tag_id: on ? null : t.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+                      <G size={17} color={v.color ?? (on ? c.accent : c.subtle)} strokeWidth={1.8} />
+                      <Text style={{ flex: 1, fontSize: 15, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{t.name}</Text>
+                      {on && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+                    </Pressable>
+                  );
+                })}
+              </ScrollView>
+            </View>
           )}
-          {suggestActive ? (
-            <Pressable onPress={() => setSuggestActive(false)} hitSlop={8}>
-              <IconX size={16} color={c.subtle} strokeWidth={1.8} />
-            </Pressable>
-          ) : (
-            // Bacchetta: attiva i suggerimenti dal testo del buffer. Disabilitata
-            // se non c'è testo su cui ragionare (buffer senza contenuto testuale).
-            <Pressable onPress={() => { setTagQuery(''); setSuggestActive(true); }} hitSlop={8} disabled={!hasSuggestText}>
-              <IconWand size={16} color={hasSuggestText ? c.accent : c.subtle} strokeWidth={1.8} />
-            </Pressable>
+
+          {/* TIPO */}
+          {sheet === 'type' && (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 16 }}>
+              {types.length === 0 && <Text style={{ fontSize: 14, color: c.subtle, paddingVertical: 14 }}>Nessun tipo disponibile.</Text>}
+              {types.map((t) => {
+                const on = t.id === options.type_icon_id;
+                const v = typeVisual(t);
+                const G = v.Glyph;
+                return (
+                  <Pressable key={t.id} onPress={() => { onChange({ ...options, type_icon_id: on ? null : t.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+                    {G ? <G size={17} color={v.color ?? (on ? c.accent : c.subtle)} strokeWidth={1.8} /> : null}
+                    <Text style={{ flex: 1, fontSize: 15, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{t.name}</Text>
+                    {on && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          )}
+
+          {/* STATUS */}
+          {sheet === 'status' && (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 8, paddingBottom: insets.bottom + 16 }}>
+              <Pressable onPress={() => { onChange({ ...options, status_id: null }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+                <View style={{ width: 13, height: 13, borderRadius: 7, borderWidth: 1.5, borderColor: c.subtle }} />
+                <Text style={{ flex: 1, fontSize: 15, fontWeight: !options.status_id ? '600' : '500', color: !options.status_id ? c.accent : c.text }}>Nessuno</Text>
+                {!options.status_id && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+              </Pressable>
+              {statuses.length === 0 && <Text style={{ fontSize: 14, color: c.subtle, paddingVertical: 14 }}>Nessuno status disponibile.</Text>}
+              {statuses.map((s) => {
+                const on = s.id === options.status_id;
+                return (
+                  <Pressable key={s.id} onPress={() => { onChange({ ...options, status_id: on ? null : s.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
+                    <View style={{ width: 13, height: 13, borderRadius: 7, backgroundColor: statusColor(c, s.name) }} />
+                    <Text style={{ flex: 1, fontSize: 15, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{statusLabel(s.name)}</Text>
+                    {on && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
           )}
         </View>
-        <ScrollView style={{ maxHeight: 300 }} keyboardShouldPersistTaps="handled">
-          {visibleTags.length === 0 && (
-            <Text style={{ fontSize: 13, color: c.subtle, paddingVertical: 12 }}>
-              {tags.length === 0 ? 'Nessun tag disponibile.' : suggestActive ? 'Nessun tag pertinente al testo.' : 'Nessun risultato.'}
-            </Text>
-          )}
-          {visibleTags.map((t) => {
-            const on = t.id === options.tag_id;
-            return (
-              <Pressable key={t.id} onPress={() => { onChange({ ...options, tag_id: on ? null : t.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
-                <IconTag size={15} color={on ? c.accent : c.subtle} strokeWidth={1.8} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{t.name}</Text>
-                {on && <IconCheck size={16} color={c.accent} strokeWidth={2} />}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </BottomSheet>
-
-      {/* Picker STATUS — pallino colore semantico + etichetta IT, come la sidebar */}
-      <BottomSheet open={sheet === 'status'} onClose={() => setSheet(null)}>
-        <Eyebrow c={c}>SCEGLI UNO STATUS</Eyebrow>
-        <ScrollView style={{ maxHeight: 320 }}>
-          {/* Nessuno */}
-          <Pressable onPress={() => { onChange({ ...options, status_id: null }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
-            <View style={{ width: 12, height: 12, borderRadius: 6, borderWidth: 1.5, borderColor: c.subtle }} />
-            <Text style={{ flex: 1, fontSize: 14, fontWeight: !options.status_id ? '600' : '500', color: !options.status_id ? c.accent : c.text }}>Nessuno</Text>
-            {!options.status_id && <IconCheck size={16} color={c.accent} strokeWidth={2} />}
-          </Pressable>
-          {statuses.length === 0 && <Text style={{ fontSize: 13, color: c.subtle, paddingVertical: 12 }}>Nessuno status disponibile.</Text>}
-          {statuses.map((s) => {
-            const on = s.id === options.status_id;
-            return (
-              <Pressable key={s.id} onPress={() => { onChange({ ...options, status_id: on ? null : s.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
-                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: statusColor(c, s.name) }} />
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{statusLabel(s.name)}</Text>
-                {on && <IconCheck size={16} color={c.accent} strokeWidth={2} />}
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </BottomSheet>
-
-      {/* Picker TIPO */}
-      <BottomSheet open={sheet === 'type'} onClose={() => setSheet(null)}>
-        <Eyebrow c={c}>SCEGLI UN TIPO</Eyebrow>
-        <ScrollView style={{ maxHeight: 320 }}>
-          {types.length === 0 && <Text style={{ fontSize: 13, color: c.subtle, paddingVertical: 12 }}>Nessun tipo disponibile.</Text>}
-          {types.map((t) => {
-            const on = t.id === options.type_icon_id;
-            return (
-              <Pressable key={t.id} onPress={() => { onChange({ ...options, type_icon_id: on ? null : t.id }); setSheet(null); }} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}>
-                <Text style={{ flex: 1, fontSize: 14, fontWeight: on ? '600' : '500', color: on ? c.accent : c.text }}>{t.name}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </BottomSheet>
+      </Modal>
     </View>
   );
 }
@@ -597,12 +649,16 @@ function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; 
   //  · X in sovraimpressione, in alto a destra.
   // overflow hidden: arrotonda anche il bordo verticale ai corner del box.
   return (
-    <View style={{ flexDirection: 'row', backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, overflow: 'hidden' }}>
-      {/* Colonna 1 — icona (sempre, anche per i media); bordo destro = bordo
-          dello spark. */}
-      <View style={{ paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: c.line2 }}>
-        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
-          <meta.Icon size={18} color={col} strokeWidth={1.8} />
+    // Niente bordo esterno; le colonne sono separate da un divider scuro.
+    <View style={{ flexDirection: 'row', backgroundColor: c.field, borderRadius: 12, overflow: 'hidden' }}>
+      {/* Colonna 1 — icona (sempre, anche per i media); divider destro più scuro
+          del box. padding 6 su ogni lato; la tile è ancorata in ALTO nella
+          colonna (flex-start) invece che centrata. */}
+      <View style={{ padding: 6, alignItems: 'center', justifyContent: 'flex-start', borderRightWidth: 1, borderRightColor: c.dark ? '#000000' : c.line2 }}>
+        {/* Tile 42 = dimensione dei pulsanti header; glifo 23 come gli altri
+            pulsanti icona (toolbar canali). */}
+        <View style={{ width: 42, height: 42, borderRadius: 12, backgroundColor: col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
+          <meta.Icon size={23} color={col} strokeWidth={1.8} />
         </View>
       </View>
 
@@ -689,11 +745,20 @@ export interface ObsidianCaptureScreenProps {
   onRemoveItem?: (id: string) => void;
   /** Apre la chat "Ask Gimmick" (pulsante sparkles nell'header). */
   onAsk?: () => void;
+  /** Stato account/rete per il pallino accanto a VAULT. Omesso → nessun pallino. */
+  connection?: ConnectionStatus;
+  /** Tile in coda (outbox) ancora da sincronizzare: contatore accanto al pallino. */
+  pendingCount?: number;
+  /** Flash del FAB in arancione dopo un invio offline (tile messo in coda). */
+  queuedFlash?: boolean;
 }
+
+/** Stato mostrato dal pallino header: verde=online·ok, arancio=offline·ok, rosso=non autenticato. */
+export type ConnectionStatus = 'online' | 'offline' | 'signed-out';
 
 export function ObsidianCaptureScreen({
   bufferCount, onCapture, onSaveNote, onSend, onOpenBuffer, onNavigateView, onSettings,
-  options, onOptionsChange, suggestText, items, onRemoveItem, onAsk,
+  options, onOptionsChange, suggestText, items, onRemoveItem, onAsk, connection, pendingCount, queuedFlash,
 }: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
@@ -730,118 +795,144 @@ export function ObsidianCaptureScreen({
     setNote('');
   };
 
+  // Campo nota. `fill` → riempie tutta l'altezza disponibile (stato neutro/
+  // digitazione, così tocchi ovunque per scrivere); altrimenti altezza minima
+  // (quando sotto ci sono gli spark che scorrono).
+  const renderNote = (fill: boolean) => (
+    <View style={fill ? { flex: 1 } : undefined}>
+      <TextInput
+        value={note}
+        onChangeText={setNote}
+        placeholder="Scrivi una nota…"
+        placeholderTextColor={c.subtle}
+        multiline
+        textAlignVertical="top"
+        // paddingRight: spazio per il mic in alto a destra.
+        style={[
+          { fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 34 },
+          fill ? { flex: 1 } : { minHeight: 120 },
+        ]}
+      />
+      {/* Mic in sovraimpressione (dettatura vocale). In ascolto → accent acceso. */}
+      <Pressable
+        onPress={() => dictation.toggle(note)}
+        accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
+        hitSlop={8}
+        android_ripple={{ color: c.accent + '33', borderless: true }}
+        style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
+      >
+        <IconMicrophone size={17} color={dictation.listening ? c.accent : c.subtle} strokeWidth={1.9} />
+      </Pressable>
+    </View>
+  );
+
+  // Barra dei canali, ancorata in fondo (stile Keep). Nota vuota → i 5 canali +
+  // kebab Options; mentre scrivi → solo Salva (le icone spariscono).
+  const toolbar = (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
+      {hasNote ? (
+        <>
+          <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={saveNote}
+            accessibilityLabel="Salva nota"
+            android_ripple={{ color: '#ffffff22', borderless: false }}
+            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+          >
+            <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+          </Pressable>
+        </>
+      ) : (
+        <>
+          {TOOLBAR.map((key) => {
+            const { Icon, label } = CAPS[key];
+            return (
+              <Pressable
+                key={key}
+                onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
+                accessibilityLabel={label}
+                android_ripple={{ color: '#ffffff22', borderless: false }}
+                style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+              >
+                <Icon size={23} color={c.text} strokeWidth={1.8} />
+              </Pressable>
+            );
+          })}
+          {/* Spinge il kebab Options a destra, in riga coi canali. */}
+          <View style={{ flex: 1 }} />
+          <Pressable
+            onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen((v) => !v); }}
+            accessibilityLabel="Opzioni"
+            android_ripple={{ color: '#ffffff22', borderless: false }}
+            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: actionOpen ? c.accent + '2E' : '#3a3a3a' }}
+          >
+            <IconDotsVertical size={23} color={actionOpen ? c.accent : c.text} strokeWidth={1.8} />
+          </Pressable>
+        </>
+      )}
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: c.dark ? '#000000' : c.canvas }}>
       <ObsidianStatusBar />
-      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} />
+      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} connection={connection} pendingCount={pendingCount} />
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 12, paddingTop: 18, paddingBottom: 16 }} keyboardShouldPersistTaps="handled">
-        {/* Composer nota — campo di scrittura + toolbar (canali media + Salva).
-            Il testo digitato è lo spark "text"; i cinque pulsanti avviano gli
-            altri canali di cattura, il Salva aggiunge la nota al buffer. */}
-        <View style={{ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 16, padding: 14 }}>
-          <TextInput
-            value={note}
-            onChangeText={setNote}
-            placeholder="Scrivi una nota…"
-            placeholderTextColor={c.subtle}
-            multiline
-            textAlignVertical="top"
-            // paddingRight: lascia spazio al mic in alto a destra così la prima
-            // riga di testo non ci finisce sotto.
-            style={{ minHeight: 96, fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 0, paddingBottom: 0, paddingLeft: 0, paddingRight: 34 }}
-          />
-
-          {/* Mic in sovraimpressione (dettatura vocale). In ascolto → accent
-              acceso; a riposo → subtle. Equivale al microfono della tastiera. */}
-          <Pressable
-            onPress={() => dictation.toggle(note)}
-            accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
-            hitSlop={8}
-            android_ripple={{ color: c.accent + '33', borderless: true }}
-            style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
-          >
-            <IconMicrophone size={17} color={dictation.listening ? c.accent : c.subtle} strokeWidth={1.9} />
-          </Pressable>
-
-          {/* Nota vuota → canali di cattura. Mentre scrivi → solo Salva (le
-              icone spariscono): la barra ha una funzione sola alla volta. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 14 }}>
-            {hasNote ? (
-              <>
-                <View style={{ flex: 1 }} />
-                <Pressable
-                  onPress={saveNote}
-                  accessibilityLabel="Salva nota"
-                  android_ripple={{ color: c.accent + '33' }}
-                  style={{ paddingHorizontal: 18, minHeight: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent + '1F', borderWidth: 1, borderColor: c.accent }}
-                >
-                  <Text style={{ fontSize: 14, fontWeight: '600', color: c.accent }}>Salva</Text>
-                </Pressable>
-              </>
-            ) : (
-              TOOLBAR.map((key) => {
-                const { Icon, label } = CAPS[key];
-                return (
-                  <Pressable
-                    key={key}
-                    onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
-                    accessibilityLabel={label}
-                    android_ripple={{ color: c.accent + '33', borderless: false }}
-                    style={{ width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.line2 }}
-                  >
-                    <Icon size={23} color={c.muted} strokeWidth={1.8} />
-                  </Pressable>
-                );
-              })
-            )}
-          </View>
+      {/* Colonna contenuti: il campo nota riempie tutta l'altezza, la barra dei
+          canali resta ancorata in fondo (stile Keep). Con spark o pannello
+          Options aperto il contenuto scorre sopra la barra. KeyboardAvoidingView
+          tiene la barra sopra la tastiera (su Android provvede il resize). */}
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 18 }}>
+          {(!actionOpen && list.length === 0) ? (
+            // Stato neutro / digitazione: il campo nota riempie tutto lo spazio e
+            // spinge le icone in fondo (con margine). Testo + icone = blocco unico.
+            <View style={{ flex: 1, paddingBottom: 56 }}>
+              {renderNote(true)}
+              {toolbar}
+            </View>
+          ) : (
+            // Con Options aperte o spark presenti: ordine fisso, tutto scorre.
+            // 1) Testo + icone, 2) ACTIONS/OPTIONS, 3) Spark.
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} keyboardShouldPersistTaps="handled">
+              {renderNote(false)}
+              {toolbar}
+              {actionOpen && (
+                <SetOptionsBody
+                  options={opts}
+                  onChange={setOpts}
+                  onClose={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(false); }}
+                  suggestText={suggestText}
+                />
+              )}
+              {list.length > 0 && (
+                <View style={{ marginTop: 24, gap: 8 }}>
+                  {list.map((it) => (
+                    <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+          )}
         </View>
-
-        {/* Azione — toggle: chiuso è la pillola "+ Azione", aperto è il pannello
-            AZIONE (che porta il proprio "Chiudi"). */}
-        {actionOpen ? (
-          <SetOptionsBody
-            options={opts}
-            onChange={setOpts}
-            onClose={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(false); }}
-            suggestText={suggestText}
-          />
-        ) : (
-          <Pressable
-            onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(true); }}
-            android_ripple={{ color: c.accent + '22' }}
-            style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 10, borderWidth: 1, borderColor: c.line2, marginTop: 14 }}
-          >
-            <IconPlus size={15} color={c.muted} strokeWidth={2} />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>Options</Text>
-          </Pressable>
-        )}
-
-        {/* Spark catturati — anteprima sotto le options, invariata. Ogni riga
-            mostra tipo/anteprima e permette di rimuoverla dal buffer. */}
-        {list.length > 0 && (
-          <View style={{ marginTop: 14, gap: 8 }}>
-            {list.map((it) => (
-              <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+      </KeyboardAvoidingView>
 
       <ObsidianNavPill />
 
-      {/* FAB Send — sovraimpressione in basso a destra, presente SOLO quando c'è
-          almeno uno spark da inviare. */}
-      {canSend && (
+      {/* FAB Send — sovraimpressione in basso a destra, presente quando c'è
+          almeno uno spark da inviare. Dopo un invio offline lampeggia ARANCIONE
+          (queuedFlash) per confermare che il tile è stato messo in coda, poi
+          sparisce col reset del composer. */}
+      {(canSend || queuedFlash) && (
         <Pressable
           onPress={onSend}
-          accessibilityLabel="Invia a Gimmick"
+          disabled={queuedFlash}
+          accessibilityLabel={queuedFlash ? 'Tile messo in coda' : 'Invia a Gimmick'}
           android_ripple={{ color: c.accent + '40', borderless: true }}
           style={{ position: 'absolute', right: 20, bottom: insets.bottom + 24 }}
         >
-          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 }}>
-            <IconSend size={24} color={c.text} strokeWidth={1.8} />
+          <View style={{ width: 60, height: 60, borderRadius: 30, backgroundColor: queuedFlash ? c.warning : c.surface, borderWidth: queuedFlash ? 0 : 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8 }}>
+            <IconSend size={24} color={queuedFlash ? '#0C0C0E' : c.text} strokeWidth={1.8} />
           </View>
         </Pressable>
       )}
