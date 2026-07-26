@@ -74,6 +74,17 @@ interface CanvasBoardProps {
       picker opens; the picked image fills the rectangle. */
   imageMode?: boolean;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
+  /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
+   *  SENZA bisogno di modificatori e i tile catturati formano subito un gruppo.
+   *  Sinistra→destra cattura i tile INTERAMENTE contenuti; destra→sinistra
+   *  anche quelli solo INTERSECATI dal contorno. */
+  selectMode?: boolean;
+  /** Chiamata a fine contorno (modalità Raggruppa) con gli id dei tile catturati
+   *  (≥2). Il parent crea il CanvasGroup. I box di testo non entrano nei gruppi. */
+  onGroupTiles?: (tileIds: string[]) => void;
+  /** Click o tasto destro sulla zona del gruppo SENZA tile (sfondo/etichetta):
+   *  il parent apre il menu del gruppo (Rinomina / Elimina). */
+  onGroupContextMenu?: (e: { x: number; y: number; groupId: string }) => void;
   selectedIds?: string[];
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
@@ -108,10 +119,11 @@ interface CanvasBoardProps {
 
 export const CanvasBoard = React.memo(function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
-  moveEnabled, linkEnabled, textMode, tileMode, imageMode, onAddTileAt,
+  moveEnabled, linkEnabled, textMode, tileMode, imageMode, selectMode, onAddTileAt,
   onPositionChange, onAddEdge, onDeleteEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
+  onGroupTiles, onGroupContextMenu,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
   tilesWithFlows, onFlowBadgeClick,
@@ -138,7 +150,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
-  const { statuses: allStatuses, getActionTypeShape } = useStatuses();
+  const { statuses: allStatuses } = useStatuses();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const moveRef = useRef(moveEnabled); moveRef.current = moveEnabled;
@@ -146,6 +158,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const textModeRef = useRef(textMode); textModeRef.current = textMode;
   const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
   const imageModeRef = useRef(imageMode); imageModeRef.current = imageMode;
+  const selectModeRef = useRef(selectMode); selectModeRef.current = selectMode;
+  const onGroupTilesRef = useRef(onGroupTiles); onGroupTilesRef.current = onGroupTiles;
+  const onGroupContextMenuRef = useRef(onGroupContextMenu); onGroupContextMenuRef.current = onGroupContextMenu;
   const onAddImageBoxRef = useRef(onAddImageBox); onAddImageBoxRef.current = onAddImageBox;
 
   // Refs for callbacks to avoid re-render of the entire SVG
@@ -269,7 +284,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const st = allStatuses.find((s) => s.id === t.status_id);
         if (st) { shape = st.shape; statusName = st.name; }
       } else {
-        shape = getActionTypeShape(t.action_type || 'none');
+        // Fallback per tile legacy senza status_id: forma dello status linkato
+        // all'action_type. Inline su `allStatuses` (stabile) invece di
+        // `getActionTypeShape`, che useStatuses ricrea ad ogni render e faceva
+        // cambiare identità a buildNodes → render → ricostruzione continua
+        // dell'SVG (che rompeva i click "dopo un po'").
+        const linked = allStatuses.find((s) => s.action_type === (t.action_type || 'none'));
+        shape = linked?.shape || 'solid';
       }
       // Type icon
       const tiId = typeTileIcons[t.id];
@@ -279,7 +300,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
       return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, statusName, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, x, y };
     });
-  }, [tiles, layout, allStatuses, getActionTypeShape, typeIcons, typeTileIcons]);
+  }, [tiles, layout, allStatuses, typeIcons, typeTileIcons]);
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
@@ -357,7 +378,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image mode
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image/select mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -413,21 +434,55 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       };
     };
 
-    // ── Selection rect (ctrl/cmd/shift + drag → multi-select) ──
-    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '4,3').attr('opacity', 0);
+    // ── Selection rect (marquee) ──
+    // Si attiva con ctrl/cmd/shift + drag OPPURE con la modalità "Seleziona"
+    // (pulsante toolbar) senza modificatori. Direzione del gesto (stile CAD):
+    //   • sinistra→destra  → "window": seleziona SOLO i tile INTERAMENTE
+    //     contenuti nel rettangolo (tratto continuo).
+    //   • destra→sinistra  → "crossing": seleziona ANCHE i tile solo
+    //     INTERSECATI dal rettangolo (tratto tratteggiato).
+    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('opacity', 0);
     let selStart: [number, number] | null = null;
     const isSelectModifier = (e: MouseEvent) => e.ctrlKey || e.metaKey || e.shiftKey;
-    d3svg.on('mousedown.sel', (e: MouseEvent) => { if (!isSelectModifier(e) || e.button || e.target !== svg) return; e.preventDefault(); selStart = d3.pointer(e, boardNode) as [number, number]; selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0).attr('opacity', 1); });
-    d3svg.on('mousemove.sel', (e: MouseEvent) => { if (!selStart) return; const [mx, my] = d3.pointer(e, boardNode); selRect.attr('x', Math.min(selStart[0], mx)).attr('y', Math.min(selStart[1], my)).attr('width', Math.abs(mx - selStart[0])).attr('height', Math.abs(my - selStart[1])); });
+    d3svg.on('mousedown.sel', (e: MouseEvent) => {
+      if ((!isSelectModifier(e) && !selectModeRef.current) || e.button || e.target !== svg) return;
+      e.preventDefault();
+      selStart = d3.pointer(e, boardNode) as [number, number];
+      selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0)
+        .attr('stroke-dasharray', null).attr('opacity', 1);
+    });
+    d3svg.on('mousemove.sel', (e: MouseEvent) => {
+      if (!selStart) return;
+      const [mx, my] = d3.pointer(e, boardNode);
+      const crossing = mx < selStart[0]; // destra→sinistra = intersezione
+      selRect.attr('x', Math.min(selStart[0], mx)).attr('y', Math.min(selStart[1], my))
+        .attr('width', Math.abs(mx - selStart[0])).attr('height', Math.abs(my - selStart[1]))
+        .attr('stroke-dasharray', crossing ? '4,3' : null);
+    });
     d3svg.on('mouseup.sel', (e: MouseEvent) => {
       if (!selStart) return;
       const [mx, my] = d3.pointer(e, boardNode);
+      const crossing = mx < selStart[0]; // direzione del gesto (usa le coord grezze)
       const [x1, y1] = [Math.min(selStart[0], mx), Math.min(selStart[1], my)];
       const [x2, y2] = [Math.max(selStart[0], mx), Math.max(selStart[1], my)];
       selStart = null; selRect.attr('opacity', 0);
       if (x2 - x1 < 20 || y2 - y1 < 20) return;
-      const insideTiles = nodes.filter((n) => n.x + TILE_W / 2 >= x1 && n.x + TILE_W / 2 <= x2 && n.y + TILE_H / 2 >= y1 && n.y + TILE_H / 2 <= y2);
-      const insideTbs = textBoxes.filter((tb) => tb.x + tb.w / 2 >= x1 && tb.x + tb.w / 2 <= x2 && tb.y + tb.h / 2 >= y1 && tb.y + tb.h / 2 <= y2);
+      // window (L→R): rettangolo del tile TUTTO dentro. crossing (R→L): basta
+      // che il rettangolo del tile TOCCHI il contorno (overlap dei bbox).
+      const hit = (bx: number, by: number, bw: number, bh: number) =>
+        crossing
+          ? (bx < x2 && bx + bw > x1 && by < y2 && by + bh > y1)
+          : (bx >= x1 && by >= y1 && bx + bw <= x2 && by + bh <= y2);
+      const insideTiles = nodes.filter((n) => hit(n.x, n.y, TILE_W, TILE_H));
+      // Modalità "Group" (pulsante toolbar): ogni contorno valido chiude
+      // l'operazione — il parent disattiva il pulsante. I tile catturati (≥2,
+      // guardia lato parent) formano un gruppo; i box di testo restano fuori
+      // (i gruppi sono solo di tile).
+      if (selectModeRef.current) {
+        onGroupTilesRef.current?.(insideTiles.map((n) => n.id));
+        return;
+      }
+      const insideTbs = textBoxes.filter((tb) => hit(tb.x, tb.y, tb.w, tb.h));
       if (insideTiles.length + insideTbs.length < 1) return;
       const ids = [...insideTiles.map((n) => n.id), ...insideTbs.map((tb) => `tb:${tb.id}`)];
       selectedIdsRef.current = ids;
@@ -542,6 +597,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const groupsBg = board.append('g').attr('class', 'gbg');
     const drawGroups = () => {
       groupsBg.selectAll('*').remove();
+      // Click / tasto destro sulla zona del gruppo (sfondo o etichetta, dove NON
+      // ci sono tile) → menu del gruppo (Rinomina / Elimina) gestito dal parent.
+      const openGroupMenu = (ev: MouseEvent, id: string) => {
+        onGroupContextMenuRef.current?.({ x: ev.clientX, y: ev.clientY, groupId: id });
+      };
       groupsRef.current.forEach((grp) => {
         const b = getGroupBounds(grp, nodes);
         if (!b) return;
@@ -549,6 +609,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
           .attr('fill', theme.surface).attr('stroke', 'none')
           .style('cursor', moveRef.current ? 'grab' : 'default')
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); openGroupMenu(ev, grp.id); })
+          .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); })
           .call((() => {
             let prev: [number, number] | null = null;
             return d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
@@ -565,8 +627,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
           })());
         gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', theme.ink3).attr('font-size', 11).attr('font-weight', 500)
-          .text(grp.label || 'Gruppo').style('cursor', 'text')
-          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); const nl = prompt('Nome del gruppo:', grp.label || ''); if (nl !== null) onGroupsChange(groupsRef.current.map((g) => g.id === grp.id ? { ...g, label: nl } : g)); });
+          .text(grp.label || 'Gruppo').style('cursor', 'pointer')
+          .on('click', (ev: MouseEvent) => { ev.stopPropagation(); openGroupMenu(ev, grp.id); })
+          .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); });
         // Group ports
         const gPorts: { key: PortKey; cx: number; cy: number }[] = [
           { key: 'top', cx: b.x + b.w / 2, cy: b.y - LABEL_H },
@@ -681,6 +744,29 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // ── Nodes ──
     const nodesG = board.append('g');
     const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
+
+    // Click / context on tiles — agganciati SUBITO (prima del disegno di badge/
+    // velatura). Così, anche se un passo di disegno fallisce, le tile restano
+    // selezionabili: la selezione apre il tile nella sidebar.
+    // - CTRL/CMD/SHIFT + click → toggle nella multi-selezione (niente sidebar)
+    // - Click semplice → azzera la multi-selezione e apre il tile nella sidebar
+    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => {
+      ev.stopPropagation();
+      if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
+        const cur = selectedIdsRef.current;
+        const has = cur.includes(d.id);
+        const next = has ? cur.filter((id) => id !== d.id) : [...cur, d.id];
+        selectedIdsRef.current = next;
+        onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
+        return;
+      }
+      if (selectedIdsRef.current.length > 0) {
+        selectedIdsRef.current = [];
+        onSelectionChangeRef.current?.([], null);
+      }
+      onTileClickRef.current(d.id);
+    });
+    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
     // Sfondo a VELATURA (come Kanban/Chrono): base surface opaca + tinta del
     // tipo molto attenuata, così i badge e il testo restano leggibili. Lo status
     // NON è più un pattern a tutta tile: è uno swatch nel footer (vedi TileMeta).
@@ -844,19 +930,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const showStatus = !!d.statusName && d.statusName !== 'active';
       if (!showType && !showStatus) return;
       const g = d3.select(this);
-      const React = require('react');
-      const { renderToString } = require('react-dom/server');
-      const meta = showStatus ? statusMeta(d.statusName!) : null;
-      const html = renderToString(React.createElement(TileMeta, {
-        type: showType ? { icon: d.typeIcon, color: d.typeColor || '#5C5868' } : undefined,
-        // token Obsidian come nelle altre viste (theme-aware, stesso rendering).
-        status: showStatus && meta ? { shape: d.statusShape, color: meta.color, label: meta.label } : undefined,
-      }));
-      const fo = g.append('foreignObject').attr('x', TILE_W - 62).attr('y', TILE_H - 24).attr('width', 56).attr('height', 20).style('pointer-events', 'none');
-      const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;width:56px;height:20px;';
-      container.innerHTML = html;
-      (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+      try {
+        const React = require('react');
+        const { renderToString } = require('react-dom/server');
+        const meta = showStatus ? statusMeta(d.statusName!) : null;
+        const html = renderToString(React.createElement(TileMeta, {
+          type: showType ? { icon: d.typeIcon, color: d.typeColor || '#5C5868' } : undefined,
+          // token Obsidian come nelle altre viste (theme-aware, stesso rendering).
+          status: showStatus && meta ? { shape: d.statusShape, color: meta.color, label: meta.label } : undefined,
+        }));
+        const fo = g.append('foreignObject').attr('x', TILE_W - 62).attr('y', TILE_H - 24).attr('width', 56).attr('height', 20).style('pointer-events', 'none');
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;width:56px;height:20px;';
+        container.innerHTML = html;
+        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+      } catch { /* un badge non renderizzabile non deve rompere il disegno/l'interazione della board */ }
     });
 
     // Selection ring (toggled per tile based on selectedIds)
@@ -1004,26 +1092,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         }
       }));
 
-    // Click / context on tiles.
-    // - CTRL/CMD/SHIFT + click → toggle the tile in the multi-selection (no sidebar open)
-    // - Plain click → clear any active multi-selection and open the tile in the sidebar
-    nodeGrps.on('click.sel', (ev: MouseEvent, d: CanvasNode) => {
-      ev.stopPropagation();
-      if (ev.ctrlKey || ev.metaKey || ev.shiftKey) {
-        const cur = selectedIdsRef.current;
-        const has = cur.includes(d.id);
-        const next = has ? cur.filter((id) => id !== d.id) : [...cur, d.id];
-        selectedIdsRef.current = next;
-        onSelectionChangeRef.current?.(next, next.length ? computeSelectionScreenBbox() : null);
-        return;
-      }
-      if (selectedIdsRef.current.length > 0) {
-        selectedIdsRef.current = [];
-        onSelectionChangeRef.current?.([], null);
-      }
-      onTileClickRef.current(d.id);
-    });
-    nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
 
     // ── Text boxes ──
     const tbG = board.append('g').attr('class', 'textboxes');

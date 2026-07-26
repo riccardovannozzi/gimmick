@@ -380,12 +380,12 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
   };
 
   return (
-    <View style={{ marginTop: 14, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 14 }}>
+    <View style={{ marginTop: 14, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accent + '40', borderRadius: 12, padding: 14 }}>
       {/* Intestazione AZIONE + Chiudi (chiude il pannello). */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-        <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>AZIONE</Text>
+        <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>ACTIONS</Text>
         <Pressable onPress={onClose} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: c.muted }}>Chiudi</Text>
+          <Text style={{ fontSize: 12, fontWeight: '600', color: c.muted }}>Close</Text>
           <IconChevronUp size={13} color={c.muted} strokeWidth={2} />
         </Pressable>
       </View>
@@ -427,8 +427,13 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
         </View>
       )}
 
-      {/* Tag / Tipo / Status — pillole dropdown compatte in un'unica riga. */}
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
+      {/* Divider orizzontale tra le azioni e le opzioni. */}
+      <View style={{ height: 1, backgroundColor: c.line2, marginTop: 16, marginBottom: 14 }} />
+
+      {/* OPTIONS — label come quella delle azioni + Tag/Tipo/Status in un box
+          con fondo dedicato (leggermente incassato rispetto al pannello). */}
+      <Eyebrow c={c}>OPTIONS</Eyebrow>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
         <Pill c={c} label={curTag ? curTag.name : 'Tag'} Icon={IconTag} active={!!curTag} onPress={openTagSheet} />
         <Pill c={c} label={curType ? curType.name : 'Tipo'} active={!!curType} onPress={() => setSheet('type')} />
         <Pill c={c} label={curStatus ? statusLabel(curStatus.name) : 'Status'} active={!!curStatus} dotColor={curStatus ? statusColor(c, curStatus.name) : undefined} onPress={() => setSheet('status')} />
@@ -566,28 +571,55 @@ const fmtClock = (ms: number) => { const s = Math.round(ms / 1000); return `${Ma
 function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; onRemove?: () => void }) {
   const meta = SPARK_META[item.type] ?? { label: 'Item', Icon: IconAlignLeft, color: (cc: ObsidianColors) => cc.muted };
   const col = meta.color(c);
-  const hasThumb = (item.type === 'photo' || item.type === 'image' || item.type === 'video') && !!(item.thumbnail || item.uri);
-  // Sottotitolo per tipo: testo → anteprima; voce → durata; media/file → nome o dimensione.
+  // URI d'anteprima: media (foto/video/image) e allegati che SONO immagini
+  // (mime image/*). Per PDF/altri documenti non esiste thumbnail nel buffer
+  // (servirebbe un renderer nativo del contenuto).
+  const previewUri =
+    (item.type === 'photo' || item.type === 'image' || item.type === 'video')
+      ? (item.thumbnail ?? item.uri ?? null)
+      : (item.type === 'file' && (item.mimeType?.startsWith('image/') ?? false))
+        ? (item.thumbnail ?? item.uri ?? null)
+        : null;
+  const hasThumb = !!previewUri;
+  // Sottotitolo per tipo: testo → anteprima; voce → durata · peso; file → nome ·
+  // peso; media (foto/video/image) → nome file di sistema, altrimenti peso.
   const sub =
     item.type === 'text' ? (item.preview?.trim() || 'Testo')
-    : item.type === 'audio_recording' ? (item.duration ? fmtClock(item.duration) : 'Memo vocale')
+    : item.type === 'audio_recording'
+      ? ([item.duration ? fmtClock(item.duration) : null, item.size ? fmtBytes(item.size) : null].filter(Boolean).join(' · ') || 'Memo vocale')
+    : item.type === 'file'
+      ? ([item.fileName?.trim() || null, item.size ? fmtBytes(item.size) : null].filter(Boolean).join(' · ') || meta.label)
     : (item.fileName?.trim() || (item.size ? fmtBytes(item.size) : meta.label));
+  // Layout a due colonne, uguale per tutti gli spark:
+  //  · Colonna 1 → icona (o thumbnail), separata da un bordo verticale del
+  //    colore del bordo dello spark.
+  //  · Colonna 2 → contenuto (label + testo).
+  //  · X in sovraimpressione, in alto a destra.
+  // overflow hidden: arrotonda anche il bordo verticale ai corner del box.
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, padding: 10 }}>
-      {hasThumb ? (
-        <Image source={{ uri: item.thumbnail ?? item.uri }} style={{ width: 42, height: 42, borderRadius: 9 }} resizeMode="cover" />
-      ) : (
-        <View style={{ width: 42, height: 42, borderRadius: 9, backgroundColor: col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
-          <meta.Icon size={19} color={col} strokeWidth={1.8} />
+    <View style={{ flexDirection: 'row', backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, overflow: 'hidden' }}>
+      {/* Colonna 1 — icona (sempre, anche per i media); bordo destro = bordo
+          dello spark. */}
+      <View style={{ paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRightWidth: 1, borderRightColor: c.line2 }}>
+        <View style={{ width: 36, height: 36, borderRadius: 8, backgroundColor: col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
+          <meta.Icon size={18} color={col} strokeWidth={1.8} />
         </View>
-      )}
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 13, fontWeight: '600', color: c.text }}>{meta.label}</Text>
-        <Text numberOfLines={1} style={{ fontSize: 12, color: c.subtle, marginTop: 1 }}>{sub}</Text>
       </View>
+
+      {/* Colonna 2 — contenuto: anteprima media (foto/video/image) e testo.
+          Niente label del tipo: è già data dall'icona in colonna 1.
+          paddingRight lascia spazio alla X sovrapposta. */}
+      <View style={{ flex: 1, paddingVertical: 11, paddingLeft: 12, paddingRight: 30 }}>
+        {hasThumb && previewUri && (
+          <Image source={{ uri: previewUri }} style={{ width: '100%', height: 72, borderRadius: 8 }} resizeMode="cover" />
+        )}
+        <Text style={{ fontSize: 14.5, lineHeight: 20, color: c.text, marginTop: hasThumb ? 8 : 0 }}>{sub}</Text>
+      </View>
+
+      {/* X in sovraimpressione, in alto a destra. */}
       {onRemove ? (
-        <Pressable onPress={onRemove} hitSlop={8} accessibilityLabel="Rimuovi spark" style={{ padding: 6 }}>
-          <IconX size={16} color={c.subtle} strokeWidth={1.8} />
+        <Pressable onPress={onRemove} hitSlop={10} accessibilityLabel="Rimuovi spark" style={{ position: 'absolute', top: 8, right: 8, padding: 2 }}>
+          <IconX size={16} color={c.subtle} strokeWidth={1.9} />
         </Pressable>
       ) : null}
     </View>
@@ -688,6 +720,12 @@ export function ObsidianCaptureScreen({
   const saveNote = () => {
     const t = note.trim();
     if (!t) return;
+    // Anima la transizione al Salva: l'input si svuota e il box dello spark
+    // compare/si estende in modo fluido invece che di scatto.
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    // Spegne il mic e azzera gli accumulatori della dettatura: così un risultato
+    // vocale in ritardo non ripopola l'input dopo lo svuotamento.
+    dictation.reset();
     onSaveNote?.(t);
     setNote('');
   };
@@ -776,7 +814,7 @@ export function ObsidianCaptureScreen({
             style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, minHeight: 36, borderRadius: 10, borderWidth: 1, borderColor: c.line2, marginTop: 14 }}
           >
             <IconPlus size={15} color={c.muted} strokeWidth={2} />
-            <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>Azione</Text>
+            <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>Options</Text>
           </Pressable>
         )}
 

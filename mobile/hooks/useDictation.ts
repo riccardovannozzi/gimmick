@@ -29,6 +29,9 @@ export interface Dictation {
   /** Avvia/ferma la dettatura. `currentText` = testo già presente da preservare. */
   toggle: (currentText: string) => void;
   stop: () => void;
+  /** Annulla la dettatura e azzera gli accumulatori: nessun risultato in
+   *  ritardo potrà ripopolare il campo (usato al Salva/svuotamento). */
+  reset: () => void;
 }
 
 export function useDictation({ lang = 'it-IT', onText, onError }: {
@@ -38,7 +41,8 @@ export function useDictation({ lang = 'it-IT', onText, onError }: {
   onError?: (message: string) => void;
 }): Dictation {
   const [listening, setListening] = useState(false);
-  const baseRef = useRef('');
+  const baseRef = useRef('');   // testo già presente prima di iniziare la sessione
+  const finalRef = useRef('');  // segmenti finalizzati accumulati in questa sessione
   const available = !!speech;
 
   // I callback cambiano a ogni render: li teniamo in ref così i listener,
@@ -49,16 +53,33 @@ export function useDictation({ lang = 'it-IT', onText, onError }: {
   useEffect(() => {
     if (!speech) return;
     const mod = speech.ExpoSpeechRecognitionModule;
+    // Compone: testo di partenza + segmenti finalizzati + segmento interim in
+    // corso. Scarta i pezzi vuoti, così un risultato vuoto (tipico allo stop)
+    // NON azzera quanto già dettato.
+    const compose = (interim: string) => {
+      const parts = [baseRef.current, finalRef.current, interim].map((s) => s.trim()).filter(Boolean);
+      onTextRef.current(parts.join(' '));
+    };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subResult = mod.addListener('result', (e: any) => {
-      const t = e?.results?.[0]?.transcript ?? '';
-      const base = baseRef.current;
-      onTextRef.current(base ? `${base} ${t}` : t);
+      const seg = (e?.results?.[0]?.transcript ?? '').trim();
+      // In modalità continua ogni segmento riparte da zero: quando è finale lo
+      // ACCUMULo (così i segmenti precedenti non si perdono), mentre l'interim
+      // è solo l'anteprima del segmento corrente.
+      if (e?.isFinal) {
+        if (seg) finalRef.current = finalRef.current ? `${finalRef.current} ${seg}` : seg;
+        compose('');
+      } else {
+        compose(seg);
+      }
     });
     const subEnd = mod.addListener('end', () => setListening(false));
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const subError = mod.addListener('error', (e: any) => {
       setListening(false);
+      // 'aborted' = annullamento VOLUTO (reset/stop nostro) → non è un errore da
+      // mostrare. Idem 'no-speech' (silenzio): non vale un avviso invasivo.
+      if (e?.error === 'aborted' || e?.error === 'no-speech') return;
       onErrorRef.current?.(e?.message || 'Errore riconoscimento vocale');
     });
     return () => { subResult.remove(); subEnd.remove(); subError.remove(); };
@@ -69,12 +90,22 @@ export function useDictation({ lang = 'it-IT', onText, onError }: {
     setListening(false);
   }, []);
 
+  const reset = useCallback(() => {
+    // abort (non stop): annulla senza consegnare un risultato finale, così non
+    // arriva un evento in ritardo a ripopolare il campo dopo il Salva.
+    try { speech?.ExpoSpeechRecognitionModule.abort(); } catch { /* no-op */ }
+    baseRef.current = '';
+    finalRef.current = '';
+    setListening(false);
+  }, []);
+
   const start = useCallback(async (currentText: string) => {
     if (!speech) { onErrorRef.current?.("Ricostruisci l'app per la dettatura vocale"); return; }
     try {
       const perm = await speech.ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!perm?.granted) { onErrorRef.current?.('Permesso microfono negato'); return; }
       baseRef.current = currentText.trim();
+      finalRef.current = '';
       // Stesso motore nativo della dettatura della tastiera (Google
       // SpeechRecognizer / Apple Speech): stessa sensibilità e capacità.
       // · interimResults + continuous → scrittura live e sessione lunga.
@@ -100,5 +131,5 @@ export function useDictation({ lang = 'it-IT', onText, onError }: {
   // Ferma il riconoscimento se lo schermo si smonta mentre è in ascolto.
   useEffect(() => () => { try { speech?.ExpoSpeechRecognitionModule.abort(); } catch { /* no-op */ } }, []);
 
-  return { available, listening, toggle, stop };
+  return { available, listening, toggle, stop, reset };
 }
