@@ -17,7 +17,7 @@ export function obsidianToolbarBtn(theme: PixelTheme, active: boolean): React.CS
     borderRadius: 10,
     background: active ? theme.accent : theme.surfaceVariant,
     color: active ? theme.onAccent : theme.ink2,
-    border: `1px solid ${active ? 'transparent' : theme.border}`,
+    border: 'none',
     fontFamily: 'var(--ob-font-sans)',
     fontSize: 12.5,
     fontWeight: 600,

@@ -110,6 +110,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
     title: deriveTitle(t),
     actionLabel: isTodo ? 'To do' : 'Notes',
     actionColor: isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
+    action: t.action_type,
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,

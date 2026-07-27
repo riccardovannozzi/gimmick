@@ -38,9 +38,9 @@ export interface CanvasGroup {
   borderStyle?: GroupBorderStyle | null;
 }
 // Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
-//   type 'text'  → content = { html: string }
+//   type 'text'  → content = { html: string; bgColor?: string; fontSize?: number }
 //   type 'image' → content = { src: string; alt?: string }
-export type CanvasBoxTextContent = { html: string };
+export type CanvasBoxTextContent = { html: string; bgColor?: string | null; fontSize?: number };
 export type CanvasBoxImageContent = { src: string; alt?: string };
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
@@ -1267,10 +1267,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const tw = tb.w, th = tb.h;
         const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node').attr('data-tb-id', tb.id);
 
-        // Background
+        // Background — i box di testo possono avere un colore di sfondo scelto
+        // dalla TextSidebar (stessa palette dei gruppi); default = theme.surface.
+        const bgFill = tb.type === 'text' && tb.content.bgColor ? tb.content.bgColor : theme.surface;
         g.append('rect')
           .attr('width', tw).attr('height', th).attr('rx', RX)
-          .attr('fill', theme.surface).attr('stroke', theme.border).attr('stroke-width', SW);
+          .attr('fill', bgFill).attr('stroke', theme.border).attr('stroke-width', SW);
 
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
@@ -1750,6 +1752,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             >
               <TextEditor
                 editing={editingBoxId === tb.id}
+                fontSize={(tb as { type: 'text'; content: { fontSize?: number } }).content.fontSize ?? 11}
                 initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
                 onChange={(html) => {
                   // Keep local box in sync so D3 drag-end save uses the latest HTML.

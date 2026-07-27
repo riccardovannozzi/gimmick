@@ -153,9 +153,9 @@ export default function TextCaptureScreen() {
             accessibilityLabel="Chiudi"
             hitSlop={6}
             android_ripple={{ color: c.line, borderless: true }}
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line }}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accentSoft }}
           >
-            <IconX size={19} color={c.text} strokeWidth={1.9} />
+            <IconX size={19} color={c.accent} strokeWidth={1.9} />
           </Pressable>
 
           <Text style={{ fontSize: 16, fontWeight: '700', color: c.text }}>Nuova nota</Text>
@@ -166,7 +166,7 @@ export default function TextCaptureScreen() {
             accessibilityLabel="Salva"
             hitSlop={6}
             android_ripple={{ color: c.line, borderless: true }}
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: canSave ? c.accent : c.surface2, borderWidth: 1, borderColor: canSave ? c.accent : c.line }}
+            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: canSave ? c.accent : c.accentSoft }}
           >
             <IconCheck size={20} color={canSave ? c.accentInk : c.subtle} strokeWidth={2.2} />
           </Pressable>

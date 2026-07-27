@@ -19,7 +19,9 @@ import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
-import type { StatusShape } from '@/types';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
+import { IconArrowUp, IconBolt, IconClock } from '@tabler/icons-react';
+import type { StatusShape, ActionType } from '@/types';
 
 /** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
 export type ChronoColorMode = 'tag' | 'type' | 'status';
@@ -33,12 +35,6 @@ const KIND_COLOR: Record<EventKind, string> = {
   anytime: 'var(--ob-subtle)',
 };
 type SparkType = 'voice' | 'text' | 'file' | 'photo';
-const SPARK_COLOR: Record<SparkType, string> = {
-  voice: 'var(--ob-type-voice)',
-  text: 'var(--ob-type-text)',
-  file: 'var(--ob-type-file)',
-  photo: 'var(--ob-type-photo)',
-};
 
 // ─── COLONNA NOTES / TODO card ────────────────────────────────────────────────
 export interface ColTile {
@@ -47,6 +43,8 @@ export interface ColTile {
   title: string;
   actionLabel: string;
   actionColor: string;
+  /** Tipo d'azione del tile → badge icona in basso a sinistra (stile canvas). */
+  action?: ActionType;
   deadline?: boolean;
   /** Tile completato (is_completed) → pallino verde in alto a destra. */
   done?: boolean;
@@ -66,12 +64,18 @@ export interface ColTile {
   bg?: string;
 }
 
+// Icona del badge azione (basso-sinistra), come il tile del canvas. 'none' → nessun
+// badge (colonna Notes); 'anytime' (Todo) → freccia su.
+const ACTION_ICON: Partial<Record<ActionType, React.ComponentType<{ size?: number; color?: string }>>> = {
+  anytime: IconArrowUp,
+  deadline: IconBolt,
+  event: IconClock,
+};
+
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
   const canDrag = !!schedulable && !!t.id;
-  // Sfondo a VELATURA del colore (via CSS con --card-c), non pieno: testo di
-  // default leggibile e icone TIPO/STATUS ben visibili.
-  const inkStyle = undefined;
+  const ActIcon = t.action ? ACTION_ICON[t.action] : undefined;
   return (
     <div
       className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
@@ -84,26 +88,32 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
-      <div className="ob-chrono__card-title" style={inkStyle}>{t.title}</div>
-      {t.checklist && (
-        <div className="ob-chrono__card-bars">
-          {t.checklist.map((d, i) => <div key={i} className={cn('ob-chrono__card-bar', d && 'ob-chrono__card-bar--on')} />)}
+      {/* Striscia STATUS a sinistra, SEMPRE presente come il tile canvas; lo
+          swatch compare solo se la tile ha uno status. */}
+      <div className="ob-chrono__card-strip" title={t.status?.label}>
+        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />}
+      </div>
+      <div className="ob-chrono__card-main">
+        <div className="ob-chrono__card-title">{t.title}</div>
+        {/* Gruppo in basso (checklist + piede) ancorato al fondo, come il canvas. */}
+        <div className="ob-chrono__card-bottom">
+          {t.checklist && (
+            <div className="ob-chrono__card-bars">
+              {t.checklist.map((d, i) => <div key={i} className={cn('ob-chrono__card-bar', d && 'ob-chrono__card-bar--on')} />)}
+            </div>
+          )}
+          <div className="ob-chrono__card-foot">
+            {/* Azione (icona in quadrato) a sinistra, TIPO a destra — come il canvas.
+                Lo STATUS vive nella striscia sinistra. */}
+            {ActIcon && (
+              <span className="ob-chrono__card-actbadge" title={t.actionLabel}>
+                <ActIcon size={11} color="var(--ob-text)" />
+              </span>
+            )}
+            <div style={{ flex: 1 }} />
+            <TileMeta type={t.type} />
+          </div>
         </div>
-      )}
-      <div className="ob-chrono__card-foot">
-        <span className={cn('ob-chrono__card-dot', t.deadline && 'ob-chrono__card-dot--sq')} style={{ ['--action-c' as string]: t.actionColor }} />
-        <span className="ob-chrono__card-action" style={inkStyle}>{t.actionLabel}</span>
-        <div style={{ flex: 1 }} />
-        {t.spark && (
-          <span className="ob-chrono__card-spark" style={{ color: SPARK_COLOR[t.spark] }}>
-            <Icon name={t.spark} size={13} />
-          </span>
-        )}
-        <TileMeta type={t.type} status={t.status} />
-        <span className="ob-chrono__card-tag" style={inkStyle}><Icon name="tags" size={13} /></span>
-        {!!t.sparkCount && (
-          <span className="ob-tile-sparkn" style={inkStyle} title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
-        )}
       </div>
     </div>
   );

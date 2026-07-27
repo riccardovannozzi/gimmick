@@ -126,25 +126,26 @@ export default function PhotoCaptureScreen() {
         <Pressable
           onPress={handleClose}
           android_ripple={{ color: c.line }}
-          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.accentSoft }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Indietro</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accent }}>Indietro</Text>
         </Pressable>
       </View>
     );
   }
 
-  // Controllo circolare sopra il feed — stile Obsidian (cerchio come la navbar),
-  // su fondo translucido così resta leggibile su qualsiasi inquadratura.
+  // Controllo circolare sopra il feed — stile Obsidian: fondo accentSoft pieno
+  // con il glifo in accent (gli stessi due token dei chip della UI). Niente
+  // cornice: il contrasto lo dà il fondo, leggibile su qualsiasi inquadratura.
   const CamBtn = ({
-    onPress, children, size = 52, bg = 'rgba(0,0,0,0.42)', borderColor = 'rgba(255,255,255,0.28)', disabled,
-  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; borderColor?: string; disabled?: boolean }) => (
+    onPress, children, size = 52, bg = c.accentSoft, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       hitSlop={6}
       android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
-      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg, borderWidth: 1, borderColor, opacity: disabled ? 0.6 : 1 }}
+      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg, opacity: disabled ? 0.6 : 1 }}
     >
       {children}
     </Pressable>
@@ -172,17 +173,13 @@ export default function PhotoCaptureScreen() {
           }}
         >
           <CamBtn onPress={handleClose}>
-            <IconX size={22} color="#FFFFFF" strokeWidth={2} />
+            <IconX size={22} color={c.accent} strokeWidth={2} />
           </CamBtn>
-          <CamBtn
-            onPress={toggleFlash}
-            bg={flashOn ? c.accent : 'rgba(0,0,0,0.42)'}
-            borderColor={flashOn ? c.accent : 'rgba(255,255,255,0.28)'}
-          >
+          <CamBtn onPress={toggleFlash} bg={flashOn ? c.accent : c.accentSoft}>
             {flashOn ? (
               <IconBolt size={22} color={c.accentInk} strokeWidth={2} />
             ) : (
-              <IconBoltOff size={22} color="#FFFFFF" strokeWidth={2} />
+              <IconBoltOff size={22} color={c.accent} strokeWidth={2} />
             )}
           </CamBtn>
         </View>
@@ -203,20 +200,20 @@ export default function PhotoCaptureScreen() {
           {/* Spacer per centrare lo shutter con il flip a destra */}
           <View style={{ width: 52 }} />
 
-          {/* Shutter — cerchio accent con anello bianco esterno */}
+          {/* Shutter — cerchio accent pieno, senza anello */}
           <Pressable
             onPress={takePicture}
             disabled={isTakingPhoto}
             hitSlop={6}
             android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: true }}
-            style={{ width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent, borderWidth: 4, borderColor: 'rgba(255,255,255,0.9)', opacity: isTakingPhoto ? 0.6 : 1 }}
+            style={{ width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent, opacity: isTakingPhoto ? 0.6 : 1 }}
           >
             <IconCamera size={32} color={c.accentInk} strokeWidth={2} />
           </Pressable>
 
           {/* Flip camera */}
           <CamBtn onPress={toggleFacing}>
-            <IconRefresh size={24} color="#FFFFFF" strokeWidth={2} />
+            <IconRefresh size={24} color={c.accent} strokeWidth={2} />
           </CamBtn>
         </View>
       </CameraView>

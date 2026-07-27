@@ -13,6 +13,7 @@ import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel } from '@/components/canvas/StagingPanel';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
+import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
@@ -362,6 +363,11 @@ export default function CanvasPage() {
     staleTime: 60 * 1000,
   });
   const textBoxes = useMemo(() => (boxesData?.data || []) as unknown as CanvasTextBox[], [boxesData]);
+  // Box di TESTO attualmente selezionato → alimenta la TextSidebar destra.
+  const selectedTextBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
+    [textBoxes, selectedTextBoxId],
+  );
 
   const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;
@@ -408,6 +414,47 @@ export default function CanvasPage() {
     }));
     await canvasApi.deleteBox(id);
   }, [tagId, queryClient]);
+
+  // ── Modifica di un box di testo dalla SIDEBAR destra ──
+  // Il backend RIMPIAZZA la colonna `content` (JSON), non la fonde: ogni save
+  // deve inviare il content COMPLETO. Leggiamo quindi l'ultima versione dalla
+  // cache (già aggiornata in modo ottimistico) e la mandiamo intera, debounced.
+  const tbMirrorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tbContentTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleBoxSave = useCallback((id: string) => {
+    if (!tagId) return;
+    if (tbContentTimer.current) clearTimeout(tbContentTimer.current);
+    tbContentTimer.current = setTimeout(() => {
+      const boxes = (queryClient.getQueryData(['canvas-boxes', tagId]) as any)?.data || [];
+      const box = boxes.find((b: any) => b.id === id);
+      if (box) canvasApi.updateBox(id, { content: box.content });
+    }, 800);
+  }, [tagId, queryClient]);
+
+  // Testo (per-tasto): lo specchio in cache innesca un redraw completo dell'SVG,
+  // quindi è debounced (a fine digitazione) per non ridisegnare a ogni tasto;
+  // così la nota sul canvas si riallinea senza scatti. handleUpdateTextBox
+  // (editing inline) resta invariato: salta la cache di proposito.
+  const handleTextBoxContentChange = useCallback((id: string, html: string) => {
+    if (!tagId) return;
+    if (tbMirrorTimer.current) clearTimeout(tbMirrorTimer.current);
+    tbMirrorTimer.current = setTimeout(() => {
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+        data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, content: { ...(tb.content || {}), html } } : tb),
+      }));
+    }, 300);
+    scheduleBoxSave(id);
+  }, [tagId, queryClient, scheduleBoxSave]);
+
+  // Stile (colore sfondo / dimensione font): azioni discrete → specchio in
+  // cache immediato (aggiornamento istantaneo sul canvas) + save debounced.
+  const handleTextBoxStylePatch = useCallback((id: string, patch: { bgColor?: string | null; fontSize?: number }) => {
+    if (!tagId) return;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, content: { ...(tb.content || {}), ...patch } } : tb),
+    }));
+    scheduleBoxSave(id);
+  }, [tagId, queryClient, scheduleBoxSave]);
 
   // Image box: drag a rectangle (w,h) → file picker → measure the image LOCALLY
   // from the File (so CORS / CDN delays can't cause a fallback) → upload to
@@ -753,15 +800,18 @@ export default function CanvasPage() {
     setSidebarOpen(true);
   }, []);
 
-  // Click singolo su un box (testo/immagine): selezione esclusiva → solo contorno
-  // obsidian, nessun menu (i box non hanno sidebar né multi-menu da singoli).
+  // Click singolo su un box: selezione esclusiva → contorno obsidian. Per i box
+  // di TESTO apriamo anche la sidebar destra con l'editor (come per i gruppi);
+  // per le immagini resta solo il contorno.
   const handleTextBoxClick = useCallback((id: string) => {
     setSelectedTextBoxId(id);
     setSelectedTileId(null);
     setSelectedGroupId(null);
     setSelectedIds([]);
     setSelectionBbox(null);
-  }, []);
+    const box = textBoxes.find((b) => b.id === id);
+    if (box?.type === 'text') setSidebarOpen(true);
+  }, [textBoxes]);
 
   const handleGroupContextMenu = useCallback((e: { x: number; y: number; groupId: string }) => {
     setGroupCtx(e);
@@ -1029,9 +1079,8 @@ export default function CanvasPage() {
           </div>
         </div>
 
-          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo selezionato → MultiTileSidebar
-              (≥2 tile) → TileSidebar. Le note (text box) non hanno proprietà
-              strutturate da bulk-editare. */}
+          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → box di testo (editor) →
+              MultiTileSidebar (≥2 tile) → TileSidebar. */}
           {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
@@ -1041,6 +1090,19 @@ export default function CanvasPage() {
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
               onDelete={() => handleDeleteGroup(selectedGroupId)}
               onSelectTile={(id) => { setSelectedGroupId(null); setSelectedTileId(id); setSidebarOpen(true); }}
+            />
+          ) : selectedTextBox ? (
+            <TextSidebar
+              key={selectedTextBox.id}
+              boxId={selectedTextBox.id}
+              initialHtml={(selectedTextBox as { content: { html: string } }).content.html || ''}
+              bgColor={(selectedTextBox as { content: { bgColor?: string | null } }).content.bgColor ?? null}
+              fontSize={(selectedTextBox as { content: { fontSize?: number } }).content.fontSize ?? 11}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              onChange={(html) => handleTextBoxContentChange(selectedTextBox.id, html)}
+              onStyleChange={(patch) => handleTextBoxStylePatch(selectedTextBox.id, patch)}
+              onDelete={() => { handleDeleteTextBox(selectedTextBox.id); setSelectedTextBoxId(null); }}
             />
           ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar

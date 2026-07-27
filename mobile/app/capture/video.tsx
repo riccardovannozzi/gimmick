@@ -3,18 +3,20 @@ import { View, Text, Pressable } from 'react-native';
 import { CameraView, CameraType, useCameraPermissions, useMicrophonePermissions } from 'expo-camera';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconX, IconRefresh, IconCircle, IconSquare } from '@tabler/icons-react-native';
+import { IconX, IconRefresh, IconVideo, IconSquare } from '@tabler/icons-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { File } from 'expo-file-system/next';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
-import { usePixelTheme, PixelButton } from '@/components/pixel';
+import { useObsidian } from '@/lib/obsidian';
 
 const MAX_DURATION = 30; // 30 seconds
 
 export default function VideoCaptureScreen() {
-  const theme = usePixelTheme();
+  const c = useObsidian();
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -89,7 +91,7 @@ export default function VideoCaptureScreen() {
       }
     } catch (error) {
       console.error('Error recording video:', error);
-      toast.error('Error during recording');
+      toast.error('Errore durante la registrazione');
     } finally {
       setIsRecording(false);
     }
@@ -157,7 +159,7 @@ export default function VideoCaptureScreen() {
       mimeType: 'video/mp4',
     });
 
-    toast.success('Video added to buffer');
+    toast.success('Video aggiunto al buffer');
     router.back();
   };
 
@@ -167,55 +169,27 @@ export default function VideoCaptureScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Pixel overlay icon button: square con border 2px bianco + bg colorato +
-  // offset shadow bianco. Mirror del CameraIconBtn in photo.tsx — pattern
-  // Android-safe.
-  const CameraIconBtn = ({
-    onPress, children, size = 44, bg, disabled,
-  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => {
-    const sh = theme.shadowOffset;
-    return (
-      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh, opacity: disabled ? 0.5 : 1 }}>
-        {sh > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              left: sh, top: sh, right: 0, bottom: 0,
-              backgroundColor: '#FFFFFF',
-            }}
-          />
-        )}
-        <Pressable
-          onPress={onPress}
-          disabled={disabled}
-          style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
-        >
-          <View
-            style={{
-              width: size,
-              height: size,
-              borderWidth: 2,
-              borderColor: '#FFFFFF',
-              backgroundColor: bg ?? 'rgba(0,0,0,0.6)',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {children}
-          </View>
-        </Pressable>
-      </View>
-    );
-  };
+  // Controllo circolare sopra il feed — stesso helper di photo.tsx: fondo
+  // accentSoft, glifo in accent, nessuna cornice.
+  const CamBtn = ({
+    onPress, children, size = 52, bg = c.accentSoft, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      hitSlop={6}
+      android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
+      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg, opacity: disabled ? 0.6 : 1 }}
+    >
+      {children}
+    </Pressable>
+  );
 
   // Check permissions
   if (!cameraPermission || !micPermission) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ fontFamily: theme.fontHead, fontSize: 10, color: theme.ink, letterSpacing: 1 }}>
-          LOADING…
-        </Text>
+      <View style={{ flex: 1, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center' }}>
+        <Text style={{ fontSize: 14, color: c.muted }}>Caricamento…</Text>
       </View>
     );
   }
@@ -223,46 +197,30 @@ export default function VideoCaptureScreen() {
   // Permissions denied
   if (!cameraPermission.granted || !micPermission.granted) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 16 }}>
-        <Text
-          style={{
-            fontFamily: theme.fontHead,
-            fontSize: 12,
-            color: theme.ink,
-            textAlign: 'center',
-            letterSpacing: 1,
-          }}
-        >
-          PERMISSIONS REQUIRED
+      <View style={{ flex: 1, backgroundColor: c.canvas, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 14 }}>
+        <Text style={{ fontSize: 17, fontWeight: '700', color: c.text, textAlign: 'center' }}>
+          Permessi necessari
         </Text>
-        <Text
-          style={{
-            fontFamily: theme.fontBody,
-            fontSize: 13,
-            color: theme.ink2,
-            textAlign: 'center',
-          }}
-        >
-          Gimmick needs camera and microphone access to record video
+        <Text style={{ fontSize: 14, lineHeight: 20, color: c.muted, textAlign: 'center', marginBottom: 6 }}>
+          Gimmick ha bisogno di fotocamera e microfono per registrare video
         </Text>
-        <PixelButton
-          theme={theme}
-          big
-          label="GRANT ACCESS"
-          bg={theme.accent}
-          color={theme.onAccent}
+        <Pressable
           onPress={async () => {
             await requestCameraPermission();
             await requestMicPermission();
           }}
-        />
-        <PixelButton
-          theme={theme}
-          label="GO BACK"
-          bg={theme.surface}
-          color={theme.ink}
+          android_ripple={{ color: c.accent + '55' }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.accent }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Concedi accesso</Text>
+        </Pressable>
+        <Pressable
           onPress={handleClose}
-        />
+          android_ripple={{ color: c.line }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.accentSoft }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accent }}>Indietro</Text>
+        </Pressable>
       </View>
     );
   }
@@ -283,60 +241,53 @@ export default function VideoCaptureScreen() {
             justifyContent: 'space-between',
             alignItems: 'center',
             paddingHorizontal: 16,
-            paddingTop: 48,
+            paddingTop: insets.top + 10,
           }}
         >
-          <CameraIconBtn onPress={handleClose} bg={theme.semantic.danger} disabled={isRecording}>
-            <IconX size={22} color="#FFFFFF" strokeWidth={2.4} />
-          </CameraIconBtn>
+          <CamBtn onPress={handleClose} disabled={isRecording}>
+            <IconX size={22} color={c.accent} strokeWidth={2} />
+          </CamBtn>
 
-          {/* Recording indicator & timer — pill PressStart2P con dot danger */}
+          {/* Indicatore di registrazione — pill accentSoft con dot rosso */}
           {isRecording && (
             <View
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 8,
-                paddingHorizontal: 10,
-                paddingVertical: 6,
-                borderWidth: 2,
-                borderColor: '#FFFFFF',
-                backgroundColor: 'rgba(0,0,0,0.7)',
+                paddingHorizontal: 12,
+                height: 34,
+                borderRadius: 17,
+                backgroundColor: c.accentSoft,
               }}
             >
-              <View style={{ width: 10, height: 10, backgroundColor: theme.semantic.danger }} />
-              <Text
-                style={{
-                  fontFamily: theme.fontHead,
-                  fontSize: 10,
-                  color: '#FFFFFF',
-                  letterSpacing: 1,
-                }}
-              >
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.error }} />
+              <Text style={{ fontSize: 13, fontWeight: '600', color: c.accent }}>
                 {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
               </Text>
             </View>
           )}
 
-          {/* Placeholder per allineamento (stesso width approx del danger btn) */}
-          <View style={{ width: 48 }} />
+          {/* Placeholder per allineamento (stesso width del pulsante X) */}
+          <View style={{ width: 52 }} />
         </View>
 
         {/* Progress bar during recording */}
         {isRecording && (
-          <View style={{ position: 'absolute', top: 116, left: 16, right: 16 }}>
+          <View style={{ position: 'absolute', top: insets.top + 74, left: 16, right: 16 }}>
             <View
               style={{
-                height: 8,
-                borderWidth: 2,
-                borderColor: '#FFFFFF',
-                backgroundColor: 'rgba(255,255,255,0.2)',
+                height: 4,
+                borderRadius: 2,
+                backgroundColor: 'rgba(255,255,255,0.24)',
+                overflow: 'hidden',
               }}
             >
               <View
                 style={{
                   height: '100%',
-                  backgroundColor: theme.semantic.danger,
+                  borderRadius: 2,
+                  backgroundColor: c.error,
                   width: `${(recordingTime / MAX_DURATION) * 100}%`,
                 }}
               />
@@ -348,50 +299,44 @@ export default function VideoCaptureScreen() {
         <View
           style={{
             position: 'absolute',
-            bottom: 48,
+            bottom: insets.bottom + 28,
             left: 0,
             right: 0,
             flexDirection: 'row',
             justifyContent: 'center',
             alignItems: 'center',
-            gap: 28,
+            gap: 32,
           }}
         >
-          {/* Spacer simmetria con flip */}
-          <View style={{ width: 56 }} />
+          {/* Spacer per centrare il record con il flip a destra */}
+          <View style={{ width: 52 }} />
 
-          {/* Record/Stop — verde (success) per avviare, rosso (danger) per
-              fermare. Stesso pattern del capture button di photo.tsx. */}
-          <CameraIconBtn
+          {/* Record/Stop — cerchio pieno senza anello: accent per avviare,
+              rosso per fermare. Stesso linguaggio dello shutter di photo.tsx. */}
+          <Pressable
             onPress={handleRecordPress}
-            size={78}
-            bg={isRecording ? theme.semantic.danger : theme.semantic.success}
+            hitSlop={6}
+            android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: true }}
+            style={{ width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: isRecording ? c.error : c.accent }}
           >
             {isRecording ? (
-              <IconSquare size={32} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.2} />
+              <IconSquare size={28} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
             ) : (
-              <IconCircle size={36} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2.2} />
+              <IconVideo size={32} color={c.accentInk} strokeWidth={2} />
             )}
-          </CameraIconBtn>
+          </Pressable>
 
-          {/* Flip camera — neutro come in photo.tsx */}
-          <CameraIconBtn onPress={toggleFacing} size={56} disabled={isRecording}>
-            <IconRefresh size={26} color="#FFFFFF" strokeWidth={2.2} />
-          </CameraIconBtn>
+          {/* Flip camera */}
+          <CamBtn onPress={toggleFacing} disabled={isRecording}>
+            <IconRefresh size={24} color={c.accent} strokeWidth={2} />
+          </CamBtn>
         </View>
 
         {/* Recording hint */}
         {!isRecording && !capturedUri && (
-          <View style={{ position: 'absolute', bottom: 144, left: 0, right: 0, alignItems: 'center' }}>
-            <Text
-              style={{
-                fontFamily: theme.fontHead,
-                fontSize: 9,
-                color: 'rgba(255,255,255,0.7)',
-                letterSpacing: 1,
-              }}
-            >
-              PRESS TO RECORD (MAX {MAX_DURATION}S)
+          <View style={{ position: 'absolute', bottom: insets.bottom + 124, left: 0, right: 0, alignItems: 'center' }}>
+            <Text style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)' }}>
+              Tocca per registrare (max {MAX_DURATION}s)
             </Text>
           </View>
         )}

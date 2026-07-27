@@ -158,6 +158,14 @@ export const obsidianRadius = {
  */
 export const OB_BTN_H = 52;
 
+/**
+ * Pulsanti secondari delle schermate di cattura (chiudi, flash, flip, annulla,
+ * modifica) e pill di stato che li accompagnano: fondo `accentSoft`, glifo
+ * `accent`, nessun bordo. L'azione primaria è invece `accent` pieno con glifo
+ * `accentInk`. Vale anche sopra il feed camera: i due token restano leggibili
+ * in entrambi i temi.
+ */
+
 /** Append an 8-bit alpha (00–ff) to a 6-digit hex. */
 export function withAlpha(hex: string, alpha: string): string {
   return hex.length === 7 ? hex + alpha : hex;

@@ -6,10 +6,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IconPaperclip } from '@tabler/icons-react-native';
 import { useBufferStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
-import { usePixelTheme } from '@/components/pixel';
+import { useObsidian } from '@/lib/obsidian';
 
 export default function FileCaptureScreen() {
-  const theme = usePixelTheme();
+  const c = useObsidian();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -62,21 +62,19 @@ export default function FileCaptureScreen() {
           size: asset.size,
         });
 
-        toast.success(`File "${asset.name}" added to buffer`);
+        toast.success(`File "${asset.name}" aggiunto al buffer`);
       }
 
       router.back();
     } catch (error) {
       console.error('Error picking document:', error);
-      toast.error('Error selecting file');
+      toast.error('Errore nella selezione del file');
       router.back();
     }
   };
 
-  // Loading overlay con cornice/shadow Pixel (stesso linguaggio di gallery).
-  const sh = theme.shadowOffset;
-  const accent = theme.cap.file;
-
+  // Overlay di attesa mentre si apre il picker di sistema — card Obsidian
+  // (stesso linguaggio di gallery).
   return (
     <View
       style={{
@@ -87,54 +85,29 @@ export default function FileCaptureScreen() {
         paddingHorizontal: 24,
       }}
     >
-      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh }}>
-        {sh > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              left: sh,
-              top: sh,
-              right: 0,
-              bottom: 0,
-              backgroundColor: '#FFFFFF',
-            }}
-          />
-        )}
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingVertical: 20,
+          borderRadius: 16,
+          backgroundColor: c.surface,
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
         <View
           style={{
-            paddingHorizontal: 20,
-            paddingVertical: 18,
-            borderWidth: 2,
-            borderColor: '#FFFFFF',
-            backgroundColor: theme.surface,
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: c.cap.file + '2E',
             alignItems: 'center',
-            gap: 10,
+            justifyContent: 'center',
           }}
         >
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderWidth: 2,
-              borderColor: theme.border,
-              backgroundColor: accent,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconPaperclip size={22} color="#FFFFFF" strokeWidth={2} />
-          </View>
-          <Text
-            style={{
-              fontFamily: theme.fontHead,
-              fontSize: 10,
-              color: theme.ink,
-              letterSpacing: 1,
-            }}
-          >
-            SELECT A FILE…
-          </Text>
+          <IconPaperclip size={22} color={c.cap.file} strokeWidth={1.9} />
         </View>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>Seleziona un file…</Text>
       </View>
     </View>
   );

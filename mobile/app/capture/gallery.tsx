@@ -6,10 +6,10 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IconPhoto } from '@tabler/icons-react-native';
 import { useBufferStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
-import { usePixelTheme } from '@/components/pixel';
+import { useObsidian } from '@/lib/obsidian';
 
 export default function GalleryCaptureScreen() {
-  const theme = usePixelTheme();
+  const c = useObsidian();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { tile: tileId } = useLocalSearchParams<{ tile?: string }>();
@@ -75,23 +75,19 @@ export default function GalleryCaptureScreen() {
 
       const count = result.assets.length;
       toast.success(
-        count === 1 ? 'Image added to buffer' : `${count} images added to buffer`
+        count === 1 ? 'Immagine aggiunta al buffer' : `${count} immagini aggiunte al buffer`
       );
 
       router.back();
     } catch (error) {
       console.error('Error picking image:', error);
-      toast.error('Error selecting image');
+      toast.error('Errore nella selezione dell’immagine');
       router.back();
     }
   };
 
-  // Loading overlay con cornice/shadow Pixel (border + shadow bianchi su
-  // overlay scuro — stesso linguaggio di photo/video). Pattern Android-safe.
-  const sh = theme.shadowOffset;
-  // Capture color gallery = lavanda (theme.cap.gallery).
-  const accent = theme.cap.gallery;
-
+  // Overlay di attesa mentre si apre il picker di sistema — card Obsidian
+  // (angoli morbidi, hairline, icona tinta col colore del canale gallery).
   return (
     <View
       style={{
@@ -102,54 +98,29 @@ export default function GalleryCaptureScreen() {
         paddingHorizontal: 24,
       }}
     >
-      <View style={{ position: 'relative', paddingRight: sh, paddingBottom: sh }}>
-        {sh > 0 && (
-          <View
-            style={{
-              position: 'absolute',
-              left: sh,
-              top: sh,
-              right: 0,
-              bottom: 0,
-              backgroundColor: '#FFFFFF',
-            }}
-          />
-        )}
+      <View
+        style={{
+          paddingHorizontal: 24,
+          paddingVertical: 20,
+          borderRadius: 16,
+          backgroundColor: c.surface,
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
         <View
           style={{
-            paddingHorizontal: 20,
-            paddingVertical: 18,
-            borderWidth: 2,
-            borderColor: '#FFFFFF',
-            backgroundColor: theme.surface,
+            width: 48,
+            height: 48,
+            borderRadius: 24,
+            backgroundColor: c.cap.gallery + '2E',
             alignItems: 'center',
-            gap: 10,
+            justifyContent: 'center',
           }}
         >
-          <View
-            style={{
-              width: 44,
-              height: 44,
-              borderWidth: 2,
-              borderColor: theme.border,
-              backgroundColor: accent,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconPhoto size={24} color="#FFFFFF" strokeWidth={2} />
-          </View>
-          <Text
-            style={{
-              fontFamily: theme.fontHead,
-              fontSize: 10,
-              color: theme.ink,
-              letterSpacing: 1,
-            }}
-          >
-            SELECT IMAGES…
-          </Text>
+          <IconPhoto size={24} color={c.cap.gallery} strokeWidth={1.9} />
         </View>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>Seleziona le immagini…</Text>
       </View>
     </View>
   );

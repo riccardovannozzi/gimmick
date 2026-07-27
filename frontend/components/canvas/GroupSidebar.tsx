@@ -18,7 +18,7 @@ import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBo
 // I pastelli chiari facevano "sparire" i tile, la riga "Bright"/"Dark1" della
 // GIMMICK_PALETTE era ancora troppo satura → qui usiamo colori scuri e spenti,
 // che fanno da sfondo neutro dietro i tile senza risultare accesi.
-const GROUP_BG_PALETTE = [
+export const GROUP_BG_PALETTE = [
   { id: 'g-gray',   hex: '#3A3A3E', name: 'Grigio' },
   { id: 'g-blue',   hex: '#2E3A4C', name: 'Blu' },
   { id: 'g-cyan',   hex: '#264049', name: 'Ciano' },
@@ -55,7 +55,7 @@ function eyebrowStyle(theme: PT): React.CSSProperties {
 }
 
 /** Campo colore: swatch cliccabile che apre una palette (GIMMICK_PALETTE). */
-function ColorField({ label, value, onChange, allowNone, palette = GIMMICK_PALETTE }: {
+export function ColorField({ label, value, onChange, allowNone, palette = GIMMICK_PALETTE }: {
   label: string;
   value: string | null | undefined;
   onChange: (hex: string | null) => void;
@@ -154,7 +154,7 @@ function ColorField({ label, value, onChange, allowNone, palette = GIMMICK_PALET
 }
 
 /** Gruppo di pulsanti segmentati. */
-function Segmented<T extends string | number>({ label, value, options, onChange }: {
+export function Segmented<T extends string | number>({ label, value, options, onChange }: {
   label: string;
   value: T;
   options: { value: T; content: React.ReactNode; title?: string }[];

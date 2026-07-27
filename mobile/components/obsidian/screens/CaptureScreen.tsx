@@ -13,7 +13,7 @@ import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, I
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
   IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
-  IconMenu2, IconSparkles, IconLayoutGrid, IconRoute, IconCalendarTime,
+  IconMenu2, IconSparkles,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot,
 } from '@tabler/icons-react-native';
@@ -58,19 +58,12 @@ const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
 // Stacco dell'header dall'alto (safe-area a parte).
 const HEADER_GAP = 20;
 
-const NAV_ITEMS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayoutGrid }> = [
-  { id: 'tiles', label: 'Tiles', Icon: IconLayoutGrid },
-  { id: 'flows', label: 'Flows', Icon: IconRoute },
-  { id: 'chrono', label: 'Chrono', Icon: IconCalendarTime },
-];
-
 // ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
-// Titolo del vault a sinistra (con dropdown viste), menu + Ask a destra. Sostituisce
+// Titolo del vault a sinistra (statico), menu + Ask a destra. Sostituisce
 // l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
-function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; onNavigateView?: (id: MobileViewId) => void; connection?: ConnectionStatus; pendingCount?: number }) {
+// Il cambio vista vive solo nel Drawer (hamburger), non sul titolo.
+function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
   const c = useObsidian();
-  const insets = useSafeAreaInsets();
-  const [navOpen, setNavOpen] = React.useState(false);
 
   const sqBtn = {
     width: 42, height: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
@@ -88,8 +81,8 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
 
   return (
     <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
-      {/* Sinistra — VAULT / Gimmick ⌄ (apre il dropdown viste) */}
-      <Pressable onPress={() => setNavOpen(true)} accessibilityLabel="Cambia vista" hitSlop={6}>
+      {/* Sinistra — VAULT / Gimmick (solo identità, nessuna azione) */}
+      <View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle }}>VAULT</Text>
           {dot && (
@@ -109,11 +102,8 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
-          <IconChevronDown size={17} color={c.muted} strokeWidth={2} />
-        </View>
-      </Pressable>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
+      </View>
 
       {/* Destra — menu (Drawer) + Ask (chat) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -136,33 +126,6 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
           <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
         </Pressable>
       </View>
-
-      {/* Dropdown viste — Modal per stare sopra il contenuto; allineato a sinistra
-          sotto il titolo. */}
-      <Modal visible={navOpen} transparent animationType="fade" onRequestClose={() => setNavOpen(false)} statusBarTranslucent>
-        <Pressable style={{ flex: 1 }} onPress={() => setNavOpen(false)} accessibilityLabel="Chiudi">
-          <View style={{ position: 'absolute', top: insets.top + HEADER_GAP + 58, left: 16 }}>
-            <View
-              style={{
-                minWidth: 200, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 6,
-                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12,
-              }}
-            >
-              {NAV_ITEMS.map((it) => (
-                <Pressable
-                  key={it.id}
-                  onPress={() => { setNavOpen(false); onNavigateView?.(it.id); }}
-                  android_ripple={{ color: c.accent + '22' }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 46, paddingHorizontal: 12, borderRadius: 9 }}
-                >
-                  <it.Icon size={18} color={c.muted} strokeWidth={1.8} />
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{it.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -620,7 +583,7 @@ const SPARK_META: Partial<Record<SparkType, { label: string; Icon: typeof IconCa
 const fmtBytes = (b: number) => (b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
 const fmtClock = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 
-function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; onRemove?: () => void }) {
+function SparkRow({ c, item, onRemove, onPress, editing }: { c: ObsidianColors; item: BufferItem; onRemove?: () => void; onPress?: () => void; editing?: boolean }) {
   const meta = SPARK_META[item.type] ?? { label: 'Item', Icon: IconAlignLeft, color: (cc: ObsidianColors) => cc.muted };
   const col = meta.color(c);
   // URI d'anteprima: media (foto/video/image) e allegati che SONO immagini
@@ -648,9 +611,15 @@ function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; 
   //  · Colonna 2 → contenuto (label + testo).
   //  · X in sovraimpressione, in alto a destra.
   // overflow hidden: arrotonda anche il bordo verticale ai corner del box.
+  // Con onPress (spark testuali) la riga è toccabile: riapre il testo nel
+  // composer. `editing` la marca con un anello accent mentre è in modifica.
+  const Row = onPress ? Pressable : View;
   return (
     // Niente bordo esterno; le colonne sono separate da un divider scuro.
-    <View style={{ flexDirection: 'row', backgroundColor: c.field, borderRadius: 12, overflow: 'hidden' }}>
+    <Row
+      {...(onPress ? { onPress, accessibilityLabel: 'Modifica nota', android_ripple: { color: c.accent + '18' } } : {})}
+      style={{ flexDirection: 'row', backgroundColor: c.field, borderRadius: 12, overflow: 'hidden', borderWidth: editing ? 1 : 0, borderColor: editing ? c.accent : 'transparent' }}
+    >
       {/* Colonna 1 — icona (sempre, anche per i media); divider destro più scuro
           del box. padding 6 su ogni lato; la tile è ancorata in ALTO nella
           colonna (flex-start) invece che centrata. */}
@@ -678,7 +647,7 @@ function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; 
           <IconX size={16} color={c.subtle} strokeWidth={1.9} />
         </Pressable>
       ) : null}
-    </View>
+    </Row>
   );
 }
 
@@ -729,6 +698,8 @@ export interface ObsidianCaptureScreenProps {
   onCapture?: (key: CapKey) => void;
   /** Salva la nota scritta inline come spark testuale nel buffer. */
   onSaveNote?: (text: string) => void;
+  /** Aggiorna il testo di uno spark testuale già in buffer (riaperto dalla lista). */
+  onUpdateNote?: (id: string, text: string) => void;
   onSend?: () => void;
   onOpenBuffer?: () => void;
   onNavigateView?: (id: MobileViewId) => void;
@@ -757,7 +728,7 @@ export interface ObsidianCaptureScreenProps {
 export type ConnectionStatus = 'online' | 'offline' | 'signed-out';
 
 export function ObsidianCaptureScreen({
-  bufferCount, onCapture, onSaveNote, onSend, onOpenBuffer, onNavigateView, onSettings,
+  bufferCount, onCapture, onSaveNote, onUpdateNote, onSend, onOpenBuffer, onNavigateView, onSettings,
   options, onOptionsChange, suggestText, items, onRemoveItem, onAsk, connection, pendingCount, queuedFlash,
 }: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
@@ -768,6 +739,10 @@ export function ObsidianCaptureScreen({
   // Testo della nota in composizione (spark testuale creato al tocco di Salva).
   const [note, setNote] = React.useState('');
   const hasNote = note.trim().length > 0;
+  // Spark testuale riaperto dalla lista: finché è valorizzato il Salva aggiorna
+  // quello spark invece di crearne uno nuovo.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const noteRef = React.useRef<TextInput>(null);
   // Dettatura vocale live: il mic in sovraimpressione scrive nel campo, come il
   // microfono della tastiera (motore on-device, richiede la build nativa).
   const dictation = useDictation({ onText: setNote, onError: (m) => toast.warning(m) });
@@ -791,8 +766,44 @@ export function ObsidianCaptureScreen({
     // Spegne il mic e azzera gli accumulatori della dettatura: così un risultato
     // vocale in ritardo non ripopola l'input dopo lo svuotamento.
     dictation.reset();
-    onSaveNote?.(t);
+    if (editingId) {
+      onUpdateNote?.(editingId, t);
+      setEditingId(null);
+    } else {
+      onSaveNote?.(t);
+    }
     setNote('');
+  };
+
+  /** Riapre uno spark testuale nel composer per modificarlo. Il testo eventualmente
+   *  in composizione viene prima committato, così un tocco sulla riga non lo perde. */
+  const editNote = (it: BufferItem) => {
+    if (it.type !== 'text') return;
+    if (it.id === editingId) { noteRef.current?.focus(); return; }
+    const t = note.trim();
+    if (t) {
+      dictation.reset();
+      if (editingId) onUpdateNote?.(editingId, t);
+      else onSaveNote?.(t);
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setEditingId(it.id);
+    setNote(it.preview ?? '');
+    noteRef.current?.focus();
+  };
+
+  /** Esce dalla modifica senza toccare lo spark (X accanto al Salva). */
+  const cancelEdit = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    dictation.reset();
+    setEditingId(null);
+    setNote('');
+  };
+
+  /** Rimozione dalla lista: se lo spark è quello aperto, chiude anche la modifica. */
+  const removeItem = (id: string) => {
+    if (id === editingId) { setEditingId(null); setNote(''); }
+    onRemoveItem?.(id);
   };
 
   // Campo nota. `fill` → riempie tutta l'altezza disponibile (stato neutro/
@@ -801,9 +812,10 @@ export function ObsidianCaptureScreen({
   const renderNote = (fill: boolean) => (
     <View style={fill ? { flex: 1 } : undefined}>
       <TextInput
+        ref={noteRef}
         value={note}
         onChangeText={setNote}
-        placeholder="Scrivi una nota…"
+        placeholder={editingId ? 'Modifica la nota…' : 'Scrivi una nota…'}
         placeholderTextColor={c.subtle}
         multiline
         textAlignVertical="top"
@@ -827,19 +839,35 @@ export function ObsidianCaptureScreen({
   );
 
   // Barra dei canali, ancorata in fondo (stile Keep). Nota vuota → i 5 canali +
-  // kebab Options; mentre scrivi → solo Salva (le icone spariscono).
+  // kebab Options; mentre scrivi (o modifichi uno spark) → Salva, con la X per
+  // uscire dalla modifica.
   const toolbar = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
-      {hasNote ? (
+      {(hasNote || editingId) ? (
         <>
           <View style={{ flex: 1 }} />
+          {editingId ? (
+            <Pressable
+              onPress={cancelEdit}
+              accessibilityLabel="Annulla modifica"
+              android_ripple={{ color: '#ffffff22', borderless: false }}
+              style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+            >
+              <IconX size={22} color={c.text} strokeWidth={1.9} />
+            </Pressable>
+          ) : null}
           <Pressable
             onPress={saveNote}
-            accessibilityLabel="Salva nota"
+            disabled={!hasNote}
+            accessibilityLabel={editingId ? 'Conferma modifica' : 'Salva nota'}
             android_ripple={{ color: '#ffffff22', borderless: false }}
-            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: hasNote ? '#3a3a3a' : c.field, opacity: hasNote ? 1 : 0.6 }}
           >
-            <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+            {editingId ? (
+              <IconCheck size={22} color={hasNote ? c.text : c.subtle} strokeWidth={2} />
+            ) : (
+              <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+            )}
           </Pressable>
         </>
       ) : (
@@ -876,7 +904,7 @@ export function ObsidianCaptureScreen({
   return (
     <View style={{ flex: 1, backgroundColor: c.dark ? '#000000' : c.canvas }}>
       <ObsidianStatusBar />
-      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} connection={connection} pendingCount={pendingCount} />
+      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
 
       {/* Colonna contenuti: il campo nota riempie tutta l'altezza, la barra dei
           canali resta ancorata in fondo (stile Keep). Con spark o pannello
@@ -908,7 +936,16 @@ export function ObsidianCaptureScreen({
               {list.length > 0 && (
                 <View style={{ marginTop: 24, gap: 8 }}>
                   {list.map((it) => (
-                    <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
+                    <SparkRow
+                      key={it.id}
+                      c={c}
+                      item={it}
+                      onRemove={onRemoveItem ? () => removeItem(it.id) : undefined}
+                      // Solo il testo è riapribile: gli altri spark non hanno un
+                      // editor inline nel composer.
+                      onPress={it.type === 'text' && onUpdateNote ? () => editNote(it) : undefined}
+                      editing={it.id === editingId}
+                    />
                   ))}
                 </View>
               )}

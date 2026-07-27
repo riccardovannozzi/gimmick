@@ -46,6 +46,7 @@ export function ObsidianCaptureScreenLive() {
   const batches = useBufferStore((s) => s.batches);
   const addItem = useBufferStore((s) => s.addItem);
   const removeItem = useBufferStore((s) => s.removeItem);
+  const updateItem = useBufferStore((s) => s.updateItem);
   const accessToken = useAuthStore((s) => s.accessToken);
   const online = useConnectivityStore((s) => s.online);
   // Pallino header: rosso senza sessione, altrimenti verde/arancio per online/offline.
@@ -126,6 +127,7 @@ export function ObsidianCaptureScreenLive() {
       bufferCount={composing.length}
       onCapture={(key) => router.push(CAPTURE_ROUTE[key] as never)}
       onSaveNote={(text) => { addItem({ type: 'text', uri: '', preview: text }); toast.success('Nota aggiunta al buffer'); }}
+      onUpdateNote={(id, text) => { updateItem(id, { preview: text }); toast.success('Nota aggiornata'); }}
       onSend={send}
       onOpenBuffer={() => router.push('/obsidian-buffer' as never)}
       onAsk={() => router.push('/obsidian-ask' as never)}
