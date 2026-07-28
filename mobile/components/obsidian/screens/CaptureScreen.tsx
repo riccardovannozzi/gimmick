@@ -11,11 +11,11 @@
 import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import {
-  IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
+  IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconWaveSine, IconPaperclip,
   IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
-  IconMenu2, IconSparkles, IconLayoutGrid, IconRoute, IconCalendarTime,
+  IconMenu2, IconSparkles,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
-  IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot,
+  IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot, IconEraser,
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -39,12 +39,15 @@ const TablerMap = TablerIcons as unknown as Record<string, TablerGlyph>;
 const resolveGlyph = (name?: string | null): TablerGlyph | undefined => (name ? TablerMap[name] : undefined);
 
 type CapKey = 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file';
+// Il canale audio usa l'ONDA, non il microfono: il microfono è riservato alla
+// dettatura del campo nota (scrive testo), che è un'azione diversa dal
+// registrare uno spark audio. Due glifi distinti = nessuna ambiguità.
 const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
   photo: { label: 'Photo', Icon: IconCamera },
   video: { label: 'Video', Icon: IconVideo },
   gallery: { label: 'Image', Icon: IconPhoto },
   text: { label: 'Text', Icon: IconAlignLeft },
-  voice: { label: 'Voice', Icon: IconMicrophone },
+  voice: { label: 'Voice', Icon: IconWaveSine },
   file: { label: 'File', Icon: IconPaperclip },
 };
 
@@ -58,19 +61,12 @@ const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
 // Stacco dell'header dall'alto (safe-area a parte).
 const HEADER_GAP = 20;
 
-const NAV_ITEMS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayoutGrid }> = [
-  { id: 'tiles', label: 'Tiles', Icon: IconLayoutGrid },
-  { id: 'flows', label: 'Flows', Icon: IconRoute },
-  { id: 'chrono', label: 'Chrono', Icon: IconCalendarTime },
-];
-
 // ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
-// Titolo del vault a sinistra (con dropdown viste), menu + Ask a destra. Sostituisce
+// Titolo del vault a sinistra (statico), menu + Ask a destra. Sostituisce
 // l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
-function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; onNavigateView?: (id: MobileViewId) => void; connection?: ConnectionStatus; pendingCount?: number }) {
+// Il cambio vista vive solo nel Drawer (hamburger), non sul titolo.
+function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
   const c = useObsidian();
-  const insets = useSafeAreaInsets();
-  const [navOpen, setNavOpen] = React.useState(false);
 
   const sqBtn = {
     width: 42, height: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
@@ -88,8 +84,8 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
 
   return (
     <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
-      {/* Sinistra — VAULT / Gimmick ⌄ (apre il dropdown viste) */}
-      <Pressable onPress={() => setNavOpen(true)} accessibilityLabel="Cambia vista" hitSlop={6}>
+      {/* Sinistra — VAULT / Gimmick (solo identità, nessuna azione) */}
+      <View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle }}>VAULT</Text>
           {dot && (
@@ -109,11 +105,8 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-          <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
-          <IconChevronDown size={17} color={c.muted} strokeWidth={2} />
-        </View>
-      </Pressable>
+        <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
+      </View>
 
       {/* Destra — menu (Drawer) + Ask (chat) */}
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
@@ -136,33 +129,6 @@ function CaptureHeader({ onMenu, onAsk, onNavigateView, connection, pendingCount
           <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
         </Pressable>
       </View>
-
-      {/* Dropdown viste — Modal per stare sopra il contenuto; allineato a sinistra
-          sotto il titolo. */}
-      <Modal visible={navOpen} transparent animationType="fade" onRequestClose={() => setNavOpen(false)} statusBarTranslucent>
-        <Pressable style={{ flex: 1 }} onPress={() => setNavOpen(false)} accessibilityLabel="Chiudi">
-          <View style={{ position: 'absolute', top: insets.top + HEADER_GAP + 58, left: 16 }}>
-            <View
-              style={{
-                minWidth: 200, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 14, padding: 6,
-                shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 12,
-              }}
-            >
-              {NAV_ITEMS.map((it) => (
-                <Pressable
-                  key={it.id}
-                  onPress={() => { setNavOpen(false); onNavigateView?.(it.id); }}
-                  android_ripple={{ color: c.accent + '22' }}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minHeight: 46, paddingHorizontal: 12, borderRadius: 9 }}
-                >
-                  <it.Icon size={18} color={c.muted} strokeWidth={1.8} />
-                  <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>{it.label}</Text>
-                </Pressable>
-              ))}
-            </View>
-          </View>
-        </Pressable>
-      </Modal>
     </View>
   );
 }
@@ -611,7 +577,7 @@ function Field({ c, value, Icon, chev, placeholder, onPress, dotColor }: { c: Ob
 // colore del proprio canale (c.cap.*), coerenti con la griglia di cattura.
 const SPARK_META: Partial<Record<SparkType, { label: string; Icon: typeof IconCamera; color: (c: ObsidianColors) => string }>> = {
   text: { label: 'Text', Icon: IconAlignLeft, color: (c) => c.cap.text },
-  audio_recording: { label: 'Voice', Icon: IconMicrophone, color: (c) => c.cap.voice },
+  audio_recording: { label: 'Voice', Icon: IconWaveSine, color: (c) => c.cap.voice },
   file: { label: 'File', Icon: IconPaperclip, color: (c) => c.cap.file },
   photo: { label: 'Photo', Icon: IconCamera, color: (c) => c.cap.photo },
   video: { label: 'Video', Icon: IconVideo, color: (c) => c.cap.video },
@@ -620,7 +586,7 @@ const SPARK_META: Partial<Record<SparkType, { label: string; Icon: typeof IconCa
 const fmtBytes = (b: number) => (b < 1024 * 1024 ? `${Math.round(b / 1024)} KB` : `${(b / (1024 * 1024)).toFixed(1)} MB`);
 const fmtClock = (ms: number) => { const s = Math.round(ms / 1000); return `${Math.floor(s / 60)}:${pad(s % 60)}`; };
 
-function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; onRemove?: () => void }) {
+function SparkRow({ c, item, onRemove, onPress, editing }: { c: ObsidianColors; item: BufferItem; onRemove?: () => void; onPress?: () => void; editing?: boolean }) {
   const meta = SPARK_META[item.type] ?? { label: 'Item', Icon: IconAlignLeft, color: (cc: ObsidianColors) => cc.muted };
   const col = meta.color(c);
   // URI d'anteprima: media (foto/video/image) e allegati che SONO immagini
@@ -648,9 +614,15 @@ function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; 
   //  · Colonna 2 → contenuto (label + testo).
   //  · X in sovraimpressione, in alto a destra.
   // overflow hidden: arrotonda anche il bordo verticale ai corner del box.
+  // Con onPress (spark testuali) la riga è toccabile: riapre il testo nel
+  // composer. `editing` la marca con un anello accent mentre è in modifica.
+  const Row = onPress ? Pressable : View;
   return (
     // Niente bordo esterno; le colonne sono separate da un divider scuro.
-    <View style={{ flexDirection: 'row', backgroundColor: c.field, borderRadius: 12, overflow: 'hidden' }}>
+    <Row
+      {...(onPress ? { onPress, accessibilityLabel: 'Modifica nota', android_ripple: { color: c.accent + '18' } } : {})}
+      style={{ flexDirection: 'row', backgroundColor: c.field, borderRadius: 12, overflow: 'hidden', borderWidth: editing ? 1 : 0, borderColor: editing ? c.accent : 'transparent' }}
+    >
       {/* Colonna 1 — icona (sempre, anche per i media); divider destro più scuro
           del box. padding 6 su ogni lato; la tile è ancorata in ALTO nella
           colonna (flex-start) invece che centrata. */}
@@ -678,7 +650,7 @@ function SparkRow({ c, item, onRemove }: { c: ObsidianColors; item: BufferItem; 
           <IconX size={16} color={c.subtle} strokeWidth={1.9} />
         </Pressable>
       ) : null}
-    </View>
+    </Row>
   );
 }
 
@@ -693,7 +665,7 @@ function VoiceSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
       <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: c.line2, alignSelf: 'center', marginBottom: 16 }} />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 18 }}>
         <View style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: col + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
-          <IconMicrophone size={20} color={col} strokeWidth={1.8} />
+          <IconWaveSine size={20} color={col} strokeWidth={1.8} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Memo vocale</Text>
@@ -729,6 +701,8 @@ export interface ObsidianCaptureScreenProps {
   onCapture?: (key: CapKey) => void;
   /** Salva la nota scritta inline come spark testuale nel buffer. */
   onSaveNote?: (text: string) => void;
+  /** Aggiorna il testo di uno spark testuale già in buffer (riaperto dalla lista). */
+  onUpdateNote?: (id: string, text: string) => void;
   onSend?: () => void;
   onOpenBuffer?: () => void;
   onNavigateView?: (id: MobileViewId) => void;
@@ -757,7 +731,7 @@ export interface ObsidianCaptureScreenProps {
 export type ConnectionStatus = 'online' | 'offline' | 'signed-out';
 
 export function ObsidianCaptureScreen({
-  bufferCount, onCapture, onSaveNote, onSend, onOpenBuffer, onNavigateView, onSettings,
+  bufferCount, onCapture, onSaveNote, onUpdateNote, onSend, onOpenBuffer, onNavigateView, onSettings,
   options, onOptionsChange, suggestText, items, onRemoveItem, onAsk, connection, pendingCount, queuedFlash,
 }: ObsidianCaptureScreenProps = {}) {
   const c = useObsidian();
@@ -768,6 +742,15 @@ export function ObsidianCaptureScreen({
   // Testo della nota in composizione (spark testuale creato al tocco di Salva).
   const [note, setNote] = React.useState('');
   const hasNote = note.trim().length > 0;
+  // Spark testuale riaperto dalla lista: finché è valorizzato il Salva aggiorna
+  // quello spark invece di crearne uno nuovo.
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const noteRef = React.useRef<TextInput>(null);
+  // Composizione in corso (testo digitato o spark riaperto): il campo prende
+  // tutta l'altezza e in fondo restano solo gomma e invio.
+  const composing = hasNote || !!editingId;
+  // Fondo della shell: nero pieno in tema scuro, status bar e nav pill inclusi.
+  const shellBg = c.dark ? '#000000' : c.canvas;
   // Dettatura vocale live: il mic in sovraimpressione scrive nel campo, come il
   // microfono della tastiera (motore on-device, richiede la build nativa).
   const dictation = useDictation({ onText: setNote, onError: (m) => toast.warning(m) });
@@ -791,8 +774,45 @@ export function ObsidianCaptureScreen({
     // Spegne il mic e azzera gli accumulatori della dettatura: così un risultato
     // vocale in ritardo non ripopola l'input dopo lo svuotamento.
     dictation.reset();
-    onSaveNote?.(t);
+    if (editingId) {
+      onUpdateNote?.(editingId, t);
+      setEditingId(null);
+    } else {
+      onSaveNote?.(t);
+    }
     setNote('');
+  };
+
+  /** Riapre uno spark testuale nel composer per modificarlo. Il testo eventualmente
+   *  in composizione viene prima committato, così un tocco sulla riga non lo perde. */
+  const editNote = (it: BufferItem) => {
+    if (it.type !== 'text') return;
+    if (it.id === editingId) { noteRef.current?.focus(); return; }
+    const t = note.trim();
+    if (t) {
+      dictation.reset();
+      if (editingId) onUpdateNote?.(editingId, t);
+      else onSaveNote?.(t);
+    }
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setEditingId(it.id);
+    setNote(it.preview ?? '');
+    noteRef.current?.focus();
+  };
+
+  /** Svuota il campo (gomma accanto al Salva). In modifica esce anche dalla
+   *  modifica, lasciando lo spark in lista com'era. */
+  const clearNote = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    dictation.reset();
+    setEditingId(null);
+    setNote('');
+  };
+
+  /** Rimozione dalla lista: se lo spark è quello aperto, chiude anche la modifica. */
+  const removeItem = (id: string) => {
+    if (id === editingId) { setEditingId(null); setNote(''); }
+    onRemoveItem?.(id);
   };
 
   // Campo nota. `fill` → riempie tutta l'altezza disponibile (stato neutro/
@@ -801,15 +821,16 @@ export function ObsidianCaptureScreen({
   const renderNote = (fill: boolean) => (
     <View style={fill ? { flex: 1 } : undefined}>
       <TextInput
+        ref={noteRef}
         value={note}
         onChangeText={setNote}
-        placeholder="Scrivi una nota…"
+        placeholder={editingId ? 'Modifica la nota…' : 'Scrivi una nota…'}
         placeholderTextColor={c.subtle}
         multiline
         textAlignVertical="top"
         // paddingRight: spazio per il mic in alto a destra.
         style={[
-          { fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 34 },
+          { fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 40 },
           fill ? { flex: 1 } : { minHeight: 120 },
         ]}
       />
@@ -819,27 +840,43 @@ export function ObsidianCaptureScreen({
         accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
         hitSlop={8}
         android_ripple={{ color: c.accent + '33', borderless: true }}
-        style={{ position: 'absolute', top: 8, right: 8, width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
+        style={{ position: 'absolute', top: 6, right: 6, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
       >
-        <IconMicrophone size={17} color={dictation.listening ? c.accent : c.subtle} strokeWidth={1.9} />
+        {/* Bianco sul fondo scuro del composer; in tema chiaro segue il testo,
+            altrimenti sparirebbe. In ascolto passa ad accent. */}
+        <IconMicrophone size={23} color={dictation.listening ? c.accent : (c.dark ? '#FFFFFF' : c.text)} strokeWidth={1.9} />
       </Pressable>
     </View>
   );
 
   // Barra dei canali, ancorata in fondo (stile Keep). Nota vuota → i 5 canali +
-  // kebab Options; mentre scrivi → solo Salva (le icone spariscono).
+  // kebab Options; mentre scrivi (o modifichi uno spark) → gomma (svuota il
+  // campo) + Salva.
   const toolbar = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
-      {hasNote ? (
+      {(hasNote || editingId) ? (
         <>
           <View style={{ flex: 1 }} />
           <Pressable
-            onPress={saveNote}
-            accessibilityLabel="Salva nota"
+            onPress={clearNote}
+            accessibilityLabel={editingId ? 'Annulla modifica e svuota il campo' : 'Svuota il campo'}
             android_ripple={{ color: '#ffffff22', borderless: false }}
             style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
           >
-            <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+            <IconEraser size={22} color={c.text} strokeWidth={1.9} />
+          </Pressable>
+          <Pressable
+            onPress={saveNote}
+            disabled={!hasNote}
+            accessibilityLabel={editingId ? 'Conferma modifica' : 'Salva nota'}
+            android_ripple={{ color: '#ffffff22', borderless: false }}
+            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: hasNote ? '#3a3a3a' : c.field, opacity: hasNote ? 1 : 0.6 }}
+          >
+            {editingId ? (
+              <IconCheck size={22} color={hasNote ? c.text : c.subtle} strokeWidth={2} />
+            ) : (
+              <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+            )}
           </Pressable>
         </>
       ) : (
@@ -874,17 +911,19 @@ export function ObsidianCaptureScreen({
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: c.dark ? '#000000' : c.canvas }}>
-      <ObsidianStatusBar />
-      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} onNavigateView={onNavigateView} connection={connection} pendingCount={pendingCount} />
+    <View style={{ flex: 1, backgroundColor: shellBg }}>
+      <ObsidianStatusBar background={shellBg} />
+      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
 
       {/* Colonna contenuti: il campo nota riempie tutta l'altezza, la barra dei
-          canali resta ancorata in fondo (stile Keep). Con spark o pannello
-          Options aperto il contenuto scorre sopra la barra. KeyboardAvoidingView
-          tiene la barra sopra la tastiera (su Android provvede il resize). */}
+          canali resta ancorata in fondo (stile Keep). Il contenuto scorre solo a
+          riposo con spark in lista o col pannello Options aperto: MENTRE SCRIVI
+          il campo torna sempre a tutta altezza, con la sola gomma+invio in
+          fondo. KeyboardAvoidingView tiene la barra sopra la tastiera (su
+          Android provvede il resize). */}
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={{ flex: 1, paddingHorizontal: 12, paddingTop: 18 }}>
-          {(!actionOpen && list.length === 0) ? (
+          {(!actionOpen && (composing || list.length === 0)) ? (
             // Stato neutro / digitazione: il campo nota riempie tutto lo spazio e
             // spinge le icone in fondo (con margine). Testo + icone = blocco unico.
             <View style={{ flex: 1, paddingBottom: 56 }}>
@@ -908,7 +947,16 @@ export function ObsidianCaptureScreen({
               {list.length > 0 && (
                 <View style={{ marginTop: 24, gap: 8 }}>
                   {list.map((it) => (
-                    <SparkRow key={it.id} c={c} item={it} onRemove={onRemoveItem ? () => onRemoveItem(it.id) : undefined} />
+                    <SparkRow
+                      key={it.id}
+                      c={c}
+                      item={it}
+                      onRemove={onRemoveItem ? () => removeItem(it.id) : undefined}
+                      // Solo il testo è riapribile: gli altri spark non hanno un
+                      // editor inline nel composer.
+                      onPress={it.type === 'text' && onUpdateNote ? () => editNote(it) : undefined}
+                      editing={it.id === editingId}
+                    />
                   ))}
                 </View>
               )}
@@ -917,13 +965,15 @@ export function ObsidianCaptureScreen({
         </View>
       </KeyboardAvoidingView>
 
-      <ObsidianNavPill />
+      <ObsidianNavPill background={shellBg} />
 
       {/* FAB Send — sovraimpressione in basso a destra, presente quando c'è
-          almeno uno spark da inviare. Dopo un invio offline lampeggia ARANCIONE
-          (queuedFlash) per confermare che il tile è stato messo in coda, poi
-          sparisce col reset del composer. */}
-      {(canSend || queuedFlash) && (
+          almeno uno spark da inviare. Nascosto mentre scrivi: lì la barra
+          gomma+invio è ancorata in fondo e i due controlli si sovrapporrebbero;
+          torna appena salvi o svuoti il campo. Dopo un invio offline lampeggia
+          ARANCIONE (queuedFlash) per confermare che il tile è stato messo in
+          coda, poi sparisce col reset del composer. */}
+      {((canSend && !composing) || queuedFlash) && (
         <Pressable
           onPress={onSend}
           disabled={queuedFlash}

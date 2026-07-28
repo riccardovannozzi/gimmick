@@ -22,6 +22,9 @@ export interface PalettePerMode {
   ink: string; ink2: string; ink3: string;
   border: string; borderStrong: string;
   accent: string; onAccent: string;
+  /** Variante "soffusa" dell'accent (viola scuro nel tema dark): usata per gli
+   *  stati selezionati/attivi. Opzionale → fallback ad `accent` se assente. */
+  accentSoft?: string;
   shadowColor: string;
   cap: Record<CaptureKey, string>;
   tint: Record<CaptureKey, string>;

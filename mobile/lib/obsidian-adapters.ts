@@ -71,92 +71,114 @@ export function sparkToVM(s: Spark): ObSparkVM {
 
 // ─── Tiles ───────────────────────────────────────────────────────────────────
 
-/** Visual kind the Tiles view renders (collapses ActionType onto 3 buckets). */
-export type ObTileKind = 'timed' | 'deadline' | 'notes';
-
-/** View-model consumed by the Tiles tab of ObsidianViewsScreen. */
+/**
+ * View-model del tile della lista Tiles.
+ *
+ * Porta le STESSE informazioni della tile del Canvas web (CanvasBoard): titolo,
+ * azione, data/ora, status e tipo. Il conteggio degli spark non c'è, come sul
+ * canvas: non descrive il tile, dice solo quanto materiale contiene.
+ */
 export interface ObTileVM {
   id: string;
   title: string;
-  meta?: string;
-  kind: ObTileKind;
-  spark: number;
+  /** Azione GTD del tile; 'event' + allDay = giornata intera. */
+  actionType: NonNullable<Tile['action_type']>;
+  allDay: boolean;
+  /** Riga data del footer, formato canvas "gg/mm/aa". Assente = tile senza data. */
+  date?: string;
+  /** Riga orario del footer, "10:15" o "10:15 - 11:15". Solo eventi con ora. */
+  time?: string;
+  /** Titolo barrato + attenuato, come sul canvas. */
+  completed: boolean;
+  /** Nome dello status di sistema (active/done/paused/blocked/cancelled). */
+  statusName?: string;
+  /** Glifo Tabler del tipo assegnato (es. "IconBuilding") e suo colore. */
+  typeIcon?: string;
+  typeColor?: string;
+  /** Tipo assegnato — id e nome servono al filtro. */
+  typeId?: string;
+  typeName?: string;
+  /** Tag del tile (dalla lista API), per il filtro per tag. */
+  tags: { id: string; name: string }[];
+  /** Data di riferimento in epoch (start_at o end_at) per l'ordinamento. */
+  whenTs?: number;
 }
 
-/** A day-bucketed group of tiles (header label + rows). */
-export interface ObTileGroup {
-  group: string;
-  tiles: ObTileVM[];
+/** Tabelle di lookup risolte una volta sola dal chiamante (statuses e tipi
+ *  arrivano da endpoint separati, non dentro il tile). */
+export interface TileVMContext {
+  /** status_id → nome di sistema dello status. */
+  statusNameById?: Map<string, string>;
+  /** tile id → tipo assegnato (id, nome, glifo, colore). */
+  typeByTile?: Map<string, { id: string; name?: string; icon?: string; color?: string }>;
 }
 
 const MONTHS_SHORT_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-const MONTHS_IT = ['GEN', 'FEB', 'MAR', 'APR', 'MAG', 'GIU', 'LUG', 'AGO', 'SET', 'OTT', 'NOV', 'DIC'];
-const MONTHS_IT_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
 
-/** YYYY-MM-DD key in local time (groups tiles by calendar day). */
-function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** "gg/mm/aa" — stesso formato del footer della tile canvas. */
+function canvasDate(iso: string): string | undefined {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${String(d.getFullYear()).slice(-2)}`;
+}
+function canvasTime(iso: string): string | undefined {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return undefined;
+  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
 }
 
-/** Human group label: OGGI / IERI / "25 GIUGNO". */
-function groupLabel(d: Date, now: Date): string {
-  const today = dayKey(now);
-  const yesterday = new Date(now);
-  yesterday.setDate(now.getDate() - 1);
-  const k = dayKey(d);
-  if (k === today) return 'OGGI';
-  if (k === dayKey(yesterday)) return 'IERI';
-  return `${d.getDate()} ${MONTHS_IT_LONG[d.getMonth()].toUpperCase()}`;
-}
-
-function tileKind(t: Tile): ObTileKind {
-  if (t.action_type === 'deadline') return 'deadline';
-  if (t.action_type === 'event') return 'timed';
-  return 'notes';
-}
-
-/** "27 Giu 2026 · 11:30 · 1h" style meta from a scheduled tile. */
-function tileMeta(t: Tile): string | undefined {
-  if (!t.start_at) return undefined;
-  const s = new Date(t.start_at);
-  if (Number.isNaN(s.getTime())) return undefined;
-  const date = `${s.getDate()} ${MONTHS_IT[s.getMonth()][0] + MONTHS_IT[s.getMonth()].slice(1).toLowerCase()} ${s.getFullYear()}`;
-  if (t.all_day) return `${date} · Giornata`;
-  const time = `${String(s.getHours()).padStart(2, '0')}:${String(s.getMinutes()).padStart(2, '0')}`;
-  let dur = '';
-  if (t.end_at) {
-    const e = new Date(t.end_at);
-    const mins = Math.round((e.getTime() - s.getTime()) / 60000);
-    if (mins > 0) dur = mins % 60 === 0 ? ` · ${mins / 60}h` : ` · ${mins}min`;
+/**
+ * Data/ora del footer con le stesse regole del canvas:
+ *   · deadline → la data sta in end_at, nessun orario;
+ *   · giornata intera → solo la data di start_at;
+ *   · evento con ora → data + "inizio - fine".
+ * I tile senza azione temporale (note / to-do) non hanno riga data.
+ */
+function tileWhen(t: Tile): { date?: string; time?: string } {
+  const hasDate = t.action_type === 'deadline' || t.action_type === 'event';
+  if (!hasDate) return {};
+  if (t.action_type === 'deadline') {
+    return t.end_at ? { date: canvasDate(t.end_at) } : {};
   }
-  return `${date} · ${time}${dur}`;
+  if (!t.start_at) return {};
+  if (t.all_day) return { date: canvasDate(t.start_at) };
+  const start = canvasTime(t.start_at);
+  const end = t.end_at ? canvasTime(t.end_at) : undefined;
+  return { date: canvasDate(t.start_at), time: start ? (end ? `${start} - ${end}` : start) : undefined };
 }
 
 /** Map an API Tile onto the Tiles view-model. */
-export function tileToVM(t: Tile): ObTileVM {
+export function tileToVM(t: Tile, ctx: TileVMContext = {}): ObTileVM {
+  const type = ctx.typeByTile?.get(t.id);
+  const whenIso = t.action_type === 'deadline' ? t.end_at : t.start_at;
+  const whenTs = whenIso ? new Date(whenIso).getTime() : undefined;
   return {
     id: t.id,
     title: t.title?.trim() || 'Senza titolo',
-    meta: tileMeta(t),
-    kind: tileKind(t),
-    spark: t.spark_count ?? 0,
+    actionType: t.action_type ?? 'none',
+    allDay: !!t.all_day,
+    ...tileWhen(t),
+    completed: !!t.is_completed,
+    statusName: t.status_id ? ctx.statusNameById?.get(t.status_id) : undefined,
+    typeIcon: type?.icon,
+    typeColor: type?.color,
+    typeId: type?.id,
+    typeName: type?.name,
+    tags: (t.tags ?? []).filter((tag) => !tag.is_root).map((tag) => ({ id: tag.id, name: tag.name })),
+    whenTs: whenTs !== undefined && !Number.isNaN(whenTs) ? whenTs : undefined,
   };
 }
 
-/** Group tiles by calendar day (newest first) for the Tiles view. `now` is
- *  injected so the mapping stays pure/testable. */
-export function tilesToGroups(tiles: Tile[], now: Date): ObTileGroup[] {
-  const buckets = new Map<string, { date: Date; tiles: ObTileVM[] }>();
-  for (const t of tiles) {
-    const d = new Date(t.start_at || t.created_at);
-    if (Number.isNaN(d.getTime())) continue;
-    const k = dayKey(d);
-    if (!buckets.has(k)) buckets.set(k, { date: d, tiles: [] });
-    buckets.get(k)!.tiles.push(tileToVM(t));
-  }
-  return Array.from(buckets.values())
-    .sort((a, b) => b.date.getTime() - a.date.getTime())
-    .map((b) => ({ group: groupLabel(b.date, now), tiles: b.tiles }));
+/**
+ * Tiles in ordine di INSERIMENTO, il più recente in cima (created_at desc).
+ * Niente raggruppamento per giorno: la data del tile vive nella card, come sul
+ * canvas, e l'ordine racconta quando è stato creato — non quando è schedulato.
+ */
+export function tilesByInsertion(tiles: Tile[], ctx: TileVMContext = {}): ObTileVM[] {
+  return [...tiles]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((t) => tileToVM(t, ctx));
 }
 
 // ─── Buffer ──────────────────────────────────────────────────────────────────

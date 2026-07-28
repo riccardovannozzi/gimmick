@@ -9,7 +9,13 @@ import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
 
-export function ObsidianNavPill() {
+interface ObsidianNavPillProps {
+  /** Fondo della striscia. Default: canvas. Le schermate a fondo nero (home,
+   *  viste) passano il proprio, altrimenti resta una banda più chiara in basso. */
+  background?: string;
+}
+
+export function ObsidianNavPill({ background }: ObsidianNavPillProps = {}) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   return (
@@ -21,7 +27,7 @@ export function ObsidianNavPill() {
         paddingBottom: (insets.bottom || 0) + 12,
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: c.canvas,
+        backgroundColor: background ?? c.canvas,
       }}
     >
       <View

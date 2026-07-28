@@ -7,6 +7,7 @@ import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
 import { usePendingTagStore } from '@/store/pendingTagStore';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_R } from '@/constants/obsidian';
 import { sparksApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 
@@ -153,9 +154,9 @@ export default function TextCaptureScreen() {
             accessibilityLabel="Chiudi"
             hitSlop={6}
             android_ripple={{ color: c.line, borderless: true }}
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line }}
+            style={{ width: 44, height: 44, borderRadius: OB_CAP_BTN_R, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG }}
           >
-            <IconX size={19} color={c.text} strokeWidth={1.9} />
+            <IconX size={20} color={OB_CAP_BTN_GLYPH} strokeWidth={1.9} />
           </Pressable>
 
           <Text style={{ fontSize: 16, fontWeight: '700', color: c.text }}>Nuova nota</Text>
@@ -166,9 +167,10 @@ export default function TextCaptureScreen() {
             accessibilityLabel="Salva"
             hitSlop={6}
             android_ripple={{ color: c.line, borderless: true }}
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: canSave ? c.accent : c.surface2, borderWidth: 1, borderColor: canSave ? c.accent : c.line }}
+            // Salva = azione primaria: tonda (i secondari sono quadrati).
+            style={{ width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG, opacity: canSave ? 1 : 0.5 }}
           >
-            <IconCheck size={20} color={canSave ? c.accentInk : c.subtle} strokeWidth={2.2} />
+            <IconCheck size={23} color={OB_CAP_BTN_GLYPH} strokeWidth={2.2} />
           </Pressable>
         </View>
 

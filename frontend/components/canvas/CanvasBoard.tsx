@@ -25,8 +25,21 @@ const LABEL_H = 20;
 export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
-export interface CanvasEdge { id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; }
+export interface CanvasEdge {
+  id: string;
+  source_id: string;
+  target_id: string;
+  source_port?: string;
+  target_port?: string;
+  /** Stile opzionale dell'edge (editabile dalla EdgeSidebar). */
+  color?: string | null;
+  lineStyle?: 'solid' | 'dashed' | 'dotted' | null;
+  lineWidth?: number | null;
+  /** Testo mostrato al centro dell'edge. */
+  label?: string | null;
+}
 export type GroupBorderStyle = 'solid' | 'dashed' | 'dotted';
+export interface GroupBounds { x: number; y: number; w: number; h: number }
 export interface CanvasGroup {
   id: string;
   label: string;
@@ -36,11 +49,16 @@ export interface CanvasGroup {
   borderColor?: string | null;
   borderWidth?: number | null;
   borderStyle?: GroupBorderStyle | null;
+  /** Dimensione manuale (resize via maniglie). Il box del gruppo è l'UNIONE di
+   *  questo rettangolo e del bounding box dei tile → il gruppo li contiene
+   *  sempre. NULL/assente → auto-fit sui soli tile. Coord. contenuto (come il
+   *  ritorno di getGroupBounds, senza la fascia LABEL_H). */
+  bounds?: GroupBounds | null;
 }
 // Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
-//   type 'text'  → content = { html: string }
+//   type 'text'  → content = { html: string; bgColor?: string; fontSize?: number }
 //   type 'image' → content = { src: string; alt?: string }
-export type CanvasBoxTextContent = { html: string };
+export type CanvasBoxTextContent = { html: string; bgColor?: string | null; fontSize?: number };
 export type CanvasBoxImageContent = { src: string; alt?: string };
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
@@ -100,6 +118,10 @@ interface CanvasBoardProps {
   onGroupClick?: (groupId: string) => void;
   /** Id del gruppo selezionato: ne evidenzia il contorno (obsidian). */
   selectedGroupId?: string | null;
+  /** Click sinistro su un edge → il parent lo seleziona e apre la EdgeSidebar. */
+  onEdgeClick?: (edgeId: string) => void;
+  /** Id dell'edge selezionato: ne evidenzia la linea (alone). */
+  selectedEdgeId?: string | null;
   /** Id del tile selezionato con click singolo: mostra il contorno obsidian e
    *  sopprime i suoi punti di aggancio (che restano solo in hover sui non-selezionati). */
   selectedTileId?: string | null;
@@ -146,6 +168,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
+  onEdgeClick, selectedEdgeId,
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
@@ -155,9 +178,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onTileDragMove, onTileDragEnd,
 }: CanvasBoardProps) {
   const theme = usePixelTheme();
+  // Colore delle SELEZIONI: viola scuro (accent-soft) invece del lavanda acceso.
+  // Le affordance di link/creazione (porte, linea temporanea, marquee) restano
+  // sull'accent pieno per non perdere visibilità durante l'azione.
+  const selAccent = theme.accentSoft ?? theme.accent;
   // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
   // nel codice D3 sotto.
-  const RX = 8;         // card / group / clip corner radius (tile + gruppi + box)
+  const RX = 5;         // card / group / clip corner radius (tile + gruppi + box)
   const RX_SEL = 8;     // selection ring radius
   const RX_BADGE = 4;   // footer action/type badge radius
   const SW = 1;         // card hairline stroke width
@@ -192,12 +219,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   // Ref al drawGroups corrente: permette a un effect di ridisegnare SOLO i gruppi
   // quando cambia la selezione del gruppo, senza ricostruire tutto l'SVG.
   const drawGroupsRef = useRef<(() => void) | null>(null);
+  const drawEdgesRef = useRef<(() => void) | null>(null);
   const onAddImageBoxRef = useRef(onAddImageBox); onAddImageBoxRef.current = onAddImageBox;
 
   // Refs for callbacks to avoid re-render of the entire SVG
   const onTileClickRef = useRef(onTileClick); onTileClickRef.current = onTileClick;
   const onTileContextMenuRef = useRef(onTileContextMenu); onTileContextMenuRef.current = onTileContextMenu;
   const onEdgeContextMenuRef = useRef(onEdgeContextMenu); onEdgeContextMenuRef.current = onEdgeContextMenu;
+  const onEdgeClickRef = useRef(onEdgeClick); onEdgeClickRef.current = onEdgeClick;
+  const selectedEdgeIdRef = useRef(selectedEdgeId); selectedEdgeIdRef.current = selectedEdgeId;
   const onTextBoxContextMenuRef = useRef(onTextBoxContextMenu); onTextBoxContextMenuRef.current = onTextBoxContextMenu;
   const onAddTileAtRef = useRef(onAddTileAt); onAddTileAtRef.current = onAddTileAt;
   const onPositionChangeRef = useRef(onPositionChange); onPositionChangeRef.current = onPositionChange;
@@ -336,9 +366,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
     const gn = ns.filter((n) => g.nodeIds.includes(n.id));
     if (!gn.length) return null;
-    const x = Math.min(...gn.map((n) => n.x)) - GROUP_PAD;
-    const y = Math.min(...gn.map((n) => n.y)) - GROUP_PAD;
-    return { x, y, w: Math.max(...gn.map((n) => n.x + TILE_W)) + GROUP_PAD - x, h: Math.max(...gn.map((n) => n.y + TILE_H)) + GROUP_PAD - y };
+    const ax = Math.min(...gn.map((n) => n.x)) - GROUP_PAD;
+    const ay = Math.min(...gn.map((n) => n.y)) - GROUP_PAD;
+    const aw = Math.max(...gn.map((n) => n.x + TILE_W)) + GROUP_PAD - ax;
+    const ah = Math.max(...gn.map((n) => n.y + TILE_H)) + GROUP_PAD - ay;
+    // Senza dimensione manuale: auto-fit sui soli tile.
+    if (!g.bounds) return { x: ax, y: ay, w: aw, h: ah };
+    // Con dimensione manuale: UNIONE col box dei tile, così il gruppo continua
+    // a contenerli anche se le maniglie lo rimpiccioliscono sotto il contenuto.
+    const x = Math.min(ax, g.bounds.x);
+    const y = Math.min(ay, g.bounds.y);
+    const r = Math.max(ax + aw, g.bounds.x + g.bounds.w);
+    const b = Math.max(ay + ah, g.bounds.y + g.bounds.h);
+    return { x, y, w: r - x, h: b - y };
   };
 
   // Hit-test result: nodeId to connect to + optional groupId for highlight
@@ -652,7 +692,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // (mantenendo spessore/tipologia) per rendere evidente la selezione.
         const gBg = grp.bgColor || theme.surface;
         const gBw = grp.borderWidth ?? 0;
-        const gStroke = isSel ? theme.accent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
+        const gStroke = isSel ? selAccent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
         const gStrokeW = isSel ? Math.max(1.5, gBw) : gBw;
         const dashFor = (style: string | null | undefined, w: number): string | null => {
           if (style === 'dashed') return `${Math.max(4, w * 3)},${Math.max(3, w * 2)}`;
@@ -684,14 +724,22 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 const dx = cur[0] - prev[0], dy = cur[1] - prev[1];
                 prev = cur;
                 grp.nodeIds.forEach((id) => { const n = nodes.find((nn) => nn.id === id); if (n) { n.x += dx; n.y += dy; } });
+                // La dimensione manuale è in coord assolute: trasla anche lei col
+                // gruppo, altrimenti resterebbe ancorata alla posizione precedente.
+                if (grp.bounds) grp.bounds = { ...grp.bounds, x: grp.bounds.x + dx, y: grp.bounds.y + dy };
                 nodeGrps.filter((d: any) => grp.nodeIds.includes(d.id)).attr('transform', (d: any) => `translate(${d.x},${d.y})`);
                 drawEdges(); drawGroups();
               })
-              .on('end', () => { prev = null; onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y }))); });
+              .on('end', () => {
+                prev = null;
+                onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+                // Persiste anche la dimensione manuale traslata (se presente).
+                if (grp.bounds) onGroupsChangeRef.current?.(groupsRef.current.map((gg) => ({ ...gg })));
+              });
           })());
         // Nome leggibile sullo sfondo del gruppo: chiaro su scuro e viceversa.
         // Senza sfondo, colore muted (o accento se selezionato).
-        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? theme.accent : theme.ink3);
+        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? selAccent : theme.ink3);
         gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', 11).attr('font-weight', isSel ? 600 : 500)
           .text(grp.label || 'Gruppo').style('cursor', 'pointer')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
@@ -724,6 +772,63 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           gPcs.forEach((p) => p.pc.attr('opacity', p === best ? 1 : 0));
         });
         gw.on('mouseleave.ports', () => { if (!linkSrc.current) gPcs.forEach((p) => p.pc.attr('opacity', 0)); });
+
+        // Maniglie di RIDIMENSIONAMENTO (solo se il gruppo è selezionato): come
+        // per i text box, permettono di estendere il gruppo oltre l'auto-fit sui
+        // tile. Il box del gruppo è l'UNIONE di grp.bounds e del bbox dei tile
+        // (getGroupBounds), quindi una maniglia non può mai rimpicciolirlo sotto
+        // il contenuto: si "aggancia" al bordo dei tile.
+        if (isSel) {
+          const HS = 8;                  // lato maniglia
+          const GMINW = 40, GMINH = 40;  // dimensione minima del box manuale
+          // Rettangolo visivo del gruppo (include la fascia label in alto).
+          const rx = b.x, ry = b.y - LABEL_H, rw = b.w, rh = b.h + LABEL_H;
+          const gHandles: { hx: number; hy: number; cursor: string; edge: string }[] = [
+            { hx: rx,          hy: ry,          cursor: 'nwse-resize', edge: 'tl' },
+            { hx: rx + rw / 2, hy: ry,          cursor: 'ns-resize',   edge: 't' },
+            { hx: rx + rw,     hy: ry,          cursor: 'nesw-resize', edge: 'tr' },
+            { hx: rx + rw,     hy: ry + rh / 2, cursor: 'ew-resize',   edge: 'r' },
+            { hx: rx + rw,     hy: ry + rh,     cursor: 'nwse-resize', edge: 'br' },
+            { hx: rx + rw / 2, hy: ry + rh,     cursor: 'ns-resize',   edge: 'b' },
+            { hx: rx,          hy: ry + rh,     cursor: 'nesw-resize', edge: 'bl' },
+            { hx: rx,          hy: ry + rh / 2, cursor: 'ew-resize',   edge: 'l' },
+          ];
+          let rs: { mx: number; my: number; x: number; y: number; w: number; h: number } | null = null;
+          gHandles.forEach(({ hx, hy, cursor, edge }) => {
+            gw.append('rect').attr('class', 'g-resize')
+              .attr('x', hx - HS / 2).attr('y', hy - HS / 2).attr('width', HS).attr('height', HS).attr('rx', 2)
+              .attr('fill', selAccent).attr('stroke', theme.ink3).attr('stroke-width', 1)
+              .style('cursor', cursor)
+              .call(d3.drag<SVGRectElement, unknown>()
+                .on('start', (ev) => {
+                  ev.sourceEvent.stopPropagation();
+                  // Parte dal box VISIBILE corrente (unione), che diventa la base
+                  // manuale editabile: così il trascinamento segue ciò che si vede.
+                  const cur = getGroupBounds(grp, nodes)!;
+                  const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+                  rs = { mx, my, x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+                  grp.bounds = { x: cur.x, y: cur.y, w: cur.w, h: cur.h };
+                })
+                .on('drag', (ev) => {
+                  if (!rs) return;
+                  const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+                  const dx = mx - rs.mx, dy = my - rs.my;
+                  let nx = rs.x, ny = rs.y, nw = rs.w, nh = rs.h;
+                  if (edge.includes('r')) nw = rs.w + dx;
+                  if (edge.includes('b')) nh = rs.h + dy;
+                  if (edge.includes('l')) { nx = rs.x + dx; nw = rs.w - dx; }
+                  if (edge.includes('t')) { ny = rs.y + dy; nh = rs.h - dy; }
+                  if (nw < GMINW) { if (edge.includes('l')) nx = rs.x + rs.w - GMINW; nw = GMINW; }
+                  if (nh < GMINH) { if (edge.includes('t')) ny = rs.y + rs.h - GMINH; nh = GMINH; }
+                  grp.bounds = { x: nx, y: ny, w: nw, h: nh };
+                  drawGroups();
+                })
+                .on('end', () => {
+                  rs = null;
+                  onGroupsChangeRef.current?.(groupsRef.current.map((gg) => ({ ...gg })));
+                }) as any);
+          });
+        }
       });
     };
     drawGroupsRef.current = drawGroups;
@@ -781,6 +886,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       return best;
     };
 
+    // Dasharray dell'edge in base alla tipologia linea (default = dashed, come
+    // l'aspetto storico degli edge).
+    const edgeDash = (style: string | null | undefined, w: number): string | null => {
+      if (style === 'solid') return null;
+      if (style === 'dotted') return `${Math.max(1, w)},${Math.max(3, w * 2)}`;
+      return `${Math.max(4, w * 3)},${Math.max(3, w * 2)}`;
+    };
     const drawEdges = () => {
       edgesG.selectAll('*').remove();
       edges.forEach((edge) => {
@@ -799,25 +911,55 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const sColor = s ? getColor(s.actionType) : theme.border;
         const tColor = t ? getColor(t.actionType) : theme.border;
         const selIds = selectedIdsRef.current;
-        const isSelectedEdge = selIds.length >= 2 && selIds.includes(edge.source_id) && selIds.includes(edge.target_id);
-        const baseStroke = isSelectedEdge ? theme.accent : theme.border;
-        const baseWidth = isSelectedEdge ? 2.5 : 1.5;
+        const isMultiSel = selIds.length >= 2 && selIds.includes(edge.source_id) && selIds.includes(edge.target_id);
+        const isEdgeSel = selectedEdgeIdRef.current === edge.id;
+        // Stile editabile (EdgeSidebar): colore / spessore / tipologia linea.
+        // Default = look storico (neutro, tratteggiato, sottile).
+        const edgeColor = edge.color || theme.border;
+        const edgeWidth = edge.lineWidth ?? 1.5;
+        const baseStroke = isMultiSel ? selAccent : edgeColor;
+        const baseWidth = isMultiSel ? Math.max(edgeWidth, 2.5) : edgeWidth;
+        const baseDash = edgeDash(edge.lineStyle, baseWidth);
         const g = edgesG.append('g').attr('class', 'edge-node').attr('data-source', edge.source_id).attr('data-target', edge.target_id);
+        // Alone di selezione (edge selezionato singolarmente → EdgeSidebar).
+        if (isEdgeSel) {
+          g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
+            .attr('stroke', selAccent).attr('stroke-width', baseWidth + 6).attr('stroke-opacity', 0.9)
+            .attr('stroke-linecap', 'round').style('pointer-events', 'none');
+        }
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
-        const vl = g.append('line').attr('class', 'edge-visible').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', baseStroke).attr('stroke-width', baseWidth).attr('stroke-dasharray', '4,3').style('pointer-events', 'none');
+        const vl = g.append('line').attr('class', 'edge-visible').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
+          .attr('stroke', baseStroke).attr('stroke-width', baseWidth).attr('stroke-dasharray', baseDash)
+          .attr('stroke-linecap', edge.lineStyle === 'dotted' ? 'round' : 'butt').style('pointer-events', 'none');
         // Anchor dots at port positions
         g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
         g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
-        g.on('mouseenter', () => vl.attr('stroke', '#E24B4A').attr('stroke-width', 2.5))
+        // Etichetta al centro dell'edge: pillola leggibile sopra la linea.
+        if (edge.label) {
+          const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+          const bgRect = g.append('rect').style('pointer-events', 'none');
+          const txt = g.append('text').attr('x', mx).attr('y', my)
+            .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
+            .attr('fill', theme.ink).attr('font-family', labelFont).attr('font-size', 10).attr('font-weight', 600)
+            .style('pointer-events', 'none').text(edge.label);
+          try {
+            const bb = (txt.node() as SVGTextElement).getBBox();
+            bgRect.attr('x', bb.x - 5).attr('y', bb.y - 2).attr('width', bb.width + 10).attr('height', bb.height + 4).attr('rx', 4)
+              .attr('fill', theme.surface).attr('stroke', isEdgeSel ? selAccent : theme.border).attr('stroke-width', 1);
+          } catch { bgRect.remove(); }
+        }
+        g.on('mouseenter', () => vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)))
          .on('mouseleave', () => {
-           // Restore selection-aware baseline (selection may have changed during hover)
+           // Ripristina il baseline consapevole della selezione (può cambiare in hover).
            const sel = selectedIdsRef.current;
-           const sel2 = sel.length >= 2 && sel.includes(edge.source_id) && sel.includes(edge.target_id);
-           vl.attr('stroke', sel2 ? theme.accent : theme.border).attr('stroke-width', sel2 ? 2.5 : 1.5);
+           const ms = sel.length >= 2 && sel.includes(edge.source_id) && sel.includes(edge.target_id);
+           vl.attr('stroke', ms ? selAccent : edgeColor).attr('stroke-width', ms ? Math.max(edgeWidth, 2.5) : edgeWidth);
          });
+        g.on('click', (ev: MouseEvent) => { ev.stopPropagation(); onEdgeClickRef.current?.(edge.id); });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
     };
+    drawEdgesRef.current = drawEdges;
     drawEdges();
 
     // ── Nodes ──
@@ -873,7 +1015,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const RR = RX - IN;                 // raggio interno degli angoli sinistri
     const YB = TILE_H - IN;
     const stripPath = `M ${IN} ${IN + RR} Q ${IN} ${IN} ${IN + RR} ${IN} H ${STRIP_W} V ${YB} H ${IN + RR} Q ${IN} ${YB} ${IN} ${YB - RR} Z`;
-    nodeGrps.each(function () {
+    // Margine sinistro del contenuto quando NON c'è status (niente colonna).
+    const CONTENT_X_NOSTAT = 10;
+    // Un tile ha la colonna status solo se ha un glifo (dot/text/icon); 'active'
+    // (glyph 'none') non la mostra → in quel caso la strip sparisce e il
+    // contenuto occupa tutta la larghezza (stesso ragionamento di CHRONO).
+    const hasStatusCol = (d: CanvasNode) => statusGlyph(d.statusName).kind !== 'none';
+    const contentLeft = (d: CanvasNode) => (hasStatusCol(d) ? CONTENT_X : CONTENT_X_NOSTAT);
+    nodeGrps.each(function (d) {
+      if (!hasStatusCol(d)) return;
       const g = d3.select(this);
       g.append('g').attr('class', 'status-strip').append('path')
         .attr('class', 'status-strip-track')
@@ -918,7 +1068,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
     nodeGrps.each(function (d) {
       const g = d3.select(this);
-      const fo = g.append('foreignObject').attr('x', CONTENT_X).attr('y', 6).attr('width', TILE_W - CONTENT_X - 6).attr('height', TILE_H - 26);
+      const cx0 = contentLeft(d);
+      const fo = g.append('foreignObject').attr('x', cx0).attr('y', 6).attr('width', TILE_W - cx0 - 6).attr('height', TILE_H - 26);
       // Testo su velatura chiara → colore leggibile sulla surface.
       const fg = readableOn(theme.surface);
       // Barrato + attenuato quando completato, come nel titolo della sidebar.
@@ -948,8 +1099,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         timeLine = formatTime(d.startAt);
         if (d.endAt) timeLine += ` - ${formatTime(d.endAt)}`;
       }
-      // Left-aligned just past the action badge (che parte da CONTENT_X, largo 16).
-      const textX = CONTENT_X + 24;
+      // Left-aligned just past the action badge (che parte da contentLeft, largo 16).
+      const textX = contentLeft(d) + 24;
       if (dateLine && timeLine) {
         g.append('text').attr('x', textX).attr('y', TILE_H - 16)
           .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
@@ -966,8 +1117,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const items = d.subtasks || [];
       if (items.length === 0) return;
       const g = d3.select(this);
-      const innerX = CONTENT_X;
-      const innerW = TILE_W - CONTENT_X - 6;
+      const innerX = contentLeft(d);
+      const innerW = TILE_W - innerX - 6;
       const y = TILE_H - 34;
       const h = 4;
       const gap = 2;
@@ -1000,15 +1151,16 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (!IconComp) return;
       const g = d3.select(this);
       const actionColor = getColor(d.actionType);
+      const bx = contentLeft(d);
       g.append('rect')
-        .attr('x', CONTENT_X).attr('y', TILE_H - 22)
+        .attr('x', bx).attr('y', TILE_H - 22)
         .attr('width', 16).attr('height', 16).attr('rx', RX_BADGE)
         .attr('fill', actionColor)
         .attr('stroke', theme.border).attr('stroke-width', SW);
       const React = require('react');
       const { renderToString } = require('react-dom/server');
       const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
-      const fo = g.append('foreignObject').attr('x', CONTENT_X + 3).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
+      const fo = g.append('foreignObject').attr('x', bx + 3).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
       const container = document.createElement('div');
       container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
       container.innerHTML = html;
@@ -1087,7 +1239,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
       .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', RX_SEL)
-      .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
+      .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 1.5)
       .style('pointer-events', 'none')
       .attr('opacity', (d) => { const id = (d as CanvasNode).id; return (selectedIdsRef.current.includes(id) || selectedTileIdRef.current === id) ? 1 : 0; });
 
@@ -1267,15 +1419,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const tw = tb.w, th = tb.h;
         const g = tbG.append('g').attr('transform', `translate(${tb.x},${tb.y})`).attr('class', 'tb-node').attr('data-tb-id', tb.id);
 
-        // Background
+        // Background — i box di testo possono avere un colore di sfondo scelto
+        // dalla TextSidebar (stessa palette dei gruppi); default = theme.surface.
+        const bgFill = tb.type === 'text' && tb.content.bgColor ? tb.content.bgColor : theme.surface;
         g.append('rect')
           .attr('width', tw).attr('height', th).attr('rx', RX)
-          .attr('fill', theme.surface).attr('stroke', theme.border).attr('stroke-width', SW);
+          .attr('fill', bgFill).attr('stroke', theme.border).attr('stroke-width', SW);
 
         // Selection ring (toggled per text box based on selectedIds)
         g.append('rect').attr('class', 'sel-ring')
           .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', RX_SEL)
-          .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
+          .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 1.5)
           .style('pointer-events', 'none')
           .attr('opacity', (selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id) ? 1 : 0);
 
@@ -1675,15 +1829,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
       if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
-    // Edges between two selected items
-    d3.select(svg).selectAll<SVGGElement, unknown>('g.edge-node').each(function () {
-      const el = this as SVGGElement;
-      const src = el.getAttribute('data-source');
-      const tgt = el.getAttribute('data-target');
-      const isSel = !!(src && tgt && ids.has(src) && ids.has(tgt) && ids.size >= 2);
-      d3.select(el).select('line.edge-visible').attr('stroke', isSel ? theme.accent : theme.border).attr('stroke-width', isSel ? 2.5 : 1.5);
-    });
-  }, [selectedIds, selectedTileId, selectedTextBoxId, theme.accent, theme.border]);
+    // Edges: ridisegno completo del layer così colore/spessore/tipologia/etichetta
+    // custom e l'alone del singolo edge selezionato restano coerenti (l'update
+    // manuale precedente sovrascriveva il colore custom con quello neutro).
+    drawEdgesRef.current?.();
+  }, [selectedIds, selectedTileId, selectedTextBoxId, selectedEdgeId, selAccent, theme.border]);
 
   // Cambio di selezione del gruppo → ridisegna SOLO il layer dei gruppi
   // (contorno + punti di aggancio), senza ricostruire l'intero SVG.
@@ -1750,6 +1900,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             >
               <TextEditor
                 editing={editingBoxId === tb.id}
+                fontSize={(tb as { type: 'text'; content: { fontSize?: number } }).content.fontSize ?? 11}
                 initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
                 onChange={(html) => {
                   // Keep local box in sync so D3 drag-end save uses the latest HTML.

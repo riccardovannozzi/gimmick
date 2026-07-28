@@ -9,6 +9,7 @@ import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_CAP_BTN, OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_LG, OB_CAP_BTN_R } from '@/constants/obsidian';
 import { createSparkForTile } from '@/lib/api';
 
 export default function PhotoCaptureScreen() {
@@ -126,25 +127,26 @@ export default function PhotoCaptureScreen() {
         <Pressable
           onPress={handleClose}
           android_ripple={{ color: c.line }}
-          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: OB_CAP_BTN_BG }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Indietro</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: OB_CAP_BTN_GLYPH }}>Indietro</Text>
         </Pressable>
       </View>
     );
   }
 
-  // Controllo circolare sopra il feed — stile Obsidian (cerchio come la navbar),
-  // su fondo translucido così resta leggibile su qualsiasi inquadratura.
+  // Controllo secondario sopra il feed — quadrato con angoli arrotondati, fondo
+  // nero pieno e glifo bianco: niente cornice, il contrasto lo dà il fondo, che
+  // resta leggibile su qualsiasi inquadratura.
   const CamBtn = ({
-    onPress, children, size = 52, bg = 'rgba(0,0,0,0.42)', borderColor = 'rgba(255,255,255,0.28)', disabled,
-  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; borderColor?: string; disabled?: boolean }) => (
+    onPress, children, size = OB_CAP_BTN, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; disabled?: boolean }) => (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       hitSlop={6}
-      android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
-      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg, borderWidth: 1, borderColor, opacity: disabled ? 0.6 : 1 }}
+      android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: false }}
+      style={{ width: size, height: size, borderRadius: OB_CAP_BTN_R, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG, opacity: disabled ? 0.6 : 1 }}
     >
       {children}
     </Pressable>
@@ -172,17 +174,15 @@ export default function PhotoCaptureScreen() {
           }}
         >
           <CamBtn onPress={handleClose}>
-            <IconX size={22} color="#FFFFFF" strokeWidth={2} />
+            <IconX size={22} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </CamBtn>
-          <CamBtn
-            onPress={toggleFlash}
-            bg={flashOn ? c.accent : 'rgba(0,0,0,0.42)'}
-            borderColor={flashOn ? c.accent : 'rgba(255,255,255,0.28)'}
-          >
+          {/* Flash: lo stato lo dice il glifo (fulmine acceso / barrato), non il
+              colore del pulsante. */}
+          <CamBtn onPress={toggleFlash}>
             {flashOn ? (
-              <IconBolt size={22} color={c.accentInk} strokeWidth={2} />
+              <IconBolt size={22} color={OB_CAP_BTN_GLYPH} fill={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             ) : (
-              <IconBoltOff size={22} color="#FFFFFF" strokeWidth={2} />
+              <IconBoltOff size={22} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             )}
           </CamBtn>
         </View>
@@ -201,22 +201,23 @@ export default function PhotoCaptureScreen() {
           }}
         >
           {/* Spacer per centrare lo shutter con il flip a destra */}
-          <View style={{ width: 52 }} />
+          <View style={{ width: OB_CAP_BTN }} />
 
-          {/* Shutter — cerchio accent con anello bianco esterno */}
+          {/* Shutter — azione primaria: cerchio più grande, stesso fondo nero e
+              glifo bianco dei secondari. */}
           <Pressable
             onPress={takePicture}
             disabled={isTakingPhoto}
             hitSlop={6}
             android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: true }}
-            style={{ width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accent, borderWidth: 4, borderColor: 'rgba(255,255,255,0.9)', opacity: isTakingPhoto ? 0.6 : 1 }}
+            style={{ width: OB_CAP_BTN_LG, height: OB_CAP_BTN_LG, borderRadius: OB_CAP_BTN_LG / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG, opacity: isTakingPhoto ? 0.6 : 1 }}
           >
-            <IconCamera size={32} color={c.accentInk} strokeWidth={2} />
+            <IconCamera size={36} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </Pressable>
 
           {/* Flip camera */}
           <CamBtn onPress={toggleFacing}>
-            <IconRefresh size={24} color="#FFFFFF" strokeWidth={2} />
+            <IconRefresh size={24} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </CamBtn>
         </View>
       </CameraView>

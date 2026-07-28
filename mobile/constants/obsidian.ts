@@ -158,6 +158,22 @@ export const obsidianRadius = {
  */
 export const OB_BTN_H = 52;
 
+/**
+ * Pulsanti delle schermate di cattura: fondo nero pieno, glifo bianco, nessun
+ * bordo. La gerarchia la fanno forma e dimensione, non il colore:
+ *   · secondari (chiudi, flash, flip, annulla, modifica) → quadrato con angoli
+ *     arrotondati, lato `OB_CAP_BTN`;
+ *   · primari (scatta, registra, conferma) → cerchio, lato `OB_CAP_BTN_LG`.
+ * Le pill di stato che accompagnano i controlli usano lo stesso fondo.
+ */
+export const OB_CAP_BTN_BG = '#000000';
+export const OB_CAP_BTN_GLYPH = '#FFFFFF';
+/** Lato dei pulsanti secondari (quadrati) e raggio dei loro angoli. */
+export const OB_CAP_BTN = 52;
+export const OB_CAP_BTN_R = 16;
+/** Diametro dei pulsanti primari (tondi). */
+export const OB_CAP_BTN_LG = 84;
+
 /** Append an 8-bit alpha (00–ff) to a 6-digit hex. */
 export function withAlpha(hex: string, alpha: string): string {
   return hex.length === 7 ? hex + alpha : hex;

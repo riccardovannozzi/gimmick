@@ -7,8 +7,9 @@
  */
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { tilesApi, flowApi, calendarApi } from '@/lib/api';
-import { tilesToGroups, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi } from '@/lib/api';
+import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
 import type { FlowHubFilter } from '@/types';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
@@ -59,6 +60,41 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     enabled: active === 'tiles',
   });
 
+  // Status e tipi vivono in tabelle separate: la card del tile ne mostra il
+  // glifo/colore, quindi servono le due anagrafiche + l'assegnazione per tile.
+  // Cambiano di rado → staleTime lungo, e comunque solo con il tab Tiles attivo.
+  const statusesQuery = useQuery({
+    queryKey: ['statuses'],
+    queryFn: () => statusesApi.list(),
+    enabled: active === 'tiles',
+    staleTime: 5 * 60 * 1000,
+  });
+  const typeIconsQuery = useQuery({
+    queryKey: ['type-icons'],
+    queryFn: () => typeIconsApi.list(),
+    enabled: active === 'tiles',
+    staleTime: 5 * 60 * 1000,
+  });
+  const typeAssignQuery = useQuery({
+    queryKey: ['type-icons', 'assignments'],
+    queryFn: () => typeIconsApi.getAssignments(),
+    enabled: active === 'tiles',
+    staleTime: 5 * 60 * 1000,
+  });
+  // Colori dei badge azione: stessa impostazione utente che colora il canvas
+  // (settings `action_colors`), con gli stessi default se non è mai stata
+  // toccata — così un tile ha gli stessi colori su board e telefono.
+  const actionColorsQuery = useQuery({
+    queryKey: ['settings', 'action_colors'],
+    queryFn: () => settingsApi.get<Partial<Record<TileActionKey, string>>>('action_colors'),
+    enabled: active === 'tiles',
+    staleTime: 5 * 60 * 1000,
+  });
+  const actionColors = React.useMemo(
+    () => ({ ...DEFAULT_ACTION_COLORS, ...(actionColorsQuery.data?.data ?? {}) }),
+    [actionColorsQuery.data],
+  );
+
   const flowsQuery = useQuery({
     queryKey: ['flow-hub', flowFilter],
     queryFn: () => flowApi.hub(flowFilter),
@@ -98,9 +134,42 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     return null;
   }, [activeQuery]);
 
-  const groups = React.useMemo(
-    () => tilesToGroups(tilesQuery.data?.data ?? [], new Date()),
-    [tilesQuery.data],
+  // Lookup per la card: status_id → nome di sistema, tile → glifo/colore del tipo.
+  const statusNameById = React.useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of statusesQuery.data?.data ?? []) m.set(s.id, s.name);
+    return m;
+  }, [statusesQuery.data]);
+  const typeByTile = React.useMemo(() => {
+    const icons = new Map((typeIconsQuery.data?.data ?? []).map((ti) => [ti.id, ti]));
+    const m = new Map<string, { id: string; name?: string; icon?: string; color?: string }>();
+    for (const row of typeAssignQuery.data?.data ?? []) {
+      const ti = row.type_icon_id ? icons.get(row.type_icon_id) : undefined;
+      if (ti) m.set(row.tile_id, { id: ti.id, name: ti.name, icon: ti.icon, color: ti.color });
+    }
+    return m;
+  }, [typeIconsQuery.data, typeAssignQuery.data]);
+
+  // Ricerca AI della lista Tiles: la query semantica gira sugli SPARK (è lì che
+  // vive il contenuto indicizzato) e i risultati vengono riportati sui tile che
+  // li contengono. La ricerca per titolo, immediata, resta locale nella lista.
+  const [aiQuery, setAiQuery] = React.useState<string | null>(null);
+  const aiQueryResult = useQuery({
+    queryKey: ['sparks-search', aiQuery],
+    queryFn: () => sparksApi.search(aiQuery!, 50),
+    enabled: active === 'tiles' && !!aiQuery,
+  });
+  const aiTileIds = React.useMemo(() => {
+    if (!aiQuery) return null;
+    if (!aiQueryResult.data?.data) return null;
+    const ids = new Set<string>();
+    for (const s of aiQueryResult.data.data) if (s.tile_id) ids.add(s.tile_id);
+    return [...ids];
+  }, [aiQuery, aiQueryResult.data]);
+
+  const tiles = React.useMemo(
+    () => tilesByInsertion(tilesQuery.data?.data ?? [], { statusNameById, typeByTile }),
+    [tilesQuery.data, statusNameById, typeByTile],
   );
   const flows = React.useMemo(
     () => (flowsQuery.data?.data ?? []).map(flowHubItemToVM),
@@ -116,7 +185,13 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     <ObsidianViewsScreen
       active={active}
       onActiveChange={handleActive}
-      tileGroups={groups}
+      tiles={tiles}
+      actionColors={actionColors}
+      onAiSearch={setAiQuery}
+      onClearAiSearch={() => setAiQuery(null)}
+      aiQuery={aiQuery}
+      aiSearching={!!aiQuery && aiQueryResult.isFetching}
+      aiTileIds={aiTileIds}
       tilesLoading={tilesQuery.isLoading}
       onOpenTile={onOpenTile}
       flows={flows}

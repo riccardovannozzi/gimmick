@@ -128,9 +128,11 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 alignItems: 'center',
                 padding: '0 14px',
                 ...tabShape,
-                background: theme.accent,
-                color: theme.onAccent,
-                border: `${chipBorderW}px solid transparent`,
+                // Tab attivo (tag corrente): stesso stile del tab attivo della
+                // navbar → sfondo accent-soft + testo accent (token --ob-*).
+                background: 'var(--ob-accent-soft)',
+                color: 'var(--ob-accent)',
+                border: 'none',
                 fontFamily: chipFont,
                 fontSize: chipFontSize,
                 fontWeight: chipWeight,
@@ -150,10 +152,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
           const isDropTarget = dropTargetId === pt.id && draggingId !== pt.id;
           const draggingIdx = draggingId ? otherPinned.findIndex((t) => t.id === draggingId) : -1;
           const insertAfter = draggingIdx !== -1 && draggingIdx < idx;
-          // Chip neutro Obsidian (surface-2 + hairline).
+          // Chip neutro Obsidian (surface-2, senza bordo).
           const chipBg = theme.surfaceVariant;
           const chipFg = theme.ink2;
-          const chipBorderCol = theme.border;
           return (
           <div
             key={pt.id}
@@ -189,8 +190,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               ...tabShape,
               background: chipBg,
               color: chipFg,
-              border: `${chipBorderW}px solid ${chipBorderCol}`,
-              borderBottom: 'none',
+              border: 'none',
               fontFamily: chipFont,
               fontSize: chipFontSize,
               fontWeight: chipWeight,

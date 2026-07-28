@@ -9,54 +9,51 @@
 
 .ob-kanban { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
 
-/* ── Header ── */
-.ob-kanban__header {
-  height: 52px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 16px;
-  background: var(--ob-surface);
-  border-bottom: 1px solid var(--ob-line);
-}
-.ob-kanban__header-mascot {
-  width: 30px; height: 30px; border-radius: 8px;
-  background: var(--ob-surface-2);
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-}
-.ob-kanban__header-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
-.ob-kanban__header-sub { font-size: 11px; color: var(--ob-subtle); margin-top: 1px; }
-.ob-kanban__header-meta { font-size: 11px; color: var(--ob-subtle); }
-
 /* ── Toolbar ── */
+/* Prima riga della vista (l'header con titolo/mascotte è stato rimosso): stessa
+   altezza e stesso fondo della topbar del CANVAS. */
 .ob-kanban__toolbar {
-  height: 52px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 16px;
-  background: var(--ob-head);
+  height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 12px;
+  background: var(--ob-surface);
   border-bottom: 1px solid var(--ob-line-2);
 }
+/* Bottoni identici a quelli della topbar CANVAS (`obsidianToolbarBtn`):
+   surface-2, NIENTE bordo, raggio 10, 12.5px/600, muted. */
 .ob-kanban__ctrl {
-  display: flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 12px;
-  border-radius: 8px;
-  font-size: 12px; font-weight: 600; color: var(--ob-text);
-  background: var(--ob-surface); border: 1px solid var(--ob-line-2);
+  border-radius: 10px;
+  font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0;
+  color: var(--ob-muted);
+  background: var(--ob-surface-2); border: none;
   cursor: pointer;
 }
+.ob-kanban__ctrl:hover { color: var(--ob-text); }
 .ob-kanban__ctrl-muted { color: var(--ob-subtle); font-weight: 500; }
 .ob-kanban__ctrl-icon { color: var(--ob-subtle); display: inline-flex; }
-.ob-kanban__div { width: 1px; height: 22px; background: var(--ob-line-2); margin: 0 2px; }
+.ob-kanban__div { width: 1px; height: 20px; background: var(--ob-line-2); margin: 0 4px; }
 .ob-kanban__pill {
-  display: flex; align-items: center; gap: 6px;
+  display: inline-flex; align-items: center; gap: 6px;
   height: 30px; padding: 0 12px;
-  border-radius: 8px;
-  font-size: 12px; font-weight: 600; color: var(--ob-muted);
-  background: var(--ob-surface); border: 1px solid var(--ob-line-2);
+  border-radius: 10px;
+  font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 600; letter-spacing: 0;
+  color: var(--ob-muted);
+  background: var(--ob-surface-2); border: none;
   cursor: pointer;
 }
+.ob-kanban__pill:hover { color: var(--ob-text); }
 .ob-kanban__pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ob-accent); flex-shrink: 0; }
-.ob-kanban__pill--active { color: var(--ob-accent-ink); background: var(--ob-accent); border-color: transparent; }
-.ob-kanban__pill--active .ob-kanban__pill-dot { background: var(--ob-accent-ink); }
+/* Stato attivo = stesso viola del segmented attivo della SIDEBAR (`.ob-seg-item--active`)
+   e del tab corrente della topbar CANVAS: fondo `--ob-accent-soft` (viola scuro)
+   + testo `--ob-accent`. NON l'accent pieno, che in dark è la tinta chiara. */
+.ob-kanban__pill--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
+.ob-kanban__pill--active:hover { color: var(--ob-accent); }
+.ob-kanban__pill--active .ob-kanban__pill-dot { background: var(--ob-accent); }
+/* Bottone primario della toolbar ("+ Tile"): stesso trattamento. */
+.ob-kanban__toolbar .ob-btn--primary { background: var(--ob-accent-soft); color: var(--ob-accent); }
+.ob-kanban__toolbar .ob-btn--primary:hover:not(:disabled) { filter: none; background: color-mix(in srgb, var(--ob-accent) 22%, var(--ob-accent-soft)); }
 .ob-kanban__spacer { flex: 1; }
 
 /* ── Board ── */
@@ -68,8 +65,10 @@
 }
 
 /* ── Lane ── */
+/* Larghezza calibrata sul tile standard (150px = TILE_W del canvas):
+   150 + 8px di padding per lato + 10px di gutter scrollbar + 2px di bordo. */
 .ob-kanban__lane {
-  width: 270px; flex-shrink: 0;
+  width: 178px; flex-shrink: 0;
   display: flex; flex-direction: column;
   background: #f4f3f6;
   border: 1px solid var(--ob-line);
@@ -78,11 +77,13 @@
   overflow: hidden;
 }
 [data-theme='dark'] .ob-kanban__lane { background: #141414; }
-.ob-kanban__lane-head { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 9px; }
+.ob-kanban__lane-head { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 6px 0 8px; }
 .ob-kanban__lane-grip { color: var(--ob-faint); display: inline-flex; flex-shrink: 0; }
 .ob-kanban__lane-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--lane-c); flex-shrink: 0; }
 .ob-kanban__lane-dot--sq { border-radius: 2px; }
-.ob-kanban__lane-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Tracking ridotto: nella colonna stretta il nome resta leggibile più a lungo
+   (oltre, ellissi + tooltip col nome intero). */
+.ob-kanban__lane-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-kanban__lane-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
 .ob-kanban__lane-btn {
   width: 20px; height: 20px; border-radius: 5px;
@@ -90,8 +91,11 @@
   color: var(--ob-subtle); background: transparent; border: none; cursor: pointer;
 }
 .ob-kanban__lane-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
-.ob-kanban__lane-body { flex: 1; overflow-y: auto; padding: 6px 10px 12px; display: flex; flex-direction: column; gap: 12px; }
-.ob-kanban__group { display: flex; flex-direction: column; gap: 8px; }
+/* `scrollbar-gutter: stable` riserva SEMPRE i 10px della scrollbar: la colonna
+   di contenuto resta esattamente 150px (= larghezza tile) e i tile non slittano
+   né vengono tagliati quando la lane inizia a scrollare. */
+.ob-kanban__lane-body { flex: 1; overflow-y: auto; scrollbar-gutter: stable; padding: 6px 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.ob-kanban__group { width: 150px; display: flex; flex-direction: column; gap: 8px; }
 .ob-kanban__lane-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 34px 0; font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--ob-faint); }
 
 /* ── Date pill ── */
@@ -110,35 +114,55 @@
 }
 
 /* ── Card ── */
+/* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80) — stesso standard
+   di CHRONO. flex-shrink 0: nella lane il tile non si comprime mai. Base solida
+   (surface) + velatura del colore (14%), bordo tinto (22%), raggio 5px. */
 .ob-kanban__card {
-  border-radius: 9px; padding: 11px 12px;
-  display: flex; flex-direction: column; gap: 10px;
-  position: relative;
-  background: color-mix(in srgb, var(--card-c) 14%, transparent);
+  width: 150px; height: 80px; flex-shrink: 0;
+  border-radius: 5px; padding: 0;
+  display: flex; flex-direction: row;
+  position: relative; overflow: hidden;
+  background: color-mix(in srgb, var(--card-c) 14%, var(--ob-surface));
   border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent);
 }
+/* Strip STATUS (presente solo se la tile ha uno status — vedi TileCard): fondo
+   scurito + hairline come CHRONO/CANVAS. */
+.ob-kanban__card-strip { width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.18); border-right: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+/* Contenuto: padding come il canvas (contenuto a x=24 = strip 16 + 8). Titolo in
+   alto, gruppo basso (checklist + piede) ancorato al fondo. */
+.ob-kanban__card-body { flex: 1; min-width: 0; padding: 6px 6px 6px 8px; display: flex; flex-direction: column; justify-content: space-between; gap: 4px; }
 .ob-kanban__card--clickable { cursor: pointer; }
-.ob-kanban__card--active { box-shadow: 0 0 0 2px var(--ob-accent); }
+.ob-kanban__card--draggable { cursor: grab; }
+.ob-kanban__card--draggable:active { cursor: grabbing; }
+/* Anello di selezione INSET: outset sporgerebbe e verrebbe tagliato dalla lane. */
+.ob-kanban__card--active { box-shadow: inset 0 0 0 2px var(--ob-accent); }
 .ob-kanban__lane--dropover { outline: 2px dashed var(--ob-accent); outline-offset: -2px; }
-.ob-kanban__card-top { display: flex; align-items: flex-start; gap: 7px; }
-.ob-kanban__card-title { font-size: 12px; line-height: 16px; font-weight: 300; letter-spacing: -0.01em; color: var(--ob-text); flex: 1; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.ob-kanban__card-grip { color: var(--ob-faint); margin-top: 1px; display: inline-flex; flex-shrink: 0; }
+.ob-kanban__card-title { font-size: 12px; line-height: 16px; font-weight: 300; letter-spacing: -0.01em; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; word-break: break-word; }
 /* Tile completato: titolo barrato e attenuato. */
 .ob-kanban__card--done .ob-kanban__card-title { text-decoration: line-through; opacity: 0.55; }
-.ob-kanban__checklist { display: flex; align-items: center; gap: 7px; }
-.ob-kanban__bars { flex: 1; display: flex; gap: 3px; }
+.ob-kanban__card-bottom { display: flex; flex-direction: column; gap: 4px; }
+.ob-kanban__checklist { display: flex; align-items: center; gap: 5px; }
+.ob-kanban__bars { flex: 1; min-width: 0; display: flex; gap: 2px; }
 .ob-kanban__bar { flex: 1; height: 4px; border-radius: 2px; background: var(--ob-line-2); }
 .ob-kanban__bar--on { background: var(--ob-success); }
-.ob-kanban__checklist-count { font-family: var(--ob-font-mono); font-size: 10px; color: var(--card-c); }
+.ob-kanban__checklist-count { font-family: var(--ob-font-mono); font-size: 9px; color: var(--card-c); flex-shrink: 0; }
 [data-theme='dark'] .ob-kanban__checklist-count { color: var(--ob-muted); }
-.ob-kanban__card-foot { display: flex; align-items: center; gap: 6px; }
+.ob-kanban__card-foot { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* Cap-chip 14px: nel formato standard restano allineate al badge tipo compact. */
 .ob-kanban__cap {
-  width: 20px; height: 20px; border-radius: 6px;
+  width: 14px; height: 14px; border-radius: 4px;
   display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--cap-c) 16%, transparent);
   color: var(--cap-c); flex-shrink: 0;
 }
-.ob-kanban__card-tag { display: flex; align-items: center; gap: 5px; margin-left: auto; font-size: 10px; font-weight: 600; }
-.ob-kanban__card-tag-icon { color: var(--card-c); display: inline-flex; }
-.ob-kanban__card-tag-label { color: var(--card-c); }
+/* Cap oltre le prime due → "+N" al posto delle chip mancanti. */
+.ob-kanban__cap--more {
+  width: auto; min-width: 14px; padding: 0 3px;
+  background: color-mix(in srgb, var(--ob-text) 8%, transparent);
+  color: var(--ob-subtle);
+  font-family: var(--ob-font-mono); font-size: 9px; font-weight: 700;
+}
+.ob-kanban__card-tag { display: flex; align-items: center; gap: 3px; margin-left: auto; min-width: 0; font-size: 10px; font-weight: 600; }
+.ob-kanban__card-tag-icon { color: var(--card-c); display: inline-flex; flex-shrink: 0; }
+.ob-kanban__card-tag-label { color: var(--card-c); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 [data-theme='dark'] .ob-kanban__card-tag-label { color: var(--ob-muted); }

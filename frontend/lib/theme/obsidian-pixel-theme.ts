@@ -63,6 +63,7 @@ export function buildObsidianPixelTheme(mode: ObsidianMode): PixelTheme {
     borderStrong: n.faint,
     accent: a.accent,
     onAccent: a.ink,
+    accentSoft: a.soft,
     shadowColor: 'transparent',
     cap,
     tint: tintBg,

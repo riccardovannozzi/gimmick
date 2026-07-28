@@ -92,7 +92,7 @@ canvasRouter.get('/edges/:tagId', async (req: AuthenticatedRequest, res: Respons
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_edges')
-      .select('id, source_id, target_id, source_port, target_port')
+      .select('id, source_id, target_id, source_port, target_port, color, line_style, line_width, label')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
 
@@ -133,6 +133,30 @@ canvasRouter.post('/edges/:tagId', async (req: AuthenticatedRequest, res: Respon
 });
 
 /**
+ * PATCH /api/canvas/edges/:id
+ * Aggiorna lo stile di un edge (colore, tipologia/spessore linea, etichetta).
+ */
+canvasRouter.patch('/edges/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const updates: Record<string, unknown> = {};
+    if (req.body.color !== undefined) updates.color = req.body.color;
+    if (req.body.line_style !== undefined) updates.line_style = req.body.line_style;
+    if (req.body.line_width !== undefined) updates.line_width = req.body.line_width;
+    if (req.body.label !== undefined) updates.label = req.body.label;
+    const { error } = await supabaseAdmin
+      .from('canvas_edges')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', req.user!.id);
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
  * DELETE /api/canvas/edges/:id
  * Delete an edge
  */
@@ -160,7 +184,7 @@ canvasRouter.get('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_groups')
-      .select('id, label, node_ids, bg_color, border_color, border_width, border_style')
+      .select('id, label, node_ids, bg_color, border_color, border_width, border_style, bounds')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
 
@@ -191,7 +215,7 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
       .eq('tag_id', tagId);
 
     if (groups.length > 0) {
-      const rows = groups.map((g: { id: string; label: string; node_ids: string[]; bg_color?: string | null; border_color?: string | null; border_width?: number | null; border_style?: string | null }) => ({
+      const rows = groups.map((g: { id: string; label: string; node_ids: string[]; bg_color?: string | null; border_color?: string | null; border_width?: number | null; border_style?: string | null; bounds?: { x: number; y: number; w: number; h: number } | null }) => ({
         id: g.id,
         user_id: req.user!.id,
         tag_id: tagId,
@@ -201,6 +225,7 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
         border_color: g.border_color ?? null,
         border_width: g.border_width ?? null,
         border_style: g.border_style ?? null,
+        bounds: g.bounds ?? null,
       }));
       const { error } = await supabaseAdmin.from('canvas_groups').insert(rows);
       if (error) throw error;
