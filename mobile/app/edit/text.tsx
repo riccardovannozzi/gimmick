@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { IconX, IconFileText } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_R } from '@/constants/obsidian';
 
 export default function TextEditorScreen() {
   const c = useObsidian();
@@ -29,9 +30,9 @@ export default function TextEditorScreen() {
             accessibilityLabel="Chiudi"
             hitSlop={6}
             android_ripple={{ color: c.line, borderless: true }}
-            style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accentSoft }}
+            style={{ width: 44, height: 44, borderRadius: OB_CAP_BTN_R, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG }}
           >
-            <IconX size={19} color={c.accent} strokeWidth={1.9} />
+            <IconX size={20} color={OB_CAP_BTN_GLYPH} strokeWidth={1.9} />
           </Pressable>
 
           <Text style={{ fontSize: 16, fontWeight: '700', color: c.text }}>Editor testo AI</Text>

@@ -329,6 +329,16 @@ export const sparksApi = {
     return apiRequest<Spark>(`/api/sparks/${id}`);
   },
 
+  /**
+   * Ricerca semantica sugli spark (embedding, non parole chiave): l'endpoint
+   * genera l'embedding della query e chiama `match_sparks`. Le righe portano il
+   * `tile_id`, così i risultati si possono riportare sui tile.
+   */
+  async search(q: string, limit = 30) {
+    const params = new URLSearchParams({ q, limit: String(limit) });
+    return apiRequest<(Spark & { similarity?: number })[]>(`/api/sparks/search?${params.toString()}`);
+  },
+
   async create(spark: Partial<Spark>) {
     return apiRequest<Spark>('/api/sparks', {
       method: 'POST',

@@ -89,10 +89,11 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 30, height: 30, flexShrink: 0,
-        background: active ? theme.accent : theme.bg1,
-        border: `1px solid ${active ? theme.accent : theme.border}`,
+        // Stato attivo: viola scuro (accent-soft) + testo accent, come i tab.
+        background: active ? 'var(--ob-accent-soft)' : theme.bg1,
+        border: `1px solid ${active ? 'transparent' : theme.border}`,
         borderRadius: 7, cursor: 'pointer',
-        color: active ? theme.onAccent : theme.ink2,
+        color: active ? 'var(--ob-accent)' : theme.ink2,
       }}
     >
       {children}
@@ -128,7 +129,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
-        width: open ? 320 : 32,
+        width: open ? 280 : 32,
       }}
     >
       {/* Header: collapse + titolo */}

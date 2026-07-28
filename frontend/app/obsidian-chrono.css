@@ -94,10 +94,12 @@
    (surface) + velatura del colore (14%), bordo tinto (22%), raggio 8px. */
 /* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80). flex-shrink 0:
    nella colonna il tile non si comprime. */
-.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: 8px; padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-surface)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: 5px; padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-surface)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
 /* Striscia status verticale a sinistra, 16px come il canvas (STRIP_W). SEMPRE
    presente (anche vuota); scurita così stacca dal corpo del tile come sul canvas
    (dove è riempita col bg più scuro). */
+/* Strip STATUS: renderizzata solo quando la tile ha uno status (vedi TileCard);
+   se assente non esiste proprio e il corpo occupa tutta la larghezza. */
 .ob-chrono__card-strip { width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.18); border-right: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
 /* Contenuto: padding come il canvas (contenuto a x=24 = strip16 + 8). Titolo in
    alto, gruppo basso (checklist + piede) ancorato al fondo. */

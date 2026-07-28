@@ -88,11 +88,13 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
-      {/* Striscia STATUS a sinistra, SEMPRE presente come il tile canvas; lo
-          swatch compare solo se la tile ha uno status. */}
-      <div className="ob-chrono__card-strip" title={t.status?.label}>
-        {t.status && <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />}
-      </div>
+      {/* Striscia STATUS a sinistra: presente SOLO se la tile ha uno status.
+          Senza status la strip sparisce e il corpo occupa tutta la larghezza. */}
+      {t.status && (
+        <div className="ob-chrono__card-strip" title={t.status.label}>
+          <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />
+        </div>
+      )}
       <div className="ob-chrono__card-main">
         <div className="ob-chrono__card-title">{t.title}</div>
         {/* Gruppo in basso (checklist + piede) ancorato al fondo, come il canvas. */}

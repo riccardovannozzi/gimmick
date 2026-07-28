@@ -13,9 +13,9 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { IconGripVertical, IconDots } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
-import { Beniamino } from '@/components/mascot';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
+import { StatusSwatch } from '@/components/statuses/status-swatch';
 import type { StatusShape } from '@/types';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
@@ -29,8 +29,10 @@ const CAP_COLOR: Record<CapKind, string> = {
 };
 function CapGlyph({ kind }: { kind: CapKind }) {
   const name: ShellIconName = kind === 'doc' ? 'file' : kind;
-  return <Icon name={name} size={12} />;
+  return <Icon name={name} size={11} />;
 }
+/** Cap-chip mostrate nel piede; le eccedenti diventano un contatore "+N". */
+const CAPS_MAX = 2;
 
 export interface CardData {
   /** Presente quando la vista è collegata ai dati reali. */
@@ -110,9 +112,12 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
   const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
   const done = t.checklist?.filter(Boolean).length ?? 0;
   const draggable = !!t.id;
+  const caps = t.caps ?? [];
+  const capsShown = caps.slice(0, CAPS_MAX);
+  const capsExtra = caps.length - capsShown.length;
   return (
     <div
-      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', t.done && 'ob-kanban__card--done')}
+      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', draggable && 'ob-kanban__card--draggable', t.done && 'ob-kanban__card--done')}
       style={{ ['--card-c' as string]: cardC }}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
@@ -125,34 +130,48 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
           : undefined
       }
     >
-      <div className="ob-kanban__card-top">
-        <div className="ob-kanban__card-title">{t.title}</div>
-        <span className="ob-kanban__card-grip"><IconGripVertical size={14} stroke={1.6} /></span>
-      </div>
-
-      {t.checklist && (
-        <div className="ob-kanban__checklist">
-          <div className="ob-kanban__bars">
-            {t.checklist.map((d, i) => <div key={i} className={cn('ob-kanban__bar', d && 'ob-kanban__bar--on')} />)}
-          </div>
-          <span className="ob-kanban__checklist-count">{done}/{t.checklist.length}</span>
+      {/* Striscia STATUS a sinistra: presente SOLO se la tile ha uno status
+          (stesso ragionamento di CHRONO/CANVAS). Senza status la strip sparisce
+          e il corpo occupa tutta la larghezza. */}
+      {t.status && (
+        <div className="ob-kanban__card-strip" title={t.status.label}>
+          <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />
         </div>
       )}
+      <div className="ob-kanban__card-body">
+        <div className="ob-kanban__card-title">{t.title}</div>
 
-      <div className="ob-kanban__card-foot">
-        {t.caps?.map((c, i) => (
-          <span key={i} className="ob-kanban__cap" style={{ ['--cap-c' as string]: CAP_COLOR[c] }}>
-            <CapGlyph kind={c} />
-          </span>
-        ))}
-        <TileMeta type={t.type} status={t.status} />
-        <span className="ob-kanban__card-tag">
-          <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={12} /></span>
-          <span className="ob-kanban__card-tag-label">{t.tag}</span>
-        </span>
-        {!!t.sparkCount && (
-          <span className="ob-tile-sparkn" title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
-        )}
+        {/* Gruppo in basso (checklist + piede) ancorato al fondo, come il canvas. */}
+        <div className="ob-kanban__card-bottom">
+          {t.checklist && (
+            <div className="ob-kanban__checklist">
+              <div className="ob-kanban__bars">
+                {t.checklist.map((d, i) => <div key={i} className={cn('ob-kanban__bar', d && 'ob-kanban__bar--on')} />)}
+              </div>
+              <span className="ob-kanban__checklist-count">{done}/{t.checklist.length}</span>
+            </div>
+          )}
+
+          <div className="ob-kanban__card-foot">
+            {capsShown.map((c, i) => (
+              <span key={i} className="ob-kanban__cap" style={{ ['--cap-c' as string]: CAP_COLOR[c] }}>
+                <CapGlyph kind={c} />
+              </span>
+            ))}
+            {capsExtra > 0 && (
+              <span className="ob-kanban__cap ob-kanban__cap--more" title={caps.join(', ')}>+{capsExtra}</span>
+            )}
+            {/* Lo STATUS vive nella striscia sinistra → nel footer solo il TIPO. */}
+            <TileMeta type={t.type} compact />
+            <span className="ob-kanban__card-tag" title={t.tag}>
+              <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={11} /></span>
+              <span className="ob-kanban__card-tag-label">{t.tag}</span>
+            </span>
+            {!!t.sparkCount && (
+              <span className="ob-tile-sparkn" title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -200,7 +219,7 @@ function LaneCol({
       <div className="ob-kanban__lane-head">
         <span className="ob-kanban__lane-grip"><IconGripVertical size={11} stroke={1.6} /></span>
         <span className={cn('ob-kanban__lane-dot', lane.square && 'ob-kanban__lane-dot--sq')} />
-        <span className="ob-kanban__lane-label">{lane.label}</span>
+        <span className="ob-kanban__lane-label" title={lane.label}>{lane.label}</span>
         <span className="ob-kanban__lane-count">{count}</span>
         <div style={{ flex: 1 }} />
         <button type="button" className="ob-kanban__lane-btn" aria-label="Comprimi"><Icon name="chevR" size={12} /></button>
@@ -241,22 +260,10 @@ export interface KanbanViewProps {
 
 export function KanbanView({ lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile }: KanbanViewProps) {
   const [tag, setTag] = React.useState('all');
-  const total = lanes.reduce((n, l) => n + l.groups.reduce((m, g) => m + g.tiles.length, 0), 0);
 
   return (
     <div className="ob-kanban">
-      {/* Header */}
-      <div className="ob-kanban__header">
-        <span className="ob-kanban__header-mascot"><Beniamino name="snappy" size={26} title="" /></span>
-        <div>
-          <div className="ob-kanban__header-title">Kanban</div>
-          <div className="ob-kanban__header-sub">Snappy sposta i tile da una colonna all’altra</div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <span className="ob-kanban__header-meta">GIMMICK · {total} tile in board</span>
-      </div>
-
-      {/* Toolbar */}
+      {/* Toolbar — prima riga della vista (niente header con titolo/mascotte). */}
       <div className="ob-kanban__toolbar">
         <button type="button" className="ob-kanban__ctrl">
           <span className="ob-kanban__ctrl-muted">Raggruppa:</span>

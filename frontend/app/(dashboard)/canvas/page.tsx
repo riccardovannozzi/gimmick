@@ -14,6 +14,7 @@ import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } fr
 import { StagingPanel } from '@/components/canvas/StagingPanel';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
+import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
 import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
@@ -53,6 +54,8 @@ export default function CanvasPage() {
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   // Box (testo/immagine) selezionato con click singolo → contorno obsidian.
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
+  // Edge selezionato con click singolo → EdgeSidebar (proprietà del collegamento).
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
   const openFlow = useFlowOpenStore((s) => s.open);
@@ -260,7 +263,19 @@ export default function CanvasPage() {
     enabled: !!tagId,
     staleTime: 60 * 1000,
   });
-  const edges = useMemo(() => (edgesData?.data || []) as CanvasEdge[], [edgesData]);
+  // API in snake_case → CanvasEdge in camelCase (lo stile edge è opzionale).
+  const edges = useMemo<CanvasEdge[]>(() => (edgesData?.data || []).map((e: any) => ({
+    id: e.id,
+    source_id: e.source_id,
+    target_id: e.target_id,
+    source_port: e.source_port,
+    target_port: e.target_port,
+    color: e.color ?? null,
+    lineStyle: e.line_style ?? null,
+    lineWidth: e.line_width ?? null,
+    label: e.label ?? null,
+  })), [edgesData]);
+  const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) || null, [edges, selectedEdgeId]);
 
   // Groups — persisted via backend API
   const { data: groupsData } = useQuery({
@@ -277,6 +292,7 @@ export default function CanvasPage() {
     borderColor: g.border_color ?? null,
     borderWidth: g.border_width ?? null,
     borderStyle: g.border_style ?? null,
+    bounds: g.bounds ?? null,
   })), [groupsData]);
 
   // Serializza un gruppo (camelCase interno → snake_case DB) per cache e API.
@@ -288,6 +304,7 @@ export default function CanvasPage() {
     border_color: g.borderColor ?? null,
     border_width: g.borderWidth ?? null,
     border_style: g.borderStyle ?? null,
+    bounds: g.bounds ?? null,
   });
 
   const saveGroupsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -353,6 +370,24 @@ export default function CanvasPage() {
       data: (old?.data || []).filter((e: CanvasEdge) => e.id !== id),
     }));
     await canvasApi.deleteEdge(id);
+  }, [tagId, queryClient]);
+
+  // Aggiorna lo stile di un edge (colore/tipologia/spessore/testo). La cache
+  // tiene i dati in snake_case (come dall'API): mappiamo il patch camelCase e
+  // salviamo in modo debounced.
+  const edgeUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const handleUpdateEdge = useCallback((id: string, patch: { color?: string | null; lineStyle?: 'solid' | 'dashed' | 'dotted' | null; lineWidth?: number | null; label?: string | null }) => {
+    if (!tagId) return;
+    const snake: Record<string, unknown> = {};
+    if ('color' in patch) snake.color = patch.color ?? null;
+    if ('lineStyle' in patch) snake.line_style = patch.lineStyle ?? null;
+    if ('lineWidth' in patch) snake.line_width = patch.lineWidth ?? null;
+    if ('label' in patch) snake.label = patch.label ?? null;
+    queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+      data: (old?.data || []).map((e: any) => e.id === id ? { ...e, ...snake } : e),
+    }));
+    if (edgeUpdateTimer.current) clearTimeout(edgeUpdateTimer.current);
+    edgeUpdateTimer.current = setTimeout(() => { canvasApi.updateEdge(id, snake); }, 500);
   }, [tagId, queryClient]);
 
   // ── Boxes (text/image, polymorphic) ──
@@ -705,6 +740,7 @@ export default function CanvasPage() {
     setSelectedGroupId(null);
     setSelectedTileId(null);
     setSelectedTextBoxId(null);
+    setSelectedEdgeId(null);
     // Auto-open sidebar on multi-selection so the bulk editor is immediately visible
     if (ids.length >= 2) setSidebarOpen(true);
   }, []);
@@ -714,15 +750,15 @@ export default function CanvasPage() {
     setSelectionBbox(null);
   }, []);
 
-  // Esc clears selection (multi, gruppo, tile singolo, box)
+  // Esc clears selection (multi, gruppo, tile singolo, box, edge)
   useEffect(() => {
-    if (selectedIds.length === 0 && !selectedGroupId && !selectedTileId && !selectedTextBoxId) return;
+    if (selectedIds.length === 0 && !selectedGroupId && !selectedTileId && !selectedTextBoxId && !selectedEdgeId) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { clearSelection(); setSelectedGroupId(null); setSelectedTileId(null); setSelectedTextBoxId(null); }
+      if (e.key === 'Escape') { clearSelection(); setSelectedGroupId(null); setSelectedTileId(null); setSelectedTextBoxId(null); setSelectedEdgeId(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [selectedIds.length, selectedGroupId, selectedTileId, selectedTextBoxId, clearSelection]);
+  }, [selectedIds.length, selectedGroupId, selectedTileId, selectedTextBoxId, selectedEdgeId, clearSelection]);
 
   // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
   useEffect(() => {
@@ -791,10 +827,11 @@ export default function CanvasPage() {
   const [renameGroup, setRenameGroup] = useState<{ id: string; name: string } | null>(null);
 
   const handleGroupClick = useCallback((groupId: string) => {
-    // Selezione esclusiva: un gruppo selezionato azzera selezione tile/box/multi.
+    // Selezione esclusiva: un gruppo selezionato azzera selezione tile/box/edge/multi.
     setSelectedGroupId(groupId);
     setSelectedTileId(null);
     setSelectedTextBoxId(null);
+    setSelectedEdgeId(null);
     setSelectedIds([]);
     setSelectionBbox(null);
     setSidebarOpen(true);
@@ -807,11 +844,23 @@ export default function CanvasPage() {
     setSelectedTextBoxId(id);
     setSelectedTileId(null);
     setSelectedGroupId(null);
+    setSelectedEdgeId(null);
     setSelectedIds([]);
     setSelectionBbox(null);
     const box = textBoxes.find((b) => b.id === id);
     if (box?.type === 'text') setSidebarOpen(true);
   }, [textBoxes]);
+
+  // Click singolo su un edge: selezione esclusiva → apre la EdgeSidebar.
+  const handleEdgeClick = useCallback((id: string) => {
+    setSelectedEdgeId(id);
+    setSelectedTileId(null);
+    setSelectedGroupId(null);
+    setSelectedTextBoxId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+    setSidebarOpen(true);
+  }, []);
 
   const handleGroupContextMenu = useCallback((e: { x: number; y: number; groupId: string }) => {
     setGroupCtx(e);
@@ -1007,6 +1056,8 @@ export default function CanvasPage() {
               selectedTileId={selectedTileId}
               selectedTextBoxId={selectedTextBoxId}
               onTextBoxClick={handleTextBoxClick}
+              onEdgeClick={handleEdgeClick}
+              selectedEdgeId={selectedEdgeId}
               onAddImageBox={handleAddImageBox}
               onAddTileAt={handleAddTileAt}
               onPositionChange={handlePositionChange}
@@ -1022,6 +1073,7 @@ export default function CanvasPage() {
                 // sidebar senza corrispondenza con il tile selezionato.
                 setSelectedGroupId(null);
                 setSelectedTextBoxId(null);
+                setSelectedEdgeId(null);
                 setSelectedTileId(id);
                 setSidebarOpen(true);
               }}
@@ -1079,8 +1131,8 @@ export default function CanvasPage() {
           </div>
         </div>
 
-          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → box di testo (editor) →
-              MultiTileSidebar (≥2 tile) → TileSidebar. */}
+          {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → edge → box di testo (editor)
+              → MultiTileSidebar (≥2 tile) → TileSidebar. */}
           {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
@@ -1090,6 +1142,15 @@ export default function CanvasPage() {
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
               onDelete={() => handleDeleteGroup(selectedGroupId)}
               onSelectTile={(id) => { setSelectedGroupId(null); setSelectedTileId(id); setSidebarOpen(true); }}
+            />
+          ) : selectedEdge ? (
+            <EdgeSidebar
+              key={selectedEdge.id}
+              edge={selectedEdge}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              onUpdate={(patch) => handleUpdateEdge(selectedEdge.id, patch)}
+              onDelete={() => { handleDeleteEdge(selectedEdge.id); setSelectedEdgeId(null); }}
             />
           ) : selectedTextBox ? (
             <TextSidebar

@@ -1,10 +1,11 @@
 import React from 'react';
 import { View, Text, Image, Pressable } from 'react-native';
 import { Video as ExpoVideo, ResizeMode } from 'expo-av';
-import { IconX, IconCheck, IconPencil, IconFileText, IconMicrophone, IconFile } from '@tabler/icons-react-native';
+import { IconX, IconCheck, IconPencil, IconFileText, IconWaveSine, IconFile } from '@tabler/icons-react-native';
 import * as Haptics from 'expo-haptics';
 import { useSettingsStore } from '@/store';
 import { useObsidian, type ObsidianColors } from '@/lib/obsidian';
+import { OB_CAP_BTN, OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_LG, OB_CAP_BTN_R } from '@/constants/obsidian';
 import type { SparkType } from '@/types';
 import { formatDuration, truncateText } from '@/utils/formatters';
 
@@ -103,10 +104,10 @@ function PreviewContent({
                 height: 24,
                 borderRadius: 12,
                 justifyContent: 'center',
-                backgroundColor: c.accentSoft,
+                backgroundColor: OB_CAP_BTN_BG,
               }}
             >
-              <Text style={{ fontSize: 12, fontWeight: '600', color: c.accent }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: OB_CAP_BTN_GLYPH }}>
                 {formatDuration(duration)}
               </Text>
             </View>
@@ -137,7 +138,7 @@ function PreviewContent({
       <PreviewFrame c={c}>
         <View style={{ padding: 18, alignItems: 'center', gap: 10 }}>
           <TypeBadge tint={c.cap.voice}>
-            <IconMicrophone size={26} color={c.cap.voice} strokeWidth={1.9} />
+            <IconWaveSine size={26} color={c.cap.voice} strokeWidth={1.9} />
           </TypeBadge>
           <Text style={{ fontSize: 14, fontWeight: '700', color: c.text }}>
             {type === 'audio_recording' ? 'Registrazione audio' : 'File audio'}
@@ -175,23 +176,24 @@ function PreviewContent({
 }
 
 /**
- * Azione tonda dell'overlay — stesso linguaggio dei controlli camera: cerchio
- * 64px a fondo pieno (superficie scura o accent), senza cornice.
+ * Azione dell'overlay — stesso linguaggio dei controlli camera: fondo nero e
+ * glifo bianco; `primary` la rende tonda e più grande (conferma), le altre
+ * restano quadrate con angoli arrotondati.
  */
 function ActionButton({
-  bg, onPress, label, children,
-}: { bg: string; onPress: () => void; label: string; children: React.ReactNode }) {
-  const SIZE = 64;
+  primary, onPress, label, children,
+}: { primary?: boolean; onPress: () => void; label: string; children: React.ReactNode }) {
+  const size = primary ? OB_CAP_BTN_LG : OB_CAP_BTN;
   return (
     <Pressable
       onPress={onPress}
       accessibilityLabel={label}
       hitSlop={6}
-      android_ripple={{ color: 'rgba(255,255,255,0.22)', borderless: true }}
+      android_ripple={{ color: 'rgba(255,255,255,0.22)', borderless: !!primary }}
       style={{
-        width: SIZE, height: SIZE, borderRadius: SIZE / 2,
+        width: size, height: size, borderRadius: primary ? size / 2 : OB_CAP_BTN_R,
         alignItems: 'center', justifyContent: 'center',
-        backgroundColor: bg,
+        backgroundColor: OB_CAP_BTN_BG,
       }}
     >
       {children}
@@ -238,27 +240,29 @@ export function PreviewOverlay({
         />
       </View>
 
-      {/* Azioni — annulla (neutra), modifica (neutra), aggiungi (accent) */}
-      <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 32 }}>
+      {/* Azioni — annulla e modifica secondarie (quadrate), aggiungi primaria
+          (tonda e più grande). Allineate in basso: le secondarie sono più
+          piccole della primaria. */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'flex-end', gap: 28 }}>
         <View style={{ alignItems: 'center', gap: 8 }}>
-          <ActionButton bg={c.accentSoft} onPress={() => handleAction(onCancel)} label="Annulla">
-            <IconX size={26} color={c.accent} strokeWidth={2} />
+          <ActionButton onPress={() => handleAction(onCancel)} label="Annulla">
+            <IconX size={24} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </ActionButton>
           <Text style={label}>Annulla</Text>
         </View>
 
         {onEdit && (
           <View style={{ alignItems: 'center', gap: 8 }}>
-            <ActionButton bg={c.accentSoft} onPress={() => handleAction(onEdit)} label="Modifica">
-              <IconPencil size={24} color={c.accent} strokeWidth={2} />
+            <ActionButton onPress={() => handleAction(onEdit)} label="Modifica">
+              <IconPencil size={23} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             </ActionButton>
             <Text style={label}>Modifica</Text>
           </View>
         )}
 
         <View style={{ alignItems: 'center', gap: 8 }}>
-          <ActionButton bg={c.accent} onPress={() => handleAction(onAdd)} label="Aggiungi">
-            <IconCheck size={28} color={c.accentInk} strokeWidth={2.2} />
+          <ActionButton primary onPress={() => handleAction(onAdd)} label="Aggiungi">
+            <IconCheck size={34} color={OB_CAP_BTN_GLYPH} strokeWidth={2.2} />
           </ActionButton>
           <Text style={label}>Aggiungi</Text>
         </View>

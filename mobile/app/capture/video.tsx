@@ -11,6 +11,7 @@ import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_CAP_BTN, OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_LG, OB_CAP_BTN_R } from '@/constants/obsidian';
 
 const MAX_DURATION = 30; // 30 seconds
 
@@ -169,17 +170,17 @@ export default function VideoCaptureScreen() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // Controllo circolare sopra il feed — stesso helper di photo.tsx: fondo
-  // accentSoft, glifo in accent, nessuna cornice.
+  // Controllo secondario sopra il feed — stesso helper di photo.tsx: quadrato
+  // con angoli arrotondati, fondo nero, glifo bianco.
   const CamBtn = ({
-    onPress, children, size = 52, bg = c.accentSoft, disabled,
-  }: { onPress: () => void; children: React.ReactNode; size?: number; bg?: string; disabled?: boolean }) => (
+    onPress, children, size = OB_CAP_BTN, disabled,
+  }: { onPress: () => void; children: React.ReactNode; size?: number; disabled?: boolean }) => (
     <Pressable
       onPress={onPress}
       disabled={disabled}
       hitSlop={6}
-      android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
-      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg, opacity: disabled ? 0.6 : 1 }}
+      android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: false }}
+      style={{ width: size, height: size, borderRadius: OB_CAP_BTN_R, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG, opacity: disabled ? 0.6 : 1 }}
     >
       {children}
     </Pressable>
@@ -217,9 +218,9 @@ export default function VideoCaptureScreen() {
         <Pressable
           onPress={handleClose}
           android_ripple={{ color: c.line }}
-          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.accentSoft }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: OB_CAP_BTN_BG }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accent }}>Indietro</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: OB_CAP_BTN_GLYPH }}>Indietro</Text>
         </Pressable>
       </View>
     );
@@ -245,10 +246,10 @@ export default function VideoCaptureScreen() {
           }}
         >
           <CamBtn onPress={handleClose} disabled={isRecording}>
-            <IconX size={22} color={c.accent} strokeWidth={2} />
+            <IconX size={22} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </CamBtn>
 
-          {/* Indicatore di registrazione — pill accentSoft con dot rosso */}
+          {/* Indicatore di registrazione — pill nera con dot rosso */}
           {isRecording && (
             <View
               style={{
@@ -258,18 +259,18 @@ export default function VideoCaptureScreen() {
                 paddingHorizontal: 12,
                 height: 34,
                 borderRadius: 17,
-                backgroundColor: c.accentSoft,
+                backgroundColor: OB_CAP_BTN_BG,
               }}
             >
               <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.error }} />
-              <Text style={{ fontSize: 13, fontWeight: '600', color: c.accent }}>
+              <Text style={{ fontSize: 13, fontWeight: '600', color: OB_CAP_BTN_GLYPH }}>
                 {formatTime(recordingTime)} / {formatTime(MAX_DURATION)}
               </Text>
             </View>
           )}
 
           {/* Placeholder per allineamento (stesso width del pulsante X) */}
-          <View style={{ width: 52 }} />
+          <View style={{ width: OB_CAP_BTN }} />
         </View>
 
         {/* Progress bar during recording */}
@@ -309,26 +310,27 @@ export default function VideoCaptureScreen() {
           }}
         >
           {/* Spacer per centrare il record con il flip a destra */}
-          <View style={{ width: 52 }} />
+          <View style={{ width: OB_CAP_BTN }} />
 
-          {/* Record/Stop — cerchio pieno senza anello: accent per avviare,
-              rosso per fermare. Stesso linguaggio dello shutter di photo.tsx. */}
+          {/* Record/Stop — azione primaria: cerchio grande nero. Lo stato lo
+              dice il glifo (videocamera → quadrato di stop, rosso mentre
+              registra), coerente con la pill e la barra di avanzamento. */}
           <Pressable
             onPress={handleRecordPress}
             hitSlop={6}
             android_ripple={{ color: 'rgba(255,255,255,0.25)', borderless: true }}
-            style={{ width: 78, height: 78, borderRadius: 39, alignItems: 'center', justifyContent: 'center', backgroundColor: isRecording ? c.error : c.accent }}
+            style={{ width: OB_CAP_BTN_LG, height: OB_CAP_BTN_LG, borderRadius: OB_CAP_BTN_LG / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG }}
           >
             {isRecording ? (
-              <IconSquare size={28} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
+              <IconSquare size={30} color={c.error} fill={c.error} strokeWidth={2} />
             ) : (
-              <IconVideo size={32} color={c.accentInk} strokeWidth={2} />
+              <IconVideo size={36} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             )}
           </Pressable>
 
           {/* Flip camera */}
           <CamBtn onPress={toggleFacing} disabled={isRecording}>
-            <IconRefresh size={24} color={c.accent} strokeWidth={2} />
+            <IconRefresh size={24} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
           </CamBtn>
         </View>
 

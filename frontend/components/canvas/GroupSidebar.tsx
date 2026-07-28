@@ -177,10 +177,12 @@ export function Segmented<T extends string | number>({ label, value, options, on
                 flex: 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 height: 30,
-                background: active ? theme.accent : theme.bg1,
-                border: `1px solid ${active ? theme.accent : theme.border}`,
+                // Stato attivo: viola scuro (accent-soft) + testo accent, come i
+                // tab della navbar — non il lavanda pieno.
+                background: active ? 'var(--ob-accent-soft)' : theme.bg1,
+                border: `1px solid ${active ? 'transparent' : theme.border}`,
                 borderRadius: 8,
-                color: active ? theme.onAccent : theme.ink2,
+                color: active ? 'var(--ob-accent)' : theme.ink2,
                 fontFamily: 'var(--ob-font-mono)', fontSize: 12, fontWeight: 600,
                 cursor: 'pointer',
               }}

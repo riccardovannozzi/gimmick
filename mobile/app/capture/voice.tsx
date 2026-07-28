@@ -3,12 +3,13 @@ import { View, Text, Pressable } from 'react-native';
 import { Audio } from 'expo-av';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { IconX, IconMicrophone, IconSquare, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react-native';
+import { IconX, IconWaveSine, IconSquare, IconPlayerPlay, IconPlayerPause } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
 import { useObsidian } from '@/lib/obsidian';
+import { OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_LG, OB_CAP_BTN_R } from '@/constants/obsidian';
 import { formatDuration } from '@/utils/formatters';
 import { createSparkForTile } from '@/lib/api';
 
@@ -185,17 +186,16 @@ export default function VoiceCaptureScreen() {
     router.back();
   };
 
-  // Pulsante tondo grande (record / playback) — stile Obsidian: cerchio pieno,
-  // nessuna cornice squadrata.
+  // Azione primaria (record / playback) — cerchio grande nero, glifo bianco.
   const RoundBtn = ({
-    onPress, bg, size = 96, children, label,
-  }: { onPress: () => void; bg: string; size?: number; children: React.ReactNode; label: string }) => (
+    onPress, size = OB_CAP_BTN_LG, children, label,
+  }: { onPress: () => void; size?: number; children: React.ReactNode; label: string }) => (
     <Pressable
       onPress={onPress}
       accessibilityLabel={label}
       hitSlop={6}
       android_ripple={{ color: 'rgba(255,255,255,0.2)', borderless: true }}
-      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }}
+      style={{ width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG }}
     >
       {children}
     </Pressable>
@@ -230,9 +230,9 @@ export default function VoiceCaptureScreen() {
         <Pressable
           onPress={handleClose}
           android_ripple={{ color: c.line }}
-          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: c.accentSoft }}
+          style={{ alignSelf: 'stretch', alignItems: 'center', justifyContent: 'center', minHeight: 50, borderRadius: 13, backgroundColor: OB_CAP_BTN_BG }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accent }}>Indietro</Text>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: OB_CAP_BTN_GLYPH }}>Indietro</Text>
         </Pressable>
       </View>
     );
@@ -258,9 +258,9 @@ export default function VoiceCaptureScreen() {
           accessibilityLabel="Chiudi"
           hitSlop={6}
           android_ripple={{ color: c.line, borderless: true }}
-          style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: c.accentSoft }}
+          style={{ width: 44, height: 44, borderRadius: OB_CAP_BTN_R, alignItems: 'center', justifyContent: 'center', backgroundColor: OB_CAP_BTN_BG }}
         >
-          <IconX size={19} color={c.accent} strokeWidth={1.9} />
+          <IconX size={20} color={OB_CAP_BTN_GLYPH} strokeWidth={1.9} />
         </Pressable>
         <Text style={{ flex: 1, fontSize: 16, fontWeight: '700', color: c.text }}>Nota vocale</Text>
       </View>
@@ -282,7 +282,7 @@ export default function VoiceCaptureScreen() {
               paddingHorizontal: 12,
               height: 32,
               borderRadius: 16,
-              backgroundColor: c.accentSoft,
+              backgroundColor: OB_CAP_BTN_BG,
             }}
           >
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: c.error }} />
@@ -294,13 +294,12 @@ export default function VoiceCaptureScreen() {
         {!recordedUri && (
           <RoundBtn
             onPress={isRecording ? stopRecording : startRecording}
-            bg={isRecording ? c.error : c.accent}
             label={isRecording ? 'Ferma registrazione' : 'Avvia registrazione'}
           >
             {isRecording ? (
-              <IconSquare size={36} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
+              <IconSquare size={34} color={c.error} fill={c.error} strokeWidth={2} />
             ) : (
-              <IconMicrophone size={42} color={c.accentInk} strokeWidth={2} />
+              <IconWaveSine size={42} color={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             )}
           </RoundBtn>
         )}
@@ -309,16 +308,15 @@ export default function VoiceCaptureScreen() {
         {recordedUri && !isRecording && (
           <RoundBtn
             onPress={isPlaying ? stopPlayback : playRecording}
-            bg={isPlaying ? c.error : c.accent}
             label={isPlaying ? 'Ferma riproduzione' : 'Riproduci'}
           >
             {isPlaying ? (
-              <IconPlayerPause size={38} color="#FFFFFF" fill="#FFFFFF" strokeWidth={2} />
+              <IconPlayerPause size={36} color={OB_CAP_BTN_GLYPH} fill={OB_CAP_BTN_GLYPH} strokeWidth={2} />
             ) : (
               <IconPlayerPlay
-                size={38}
-                color={c.accentInk}
-                fill={c.accentInk}
+                size={36}
+                color={OB_CAP_BTN_GLYPH}
+                fill={OB_CAP_BTN_GLYPH}
                 strokeWidth={2}
                 style={{ marginLeft: 4 }}
               />

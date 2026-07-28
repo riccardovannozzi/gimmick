@@ -663,13 +663,20 @@ export const canvasApi = {
   },
 
   async getEdges(tagId: string) {
-    return apiRequest<{ id: string; source_id: string; target_id: string; source_port?: string; target_port?: string }[]>(`/api/canvas/edges/${tagId}`);
+    return apiRequest<{ id: string; source_id: string; target_id: string; source_port?: string; target_port?: string; color?: string | null; line_style?: string | null; line_width?: number | null; label?: string | null }[]>(`/api/canvas/edges/${tagId}`);
   },
 
   async addEdge(tagId: string, source_id: string, target_id: string, source_port?: string, target_port?: string) {
     return apiRequest(`/api/canvas/edges/${tagId}`, {
       method: 'POST',
       body: JSON.stringify({ source_id, target_id, source_port, target_port }),
+    });
+  },
+
+  async updateEdge(id: string, updates: { color?: string | null; line_style?: string | null; line_width?: number | null; label?: string | null }) {
+    return apiRequest(`/api/canvas/edges/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(updates),
     });
   },
 
