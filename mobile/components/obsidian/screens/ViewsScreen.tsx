@@ -168,26 +168,45 @@ function ToggleChip({ c, label, on, color, onPress }: { c: ObsidianColors; label
   );
 }
 
+// Hairline neutra del perimetro, un filo sopra `line2`: la shell mobile è nero
+// pieno e non `canvas` come la pagina del canvas web, quindi il bordo riceve
+// meno aiuto dal contesto attorno.
+const TILE_BORDER_DARK = 'rgba(255,255,255,0.22)';
+
 function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
   const action = actionKey(t);
   const isDeadline = action === 'deadline';
   // Bordo: rosso (tratteggiato) per le scadenze, altrimenti la tinta del tipo;
-  // grigio se il tile non ha un tipo assegnato. Come sul canvas.
-  const borderColor = isDeadline ? DEADLINE_BORDER : (t.typeColor ? t.typeColor + '3A' : c.line);
+  // hairline neutra se il tile non ha un tipo assegnato.
+  const neutralBorder = c.dark ? TILE_BORDER_DARK : c.line2;
+  const borderColor = isDeadline ? DEADLINE_BORDER : (t.typeColor ? t.typeColor + '3A' : neutralBorder);
+  // Fondo della card: il token standard della scala Obsidian — `surface`,
+  // #1e1e1e in scuro e #ffffff in chiaro. Come la tile del canvas web.
+  const cardBg = c.surface;
   const glyph = statusGlyph(t.statusName);
   const stCol = (t.statusName ? STATUS_HEX[t.statusName] : undefined) ?? STATUS_HEX_FALLBACK;
   const ActionIcon = ACTION_ICON[action];
   const actionColor = actionColors[action] ?? DEFAULT_ACTION_COLORS[action];
   const TypeIcon = resolveGlyph(t.typeIcon);
+  // Lo stile della card è un OGGETTO, non una funzione. Con la forma funzione
+  // `style={({ pressed }) => (...)}` restava senza fondo e senza bordo: si
+  // vedeva la pagina attraverso, e l'unica cosa visibile era il velo del tipo
+  // (un View sovrapposto, con stile a oggetto). Il feedback di pressione passa
+  // da `android_ripple`, come già fanno ToolBtn e ToggleChip qui sopra.
   return (
     <Pressable
       onPress={onPress ? () => onPress(t.id) : undefined}
       disabled={!onPress}
-      style={({ pressed }) => ({
-        borderRadius: 13, overflow: 'hidden', backgroundColor: c.surface,
-        borderWidth: 1, borderColor, borderStyle: isDeadline ? 'dashed' : 'solid',
-        opacity: pressed ? 0.7 : 1,
-      })}
+      android_ripple={{ color: c.accent + '22' }}
+      style={{
+        borderRadius: 13, overflow: 'hidden', backgroundColor: cardBg,
+        borderWidth: 1, borderColor,
+        // `borderStyle` SOLO per le scadenze. Impostarlo anche quando vale
+        // 'solid' (il default) è superfluo e su Android, insieme a
+        // `borderRadius`, manda il fondo su un percorso di disegno diverso in
+        // cui può sparire.
+        ...(isDeadline ? { borderStyle: 'dashed' as const } : null),
+      }}
     >
       {/* Velatura del colore del tipo sopra la surface (canvas: colore + '24'). */}
       {t.typeColor ? (
@@ -197,8 +216,15 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
       <View style={{ flexDirection: 'row' }}>
         {/* Colonna STATUS a sinistra — sempre presente: dà al tile la sua
             "striscia" riconoscibile. Con status 'active' (o assente) resta la
-            sola traccia scura, senza glifo, esattamente come sul canvas. */}
-        <View style={{ width: 22, backgroundColor: c.dark ? '#000000' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
+            sola traccia, senza glifo.
+            NON è il colore della pagina. Sul canvas web la traccia è `bg1`, cioè
+            proprio la pagina, e lì funziona perché pagina (#161616) e card
+            (#1e1e1e) distano un passo: si legge come una scanalatura. Sul mobile
+            la pagina è nero pieno, quindi lo stesso valore ritaglia una feritoia
+            nel fianco sinistro e la card perde il perimetro dove dovrebbe
+            chiudersi. Qui è una velatura CHIARA sopra il corpo della card: resta
+            una corsia distinta e la card resta un blocco unico. */}
+        <View style={{ width: 22, backgroundColor: c.dark ? 'rgba(255,255,255,0.05)' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
           {glyph.kind === 'dot' ? (
             <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: stCol }} />
           ) : glyph.kind === 'icon' ? (

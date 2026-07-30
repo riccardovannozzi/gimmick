@@ -424,7 +424,8 @@ export function StagingPanel({
         <button
           onClick={onToggle}
           style={{
-            height: 40,
+            // Stessa fascia della toolbar canvas e della tabbar destra (48).
+            height: 48,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -463,7 +464,8 @@ export function StagingPanel({
     >
       <div
         style={{
-          height: 40,
+          // Fascia sotto la navbar: 48 (vedi CanvasTopbar / TileSidebar).
+          height: 48,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -479,8 +481,8 @@ export function StagingPanel({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
@@ -511,7 +513,8 @@ export function StagingPanel({
       {tiles.length > 0 && (
         <div
           style={{
-            height: 32,
+            // Sotto-barra annidata nel pannello: livello 3 della scala → 40.
+            height: 40,
             padding: '0 8px',
             display: 'flex',
             alignItems: 'center',

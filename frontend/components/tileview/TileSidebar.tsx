@@ -1419,8 +1419,9 @@ export function TileSidebar({
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 28,
-                height: 28,
+                // 30 come tutti i controlli di barra (tab, toolbar, segmented).
+                width: 30,
+                height: 30,
                 borderRadius: 8,
                 background: 'transparent',
                 color: theme.ink2,

@@ -37,7 +37,9 @@
 .ob-chrono__header-meta-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ob-error); }
 
 /* ── Toolbar ── */
-.ob-chrono__toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
+/* Prima barra della vista, nella fascia sotto la navbar: 48, come toolbar del
+   canvas, header della sidebar e tabbar dell'inspector (56 · 48 · 40). */
+.ob-chrono__toolbar { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
 .ob-chrono__toolbar-meta { font-size: 11px; color: var(--ob-subtle); }
 
 /* Pulsante "+Tile": neutro a riposo, violaceo in hover e quando armato (modalità posizionamento). */
@@ -46,10 +48,12 @@
   align-items: center;
   gap: 6px;
   font-family: var(--ob-font-sans);
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
   line-height: 1;
-  padding: 6px 12px;
+  /* Controllo di barra: 30, come toolbar canvas / tab inspector / segmented. */
+  height: 30px;
+  padding: 0 12px;
   border-radius: var(--ob-radius-control, 8px);
   border: none;
   background: var(--ob-surface);
@@ -164,12 +168,14 @@
 
 /* ── PANNELLO CALENDAR ── */
 .ob-chrono__cal { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--ob-canvas); overflow: hidden; }
-.ob-chrono__cal-head { height: 44px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
+/* Barra annidata nel pannello calendario: livello 3 della scala → 40. */
+.ob-chrono__cal-head { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
 .ob-chrono__cal-icon { color: var(--ob-muted); display: inline-flex; }
 .ob-chrono__cal-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__cal-range { font-size: 12px; color: var(--ob-muted); }
+/* Ingombro esterno 30 come gli altri controlli: 26 di item + 2+2 di padding. */
 .ob-chrono__cal-seg { display: flex; gap: 2px; background: var(--ob-surface-2); border: none; border-radius: 8px; padding: 2px; }
-.ob-chrono__cal-seg-item { padding: 5px 12px; border-radius: 6px; font-size: 11px; font-weight: 600; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
+.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__cal-seg-item--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
 .ob-chrono__cal-nav { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__cal-today { padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--ob-text); border: none; background: transparent; cursor: pointer; }

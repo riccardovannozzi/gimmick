@@ -60,21 +60,19 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   const theme = usePixelTheme();
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
-  const chipFontSize = 11.5;
-  const chipRadius = 8;
+  const chipFontSize = 12.5;
+  const chipRadius = 10;
   const chipTransform: 'none' | 'uppercase' = 'none';
   const chipWeight = 600;
-  // Forma "linguetta": angoli superiori arrotondati, base piatta, allineata in
-  // basso alla barra così poggia sulla linea inferiore (tab-strip). Niente
-  // overlap verticale: eviterebbe lo scroll ma con overflow-x:auto il browser
-  // mostrerebbe una scrollbar verticale (overflow-y diventa auto).
+  // I tab dei canvas sono controlli di barra come tutti gli altri: 30 di
+  // ingombro, centrati verticalmente, raggio 10 — identici a `obsidianToolbarBtn`
+  // (Group/Tile/Text/Image/Fit) e ai tab della navbar. La vecchia "linguetta"
+  // (36, ancorata in basso) era l'unico elemento della fascia con un'altezza e
+  // un allineamento propri: leggeva come disallineata rispetto al resto.
   const tabShape = {
-    height: 32,
-    alignSelf: 'flex-end' as const,
-    borderTopLeftRadius: chipRadius,
-    borderTopRightRadius: chipRadius,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
+    height: 30,
+    alignSelf: 'center' as const,
+    borderRadius: chipRadius,
   };
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -107,7 +105,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     <div
       className="shrink-0"
       style={{
-        height: 40,
+        // Fascia sotto la navbar: 48, come header staging e tabbar destra.
+        // Scala verticale dello shell: 56 navbar · 48 fascia · 40 sotto-barre.
+        height: 48,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -118,7 +118,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     >
       <div
         className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'flex-end', gap: 3, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
+        style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
       >
         {tag && (
           <>
