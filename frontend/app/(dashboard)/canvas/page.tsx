@@ -11,7 +11,7 @@ import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
-import { StagingPanel } from '@/components/canvas/StagingPanel';
+import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
@@ -200,7 +200,9 @@ export default function CanvasPage() {
   // Resizable splitter between StagingPanel and the canvas column. The width
   // is persisted to localStorage so it survives reloads; default mirrors the
   // previous `w-44` (176px) value.
-  const STAGING_MIN_W = 146;
+  // STAGING_MIN_W arriva da StagingPanel: è la larghezza di una colonna di tile
+  // (stessa regola delle colonne NOTES/TODO di CHRONO), così il minimo resta
+  // agganciato alla dimensione reale del tile invece di essere un numero fisso.
   const STAGING_MAX_W = 700;
   const [stagingWidth, setStagingWidth] = useState<number>(176);
   const [stagingOpen, setStagingOpen] = useState<boolean>(true);
@@ -1038,6 +1040,8 @@ export default function CanvasPage() {
             }}
           >
             <CanvasBoard
+              // Vista (pan + zoom) persistita per canvas: riapre dove l'hai lasciata.
+              viewKey={tagId}
               tiles={tiles}
               layout={layout}
               edges={edges}

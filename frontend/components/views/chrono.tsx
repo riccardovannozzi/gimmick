@@ -73,13 +73,17 @@ const ACTION_ICON: Partial<Record<ActionType, React.ComponentType<{ size?: numbe
 };
 
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
-  const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
+  // Colore della tile: quello della modalità di colorazione attiva (`bg`) o,
+  // nei mock, l'ambra delle deadline. Se non è impostato NIENTE la tile non ha
+  // velatura: resta il fondo unico `--ob-tile-bg` (variante `--plain`), non un
+  // viola d'accento di ripiego.
+  const cardC = t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined);
   const canDrag = !!schedulable && !!t.id;
   const ActIcon = t.action ? ACTION_ICON[t.action] : undefined;
   return (
     <div
-      className={cn('ob-chrono__card', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
-      style={{ ['--card-c' as string]: t.bg ?? cardC }}
+      className={cn('ob-chrono__card', !cardC && 'ob-chrono__card--plain', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
+      style={{ ['--card-c' as string]: cardC ?? 'var(--ob-tile-bg)' }}
       onClick={onClick}
       onContextMenu={onContextMenu}
       role={onClick ? 'button' : undefined}
@@ -232,7 +236,7 @@ function Column({
         />
       )}
       <div
-        className="ob-chrono__colbody ob-scroll"
+        className="ob-chrono__colbody ob-scroll-quiet"
         onDoubleClick={canCreate ? (e) => {
           // Solo doppio click su area vuota (non su una card) → crea.
           if ((e.target as HTMLElement).closest('.ob-chrono__card')) return;

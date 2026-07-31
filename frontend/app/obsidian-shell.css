@@ -159,9 +159,9 @@
 /* In dark il track del segmented ha lo stesso fondo della sidebar (--ob-surface-2),
    quindi non si vede: l'unica cosa percepita è la pill del tab attivo. Per questo
    è la PILL a dover essere alta 30 come ogni altro controllo di barra — track a
-   filo (padding 0, niente bordo, stesso raggio), non 26 dentro una scatola da 30. */
-.ob-sb__seg .ob-seg { display: flex; width: 100%; gap: 0; padding: 0; border: none; border-radius: var(--ob-radius-md, 8px); }
-.ob-sb__seg .ob-seg-item { flex: 1; min-width: 0; height: 30px; padding: 0 5px; border-radius: var(--ob-radius-md, 8px); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+   filo (padding 0, niente bordo, stesso raggio), non 26 dentro una scatola da 30.
+   Le dichiarazioni stanno più in basso, condivise con la tabbar dell'inspector
+   (cerca "Inspector: tab bar Edit / List / Flow"). */
 /* Ricerca tag: input con icona a sinistra e clear a destra. */
 .ob-sb__search { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
 .ob-sb__search-icon { position: absolute; left: 9px; color: var(--ob-subtle); pointer-events: none; }
@@ -216,13 +216,55 @@
 .ob-sb-child__act--on:hover { color: var(--ob-accent); }
 
 /* ── Inspector: tab bar Edit / List / Flow ──
-   Il contenitore disegna la cornice; ogni tab prende il contorno su hover
-   (oltre che da attivo), così l'interazione è coerente. */
-/* Ingombro esterno 30: 24 di tab + 3+3 di padding del contenitore. */
-.ob-insp-tabs { flex: 1; display: flex; gap: 3px; padding: 3px; background: var(--ob-surface-2); border-radius: 10px; }
-.ob-insp-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; height: 24px; border-radius: 7px; background: transparent; color: var(--ob-muted); border: 1px solid transparent; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out; }
-.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: var(--ob-surface); border-color: var(--ob-line); color: var(--ob-text); }
-.ob-insp-tab--active { background: var(--ob-surface); color: var(--ob-accent); border-color: var(--ob-line); box-shadow: var(--ob-shadow-card); }
+   Stesso identico stile del segmentato della SIDEBAR SINISTRA
+   (Storage/Tags/Pinned): le due tabbar sono affiancate nella stessa fascia da
+   48, quindi condividono le dichiarazioni invece di duplicarle — così non
+   possono divergere di nuovo. Track a filo (niente padding né bordo: l'ingombro
+   esterno è già 30), item da 30, attivo su accent-soft. Unica differenza
+   ammessa: qui gli item hanno un'icona, quindi `gap`. */
+.ob-insp-tabs { flex: 1; }
+.ob-sb__seg .ob-seg,
+.ob-insp-tabs {
+  display: flex;
+  width: 100%;
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--ob-radius-md, 8px);
+  /* Nessun track: l'unica cosa che si vede è la pill del tab attivo. A sinistra
+     era già così di fatto (il track aveva lo stesso fondo della sidebar); qui,
+     dove la barra ha un fondo diverso, il track andava tolto esplicitamente. */
+  background: transparent;
+}
+.ob-sb__seg .ob-seg-item,
+.ob-insp-tab {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 5px;
+  border: none;
+  border-radius: var(--ob-radius-md, 8px);
+  background: transparent;
+  color: var(--ob-muted);
+  font-family: var(--ob-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-insp-tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+/* Hover condiviso: nessuno sfondo, cambia solo il testo che schiarisce. */
+.ob-sb__seg .ob-seg-item:hover:not(.ob-seg-item--active),
+.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: transparent; color: var(--ob-text); }
+/* Stato attivo condiviso. Deve stare QUI e con questa specificità: la regola
+   base qui sopra dichiara `background: transparent` con (0,2,0) e batterebbe
+   `.ob-seg-item--active` (0,1,0) delle primitive, lasciando il tab selezionato
+   senza evidenziazione. */
+.ob-sb__seg .ob-seg-item--active,
+.ob-insp-tab--active { background: var(--ob-accent-soft); color: var(--ob-accent); box-shadow: none; }
 
 /* ── ViewContainer ── */
 .ob-view { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--ob-canvas); overflow: hidden; }

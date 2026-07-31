@@ -70,7 +70,11 @@
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
 /* ── COLONNA NOTES / TODO ── */
-.ob-chrono__col { width: 170px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
+/* 176 = 150 di tile + 9+9 di padding del corpo + 6 di gutter della scrollbar
+   (`.ob-scroll-quiet`, sempre riservato) + 1 di bordo. Prima erano 170: quando
+   la colonna iniziava a scrollare la barra rubava spazio e il tile veniva
+   tagliato. Stessa contabilità di STAGING (173) e delle lane del KANBAN (178). */
+.ob-chrono__col { width: 176px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
 /* Drop di un tile dalla griglia/altra colonna su Notes/Todo. */
 .ob-chrono__col--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ob-accent) 40%, transparent); }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
@@ -98,7 +102,13 @@
    (surface) + velatura del colore (14%), bordo tinto (22%), raggio 8px. */
 /* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80). flex-shrink 0:
    nella colonna il tile non si comprime. */
-.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: 5px; padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-surface)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: 5px; padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+/* Tile SENZA colorazione: nessuna velatura, solo il fondo unico dei tile e un
+   bordo neutro (come canvas/staging quando manca il colore del tipo). Gli
+   elementi che si tingono di `--card-c` passano al neutro: col fondo tile come
+   colore diventerebbero invisibili sul fondo tile stesso. */
+.ob-chrono__card--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
+.ob-chrono__card--plain .ob-chrono__card-tag { color: var(--ob-muted); }
 /* Striscia status verticale a sinistra, 16px come il canvas (STRIP_W). SEMPRE
    presente (anche vuota); scurita così stacca dal corpo del tile come sul canvas
    (dove è riempita col bg più scuro). */

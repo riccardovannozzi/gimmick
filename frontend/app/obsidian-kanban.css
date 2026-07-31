@@ -122,9 +122,17 @@
   border-radius: 5px; padding: 0;
   display: flex; flex-direction: row;
   position: relative; overflow: hidden;
-  background: color-mix(in srgb, var(--card-c) 14%, var(--ob-surface));
+  background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg));
   border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent);
 }
+/* Tile SENZA colorazione: nessuna velatura, solo il fondo unico dei tile e un
+   bordo neutro (come canvas/staging quando manca il colore del tipo). Gli
+   elementi che si tingono di `--card-c` passano al neutro: col fondo tile come
+   colore diventerebbero invisibili sul fondo tile stesso. */
+.ob-kanban__card--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
+.ob-kanban__card--plain .ob-kanban__checklist-count,
+.ob-kanban__card--plain .ob-kanban__card-tag-icon,
+.ob-kanban__card--plain .ob-kanban__card-tag-label { color: var(--ob-muted); }
 /* Strip STATUS (presente solo se la tile ha uno status — vedi TileCard): fondo
    scurito + hairline come CHRONO/CANVAS. */
 .ob-kanban__card-strip { width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.18); border-right: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }

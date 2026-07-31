@@ -1425,7 +1425,7 @@ export function TileSidebar({
                 borderRadius: 8,
                 background: 'transparent',
                 color: theme.ink2,
-                border: `1px solid ${theme.border}`,
+                border: 'none',
                 cursor: 'pointer',
                 flexShrink: 0,
               }}

@@ -13,6 +13,29 @@ import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { TextEditor } from './TextEditor';
 
+/** Vista (pan + zoom) persistita per canvas: `canvas_view_<tagId>`. */
+const VIEW_LS_PREFIX = 'canvas_view_';
+function loadView(key: string | undefined): d3.ZoomTransform | null {
+  if (!key) return null;
+  try {
+    const raw = localStorage.getItem(VIEW_LS_PREFIX + key);
+    if (!raw) return null;
+    const v = JSON.parse(raw) as { k?: unknown; x?: unknown; y?: unknown };
+    const { k, x, y } = v;
+    if (typeof k !== 'number' || typeof x !== 'number' || typeof y !== 'number') return null;
+    if (!Number.isFinite(k) || !Number.isFinite(x) || !Number.isFinite(y) || k <= 0) return null;
+    return d3.zoomIdentity.translate(x, y).scale(k);
+  } catch {
+    return null;
+  }
+}
+function saveView(key: string | undefined, t: d3.ZoomTransform) {
+  if (!key) return;
+  try {
+    localStorage.setItem(VIEW_LS_PREFIX + key, JSON.stringify({ k: t.k, x: t.x, y: t.y }));
+  } catch { /* quota/privacy mode: la vista semplicemente non si ricorda */ }
+}
+
 const TILE_W = 150;
 const TILE_H = 80;
 const TILE_GAP = 8;
@@ -159,6 +182,11 @@ interface CanvasBoardProps {
   /** Drag ended — always fires (regardless of drop target). Used to reset
    *  any drag-state UI the parent maintains (e.g. staging highlight). */
   onTileDragEnd?: () => void;
+  /** Identifica QUESTO canvas (in pratica l'id del tag) ai fini della vista
+   *  persistita: pan e zoom vengono salvati e ripristinati per chiave, così
+   *  ogni canvas riapre esattamente dove lo si era lasciato. Senza chiave la
+   *  persistenza è disattivata e la vista parte dall'origine. */
+  viewKey?: string;
 }
 
 export const CanvasBoard = React.memo(function CanvasBoard({
@@ -176,6 +204,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   screenToLocalRef,
   isOverStaging, onTilesRemovedFromCanvas,
   onTileDragMove, onTileDragEnd,
+  viewKey,
 }: CanvasBoardProps) {
   const theme = usePixelTheme();
   // Colore delle SELEZIONI: viola scuro (accent-soft) invece del lavanda acceso.
@@ -197,6 +226,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const overlayInnerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  // Chiave del canvas attualmente montato. Il grande effect di disegno gira a
+  // ogni render: solo quando questa cambia (primo montaggio o passaggio a un
+  // altro tag) la vista va ricaricata da localStorage invece di riusare quella
+  // in memoria. `false` = nessun canvas ancora agganciato.
+  const viewKeyRef = useRef<string | undefined | false>(false);
+  const viewKeyPropRef = useRef<string | undefined>(viewKey); viewKeyPropRef.current = viewKey;
   const nodesRef = useRef<CanvasNode[]>([]);
   const groupsRef = useRef(groups); groupsRef.current = groups;
   const actionColors = useActionColors();
@@ -442,6 +477,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const d3svg = d3.select(svg);
     d3svg.selectAll('*').remove();
 
+    // Bordo standard dei tile (token `--ob-tile-border`). Serve risolto in un
+    // colore concreto e non come `var(...)`: lo stroke del tile viene
+    // riassegnato via `attr` (evidenziazione drop-target, reset dopo il drag) e
+    // uno `style` inline vincerebbe su quelle riassegnazioni, bloccando gli
+    // stati. Il fill invece resta su `style` perché nessuno lo riassegna.
+    const tileBorder =
+      getComputedStyle(document.documentElement).getPropertyValue('--ob-tile-border').trim()
+      || theme.border;
+
     // Forward-declared so the zoom handler (registered before the function body
     // is reachable) can safely call it without hitting a TDZ on transform restore.
     let computeSelectionScreenBbox: () => { x: number; y: number; w: number; h: number } | null = () => null;
@@ -467,13 +511,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (ev.sourceEvent && selectedIdsRef.current.length > 0) {
           onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
         }
+      })
+      // Fine di ogni pan/zoom → la vista viene persistita. Sull'`end` e non sullo
+      // `zoom` per non scrivere su localStorage a ogni frame della rotella. Vale
+      // anche per Fit e 100%, che sono a tutti gli effetti l'ultima vista scelta.
+      .on('end', () => {
+        saveView(viewKeyPropRef.current, zoomTransformRef.current);
       });
     d3svg.call(zoom);
     zoomRef.current = zoom;
 
     const board = d3.select(svg).append('g');
 
-    // Restore saved zoom transform
+    // Ripristino della vista. Questo effect rigira a ogni cambio di dati: in quel
+    // caso la vista giusta è quella già in memoria. Solo al primo montaggio o
+    // quando si passa a un altro canvas si rilegge quella persistita.
+    if (viewKeyRef.current !== viewKey) {
+      viewKeyRef.current = viewKey;
+      zoomTransformRef.current = loadView(viewKey) ?? d3.zoomIdentity;
+    }
     if (zoomTransformRef.current !== d3.zoomIdentity) {
       d3svg.call(zoom.transform as any, zoomTransformRef.current);
     }
@@ -626,7 +682,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       nodeGrps.each(function (d) {
         const isDeadline = (d as CanvasNode).actionType === 'deadline';
         d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#E24B4A' : theme.border)
+          .attr('stroke', isDeadline ? '#E24B4A' : tileBorder)
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
@@ -655,7 +711,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       nodeGrps.each(function (d) {
         const isDeadline = (d as CanvasNode).actionType === 'deadline';
         d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#E24B4A' : theme.border)
+          .attr('stroke', isDeadline ? '#E24B4A' : tileBorder)
           .attr('stroke-width', 2)
           .attr('stroke-dasharray', isDeadline ? '4,3' : null);
       });
@@ -992,8 +1048,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // tipo molto attenuata, così i badge e il testo restano leggibili. Lo status
     // NON è più un pattern a tutta tile: è uno swatch nel footer (vedi TileMeta).
     nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
-      .attr('fill', theme.surface)
-      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : (d.typeColor ? d.typeColor + '3A' : theme.border))
+      // Fondo unico dei tile: via `style` e non `attr` perché var() non è
+      // supportata negli attributi di presentazione SVG.
+      .style('fill', 'var(--ob-tile-bg)')
+      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : (d.typeColor ? d.typeColor + '3A' : tileBorder))
       .attr('stroke-width', SW)
       .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
       .style('cursor', moveRef.current ? 'grab' : 'default');
@@ -1806,7 +1864,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     tbG.raise();
     tempLine.raise();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows, theme]);
+  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows, theme, viewKey]);
 
   useEffect(() => { render(); }, [render]);
 

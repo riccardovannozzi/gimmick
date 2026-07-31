@@ -29,6 +29,16 @@
 
 .ob-canvas__body { flex: 1; display: flex; min-height: 0; }
 
+/* ── Scrollbar del pannello STAGING ──
+   Il corpo dello Staging provava a nascondere la scrollbar con le utility
+   Tailwind, ma quelle stanno in `@layer utilities` e perdono contro le regole
+   non-layered `[data-ob='on'] ::-webkit-scrollbar`: risultato, una barra da
+   10px sempre visibile che rubava larghezza alla colonna di tile.
+   Ora usa `.ob-scroll-quiet` (app/obsidian.css), condivisa con le colonne
+   NOTES/TODO di CHRONO: invisibile a riposo, segno da 60px all'hover, 6px di
+   gutter sempre riservato. Quei 6px sono in `STAGING_SCROLLBAR_W`
+   (StagingPanel.tsx) e fanno parte della larghezza minima del pannello. */
+
 /* ── Staging panel ── */
 .ob-canvas__stage {
   width: 228px; flex-shrink: 0;
@@ -55,7 +65,7 @@
 .ob-canvas__card {
   border-radius: 9px;
   padding: 11px 12px;
-  background: color-mix(in srgb, var(--card-c) 14%, transparent);
+  background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg));
   border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent);
 }
 [data-theme='light'] .ob-canvas__card { box-shadow: 0 1px 2px rgba(24, 20, 38, 0.04); }
