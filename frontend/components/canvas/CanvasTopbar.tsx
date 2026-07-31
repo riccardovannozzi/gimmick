@@ -64,15 +64,29 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   const chipRadius = 10;
   const chipTransform: 'none' | 'uppercase' = 'none';
   const chipWeight = 600;
-  // I tab dei canvas sono controlli di barra come tutti gli altri: 30 di
-  // ingombro, centrati verticalmente, raggio 10 — identici a `obsidianToolbarBtn`
-  // (Group/Tile/Text/Image/Fit) e ai tab della navbar. La vecchia "linguetta"
-  // (36, ancorata in basso) era l'unico elemento della fascia con un'altezza e
-  // un allineamento propri: leggeva come disallineata rispetto al resto.
+  // Forma "linguetta": angoli superiori arrotondati, base piatta appoggiata sulla
+  // linea inferiore della barra (tab-strip). Più alta dei 30 degli altri controlli,
+  // altrimenti non si legge come tab.
+  //
+  // Il testo però deve stare sulla STESSA riga ottica degli altri controlli della
+  // fascia (segmentato di sinistra, toolbar, tabbar di destra), quindi non è
+  // centrato nella linguetta: il padding inferiore spinge la scatola del contenuto
+  // verso l'alto. I conti, in una barra da 48 con hairline da 1 (→ 47 utili):
+  //   · un controllo da 30 centrato occupa 8.5–38.5, quindi il suo testo è a 23.5;
+  //   · la linguetta è ancorata in basso, dunque va da 47-38=9 a 47; la scatola del
+  //     contenuto è 38-8=30 e parte da 9, quindi il suo testo cade a 9+15=24.
+  // Mezzo pixel di scarto, invisibile. Cambiando TAB_H va ricalcolato TAB_PAD_B
+  // come TAB_H - 30.
+  const TAB_H = 38;
+  const TAB_PAD_B = TAB_H - 30;
   const tabShape = {
-    height: 30,
-    alignSelf: 'center' as const,
-    borderRadius: chipRadius,
+    height: TAB_H,
+    alignSelf: 'flex-end' as const,
+    paddingBottom: TAB_PAD_B,
+    borderTopLeftRadius: chipRadius,
+    borderTopRightRadius: chipRadius,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
   };
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
@@ -118,7 +132,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     >
       <div
         className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: 4, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
       >
         {tag && (
           <>
@@ -228,7 +242,10 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               style={{
                 position: 'absolute',
                 right: 2,
-                top: '50%',
+                // Centrata sulla scatola del CONTENUTO (che esclude il padding
+                // inferiore della linguetta), non sull'intera linguetta: così
+                // resta sulla riga del testo.
+                top: (TAB_H - TAB_PAD_B) / 2,
                 transform: 'translateY(-50%)',
                 width: 16,
                 height: 16,

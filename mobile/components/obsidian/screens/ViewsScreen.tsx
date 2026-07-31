@@ -6,14 +6,14 @@
  * flow / event colors come from the canonical scale.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, TextInput, Image } from 'react-native';
 import {
   IconBolt, IconTag, IconCategory, IconCircleCheck, IconChevronDown, IconTrash,
   IconHourglass, IconArrowBackUp, IconCheck, IconX, IconUser,
   IconChevronLeft, IconChevronRight, IconClock, IconAlertCircle,
   IconDeviceMobileVibration, IconBell, IconWorld, IconSparkles,
   IconArrowUp, IconCalendar, IconPlayerPause, IconLock,
-  IconFilter, IconArrowsSort, IconSearch,
+  IconFilter, IconArrowsSort, IconSearch, IconPaperclip,
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
@@ -248,6 +248,25 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
           >
             {t.title}
           </Text>
+
+          {/* Anteprima del contenuto. Stessa resa dello spark della homepage
+              (CaptureScreen.SparkRow): tutta larghezza, alta 72, ritagliata in
+              cover. Compare solo a URL firmato risolto — finché arriva non si
+              lascia un vuoto, la card resta quella senza anteprima. */}
+          {t.previewUri ? (
+            <Image
+              source={{ uri: t.previewUri }}
+              style={{ width: '100%', height: 72, borderRadius: 8, marginTop: 10 }}
+              resizeMode="cover"
+            />
+          ) : t.previewFile ? (
+            /* Allegato senza miniatura (PDF, DOCX…): icona + nome, come fa la
+               homepage quando il mime non è image/*. */
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10, paddingHorizontal: 9, paddingVertical: 7, borderRadius: 8, backgroundColor: c.cap.file + (c.dark ? '1f' : '14') }}>
+              <IconPaperclip size={14} color={c.cap.file} strokeWidth={1.9} />
+              <Text numberOfLines={1} style={{ flex: 1, fontSize: 12.5, color: c.muted }}>{t.previewFile.name}</Text>
+            </View>
+          ) : null}
 
           {/* Footer — badge azione · data/ora · badge tipo. Assente se il tile
               non ha nessuno dei tre (nota senza tipo). */}

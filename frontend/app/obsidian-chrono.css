@@ -40,7 +40,6 @@
 /* Prima barra della vista, nella fascia sotto la navbar: 48, come toolbar del
    canvas, header della sidebar e tabbar dell'inspector (56 · 48 · 40). */
 .ob-chrono__toolbar { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
-.ob-chrono__toolbar-meta { font-size: 11px; color: var(--ob-subtle); }
 
 /* Pulsante "+Tile": neutro a riposo, violaceo in hover e quando armato (modalità posizionamento). */
 .ob-chrono__add-tile {

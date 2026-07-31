@@ -780,6 +780,14 @@ export function ChronoView({
     <div className="ob-chrono">
       {/* Toolbar */}
       <div className="ob-chrono__toolbar">
+        {colorMode && onSetColorMode && (
+          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag, per Tipo o per Status">
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'tag' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('tag')}>By Tag</button>
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'type' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('type')}>By Type</button>
+            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'status' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('status')}>By Status</button>
+          </div>
+        )}
+        <div style={{ flex: 1 }} />
         <button
           type="button"
           className={cn('ob-chrono__add-tile', addArmed && 'ob-chrono__add-tile--armed')}
@@ -789,15 +797,6 @@ export function ChronoView({
         >
           <Icon name="plus" size={13} />Tile
         </button>
-        {colorMode && onSetColorMode && (
-          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag, per Tipo o per Status">
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'tag' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('tag')}>By Tag</button>
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'type' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('type')}>By Type</button>
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'status' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('status')}>By Status</button>
-          </div>
-        )}
-        <div style={{ flex: 1 }} />
-        <span className="ob-chrono__toolbar-meta">GIMMICK · {notes.length + todos.length} tile</span>
       </div>
 
       {/* Body */}

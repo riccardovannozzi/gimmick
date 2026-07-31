@@ -9,6 +9,7 @@ import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi } from '@/lib/api';
 import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { getSignedUrls } from '@/lib/storage';
 import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
 import type { FlowHubFilter } from '@/types';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -167,10 +168,32 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     return [...ids];
   }, [aiQuery, aiQueryResult.data]);
 
-  const tiles = React.useMemo(
+  const baseTiles = React.useMemo(
     () => tilesByInsertion(tilesQuery.data?.data ?? [], { statusNameById, typeByTile }),
     [tilesQuery.data, statusNameById, typeByTile],
   );
+
+  // Anteprime della lista. Il bucket è privato, quindi ogni immagine va firmata:
+  // si firmano TUTTE in una richiesta sola (`createSignedUrls`) invece di una
+  // per card. La chiave della query è l'elenco dei percorsi, così il risultato
+  // si riusa finché la lista non cambia; `staleTime` sta sotto l'ora di validità
+  // della firma, altrimenti si mostrerebbero URL scaduti.
+  const previewPaths = React.useMemo(() => {
+    const paths = baseTiles.map((t) => t.previewPath).filter((p): p is string => !!p);
+    return [...new Set(paths)].sort();
+  }, [baseTiles]);
+  const previewUrls = useQuery({
+    queryKey: ['tile-preview-urls', previewPaths],
+    queryFn: () => getSignedUrls(previewPaths),
+    enabled: active === 'tiles' && previewPaths.length > 0,
+    staleTime: 50 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+  });
+  const tiles = React.useMemo(() => {
+    const urls = previewUrls.data;
+    if (!urls?.size) return baseTiles;
+    return baseTiles.map((t) => (t.previewPath ? { ...t, previewUri: urls.get(t.previewPath) } : t));
+  }, [baseTiles, previewUrls.data]);
   const flows = React.useMemo(
     () => (flowsQuery.data?.data ?? []).map(flowHubItemToVM),
     [flowsQuery.data],

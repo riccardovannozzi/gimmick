@@ -102,3 +102,30 @@ export async function getSignedUrl(path: string): Promise<{ url: string; error?:
     return { url: '', error: message };
   }
 }
+
+/**
+ * URL firmati per PIÙ file in una sola richiesta.
+ *
+ * Serve alle liste: la lista Tiles mostra un'anteprima per card, e con la forma
+ * singola ogni card costerebbe una richiesta. Il bucket è privato, quindi
+ * `getPublicUrl` non serve a mostrare i media.
+ *
+ * Restituisce una mappa percorso → URL. I percorsi che falliscono vengono
+ * omessi: chi disegna mostra il fallback, non un errore.
+ */
+export async function getSignedUrls(paths: string[], expiresIn = 3600): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (paths.length === 0) return out;
+  try {
+    const { data, error } = await supabase.storage
+      .from(BUCKET_NAME)
+      .createSignedUrls(paths, expiresIn);
+    if (error || !data) return out;
+    for (const row of data) {
+      if (row.signedUrl && row.path) out.set(row.path, row.signedUrl);
+    }
+    return out;
+  } catch {
+    return out;
+  }
+}
