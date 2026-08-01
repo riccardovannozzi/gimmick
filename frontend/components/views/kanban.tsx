@@ -109,7 +109,10 @@ const LANES: Lane[] = [
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
 function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; active?: boolean }) {
-  const cardC = t.amber ? 'var(--ob-warning)' : 'var(--ob-accent)';
+  // Solo le deadline hanno una colorazione propria (ambra). Tutte le altre tile
+  // non hanno NIENTE impostato → fondo unico `--ob-tile-bg`, niente velatura
+  // d'accento di ripiego (variante `--plain`).
+  const cardC = t.amber ? 'var(--ob-warning)' : undefined;
   const done = t.checklist?.filter(Boolean).length ?? 0;
   const draggable = !!t.id;
   const caps = t.caps ?? [];
@@ -117,8 +120,8 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
   const capsExtra = caps.length - capsShown.length;
   return (
     <div
-      className={cn('ob-kanban__card', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', draggable && 'ob-kanban__card--draggable', t.done && 'ob-kanban__card--done')}
-      style={{ ['--card-c' as string]: cardC }}
+      className={cn('ob-kanban__card', !cardC && 'ob-kanban__card--plain', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', draggable && 'ob-kanban__card--draggable', t.done && 'ob-kanban__card--done')}
+      style={{ ['--card-c' as string]: cardC ?? 'var(--ob-tile-bg)' }}
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
       onClick={onClick}

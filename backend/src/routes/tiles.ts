@@ -56,7 +56,11 @@ tilesRouter.get(
       // Get tiles with sparks, tags, and subtasks (for checklist bar)
       const { data, error, count } = await supabaseAdmin
         .from('tiles')
-        .select('*, sparks(id, type, content, storage_path, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(is_done, sort_order)', { count: 'exact' })
+        // `thumbnail_path` e `mime_type` servono all'anteprima della card nella
+        // lista Tiles del mobile: la miniatura è l'UNICA immagine che la lista
+        // scarica (mai il file pieno), il mime distingue gli allegati che SONO
+        // immagini.
+        .select('*, sparks(id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(is_done, sort_order)', { count: 'exact' })
         .eq('user_id', req.user!.id)
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
@@ -79,6 +83,8 @@ tilesRouter.get(
         type: string;
         content: string | null;
         storage_path: string | null;
+        thumbnail_path: string | null;
+        mime_type: string | null;
         file_name: string | null;
       };
       type TileTag = { id: string; name: string; tag_type?: string };

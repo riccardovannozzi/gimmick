@@ -31,6 +31,16 @@
   --ob-surface: #ffffff;
   --ob-surface-2: #f1f0f4;
   --ob-head: #fbfbfc;
+  /* Base di OGNI tile (canvas, staging, chrono, kanban): è il colore che si vede
+     quando la tile non ha nessuna colorazione impostata, ed è la base sotto la
+     velatura quando invece ce l'ha. Unico punto di verità: cambiarlo qui cambia
+     lo sfondo dei tile in tutte le viste. */
+  --ob-tile-bg: var(--ob-surface);
+  /* Bordo dei tile SENZA colorazione. Deve restare più chiaro di --ob-tile-bg
+     (altrimenti il tile perde il contorno e si fonde con lo sfondo della vista),
+     ma più spento della hairline generica --ob-line-2, che su un fondo tile
+     opaco risultava troppo accesa. */
+  --ob-tile-border: var(--ob-line-2);
   --ob-field: #ffffff;
   --ob-text: #1b1923;
   --ob-muted: #5c5868;
@@ -73,6 +83,12 @@
   --ob-surface: #1e1e1e;
   --ob-surface-2: #262626;
   --ob-head: #1b1b1b;
+  /* Sfondo unico dei tile in dark — vedi nota nel blocco light. */
+  --ob-tile-bg: #2f3134;
+  /* Prima era --ob-line-2 (bianco al 13%), che sul fondo #2f3134 rendeva un
+     #4a4c4e piuttosto acceso. Questo è lo stesso contorno un gradino più cupo,
+     e resta comunque più chiaro del fondo del tile. */
+  --ob-tile-border: #404244;
   --ob-field: #1e1e1e;
   --ob-text: #dcdcdc;
   --ob-muted: #9a9a9a;
@@ -132,7 +148,8 @@
 /* TileSidebar date input (shell): la calendar-icon di leading è disegnata in
    JSX; nascondiamo l'indicatore nativo webkit (il campo apre il picker via
    showPicker su click). */
-.ob-ts-date::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+/* (La regola `.ob-ts-date` è stata rimossa insieme all'ultimo
+   `<input type="date">`: le date usano ora `components/ui/date-picker.tsx`.) */
 
 /* ── Scrollbar (shell ON) ──────────────────────────────────────────────────────
    Quando lo shell Obsidian è attivo (`data-ob="on"` sul root, impostato da
@@ -141,6 +158,15 @@
    sottile: track trasparente, thumb neutro arrotondato. Lo scoping
    `[data-ob='on']` vince per specificità sulle regole `*` / `::-webkit-scrollbar`
    non scoped. */
+/* ── Font di base dello shell ────────────────────────────────────────────────
+   Ridondante rispetto a `geistSans.className` sul <body> (app/layout.tsx), ma
+   la teniamo come rete: garantisce che sia il TOKEN del design system a decidere
+   la tipografia di base, qualunque classe finisca sul body. `html[data-ob='on']
+   body` (0,1,2) batte `body.<classe-font>` (0,1,1) senza !important. */
+html[data-ob='on'] body {
+  font-family: var(--ob-font-sans);
+}
+
 [data-ob='on'] * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--ob-subtle) 50%, transparent) transparent;
@@ -164,6 +190,65 @@
 }
 [data-ob='on'] ::-webkit-scrollbar-corner {
   background: transparent;
+}
+
+/* ── Scrollbar "quieta" (.ob-scroll-quiet) ───────────────────────────────────
+   Usata dalle colonne di tile (STAGING del canvas, NOTES/TODO di CHRONO), dove
+   una barra sempre accesa a fianco dei tile è rumore visivo.
+
+   Tre comportamenti:
+   · invisibile a riposo, compare all'hover del contenitore;
+   · segno visibile di 60px SEMPRE, indipendente da quanto contenuto c'è. La
+     lunghezza del pollice nativo non è impostabile (il browser la calcola in
+     proporzione al contenuto), quindi: `min-height: 60px` impedisce che scenda
+     sotto, e la parte DIPINTA è un background di dimensione fissa 6×60 centrato,
+     che impedisce che superi. L'area di trascinamento resta quella nativa;
+   · spazio riservato (`scrollbar-gutter: stable`) così comparendo non sposta né
+     taglia i tile — chi usa questa classe deve prevedere i 6px nella propria
+     larghezza minima.
+
+   Firefox non espone il pollice come pseudo-elemento: lì resta proporzionale,
+   sottile e con lo stesso comportamento a comparsa. */
+[data-ob='on'] .ob-scroll-quiet {
+  --ob-sbq: color-mix(in srgb, var(--ob-subtle) 45%, transparent);
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+[data-ob='on'] .ob-scroll-quiet:hover {
+  scrollbar-color: var(--ob-sbq) transparent;
+}
+[data-ob='on'] .ob-scroll-quiet::-webkit-scrollbar { width: 6px; height: 6px; }
+[data-ob='on'] .ob-scroll-quiet::-webkit-scrollbar-track { background: transparent; }
+[data-ob='on'] .ob-scroll-quiet::-webkit-scrollbar-thumb {
+  min-height: 60px;
+  background-color: transparent;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 6px 60px;
+  border: none;
+  border-radius: 0;
+}
+/* Le estremità sfumano su 3px: a 6px di larghezza legge come un segno con i
+   bordi morbidi senza bisogno di un raggio (che si applicherebbe alla scatola
+   del pollice, non alla parte dipinta). */
+[data-ob='on'] .ob-scroll-quiet:hover::-webkit-scrollbar-thumb {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    var(--ob-sbq) 3px,
+    var(--ob-sbq) calc(100% - 3px),
+    transparent 100%
+  );
+}
+[data-ob='on'] .ob-scroll-quiet::-webkit-scrollbar-thumb:hover {
+  background-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    color-mix(in srgb, var(--ob-subtle) 70%, transparent) 3px,
+    color-mix(in srgb, var(--ob-subtle) 70%, transparent) calc(100% - 3px),
+    transparent 100%
+  );
 }
 
 /* ── Contatore sparks del tile ──────────────────────────────────────────────

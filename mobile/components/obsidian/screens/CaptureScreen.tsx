@@ -13,7 +13,6 @@ import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, I
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconWaveSine, IconPaperclip,
   IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
-  IconMenu2, IconSparkles,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot, IconEraser,
 } from '@tabler/icons-react-native';
@@ -30,6 +29,7 @@ import type { ActionType, Tag, BufferItem, SparkType } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianDrawer } from '../Drawer';
+import { HeaderMenuButton, HeaderActions } from '../AppHeader';
 import type { MobileViewId } from '../TopNav';
 
 // Risoluzione icone Tabler per nome (come il web): i tipi salvano il glifo in
@@ -58,19 +58,44 @@ const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
  */
 const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
 
+/**
+ * Pulsanti tondi della barra di cattura: i 5 canali e il kebab Options.
+ *
+ * 48 è il bersaglio di tocco minimo di Material; da qui in su è scelta
+ * espressiva. Il glifo segue la proporzione originale 23/48 ≈ 0.48.
+ *
+ * ATTENZIONE alla larghezza: la riga occupa `6 × CAP_BTN + 6 × gap` in orizzontale
+ * dentro `paddingHorizontal: 12`. In RN `flexShrink` vale 0, quindi se non ci
+ * sta i pulsanti NON si comprimono — il kebab esce dal bordo destro e diventa
+ * irraggiungibile. A 52 con gap 6 servono 348dp utili, cioè uno schermo da
+ * almeno 372dp.
+ */
+const CAP_BTN = 52;
+const CAP_GLYPH = 25;
+
+/**
+ * Kebab Options: senza fondo, solo il glifo. È un menu secondario, non un
+ * canale di cattura, e togliergli la pastiglia lo separa dai cinque tondi molto
+ * più di quanto facesse una forma diversa.
+ *
+ * Larghezza e raggio restano perché definiscono l'area del ripple e quella
+ * toccabile, non più una forma visibile. A 36 il bersaglio starebbe sotto i 48
+ * di Material, quindi si compensa con `hitSlop` orizzontale.
+ *
+ * Lo stato aperto non ha più il fondo accent: lo segnala il glifo, che passa da
+ * `text` ad `accent`.
+ */
+const KEBAB_W = 36;
+
 // Stacco dell'header dall'alto (safe-area a parte).
 const HEADER_GAP = 20;
 
 // ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
-// Titolo del vault a sinistra (statico), menu + Ask a destra. Sostituisce
-// l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
-// Il cambio vista vive solo nel Drawer (hamburger), non sul titolo.
-function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
+// Riga VAULT (identità + stato) e sotto il pulsante-marchio col nome del vault:
+// premuto, apre il Drawer. A destra i quadrati Tiles / Chrono / Ask, gli stessi
+// delle altre finestre (vedi AppHeader.tsx, dove vivono).
+function CaptureHeader({ onMenu, onNavigateView, onAsk, connection, pendingCount }: { onMenu?: () => void; onNavigateView?: (id: MobileViewId) => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
   const c = useObsidian();
-
-  const sqBtn = {
-    width: 42, height: 42, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
-  };
 
   // Pallino di stato: verde = online + account ok, arancio = offline + account
   // ok, rosso = account non valido (non autenticato).
@@ -83,9 +108,14 @@ function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: (
     : null;
 
   return (
-    <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
-      {/* Sinistra — VAULT / Gimmick (solo identità, nessuna azione) */}
-      <View>
+    // paddingHorizontal 12 = quello del composer: VAULT/Gimmick, il campo nota e
+    // la barra dei tondi partono tutti dalla stessa verticale. NON alzarlo a 20
+    // senza rifare i conti della barra di cattura: quella riga è larga
+    // 5×52 + 36 + 5×6 = 326 e con 20 per lato servirebbero 366dp di schermo,
+    // sopra i 360 di parecchi Android — e in RN i pulsanti non si comprimono.
+    <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
+      {/* Sinistra — VAULT (stato) e sotto il pulsante-marchio che apre il menu */}
+      <View style={{ flexShrink: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle }}>VAULT</Text>
           {dot && (
@@ -105,30 +135,12 @@ function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: (
             </View>
           )}
         </View>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
+        <HeaderMenuButton label="Gimmick" brand onPress={onMenu} />
       </View>
 
-      {/* Destra — menu (Drawer) + Ask (chat) */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Pressable
-          onPress={onMenu}
-          accessibilityLabel="Menu"
-          hitSlop={6}
-          android_ripple={{ color: c.line, borderless: true }}
-          style={[sqBtn, { backgroundColor: c.surface2 }]}
-        >
-          <IconMenu2 size={19} color={c.text} strokeWidth={1.9} />
-        </Pressable>
-        <Pressable
-          onPress={onAsk}
-          accessibilityLabel="Ask Gimmick"
-          hitSlop={6}
-          android_ripple={{ color: c.accent + '40', borderless: true }}
-          style={[sqBtn, { backgroundColor: c.accent + '2E' }]}
-        >
-          <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
-        </Pressable>
-      </View>
+      {/* Destra — Tiles, Chrono, Ask. Nessuno di questi è più nel Drawer per le
+          prime due: sono le destinazioni che si raggiungono di continuo. */}
+      <HeaderActions onNavigateView={onNavigateView} onAsk={onAsk} />
     </View>
   );
 }
@@ -372,7 +384,7 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
     // Niente bordo: l'attivo si distingue per fondo accent tenue + testo/icona
     // accent; l'inattivo ha fondo surface2 e testo pieno.
     return (
-      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 44, borderRadius: 9, backgroundColor: on ? c.accent + '33' : c.surface2 }}>
+      <Pressable onPress={() => onChange(seedAction(id, options, new Date()))} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 48, borderRadius: 9, backgroundColor: on ? c.accent + '33' : c.surface2 }}>
         <Icon size={16} color={on ? c.accent : c.muted} strokeWidth={1.8} />
         <Text numberOfLines={1} style={{ fontSize: 15, fontWeight: '600', color: on ? c.accent : c.text }}>{label}</Text>
       </Pressable>
@@ -399,7 +411,8 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
       {/* Intestazione AZIONE + Chiudi (chiude il pannello). */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>ACTIONS</Text>
-        <Pressable onPress={onClose} hitSlop={8} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+        {/* Riga di ~16dp: serve hitSlop 16 per arrivare al bersaglio da 48. */}
+        <Pressable onPress={onClose} hitSlop={16} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={{ fontSize: 12, fontWeight: '600', color: c.muted }}>Close</Text>
           <IconChevronUp size={13} color={c.muted} strokeWidth={2} />
         </Pressable>
@@ -487,10 +500,11 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
                 ) : (
                   <TextInput value={tagQuery} onChangeText={setTagQuery} placeholder="Cerca tag…" placeholderTextColor={c.subtle} style={{ flex: 1, fontSize: 14, color: c.text, padding: 0 }} />
                 )}
+                {/* Glifo 16 + hitSlop 16 su ogni lato = bersaglio 48. */}
                 {suggestActive ? (
-                  <Pressable onPress={() => setSuggestActive(false)} hitSlop={8}><IconX size={16} color={c.subtle} strokeWidth={1.8} /></Pressable>
+                  <Pressable onPress={() => setSuggestActive(false)} hitSlop={16}><IconX size={16} color={c.subtle} strokeWidth={1.8} /></Pressable>
                 ) : (
-                  <Pressable onPress={() => { setTagQuery(''); setSuggestActive(true); }} hitSlop={8} disabled={!hasSuggestText}><IconWand size={16} color={hasSuggestText ? c.accent : c.subtle} strokeWidth={1.8} /></Pressable>
+                  <Pressable onPress={() => { setTagQuery(''); setSuggestActive(true); }} hitSlop={16} disabled={!hasSuggestText}><IconWand size={16} color={hasSuggestText ? c.accent : c.subtle} strokeWidth={1.8} /></Pressable>
                 )}
               </View>
               <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: insets.bottom + 16 }} keyboardShouldPersistTaps="handled">
@@ -646,7 +660,7 @@ function SparkRow({ c, item, onRemove, onPress, editing }: { c: ObsidianColors; 
 
       {/* X in sovraimpressione, in alto a destra. */}
       {onRemove ? (
-        <Pressable onPress={onRemove} hitSlop={10} accessibilityLabel="Rimuovi spark" style={{ position: 'absolute', top: 8, right: 8, padding: 2 }}>
+        <Pressable onPress={onRemove} hitSlop={14} accessibilityLabel="Rimuovi spark" style={{ position: 'absolute', top: 8, right: 8, padding: 2 }}>
           <IconX size={16} color={c.subtle} strokeWidth={1.9} />
         </Pressable>
       ) : null}
@@ -820,6 +834,28 @@ export function ObsidianCaptureScreen({
   // (quando sotto ci sono gli spark che scorrono).
   const renderNote = (fill: boolean) => (
     <View style={fill ? { flex: 1 } : undefined}>
+      {/* Riga del microfono (dettatura vocale), da sola. Non è più in
+          sovraimpressione sul campo: sta su una riga propria, così il testo
+          sotto usa TUTTA la larghezza e non deve lasciare un corridoio libero
+          in alto a destra. In ascolto → accent acceso. */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', height: 36 }}>
+        <Pressable
+          onPress={() => dictation.toggle(note)}
+          accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
+          hitSlop={8}
+          android_ripple={{ color: c.accent + '33', borderless: true }}
+          // `marginRight: 6` allinea il GLIFO a quello dei pulsanti dell'header,
+          // non i bordi: il mic è largo 36 e non ha fondo, l'header ne ha 48 con
+          // la pastiglia, quindi allineare i bordi lascerebbe i glifi fuori asse.
+          // Centro del glifo = 12 (padding del contenitore) + 6 + 18 = 36 dal
+          // bordo schermo, uguale a 12 (padding header) + 24 dei pulsanti.
+          style={{ marginRight: 6, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
+        >
+          {/* Bianco sul fondo scuro del composer; in tema chiaro segue il testo,
+              altrimenti sparirebbe. In ascolto passa ad accent. */}
+          <IconMicrophone size={23} color={dictation.listening ? c.accent : (c.dark ? '#FFFFFF' : c.text)} strokeWidth={1.9} />
+        </Pressable>
+      </View>
       <TextInput
         ref={noteRef}
         value={note}
@@ -828,24 +864,13 @@ export function ObsidianCaptureScreen({
         placeholderTextColor={c.subtle}
         multiline
         textAlignVertical="top"
-        // paddingRight: spazio per il mic in alto a destra.
+        // Nessun padding orizzontale: il campo occupa tutta la larghezza fra i
+        // margini del composer, da bordo a bordo.
         style={[
-          { fontSize: 16, lineHeight: 24, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 40 },
+          { fontSize: 18, lineHeight: 26, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 },
           fill ? { flex: 1 } : { minHeight: 120 },
         ]}
       />
-      {/* Mic in sovraimpressione (dettatura vocale). In ascolto → accent acceso. */}
-      <Pressable
-        onPress={() => dictation.toggle(note)}
-        accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
-        hitSlop={8}
-        android_ripple={{ color: c.accent + '33', borderless: true }}
-        style={{ position: 'absolute', top: 6, right: 6, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
-      >
-        {/* Bianco sul fondo scuro del composer; in tema chiaro segue il testo,
-            altrimenti sparirebbe. In ascolto passa ad accent. */}
-        <IconMicrophone size={23} color={dictation.listening ? c.accent : (c.dark ? '#FFFFFF' : c.text)} strokeWidth={1.9} />
-      </Pressable>
     </View>
   );
 
@@ -861,7 +886,7 @@ export function ObsidianCaptureScreen({
             onPress={clearNote}
             accessibilityLabel={editingId ? 'Annulla modifica e svuota il campo' : 'Svuota il campo'}
             android_ripple={{ color: '#ffffff22', borderless: false }}
-            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+            style={{ width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
           >
             <IconEraser size={22} color={c.text} strokeWidth={1.9} />
           </Pressable>
@@ -870,7 +895,7 @@ export function ObsidianCaptureScreen({
             disabled={!hasNote}
             accessibilityLabel={editingId ? 'Conferma modifica' : 'Salva nota'}
             android_ripple={{ color: '#ffffff22', borderless: false }}
-            style={{ width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: hasNote ? '#3a3a3a' : c.field, opacity: hasNote ? 1 : 0.6 }}
+            style={{ width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: hasNote ? '#3a3a3a' : c.field, opacity: hasNote ? 1 : 0.6 }}
           >
             {editingId ? (
               <IconCheck size={22} color={hasNote ? c.text : c.subtle} strokeWidth={2} />
@@ -889,9 +914,9 @@ export function ObsidianCaptureScreen({
                 onPress={() => { if (onCapture) onCapture(key); else if (key === 'voice') setVoice(true); }}
                 accessibilityLabel={label}
                 android_ripple={{ color: '#ffffff22', borderless: false }}
-                style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+                style={{ width: CAP_BTN, height: CAP_BTN, borderRadius: CAP_BTN / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
               >
-                <Icon size={23} color={c.text} strokeWidth={1.8} />
+                <Icon size={CAP_GLYPH} color={c.text} strokeWidth={1.8} />
               </Pressable>
             );
           })}
@@ -901,9 +926,10 @@ export function ObsidianCaptureScreen({
             onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen((v) => !v); }}
             accessibilityLabel="Opzioni"
             android_ripple={{ color: '#ffffff22', borderless: false }}
-            style={{ width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: actionOpen ? c.accent + '2E' : '#3a3a3a' }}
+            hitSlop={{ left: 6, right: 6 }}
+            style={{ width: KEBAB_W, height: CAP_BTN, borderRadius: '50%', alignItems: 'center', justifyContent: 'center' }}
           >
-            <IconDotsVertical size={23} color={actionOpen ? c.accent : c.text} strokeWidth={1.8} />
+            <IconDotsVertical size={CAP_GLYPH} color={actionOpen ? c.accent : c.text} strokeWidth={1.8} />
           </Pressable>
         </>
       )}
@@ -913,7 +939,7 @@ export function ObsidianCaptureScreen({
   return (
     <View style={{ flex: 1, backgroundColor: shellBg }}>
       <ObsidianStatusBar background={shellBg} />
-      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
+      <CaptureHeader onMenu={() => setDrawer(true)} onNavigateView={onNavigateView} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
 
       {/* Colonna contenuti: il campo nota riempie tutta l'altezza, la barra dei
           canali resta ancorata in fondo (stile Keep). Il contenuto scorre solo a

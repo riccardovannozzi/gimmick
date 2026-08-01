@@ -60,17 +60,29 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   const theme = usePixelTheme();
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
-  const chipFontSize = 11.5;
-  const chipRadius = 8;
+  const chipFontSize = 12.5;
+  const chipRadius = 10;
   const chipTransform: 'none' | 'uppercase' = 'none';
   const chipWeight = 600;
-  // Forma "linguetta": angoli superiori arrotondati, base piatta, allineata in
-  // basso alla barra così poggia sulla linea inferiore (tab-strip). Niente
-  // overlap verticale: eviterebbe lo scroll ma con overflow-x:auto il browser
-  // mostrerebbe una scrollbar verticale (overflow-y diventa auto).
+  // Forma "linguetta": angoli superiori arrotondati, base piatta appoggiata sulla
+  // linea inferiore della barra (tab-strip). Più alta dei 30 degli altri controlli,
+  // altrimenti non si legge come tab.
+  //
+  // Il testo però deve stare sulla STESSA riga ottica degli altri controlli della
+  // fascia (segmentato di sinistra, toolbar, tabbar di destra), quindi non è
+  // centrato nella linguetta: il padding inferiore spinge la scatola del contenuto
+  // verso l'alto. I conti, in una barra da 48 con hairline da 1 (→ 47 utili):
+  //   · un controllo da 30 centrato occupa 8.5–38.5, quindi il suo testo è a 23.5;
+  //   · la linguetta è ancorata in basso, dunque va da 47-38=9 a 47; la scatola del
+  //     contenuto è 38-8=30 e parte da 9, quindi il suo testo cade a 9+15=24.
+  // Mezzo pixel di scarto, invisibile. Cambiando TAB_H va ricalcolato TAB_PAD_B
+  // come TAB_H - 30.
+  const TAB_H = 38;
+  const TAB_PAD_B = TAB_H - 30;
   const tabShape = {
-    height: 32,
+    height: TAB_H,
     alignSelf: 'flex-end' as const,
+    paddingBottom: TAB_PAD_B,
     borderTopLeftRadius: chipRadius,
     borderTopRightRadius: chipRadius,
     borderBottomLeftRadius: 0,
@@ -107,7 +119,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     <div
       className="shrink-0"
       style={{
-        height: 40,
+        // Fascia sotto la navbar: 48, come header staging e tabbar destra.
+        // Scala verticale dello shell: 56 navbar · 48 fascia · 40 sotto-barre.
+        height: 48,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -118,7 +132,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     >
       <div
         className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'flex-end', gap: 3, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: 4, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
       >
         {tag && (
           <>
@@ -228,7 +242,10 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               style={{
                 position: 'absolute',
                 right: 2,
-                top: '50%',
+                // Centrata sulla scatola del CONTENUTO (che esclude il padding
+                // inferiore della linguetta), non sull'intera linguetta: così
+                // resta sulla riga del testo.
+                top: (TAB_H - TAB_PAD_B) / 2,
                 transform: 'translateY(-50%)',
                 width: 16,
                 height: 16,

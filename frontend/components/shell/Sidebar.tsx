@@ -91,20 +91,26 @@ export function Sidebar({
     setOpen(Object.fromEntries(groups.map((g) => [g.id, !allOpen])));
 
   return (
-    <aside className="ob-sb ob-scroll">
-      <div className="ob-sb__seg">
-        <SegmentedControl
-          aria-label="Filtro tag"
-          value={filter}
-          onChange={(v) => onFilterChange?.(v)}
-          items={[
-            { value: 'storage', label: storageLabel },
-            { value: 'all', label: 'Tags' },
-            { value: 'pinned', label: pinnedLabel },
-          ]}
-        />
+    <aside className="ob-sb">
+      {/* Header della sidebar: barra da 48 della fascia sotto la navbar, come
+          la toolbar del canvas e la tabbar dell'inspector. Resta fissa mentre
+          la lista dei tag scorre nel corpo. */}
+      <div className="ob-sb__bar">
+        <div className="ob-sb__seg">
+          <SegmentedControl
+            aria-label="Filtro tag"
+            value={filter}
+            onChange={(v) => onFilterChange?.(v)}
+            items={[
+              { value: 'storage', label: storageLabel },
+              { value: 'all', label: 'Tags' },
+              { value: 'pinned', label: pinnedLabel },
+            ]}
+          />
+        </div>
       </div>
 
+      <div className="ob-sb__body ob-scroll">
       <div className="ob-sb__search">
         <Icon name="search" size={14} className="ob-sb__search-icon" />
         <input
@@ -213,6 +219,7 @@ export function Sidebar({
           </div>
         );
       })}
+      </div>
     </aside>
   );
 }

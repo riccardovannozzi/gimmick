@@ -90,8 +90,9 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 30, height: 30, flexShrink: 0,
         // Stato attivo: viola scuro (accent-soft) + testo accent, come i tab.
+        // Nessun contorno: gli oggetti della sidebar si distinguono per il fondo.
         background: active ? 'var(--ob-accent-soft)' : theme.bg1,
-        border: `1px solid ${active ? 'transparent' : theme.border}`,
+        border: 'none',
         borderRadius: 7, cursor: 'pointer',
         color: active ? 'var(--ob-accent)' : theme.ink2,
       }}
@@ -111,7 +112,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
       style={{
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         width: 30, height: 30, flexShrink: 0,
-        background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 7,
+        background: theme.bg1, border: 'none', borderRadius: 7,
         cursor: disabled ? 'not-allowed' : 'pointer',
         color: disabled ? theme.ink3 : theme.ink2, opacity: disabled ? 0.4 : 1,
       }}
@@ -202,7 +203,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
                 </StepBtn>
                 <div style={{
                   flex: 1, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 7,
+                  background: theme.bg1, border: 'none', borderRadius: 7,
                   color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: 11,
                 }}>
                   {fontSize} px
@@ -221,7 +222,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
               onMouseDown={() => editor.chain().focus().run()}
               style={{
                 flex: 1, minHeight: 120, overflowY: 'auto',
-                background: bgColor || theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 8,
+                background: bgColor || theme.bg1, border: 'none', borderRadius: 8,
                 padding: '10px 12px', color: theme.ink, cursor: 'text',
               }}
             >
@@ -234,8 +235,10 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
             onClick={onDelete}
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: '#E24B4A',
+              // Senza contorno resterebbe testo nudo: prende il fondo degli altri
+              // oggetti della sidebar, così continua a leggersi come pulsante.
+              width: '100%', padding: '9px 12px', background: theme.bg1,
+              border: 'none', borderRadius: 8, color: '#E24B4A',
               fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer', flexShrink: 0,
             }}
           >

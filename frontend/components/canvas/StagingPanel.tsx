@@ -44,6 +44,20 @@ interface Props {
 
 const TILE_W = 150;
 const TILE_H = 80;
+/** Padding orizzontale (per lato) del corpo scrollabile che contiene i tile. */
+const BODY_PAD = 8;
+/** Spessore della scrollbar del corpo — deve combaciare con `.ob-staging__body`
+ *  in app/obsidian-canvas.css, che riserva sempre lo spazio (gutter stabile). */
+const STAGING_SCROLLBAR_W = 6;
+/**
+ * Larghezza minima del pannello: esattamente UNA colonna di tile, stessa regola
+ * delle colonne NOTES/TODO di CHRONO (`.ob-chrono__col`: 170 = 150 di tile +
+ * 9+9 di padding + 1 di bordo) e delle lane del KANBAN, che come qui includono
+ * anche il gutter della scrollbar. 150 + 8+8 + 6 + 1 = 173. Sotto questa soglia
+ * il tile da 150 verrebbe tagliato, quindi è il limite sia del resize col
+ * separatore sia del valore ripristinato da localStorage.
+ */
+export const STAGING_MIN_W = TILE_W + BODY_PAD * 2 + STAGING_SCROLLBAR_W + 1;
 const FALLBACK_COLOR = '#94A3B8';
 
 type SortDir = 'asc' | 'desc';
@@ -262,7 +276,9 @@ export function StagingPanel({
     // Velatura (come Kanban/Chrono/Canvas): base surface + tinta del tipo molto
     // attenuata, così testo e badge restano leggibili.
     const tint = si?.color ? `${si.color}24` : 'transparent';
-    const borderColor = actionKey === 'deadline' ? '#E24B4A' : (si?.color ? `${si.color}3A` : theme.border);
+    // Senza colore del tipo il contorno è quello standard dei tile
+    // (`--ob-tile-border`), non la hairline generica del tema.
+    const borderColor = actionKey === 'deadline' ? '#E24B4A' : (si?.color ? `${si.color}3A` : 'var(--ob-tile-border)');
     const isSelected = selectedTileId === t.id;
     const hasFlow = tilesWithFlows.has(t.id);
     const isDone = !!t.is_completed;
@@ -304,7 +320,9 @@ export function StagingPanel({
             flexShrink: 0,
             overflow: 'hidden',
             cursor: 'grab',
-            background: theme.surface,
+            // Fondo unico dei tile (token `--ob-tile-bg`), identico a canvas,
+            // chrono e kanban: è ciò che si vede quando non c'è colorazione.
+            background: 'var(--ob-tile-bg)',
             width: TILE_W,
             height: TILE_H,
             borderRadius: radius,
@@ -318,12 +336,17 @@ export function StagingPanel({
             <div style={{ position: 'absolute', inset: 0, background: tint, pointerEvents: 'none' }} />
           )}
           <div style={{ position: 'relative', height: '100%', display: 'flex' }}>
-            {/* Colonna STATUS (come canvas): icona/pallino/DELETE centrati. */}
-            <div style={{ width: 16, flexShrink: 0, background: theme.bg1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {statusCol}
-            </div>
+            {/* Colonna STATUS (come canvas/chrono/kanban): presente SOLO se la
+                tile ha uno status con glifo. Senza status la colonna sparisce e
+                il contenuto occupa tutta la larghezza (margine 10, come il
+                CONTENT_X_NOSTAT del canvas). */}
+            {statusCol && (
+              <div style={{ width: 16, flexShrink: 0, background: theme.bg1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {statusCol}
+              </div>
+            )}
             {/* Contenuto */}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: '6px 6px 6px 8px' }}>
+            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: statusCol ? '6px 6px 6px 8px' : '6px 6px 6px 10px' }}>
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <p
                   style={{
@@ -424,7 +447,8 @@ export function StagingPanel({
         <button
           onClick={onToggle}
           style={{
-            height: 40,
+            // Stessa fascia della toolbar canvas e della tabbar destra (48).
+            height: 48,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -463,7 +487,8 @@ export function StagingPanel({
     >
       <div
         style={{
-          height: 40,
+          // Fascia sotto la navbar: 48 (vedi CanvasTopbar / TileSidebar).
+          height: 48,
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -479,8 +504,8 @@ export function StagingPanel({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            width: 28,
-            height: 28,
+            width: 30,
+            height: 30,
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
@@ -511,7 +536,8 @@ export function StagingPanel({
       {tiles.length > 0 && (
         <div
           style={{
-            height: 32,
+            // Sotto-barra annidata nel pannello: livello 3 della scala → 40.
+            height: 40,
             padding: '0 8px',
             display: 'flex',
             alignItems: 'center',
@@ -608,8 +634,8 @@ export function StagingPanel({
       )}
 
       <div
-        className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 8 }}
+        className="ob-staging__body ob-scroll-quiet"
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: BODY_PAD }}
       >
         {tiles.length === 0 ? (
           <p

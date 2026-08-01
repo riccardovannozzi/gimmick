@@ -102,6 +102,44 @@ export interface ObTileVM {
   tags: { id: string; name: string }[];
   /** Data di riferimento in epoch (start_at o end_at) per l'ordinamento. */
   whenTs?: number;
+  /**
+   * Percorso storage dell'immagine da mostrare in anteprima nella card.
+   * NON è un URL: il bucket è privato, va firmato prima dell'uso (vedi
+   * `getSignedUrls` e come lo risolve ViewsScreenLive).
+   */
+  previewPath?: string;
+  /** URL firmato corrispondente a `previewPath`, risolto dal layer dati. */
+  previewUri?: string;
+  /** Allegato non-immagine: non ha miniatura, si mostra come chip col nome. */
+  previewFile?: { name: string };
+}
+
+/**
+ * Sceglie l'anteprima della card fra gli spark del tile.
+ *
+ * Una sola per card, la prima disponibile: in una lista compatta una fila di
+ * miniature diventa rumore, e il dettaglio del tile le mostra già tutte.
+ * Previewabili sono i media (foto/immagine/video) e gli allegati il cui mime è
+ * `image/*` — stessa regola dello spark della homepage. Si preferisce la
+ * miniatura al file pieno: in lista conta il peso.
+ */
+function tilePreview(t: Tile): Pick<ObTileVM, 'previewPath' | 'previewFile'> {
+  const sparks = t.sparks ?? [];
+  for (const s of sparks) {
+    const isMedia = s.type === 'photo' || s.type === 'image' || s.type === 'video';
+    const isImageFile = s.type === 'file' && !!s.mime_type?.startsWith('image/');
+    if (!isMedia && !isImageFile) continue;
+    // SOLO `thumbnail_path`, mai `storage_path`: in una lista scaricare
+    // l'immagine originale costa troppo, e per un video non sarebbe nemmeno
+    // disegnabile da <Image>. Uno spark senza miniatura resta senza anteprima
+    // finché non gliela genera la pipeline di indicizzazione.
+    if (!s.thumbnail_path) continue;
+    return { previewPath: s.thumbnail_path };
+  }
+  // Nessuna immagine: se c'è un allegato lo si annuncia come chip.
+  const file = sparks.find((s) => s.type === 'file');
+  if (file) return { previewFile: { name: file.file_name?.trim() || 'Allegato' } };
+  return {};
 }
 
 /** Tabelle di lookup risolte una volta sola dal chiamante (statuses e tipi
@@ -167,6 +205,7 @@ export function tileToVM(t: Tile, ctx: TileVMContext = {}): ObTileVM {
     typeName: type?.name,
     tags: (t.tags ?? []).filter((tag) => !tag.is_root).map((tag) => ({ id: tag.id, name: tag.name })),
     whenTs: whenTs !== undefined && !Number.isNaN(whenTs) ? whenTs : undefined,
+    ...tilePreview(t),
   };
 }
 

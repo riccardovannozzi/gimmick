@@ -4,8 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePixelTheme } from '@/components/pixel';
 
+// Ore a passi di 1: 00…23. I minuti NON hanno preset — si digitano.
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
-const MINUTES = ['00', '15', '30', '45'];
 
 interface TimePickerProps {
   value: string; // "HH:MM"
@@ -61,9 +61,30 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
     onChange(`${hour}:${selectedM}`);
   };
 
-  const selectM = (min: string) => {
-    onChange(`${selectedH}:${min}`);
-    setOpen(false);
+  // Minuti digitati a mano. `minDraft` tiene lo stato grezzo del campo (può
+  // essere vuoto o a una cifra mentre si scrive); il valore vero viene emesso
+  // solo quando è un numero valido, e normalizzato a due cifre all'uscita.
+  const [minDraft, setMinDraft] = useState(selectedM);
+  useEffect(() => { setMinDraft(selectedM); }, [selectedM]);
+
+  const clampMin = (raw: string): string => {
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n)) return '00';
+    return String(Math.min(59, Math.max(0, n))).padStart(2, '0');
+  };
+
+  const typeMin = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 2);
+    setMinDraft(digits);
+    if (digits !== '' && parseInt(digits, 10) <= 59) {
+      onChange(`${selectedH}:${digits.padStart(2, '0')}`);
+    }
+  };
+
+  const commitMin = () => {
+    const mm = clampMin(minDraft);
+    setMinDraft(mm);
+    onChange(`${selectedH}:${mm}`);
   };
 
   const triggerStyle: React.CSSProperties = borderless
@@ -85,14 +106,18 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
         alignItems: 'center',
         gap: 4,
         padding: compact ? '0 10px' : '6px 8px',
-        height: compact ? 36 : 'auto',
-        background: theme.surface,
+        // Compact = cella dentro un gruppo della sidebar: stesso standard degli
+        // altri campi (30 di altezza, raggio 8, testo 12.5). Con `noBorder` il
+        // fondo è quello degli oggetti della sidebar (bg1), non `surface`, che
+        // coincide col colore del pannello e sparirebbe.
+        height: compact ? 30 : 'auto',
+        background: noBorder ? theme.bg1 : theme.surface,
         border: `1px solid ${noBorder ? 'transparent' : theme.border}`,
-        borderRadius: 10,
+        borderRadius: compact ? 8 : 10,
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: sansFont,
-        fontSize: compact ? 13 : 12,
+        fontSize: compact ? 12.5 : 12,
         color: theme.ink,
       };
 
@@ -125,7 +150,8 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
             {label}
           </span>
         )}
-        <span style={{ fontWeight: 600 }}>{selectedH}:{selectedM}</span>
+        {/* Peso normale come ogni altro valore dei campi della sidebar. */}
+        <span style={{ fontWeight: 400 }}>{selectedH}:{selectedM}</span>
       </button>
       {open && createPortal(
         <div
@@ -191,17 +217,42 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
               >
                 Min
               </span>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {MINUTES.map((min) => (
-                  <button
-                    key={min}
-                    onClick={() => selectM(min)}
-                    style={{ ...gridBtn(selectedM === min), width: 40, height: 28 }}
-                  >
-                    {min}
-                  </button>
-                ))}
-              </div>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={minDraft}
+                onChange={(e) => typeMin(e.target.value)}
+                onBlur={commitMin}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { e.preventDefault(); commitMin(); setOpen(false); }
+                  else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+                  // Frecce su/giù: scatti da 1 minuto, comodo per l'aggiustamento fine.
+                  else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    const delta = e.key === 'ArrowUp' ? 1 : -1;
+                    const n = (parseInt(minDraft || '0', 10) + delta + 60) % 60;
+                    const mm = String(n).padStart(2, '0');
+                    setMinDraft(mm);
+                    onChange(`${selectedH}:${mm}`);
+                  }
+                }}
+                onFocus={(e) => e.currentTarget.select()}
+                aria-label="Minuti"
+                placeholder="mm"
+                style={{
+                  width: 44,
+                  height: 28,
+                  textAlign: 'center',
+                  background: theme.bg1,
+                  border: 'none',
+                  borderRadius: 7,
+                  outline: 'none',
+                  color: theme.ink,
+                  fontFamily: sansFont,
+                  fontSize: 12.5,
+                }}
+              />
             </div>
           </div>
         </div>,

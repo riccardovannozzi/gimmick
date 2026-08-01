@@ -1,4 +1,4 @@
-/* ─────────────────────────────────────────────────────────────────────────────
+﻿/* ─────────────────────────────────────────────────────────────────────────────
    Gimmick · Obsidian — Desktop shell styles.
 
    Header, ViewTabs (navbar), Sidebar (tag/cartelle), Inspector, ViewContainer
@@ -117,13 +117,29 @@
 .ob-tab--active .ob-tab__icon { color: var(--ob-accent); }
 
 /* ── Sidebar ── */
+/* Colonna con header fisso + corpo scrollabile: l'header è la barra da 48 della
+   fascia sotto la navbar (come toolbar canvas e tabbar inspector), così le
+   hairline inferiori dei tre pannelli si allineano. Il padding che prima stava
+   sull'aside vive ora nel corpo. */
 .ob-sb {
   width: 232px;
   flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
   background: var(--ob-surface-2);
   border-right: 1px solid var(--ob-line);
-  padding: 14px 12px;
 }
+.ob-sb__bar {
+  height: 48px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--ob-line);
+}
+.ob-sb__body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
 [data-theme='light'] .ob-sb,
 :root .ob-sb { background: #faf9fb; }
 [data-theme='dark'] .ob-sb { background: var(--ob-surface-2); }
@@ -136,21 +152,26 @@
   background: var(--ob-surface);
   padding: 2px 8px; border-radius: 7px;
 }
-.ob-sb__seg { margin-bottom: 10px; }
-/* I tab Tutti/Pinned occupano l'intera larghezza della sidebar, con angoli
-   meno arrotondati (no pill). */
-.ob-sb__seg .ob-seg { display: flex; width: 100%; border-radius: var(--ob-radius-md, 8px); }
-.ob-sb__seg .ob-seg-item { flex: 1; min-width: 0; border-radius: 6px; padding: 6px 5px; font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* I tab Storage/Tags/Pinned occupano l'intera larghezza della sidebar, con
+   angoli meno arrotondati (no pill). Altezza 30 come gli altri controlli di
+   barra: dichiarata, non più derivata dal padding. */
+.ob-sb__seg { flex: 1; min-width: 0; }
+/* In dark il track del segmented ha lo stesso fondo della sidebar (--ob-surface-2),
+   quindi non si vede: l'unica cosa percepita è la pill del tab attivo. Per questo
+   è la PILL a dover essere alta 30 come ogni altro controllo di barra — track a
+   filo (padding 0, niente bordo, stesso raggio), non 26 dentro una scatola da 30.
+   Le dichiarazioni stanno più in basso, condivise con la tabbar dell'inspector
+   (cerca "Inspector: tab bar Edit / List / Flow"). */
 /* Ricerca tag: input con icona a sinistra e clear a destra. */
 .ob-sb__search { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
 .ob-sb__search-icon { position: absolute; left: 9px; color: var(--ob-subtle); pointer-events: none; }
-.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-md, 8px); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; outline: none; transition: border-color 0.12s ease; }
+.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-md, 8px); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; transition: border-color 0.12s ease; }
 .ob-sb__search-input::placeholder { color: var(--ob-subtle); }
 .ob-sb__search-input:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
 .ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 5px; background: transparent; color: var(--ob-subtle); font-size: 15px; line-height: 1; cursor: pointer; }
 .ob-sb__search-clear:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
 /* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
-.ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 11.5px; font-weight: 500; color: var(--ob-subtle); }
+.ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 500; color: var(--ob-subtle); }
 .ob-sb__expand:hover { color: var(--ob-text); }
 .ob-sb-group { margin-bottom: 1px; }
 .ob-sb-group__head {
@@ -167,7 +188,7 @@
 .ob-sb-group__chev { color: var(--ob-subtle); display: inline-flex; transition: transform 140ms ease-out; }
 .ob-sb-group__chev--open { transform: rotate(90deg); }
 .ob-sb-group__glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
-.ob-sb-group__name { font-size: 13px; font-weight: 600; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-sb-group__name { font-size: 12.5px; font-weight: 600; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-group__kids { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--ob-line); }
 /* Riga tag: contenitore (nome cliccabile + azioni pin/canvas su hover). */
 .ob-sb-child {
@@ -178,7 +199,7 @@
 .ob-sb-child:hover:not(.ob-sb-child--active) { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
 .ob-sb-child--active { background: var(--ob-accent-soft); }
 .ob-sb-child__main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 6px 0; background: transparent; border: none; cursor: pointer; text-align: left; }
-.ob-sb-child__name { font-size: 13px; font-weight: 500; color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-sb-child__name { font-size: 12.5px; font-weight: 500; color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: 600; }
 .ob-sb-child__actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; }
 .ob-sb-child__act {
@@ -195,12 +216,55 @@
 .ob-sb-child__act--on:hover { color: var(--ob-accent); }
 
 /* ── Inspector: tab bar Edit / List / Flow ──
-   Il contenitore disegna la cornice; ogni tab prende il contorno su hover
-   (oltre che da attivo), così l'interazione è coerente. */
-.ob-insp-tabs { flex: 1; display: flex; gap: 3px; padding: 3px; background: var(--ob-surface-2); border-radius: 10px; }
-.ob-insp-tab { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; height: 28px; border-radius: 7px; background: transparent; color: var(--ob-muted); border: 1px solid transparent; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 600; cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out; }
-.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: var(--ob-surface); border-color: var(--ob-line); color: var(--ob-text); }
-.ob-insp-tab--active { background: var(--ob-surface); color: var(--ob-accent); border-color: var(--ob-line); box-shadow: var(--ob-shadow-card); }
+   Stesso identico stile del segmentato della SIDEBAR SINISTRA
+   (Storage/Tags/Pinned): le due tabbar sono affiancate nella stessa fascia da
+   48, quindi condividono le dichiarazioni invece di duplicarle — così non
+   possono divergere di nuovo. Track a filo (niente padding né bordo: l'ingombro
+   esterno è già 30), item da 30, attivo su accent-soft. Unica differenza
+   ammessa: qui gli item hanno un'icona, quindi `gap`. */
+.ob-insp-tabs { flex: 1; }
+.ob-sb__seg .ob-seg,
+.ob-insp-tabs {
+  display: flex;
+  width: 100%;
+  gap: 0;
+  padding: 0;
+  border: none;
+  border-radius: var(--ob-radius-md, 8px);
+  /* Nessun track: l'unica cosa che si vede è la pill del tab attivo. A sinistra
+     era già così di fatto (il track aveva lo stesso fondo della sidebar); qui,
+     dove la barra ha un fondo diverso, il track andava tolto esplicitamente. */
+  background: transparent;
+}
+.ob-sb__seg .ob-seg-item,
+.ob-insp-tab {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 5px;
+  border: none;
+  border-radius: var(--ob-radius-md, 8px);
+  background: transparent;
+  color: var(--ob-muted);
+  font-family: var(--ob-font-sans);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-insp-tab { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+/* Hover condiviso: nessuno sfondo, cambia solo il testo che schiarisce. */
+.ob-sb__seg .ob-seg-item:hover:not(.ob-seg-item--active),
+.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: transparent; color: var(--ob-text); }
+/* Stato attivo condiviso. Deve stare QUI e con questa specificità: la regola
+   base qui sopra dichiara `background: transparent` con (0,2,0) e batterebbe
+   `.ob-seg-item--active` (0,1,0) delle primitive, lasciando il tab selezionato
+   senza evidenziazione. */
+.ob-sb__seg .ob-seg-item--active,
+.ob-insp-tab--active { background: var(--ob-accent-soft); color: var(--ob-accent); box-shadow: none; }
 
 /* ── ViewContainer ── */
 .ob-view { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; background: var(--ob-canvas); overflow: hidden; }

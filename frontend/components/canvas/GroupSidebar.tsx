@@ -82,7 +82,8 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
           style={{
             display: 'flex', alignItems: 'center', gap: 8,
             width: '100%', padding: '6px 8px',
-            background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 8,
+            // Nessun contorno: l'oggetto si distingue per il fondo (vedi TextSidebar).
+            background: theme.bg1, border: 'none', borderRadius: 8,
             cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: 11,
           }}
         >

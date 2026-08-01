@@ -235,6 +235,14 @@ async function analyzeImage(spark: Spark): Promise<string> {
   const fileBuffer = await downloadFile(spark.storage_path);
   if (!fileBuffer) return spark.file_name || 'image';
 
+  // Fire-and-forget in parallelo all'analisi, sullo stesso buffer già scaricato.
+  // La lista Tiles del mobile mostra SOLO la miniatura, mai il file pieno.
+  if (!spark.thumbnail_path) {
+    generateImageThumbnail(fileBuffer, spark).catch((err) =>
+      console.warn('[Indexing] Image thumbnail generation failed:', err),
+    );
+  }
+
   const base64 = Buffer.from(fileBuffer).toString('base64');
   const mediaType = (spark.mime_type || 'image/jpeg') as
     | 'image/jpeg'
@@ -871,18 +879,30 @@ async function generatePdfThumbnail(pdfBuffer: Buffer, spark: Spark): Promise<vo
   } as any).promise;
 
   const pngBuffer = canvas.toBuffer('image/png');
+  await saveThumbnail(spark, pngBuffer, 'thumb.png', 'image/png', 'PDF');
+}
 
-  // Mirror the original storage path with a `.thumb.png` suffix so the
-  // thumbnail lives alongside the source in the same folder.
-  const thumbnailPath = `${spark.storage_path}.thumb.png`;
+/**
+ * Carica una miniatura accanto al file originale e la registra sullo spark.
+ *
+ * Convenzione dei nomi: `{storage_path}.{suffix}`, così la miniatura vive nella
+ * stessa cartella del sorgente ed è ovvio a chi appartiene.
+ */
+async function saveThumbnail(
+  spark: Spark,
+  buffer: Buffer,
+  suffix: string,
+  contentType: string,
+  label: string,
+): Promise<void> {
+  if (!spark.storage_path) return;
+  const thumbnailPath = `${spark.storage_path}.${suffix}`;
+
   const { error: uploadError } = await supabaseAdmin.storage
     .from('sparks')
-    .upload(thumbnailPath, pngBuffer, {
-      contentType: 'image/png',
-      upsert: true,
-    });
+    .upload(thumbnailPath, buffer, { contentType, upsert: true });
   if (uploadError) {
-    console.warn('[Indexing] PDF thumbnail upload failed:', uploadError);
+    console.warn(`[Indexing] ${label} thumbnail upload failed:`, uploadError);
     return;
   }
 
@@ -891,9 +911,47 @@ async function generatePdfThumbnail(pdfBuffer: Buffer, spark: Spark): Promise<vo
     .update({ thumbnail_path: thumbnailPath })
     .eq('id', spark.id);
   if (updateError) {
-    console.warn('[Indexing] PDF thumbnail thumbnail_path update failed:', updateError);
+    console.warn(`[Indexing] ${label} thumbnail_path update failed:`, updateError);
     return;
   }
 
-  console.log(`[Indexing] PDF thumbnail saved: ${thumbnailPath}`);
+  console.log(`[Indexing] ${label} thumbnail saved: ${thumbnailPath} (${Math.round(buffer.length / 1024)} KB)`);
+}
+
+/**
+ * Lato più lungo della miniatura, in pixel.
+ *
+ * La card della lista Tiles del mobile la disegna a tutta larghezza, alta 72dp:
+ * su uno schermo a 3x sono circa 990×216 px reali. 640 copre il caso con
+ * margine restando un file piccolo — in lista conta il peso, non la fedeltà.
+ */
+const THUMB_MAX_SIDE = 640;
+
+/**
+ * Miniatura per gli spark immagine, generata LATO SERVER.
+ *
+ * Il mobile le sue miniature se le fa da solo in fase di compressione, ma il
+ * web non ne genera nessuna: farlo qui copre ogni origine per costruzione,
+ * inclusi i client futuri, senza riscrivere la stessa logica in due linguaggi.
+ *
+ * Riusa il buffer già scaricato da `analyzeImage`, quindi non costa un download
+ * in più. Come per le PDF gira fire-and-forget: se fallisce, lo spark resta
+ * senza anteprima e l'indicizzazione prosegue.
+ */
+export async function generateImageThumbnail(imageBuffer: ArrayBuffer, spark: Spark): Promise<void> {
+  if (!spark.storage_path) return;
+
+  const { createCanvas, loadImage } = await import('@napi-rs/canvas');
+  const img = await loadImage(Buffer.from(imageBuffer));
+
+  // Mai ingrandire: un'immagine già piccola resta com'è, si ricodifica soltanto.
+  const scale = Math.min(1, THUMB_MAX_SIDE / Math.max(img.width, img.height));
+  const w = Math.max(1, Math.round(img.width * scale));
+  const h = Math.max(1, Math.round(img.height * scale));
+
+  const canvas = createCanvas(w, h);
+  canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+
+  // JPEG e non PNG: sono foto, e il PNG le lascerebbe pesanti senza guadagno.
+  await saveThumbnail(spark, canvas.toBuffer('image/jpeg', 72), 'thumb.jpg', 'image/jpeg', 'Image');
 }

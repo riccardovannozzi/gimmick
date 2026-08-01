@@ -34,6 +34,14 @@ export interface ObsidianColors {
   head: string;
   sidebar: string;
   field: string;
+  /**
+   * Fondo standard di una tile quando non è impostato nient'altro. NON è
+   * `surface`: sul web è un token a sé (`--ob-tile-bg`), un gradino più chiaro,
+   * perché la tile deve staccare dal pannello che la contiene e non
+   * confondersi con esso. Qui si tiene lo stesso valore del web, o le due
+   * piattaforme divergono al primo confronto affiancato.
+   */
+  tileBg: string;
   // text
   text: string;
   muted: string;
@@ -75,6 +83,7 @@ export const obsidianLight: ObsidianColors = {
   head: '#fbfbfc',
   sidebar: '#ffffff',
   field: '#ffffff',
+  tileBg: '#ffffff',
   text: '#1b1923',
   muted: '#5c5868',
   subtle: '#9a96a4',
@@ -109,6 +118,7 @@ export const obsidianDark: ObsidianColors = {
   head: '#1c1c1c',
   sidebar: '#1b1b1b',
   field: '#1d1d1d',
+  tileBg: '#2f3134',
   text: '#dcdcdc',
   muted: '#9a9a9a',
   subtle: '#6e6e6e',

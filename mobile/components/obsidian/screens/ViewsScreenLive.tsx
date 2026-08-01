@@ -6,9 +6,10 @@
  * Chrono / Settings tabs still render their static mock for now.
  */
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi } from '@/lib/api';
 import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { getSignedUrls } from '@/lib/storage';
 import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
 import type { FlowHubFilter } from '@/types';
 import { useSettingsStore } from '@/store/settingsStore';
@@ -35,6 +36,7 @@ export interface ObsidianViewsScreenLiveProps {
 }
 
 export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
+  const queryClient = useQueryClient();
   const [active, setActive] = React.useState<MobileViewId>(initial);
   const handleActive = React.useCallback((id: MobileViewId) => {
     setActive(id);
@@ -120,6 +122,56 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     enabled: active === 'chrono',
   });
 
+  /**
+   * Data scelta col picker → offset in giorni rispetto a oggi.
+   *
+   * La differenza si arrotonda sui millisecondi invece di contare i giorni uno
+   * a uno: ai cambi d'ora legale un giorno dura 23 o 25 ore, ma l'errore è di
+   * un'ora su 24 e `Math.round` lo assorbe.
+   */
+  const handleChronoPick = React.useCallback((picked: Date) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(picked);
+    target.setHours(0, 0, 0, 0);
+    setDayOffset(Math.round((target.getTime() - today.getTime()) / 86_400_000));
+  }, []);
+
+  /**
+   * Pillola "Add Tile": crea un tile-evento di un'ora nel giorno mostrato e lo
+   * apre subito per la compilazione. L'orario di partenza è la prossima ora
+   * tonda se il giorno è oggi (altrimenti si creerebbe un evento già passato),
+   * le 9:00 negli altri giorni.
+   */
+  const addingRef = React.useRef(false);
+  const handleChronoAdd = React.useCallback(async () => {
+    if (addingRef.current) return;      // doppio tap → un solo tile
+    addingRef.current = true;
+    try {
+      const start = new Date(day);
+      if (dayOffset === 0) {
+        const n = new Date();
+        start.setHours(Math.min(23, n.getHours() + 1), 0, 0, 0);
+      } else {
+        start.setHours(9, 0, 0, 0);
+      }
+      const end = new Date(start.getTime() + 60 * 60 * 1000);
+      const created = await tilesApi.create({ title: '' });
+      if (!created.success || !created.data) return;
+      await tilesApi.update(created.data.id, {
+        action_type: 'event',
+        is_event: true,
+        all_day: false,
+        start_at: start.toISOString(),
+        end_at: end.toISOString(),
+      });
+      await queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+      onOpenTile?.(created.data.id);
+    } finally {
+      addingRef.current = false;
+    }
+  }, [day, dayOffset, queryClient, onOpenTile]);
+
   // A failed fetch and an empty result render identically in the list content,
   // so surface the failure explicitly. Two distinct cases: the request threw
   // (network / unreachable backend) or it came back with success:false (auth,
@@ -167,10 +219,32 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     return [...ids];
   }, [aiQuery, aiQueryResult.data]);
 
-  const tiles = React.useMemo(
+  const baseTiles = React.useMemo(
     () => tilesByInsertion(tilesQuery.data?.data ?? [], { statusNameById, typeByTile }),
     [tilesQuery.data, statusNameById, typeByTile],
   );
+
+  // Anteprime della lista. Il bucket è privato, quindi ogni immagine va firmata:
+  // si firmano TUTTE in una richiesta sola (`createSignedUrls`) invece di una
+  // per card. La chiave della query è l'elenco dei percorsi, così il risultato
+  // si riusa finché la lista non cambia; `staleTime` sta sotto l'ora di validità
+  // della firma, altrimenti si mostrerebbero URL scaduti.
+  const previewPaths = React.useMemo(() => {
+    const paths = baseTiles.map((t) => t.previewPath).filter((p): p is string => !!p);
+    return [...new Set(paths)].sort();
+  }, [baseTiles]);
+  const previewUrls = useQuery({
+    queryKey: ['tile-preview-urls', previewPaths],
+    queryFn: () => getSignedUrls(previewPaths),
+    enabled: active === 'tiles' && previewPaths.length > 0,
+    staleTime: 50 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+  });
+  const tiles = React.useMemo(() => {
+    const urls = previewUrls.data;
+    if (!urls?.size) return baseTiles;
+    return baseTiles.map((t) => (t.previewPath ? { ...t, previewUri: urls.get(t.previewPath) } : t));
+  }, [baseTiles, previewUrls.data]);
   const flows = React.useMemo(
     () => (flowsQuery.data?.data ?? []).map(flowHubItemToVM),
     [flowsQuery.data],
@@ -203,10 +277,13 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
       chronoLoading={chronoQuery.isLoading}
       chronoDayLabel={dayLabel}
       chronoIsToday={dayOffset === 0}
+      chronoDate={day}
       onChronoPrev={() => setDayOffset((o) => o - 1)}
       onChronoNext={() => setDayOffset((o) => o + 1)}
       onChronoToday={() => setDayOffset(0)}
+      onChronoPickDate={handleChronoPick}
       onOpenEvent={onOpenTile}
+      onChronoAddTile={handleChronoAdd}
       haptic={haptic}
       onHaptic={setHaptic}
       confirmDelete={confirmDelete}

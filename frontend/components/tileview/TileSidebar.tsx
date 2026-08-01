@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -9,8 +9,7 @@ import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 import { cn } from '@/lib/utils';
-import { usePixelTheme, usePixelSettings } from '@/components/pixel';
-import { resolveCaptureStyle } from '@/lib/pixel-theme';
+import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -18,6 +17,7 @@ import { useStatuses } from '@/store/statuses-store';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
+import { DatePicker } from '@/components/ui/date-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
@@ -65,15 +65,19 @@ function obLabel(theme: PT): React.CSSProperties {
   };
 }
 
-/** Field / select trigger box (input, dropdown trigger). */
+/** Field / select trigger box (input, dropdown trigger).
+ *  Nessun contorno: gli oggetti si distinguono per il fondo, che dev'essere più
+ *  scuro del pannello (`bg2`) — stessa scelta della sidebar TEXT, dove gli
+ *  oggetti stanno su `bg1`. Con `surface` sarebbero dello stesso colore del
+ *  pannello e, senza bordo, sparirebbero. */
 function obField(theme: PT): React.CSSProperties {
   return {
-    background: theme.surface,
-    border: `1px solid ${theme.border}`,
+    background: theme.bg1,
+    border: 'none',
     borderRadius: 10,
     color: theme.ink,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 13.5,
+    fontSize: 12.5,
   };
 }
 
@@ -91,7 +95,7 @@ function obPopupRow(theme: PT, active: boolean): React.CSSProperties {
     border: `1px solid transparent`,
     color: active ? theme.ink : theme.ink2,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12,
+    fontSize: 12.5,
     cursor: 'pointer',
   };
 }
@@ -139,9 +143,11 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: current?.color ? `${current.color}40` : (theme.surface),
+          // Senza tipo impostato niente velatura: stesso fondo nero degli altri
+          // campi (bg1), non `surface` che è il colore del pannello.
+          background: current?.color ? `${current.color}40` : theme.bg1,
           padding: '0 10px',
-          height: 36,
+          height: 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -166,7 +172,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Type</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Type</span>
         )}
         {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
@@ -314,9 +320,11 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
           display: 'inline-flex',
           alignItems: 'center',
           gap: 8,
-          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.surface})` : theme.surface,
+          // 'active' è il default → nessuna velatura, fondo nero come gli altri
+          // campi. Quando invece uno status c'è, la tinta poggia sullo stesso nero.
+          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.bg1})` : theme.bg1,
           padding: '0 10px',
-          height: 36,
+          height: 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -327,7 +335,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Status</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Status</span>
         )}
         <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />
       </button>
@@ -553,10 +561,11 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          height: 36,
-          // TAG: in shell usa il tinta accent-soft come da design.
-          background: `${theme.accent}1f`,
-          color: theme.accent,
+          height: 30,
+          // Con un tag assegnato la velatura accent-soft; senza, fondo nero come
+          // gli altri campi senza valore.
+          background: selectedTag ? `${theme.accent}1f` : theme.bg1,
+          color: selectedTag ? theme.accent : theme.ink3,
           padding: '0 10px',
           cursor: 'pointer',
         }}
@@ -572,7 +581,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedTag.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, fontSize: 11 }}>Seleziona tag...</span>
+          <span style={{ color: theme.ink3, fontSize: 12.5 }}>Seleziona tag...</span>
         )}
       </div>
       {open && dropPos && createPortal(
@@ -605,7 +614,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
                 else if (e.key === 'Enter' && visibleTags.length > 0) { e.preventDefault(); handleSelect(visibleTags[0]); }
               }}
               placeholder={suggestActive ? 'Suggeriti dal testo' : 'Cerca tag...'}
-              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12, outline: 'none' }}
+              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12.5, outline: 'none' }}
             />
             {/* Bacchetta magica: propone tag esistenti ricavati dal testo del tile. */}
             <button
@@ -630,9 +639,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             )}
           </div>
           {allTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
           ) : visibleTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
           ) : (
             visibleTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
@@ -704,8 +713,8 @@ function SparkEditor({
 
   const mediaWrap: React.CSSProperties = {
     overflow: 'hidden',
-    background: theme.surfaceVariant,
-    border: `1px solid ${theme.border}`,
+    background: theme.bg1,
+    border: 'none',
     borderRadius: 12,
     position: 'relative',
   };
@@ -724,8 +733,8 @@ function SparkEditor({
       <div
         className="group"
         style={{
-          background: theme.surface,
-          border: `1px solid ${theme.border}`,
+          background: theme.bg1,
+          border: 'none',
           borderRadius: 12,
           padding: '10px 12px',
           position: 'relative',
@@ -753,7 +762,7 @@ function SparkEditor({
           {editText.trim() ? (
             <MarkdownPreview markdown={editText} />
           ) : (
-            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12 }}>Vuoto — clicca per scrivere…</span>
+            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12.5 }}>Vuoto — clicca per scrivere…</span>
           )}
         </div>
         {/* Action chips (edit + delete) appear on hover, top-right corner. */}
@@ -877,7 +886,7 @@ function SparkEditor({
             padding: '4px 8px',
           }}
         >
-          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {spark.file_name}
           </span>
         </div>
@@ -901,8 +910,8 @@ function SparkEditor({
           onClick={() => setPdfModalOpen(true)}
           className="group"
           style={{
-            background: theme.surfaceVariant,
-            border: `1px solid ${theme.border}`,
+            background: theme.bg1,
+            border: 'none',
             borderRadius: 12,
             overflow: 'hidden',
             position: 'relative',
@@ -932,7 +941,7 @@ function SparkEditor({
             <span
               style={{
                 fontFamily: 'var(--ob-font-sans)',
-                fontSize: 10,
+                fontSize: 12.5,
                 color: theme.ink2,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -998,7 +1007,7 @@ function SparkEditor({
                 <span
                   style={{
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                     fontWeight: 600,
                     letterSpacing: 0,
                     textTransform: 'none',
@@ -1050,8 +1059,8 @@ function SparkEditor({
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
       className="group"
       style={{
-        background: theme.surface,
-        border: `1px solid ${theme.border}`,
+        background: theme.bg1,
+        border: 'none',
         borderRadius: 12,
         padding: '8px 10px',
         display: 'flex',
@@ -1067,7 +1076,7 @@ function SparkEditor({
           width: 36,
           height: 36,
           background: theme.surfaceVariant,
-          border: `1px solid ${theme.border}`,
+          border: 'none',
           borderRadius: 9,
           display: 'inline-flex',
           alignItems: 'center',
@@ -1077,7 +1086,7 @@ function SparkEditor({
       >
         <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
         {spark.file_name || spark.type}
       </span>
       {signedUrl && (
@@ -1145,7 +1154,6 @@ export function TileSidebar({
   forceFlowTab?: number;
 }) {
   const theme = usePixelTheme();
-  const { settings: pixelSettings } = usePixelSettings();
   const queryClient = useQueryClient();
   const actionColors = useActionColors();
   // "Completato" ha come UNICA fonte di verità il menu a discesa status
@@ -1330,11 +1338,14 @@ export function TileSidebar({
     }
   }, [tileId, cameraMode, invalidateAll]);
 
-  const [showNewText, setShowNewText] = useState(false);
   const [newTextContent, setNewTextContent] = useState('');
   // Toggles the centered markdown editor modal for the in-progress new-text spark.
   const [newTextModalOpen, setNewTextModalOpen] = useState(false);
-  const [dropTargetIcon, setDropTargetIcon] = useState<string | null>(null);
+  // Trascinamento sopra il box di cattura. `dragDepth` conta enter/leave: senza
+  // contatore ogni passaggio su un figlio (i cerchi, il segnaposto) emette un
+  // `dragleave` e l'evidenziazione lampeggerebbe.
+  const [boxDragOver, setBoxDragOver] = useState(false);
+  const dragDepth = useRef(0);
   const addTextMutation = useMutation({
     // Accept the content as a parameter so the modal can fire-and-save in one
     // gesture — otherwise we'd be reading a stale `newTextContent` from the
@@ -1350,7 +1361,6 @@ export function TileSidebar({
     onSuccess: () => {
       invalidateAll();
       setNewTextContent('');
-      setShowNewText(false);
       setNewTextModalOpen(false);
       toast.success('Testo aggiunto');
     },
@@ -1419,12 +1429,13 @@ export function TileSidebar({
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: 28,
-                height: 28,
+                // 30 come tutti i controlli di barra (tab, toolbar, segmented).
+                width: 30,
+                height: 30,
                 borderRadius: 8,
                 background: 'transparent',
                 color: theme.ink2,
-                border: `1px solid ${theme.border}`,
+                border: 'none',
                 cursor: 'pointer',
                 flexShrink: 0,
               }}
@@ -1446,11 +1457,11 @@ export function TileSidebar({
           style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
         >
           {!tileId ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
             <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
@@ -1477,6 +1488,13 @@ export function TileSidebar({
                           width: '100%',
                           padding: '8px 10px',
                           lineHeight: '20px',
+                          // Altezza ESPLICITA invece che dedotta da `rows`: con
+                          // box-sizing border-box il browser fa rientrare il
+                          // padding nell'altezza calcolata dalle righe, e l'area
+                          // di testo finisce per mostrare una riga a metà.
+                          // 2 righe da 20 + 8+8 di padding = 56 esatti.
+                          height: 56,
+                          overflowY: 'auto',
                           outline: 'none',
                           resize: 'none',
                           textDecoration: isDone ? 'line-through' : 'none',
@@ -1544,13 +1562,17 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
-                          height: 32,
-                          borderRadius: 7,
+                          // 30 come ogni altro controllo di barra dello shell —
+                          // stesso ingombro dei tab Edit/List/Flow qui sopra.
+                          height: 30,
+                          borderRadius: 8,
                           // Tutti i bottoni hanno un leggero sfondo violaceo (accent);
                           // l'attivo è più marcato e con contorno accent.
                           background: isActive ? `${theme.accent}2E` : `${theme.accent}14`,
                           color: isActive ? theme.accent : theme.ink,
-                          border: `1px solid ${isActive ? theme.accent : 'transparent'}`,
+                          // Lo stato attivo si legge dal fondo più carico e dal
+                          // testo accent: niente contorno.
+                          border: 'none',
                           fontFamily: 'var(--ob-font-sans)',
                           fontSize: 12.5,
                           fontWeight: 600,
@@ -1569,10 +1591,10 @@ export function TileSidebar({
                   };
                   return (
                     // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
-                    // surface + cornice leggera + padding, come segmented control.
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 3 }}>
-                      <div style={{ display: 'flex', gap: 3 }}>{row1.map(renderBtn)}</div>
-                      <div style={{ display: 'flex', gap: 3 }}>{row2.map(renderBtn)}</div>
+                    // surface + padding, come segmented control. Niente cornice.
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 10, padding: 6 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>{row1.map(renderBtn)}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>{row2.map(renderBtn)}</div>
                     </div>
                   );
                 })()}
@@ -1641,8 +1663,9 @@ export function TileSidebar({
                 // Cella generica dentro il container: sfondo surface, NESSUN bordo
                 // (la cornice la dà il container del gruppo).
                 const cellBase: React.CSSProperties = {
-                  background: theme.surface, border: '1px solid transparent',
-                  borderRadius: 8, height: 36,
+                  background: theme.bg1, border: 'none',
+                  // 30 come ogni altro campo/controllo della sidebar.
+                  borderRadius: 8, height: 30,
                 };
 
                 return (
@@ -1650,31 +1673,18 @@ export function TileSidebar({
                     <label style={labelStyle}>Data e orario</label>
                     {/* Tutto raggruppato in un unico container (come AZIONE): riga data +
                         riga inizio/durata/fine. Niente label: segnaposti illustrativi inline. */}
-                    <div style={{ background: theme.surfaceVariant, border: '1px solid var(--ob-line-2)', borderRadius: 10, padding: 4, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {/* Riga 1: data a piena larghezza */}
-                      <div style={{ position: 'relative' }}>
-                        <IconCalendar
-                          size={14}
-                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
-                        />
-                        <input
-                          type="date"
-                          value={dateVal}
-                          onChange={(e) => updateDate(e.target.value)}
-                          onClick={(e) => { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); }}
-                          className={'ob-ts-date'}
-                          style={{
-                            ...cellBase,
-                            color: theme.ink,
-                            fontFamily: 'var(--ob-font-sans)',
-                            fontSize: 13.5,
-                            padding: '0 8px 0 32px',
-                            outline: 'none',
-                            width: '100%',
-                            colorScheme: theme.mode,
-                          }}
-                        />
-                      </div>
+                    {/* Contenitore trasparente: le celle sono già su bg1, un
+                        gruppo dello stesso colore le farebbe sparire. */}
+                    <div style={{ background: 'transparent', border: 'none', borderRadius: 10, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {/* Riga 1: data a piena larghezza. Selettore nostro e non
+                          `<input type="date">`: il campo nativo disegna i segmenti
+                          con cifre a larghezza fissa e non combacia col resto. */}
+                      <DatePicker
+                        value={dateVal}
+                        onChange={updateDate}
+                        icon={<IconCalendar size={14} />}
+                        noBorder
+                      />
                       {/* Riga 2: inizio · durata (h) · fine — solo per eventi a orario.
                           Orologio = segnaposto orario, "h" = segnaposto durata. */}
                       {isTimed && (
@@ -1695,12 +1705,12 @@ export function TileSidebar({
                                 outline: 'none',
                                 textAlign: 'right',
                                 fontFamily: 'var(--ob-font-sans)',
-                                fontSize: 13,
-                                fontWeight: 600,
+                                fontSize: 12.5,
+                                fontWeight: 400,
                                 color: theme.ink,
                               }}
                             />
-                            <span style={{ fontSize: 11, color: theme.ink3 }}>h</span>
+                            <span style={{ fontSize: 12.5, color: theme.ink3 }}>h</span>
                           </div>
                           <TimePicker value={endTime || '10:00'} icon={<IconClock size={14} />} onChange={setEnd} compact noBorder />
                         </div>
@@ -1735,16 +1745,61 @@ export function TileSidebar({
                 <div style={{ ...obLabel(theme), marginBottom: 8 }}>
                   {`Sparks · ${sparks.length}`}
                 </div>
+                {/* Box di cattura: stesso fondo dell'input del titolo (bg1), due
+                    righe di testo e in fondo la riga dei canali. I pulsanti sono
+                    tondi come nella home dell'app mobile (cerchio #3a3a3a, glifo
+                    chiaro, nessun bordo — vedi CaptureScreen.tsx `toolbar`).
+                    Nella sidebar da 280 sei cerchi da 48 non ci starebbero in
+                    riga: `flex: 0 1 48px` li tiene a 48 quando c'è spazio e li
+                    stringe quanto basta, mentre `aspect-ratio` li mantiene
+                    perfettamente circolari. */}
                 <div
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+                  onDragEnter={(e) => { e.preventDefault(); dragDepth.current += 1; setBoxDragOver(true); }}
+                  onDragLeave={() => { dragDepth.current = Math.max(0, dragDepth.current - 1); if (dragDepth.current === 0) setBoxDragOver(false); }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    dragDepth.current = 0;
+                    setBoxDragOver(false);
+                    if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
+                  }}
                   style={{
-                    display: 'flex',
-                    border: '1px solid var(--ob-line-2)',
-                    borderRadius: 12,
-                    overflow: 'hidden',
-                    background: theme.surface,
+                    background: boxDragOver ? `${theme.accent}1F` : theme.bg1,
+                    borderRadius: 10,
+                    padding: 12,
                     marginBottom: 12,
+                    // Inset: un contorno esterno allargherebbe il box e farebbe
+                    // sobbalzare il contenuto sotto durante il trascinamento.
+                    outline: boxDragOver ? `1px dashed ${theme.accent}` : 'none',
+                    outlineOffset: -1,
+                    transition: 'background-color 120ms ease-out',
                   }}
                 >
+                  {/* Segnaposto in stile input: cliccandolo si apre direttamente
+                      l'editor a modale. Nessuna bozza intermedia, quindi nessuno
+                      spark vuoto: lo spark nasce solo al salvataggio. */}
+                  <button
+                    type="button"
+                    onClick={() => setNewTextModalOpen(true)}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      cursor: 'text',
+                      fontFamily: 'var(--ob-font-sans)',
+                      fontSize: 12.5,
+                      // Segnaposto appena percettibile: `ink3` è il grigio più
+                      // spento della scala, ulteriormente attenuato.
+                      color: theme.ink3,
+                      opacity: 0.6,
+                    }}
+                    title="Scrivi una nota"
+                  >
+                    Scrivi una nota o allega un file
+                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12 }}>
                   {[
                     // Due canali immagine con significati distinti e veri:
                     // Photo apre la webcam e produce spark 'photo' (catturata
@@ -1758,20 +1813,15 @@ export function TileSidebar({
                     { id: 'text', label: 'Text', icon: IconEdit, capKey: 'text' as const, accept: null },
                     { id: 'voice', label: 'Voice', icon: IconMicrophone, capKey: 'voice' as const, accept: 'audio/*' },
                     { id: 'file', label: 'File', icon: IconPaperclip, capKey: 'file' as const, accept: '*/*' },
-                  ].map((opt, idx, arr) => {
+                  ].map((opt) => {
                     const BtnIcon = opt.icon;
-                    const isDropTarget = dropTargetIcon === opt.id;
-                    const acceptsDrop = opt.id !== 'text';
-                    const cap = theme.cap[opt.capKey];
-                    const tint = theme.tint[opt.capKey];
-                    const treatment = pixelSettings.captureTreatment ?? 'tinted';
-                    const cstyle = resolveCaptureStyle(treatment, cap, tint, theme.surface, theme.border, theme.ink2);
                     return (
                       <button
                         key={opt.id}
                         onClick={() => {
                           if (opt.id === 'text') {
-                            setShowNewText(true);
+                            // Stesso comportamento del segnaposto: modale subito.
+                            setNewTextModalOpen(true);
                           } else if (opt.id === 'photo' || opt.id === 'video') {
                             setCameraMode(opt.id);
                           } else {
@@ -1783,44 +1833,27 @@ export function TileSidebar({
                             input.click();
                           }
                         }}
-                        onDragOver={acceptsDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } : undefined}
-                        onDragEnter={acceptsDrop ? (e) => { e.preventDefault(); setDropTargetIcon(opt.id); } : undefined}
-                        onDragLeave={acceptsDrop ? () => setDropTargetIcon((v) => (v === opt.id ? null : v)) : undefined}
-                        onDrop={acceptsDrop ? (e) => {
-                          e.preventDefault();
-                          setDropTargetIcon(null);
-                          if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
-                        } : undefined}
-                        className={undefined}
                         style={{
                           position: 'relative',
-                          flex: 1,
+                          flex: '0 1 48px',
                           minWidth: 0,
-                          height: 56,
-                          borderRadius: 0,
+                          aspectRatio: '1',
+                          borderRadius: '50%',
+                          padding: 0,
                           display: 'inline-flex',
-                          flexDirection: 'column',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          gap: 6,
-                          background: isDropTarget ? `${cap}1F` : 'transparent',
+                          background: '#3a3a3a',
                           border: 'none',
-                          // Divisore leggero tra le celle (non sull'ultima).
-                          borderRight: idx < arr.length - 1 ? '1px solid var(--ob-line-2)' : 'none',
                           cursor: 'pointer',
                         }}
-                        title={opt.id}
+                        title={opt.label}
                       >
-                        <BtnIcon size={19} style={{ color: cap }} />
-                        {(
-                          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, fontWeight: 500, color: theme.ink2, lineHeight: 1 }}>
-                            {opt.label}
-                          </span>
-                        )}
-                        {false}
+                        <BtnIcon size={17} stroke={1.7} style={{ color: theme.ink }} />
                       </button>
                     );
                   })}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {sparks.map((spark) => (
@@ -1833,112 +1866,21 @@ export function TileSidebar({
                   ))}
                 </div>
 
-                {showNewText && (
-                  <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {/* Read-only markdown preview. Click anywhere on it (or on
-                        the corner expand icon) to open the centered editor. */}
-                    <button
-                      type="button"
-                      onClick={() => setNewTextModalOpen(true)}
-                      style={{
-                        position: 'relative',
-                        width: '100%',
-                        minHeight: 80,
-                        textAlign: 'left',
-                        background: theme.surfaceVariant,
-                        border: `1px solid ${theme.border}`,
-                        padding: '8px 10px',
-                        color: theme.ink,
-                        fontFamily: 'var(--ob-font-sans)',
-                        fontSize: 12,
-                        cursor: 'pointer',
-                      }}
-                      title="Apri editor"
-                    >
-                      {newTextContent.trim() ? (
-                        <MarkdownPreview markdown={newTextContent} />
-                      ) : (
-                        <span style={{ color: theme.ink3, fontStyle: 'italic' }}>Clicca per scrivere…</span>
-                      )}
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 4,
-                          right: 4,
-                          width: 22,
-                          height: 22,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          background: theme.surface,
-                          border: `1px solid ${theme.border}`,
-                          color: theme.ink2,
-                        }}
-                      >
-                        <IconMaximize size={12} />
-                      </span>
-                    </button>
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button
-                        onClick={() => newTextContent.trim() && addTextMutation.mutate(undefined)}
-                        disabled={!newTextContent.trim()}
-                        className="px-press"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '0 10px',
-                          height: 26,
-                          background: theme.accent,
-                          color: theme.onAccent,
-                          border: `1px solid ${theme.border}`,
-                          fontFamily: 'var(--ob-font-mono)',
-                          fontSize: 9,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          cursor: !newTextContent.trim() ? 'not-allowed' : 'pointer',
-                          opacity: !newTextContent.trim() ? 0.4 : 1,
-                          boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-                        }}
-                      >
-                        Salva
-                      </button>
-                      <button
-                        onClick={() => { setShowNewText(false); setNewTextContent(''); }}
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          padding: '0 10px',
-                          height: 26,
-                          background: theme.surfaceVariant,
-                          color: theme.ink2,
-                          border: `1px solid ${theme.border}`,
-                          fontFamily: 'var(--ob-font-mono)',
-                          fontSize: 9,
-                          letterSpacing: '0.08em',
-                          textTransform: 'uppercase',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Annulla
-                      </button>
-                    </div>
-                    <MarkdownEditorModal
-                      open={newTextModalOpen}
-                      initialValue={newTextContent}
-                      onSave={(md) => {
-                        // Persist the draft locally first (in case the API
-                        // call fails we still show what the user wrote), then
-                        // commit it as a spark in one shot — no second click.
-                        setNewTextContent(md);
-                        if (md.trim()) addTextMutation.mutate(md);
-                        else setNewTextModalOpen(false);
-                      }}
-                      onCancel={() => setNewTextModalOpen(false)}
-                      title="Nuovo testo"
-                      commitOnClose
-                    />
-                  </div>
-                )}
+                {/* Unico percorso per il testo: la modale. Nessuna bozza in
+                    sidebar, quindi nessuno spark vuoto — lo spark nasce solo se
+                    alla chiusura c'è del contenuto. */}
+                <MarkdownEditorModal
+                  open={newTextModalOpen}
+                  initialValue={newTextContent}
+                  onSave={(md) => {
+                    setNewTextContent(md);
+                    if (md.trim()) addTextMutation.mutate(md);
+                    else { setNewTextContent(''); setNewTextModalOpen(false); }
+                  }}
+                  onCancel={() => { setNewTextContent(''); setNewTextModalOpen(false); }}
+                  title="Nuovo testo"
+                  commitOnClose
+                />
               </div>
 
             </div>

@@ -13,6 +13,7 @@ import { tilesApi } from '@/lib/api';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
+import { DatePicker } from '@/components/ui/date-picker';
 import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType } from '@/types';
 
@@ -279,25 +280,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
               <label style={labelStyle}>
                 Date {dateMixed && <span style={{ color: '#F5A623', textTransform: 'none' }}>— misto</span>}
               </label>
-              <input
-                type="date"
+              {/* Stesso selettore della TileSidebar: niente `<input type="date">`,
+                  che renderebbe i segmenti con cifre a larghezza fissa. */}
+              <DatePicker
                 value={dateValue}
-                onChange={(e) => setDate(e.target.value)}
-                disabled={saving}
-                placeholder={dateMixed ? 'Misto' : ''}
-                style={{
-                  width: '100%',
-                  background: theme.surface,
-                  border: `${bW}px solid ${theme.border}`,
-                  borderRadius: 10,
-                  padding: '0 10px',
-                  height: 36,
-                  color: theme.ink,
-                  fontFamily: 'var(--ob-font-sans)',
-                  fontSize: 13,
-                  outline: 'none',
-                  colorScheme: theme.mode,
-                }}
+                onChange={setDate}
+                placeholder={dateMixed ? 'Misto' : 'gg/mm/aaaa'}
               />
             </div>
           )}

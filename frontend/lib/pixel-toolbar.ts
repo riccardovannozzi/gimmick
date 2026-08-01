@@ -6,6 +6,12 @@ import type { PixelTheme } from './pixel-theme';
  * I colori arrivano dal PixelTheme mappato sui token Obsidian (vedi
  * `obsidian-pixel-theme.ts`): qui definiamo solo la struttura — Geist, hairline
  * 1px + raggio, niente uppercase né ombre dure.
+ *
+ * Scala verticale dello shell: 56 navbar · 48 barre della fascia sotto la
+ * navbar (toolbar canvas, header sidebar, tabbar inspector) · 40 sotto-barre
+ * annidate. I CONTROLLI dentro le barre stanno tutti a 30: toolbar, segmented e
+ * tab dell'inspector (`.ob-insp-tab`). Cambiare qui significa cambiare la
+ * fascia intera, quindi tenerli allineati.
  */
 export function obsidianToolbarBtn(theme: PixelTheme, active: boolean): React.CSSProperties {
   return {
@@ -35,7 +41,7 @@ export function obsidianSegmentedBtn(theme: PixelTheme, active: boolean): React.
     alignItems: 'center',
     gap: 6,
     padding: '0 12px',
-    height: 26,
+    height: 30,
     borderRadius: 8,
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink2,
