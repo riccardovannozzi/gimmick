@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -17,6 +17,7 @@ import { useStatuses } from '@/store/statuses-store';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
+import { DatePicker } from '@/components/ui/date-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
 import { FlowCardList } from '@/components/flow/FlowCardList';
 import { useFlow } from '@/lib/hooks/useFlow';
@@ -76,7 +77,7 @@ function obField(theme: PT): React.CSSProperties {
     borderRadius: 10,
     color: theme.ink,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 13.5,
+    fontSize: 12.5,
   };
 }
 
@@ -94,7 +95,7 @@ function obPopupRow(theme: PT, active: boolean): React.CSSProperties {
     border: `1px solid transparent`,
     color: active ? theme.ink : theme.ink2,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12,
+    fontSize: 12.5,
     cursor: 'pointer',
   };
 }
@@ -146,7 +147,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
           // campi (bg1), non `surface` che è il colore del pannello.
           background: current?.color ? `${current.color}40` : theme.bg1,
           padding: '0 10px',
-          height: 36,
+          height: 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -171,7 +172,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Type</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Type</span>
         )}
         {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
@@ -323,7 +324,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
           // campi. Quando invece uno status c'è, la tinta poggia sullo stesso nero.
           background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.bg1})` : theme.bg1,
           padding: '0 10px',
-          height: 36,
+          height: 30,
           cursor: 'pointer',
           textAlign: 'left',
         }}
@@ -334,7 +335,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 13.5 }}>Status</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Status</span>
         )}
         <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />
       </button>
@@ -560,7 +561,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
           display: 'flex',
           alignItems: 'center',
           gap: 8,
-          height: 36,
+          height: 30,
           // Con un tag assegnato la velatura accent-soft; senza, fondo nero come
           // gli altri campi senza valore.
           background: selectedTag ? `${theme.accent}1f` : theme.bg1,
@@ -580,7 +581,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedTag.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, fontSize: 11 }}>Seleziona tag...</span>
+          <span style={{ color: theme.ink3, fontSize: 12.5 }}>Seleziona tag...</span>
         )}
       </div>
       {open && dropPos && createPortal(
@@ -613,7 +614,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
                 else if (e.key === 'Enter' && visibleTags.length > 0) { e.preventDefault(); handleSelect(visibleTags[0]); }
               }}
               placeholder={suggestActive ? 'Suggeriti dal testo' : 'Cerca tag...'}
-              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12, outline: 'none' }}
+              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12.5, outline: 'none' }}
             />
             {/* Bacchetta magica: propone tag esistenti ricavati dal testo del tile. */}
             <button
@@ -638,9 +639,9 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             )}
           </div>
           {allTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
           ) : visibleTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
           ) : (
             visibleTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
@@ -761,7 +762,7 @@ function SparkEditor({
           {editText.trim() ? (
             <MarkdownPreview markdown={editText} />
           ) : (
-            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12 }}>Vuoto — clicca per scrivere…</span>
+            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12.5 }}>Vuoto — clicca per scrivere…</span>
           )}
         </div>
         {/* Action chips (edit + delete) appear on hover, top-right corner. */}
@@ -885,7 +886,7 @@ function SparkEditor({
             padding: '4px 8px',
           }}
         >
-          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 10, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {spark.file_name}
           </span>
         </div>
@@ -940,7 +941,7 @@ function SparkEditor({
             <span
               style={{
                 fontFamily: 'var(--ob-font-sans)',
-                fontSize: 10,
+                fontSize: 12.5,
                 color: theme.ink2,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -1006,7 +1007,7 @@ function SparkEditor({
                 <span
                   style={{
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13.5,
+                    fontSize: 12.5,
                     fontWeight: 600,
                     letterSpacing: 0,
                     textTransform: 'none',
@@ -1085,7 +1086,7 @@ function SparkEditor({
       >
         <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
         {spark.file_name || spark.type}
       </span>
       {signedUrl && (
@@ -1456,11 +1457,11 @@ export function TileSidebar({
           style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
         >
           {!tileId ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
             <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
@@ -1487,6 +1488,13 @@ export function TileSidebar({
                           width: '100%',
                           padding: '8px 10px',
                           lineHeight: '20px',
+                          // Altezza ESPLICITA invece che dedotta da `rows`: con
+                          // box-sizing border-box il browser fa rientrare il
+                          // padding nell'altezza calcolata dalle righe, e l'area
+                          // di testo finisce per mostrare una riga a metà.
+                          // 2 righe da 20 + 8+8 di padding = 56 esatti.
+                          height: 56,
+                          overflowY: 'auto',
                           outline: 'none',
                           resize: 'none',
                           textDecoration: isDone ? 'line-through' : 'none',
@@ -1554,8 +1562,10 @@ export function TileSidebar({
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: 6,
-                          height: 32,
-                          borderRadius: 7,
+                          // 30 come ogni altro controllo di barra dello shell —
+                          // stesso ingombro dei tab Edit/List/Flow qui sopra.
+                          height: 30,
+                          borderRadius: 8,
                           // Tutti i bottoni hanno un leggero sfondo violaceo (accent);
                           // l'attivo è più marcato e con contorno accent.
                           background: isActive ? `${theme.accent}2E` : `${theme.accent}14`,
@@ -1582,9 +1592,9 @@ export function TileSidebar({
                   return (
                     // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
                     // surface + padding, come segmented control. Niente cornice.
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3, background: theme.bg1, border: 'none', borderRadius: 10, padding: 3 }}>
-                      <div style={{ display: 'flex', gap: 3 }}>{row1.map(renderBtn)}</div>
-                      <div style={{ display: 'flex', gap: 3 }}>{row2.map(renderBtn)}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 10, padding: 6 }}>
+                      <div style={{ display: 'flex', gap: 6 }}>{row1.map(renderBtn)}</div>
+                      <div style={{ display: 'flex', gap: 6 }}>{row2.map(renderBtn)}</div>
                     </div>
                   );
                 })()}
@@ -1654,7 +1664,8 @@ export function TileSidebar({
                 // (la cornice la dà il container del gruppo).
                 const cellBase: React.CSSProperties = {
                   background: theme.bg1, border: 'none',
-                  borderRadius: 8, height: 36,
+                  // 30 come ogni altro campo/controllo della sidebar.
+                  borderRadius: 8, height: 30,
                 };
 
                 return (
@@ -1665,30 +1676,15 @@ export function TileSidebar({
                     {/* Contenitore trasparente: le celle sono già su bg1, un
                         gruppo dello stesso colore le farebbe sparire. */}
                     <div style={{ background: 'transparent', border: 'none', borderRadius: 10, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                      {/* Riga 1: data a piena larghezza */}
-                      <div style={{ position: 'relative' }}>
-                        <IconCalendar
-                          size={14}
-                          style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: theme.ink3, pointerEvents: 'none' }}
-                        />
-                        <input
-                          type="date"
-                          value={dateVal}
-                          onChange={(e) => updateDate(e.target.value)}
-                          onClick={(e) => { (e.currentTarget as HTMLInputElement & { showPicker?: () => void }).showPicker?.(); }}
-                          className={'ob-ts-date'}
-                          style={{
-                            ...cellBase,
-                            color: theme.ink,
-                            fontFamily: 'var(--ob-font-sans)',
-                            fontSize: 13.5,
-                            padding: '0 8px 0 32px',
-                            outline: 'none',
-                            width: '100%',
-                            colorScheme: theme.mode,
-                          }}
-                        />
-                      </div>
+                      {/* Riga 1: data a piena larghezza. Selettore nostro e non
+                          `<input type="date">`: il campo nativo disegna i segmenti
+                          con cifre a larghezza fissa e non combacia col resto. */}
+                      <DatePicker
+                        value={dateVal}
+                        onChange={updateDate}
+                        icon={<IconCalendar size={14} />}
+                        noBorder
+                      />
                       {/* Riga 2: inizio · durata (h) · fine — solo per eventi a orario.
                           Orologio = segnaposto orario, "h" = segnaposto durata. */}
                       {isTimed && (
@@ -1709,12 +1705,12 @@ export function TileSidebar({
                                 outline: 'none',
                                 textAlign: 'right',
                                 fontFamily: 'var(--ob-font-sans)',
-                                fontSize: 13,
-                                fontWeight: 600,
+                                fontSize: 12.5,
+                                fontWeight: 400,
                                 color: theme.ink,
                               }}
                             />
-                            <span style={{ fontSize: 11, color: theme.ink3 }}>h</span>
+                            <span style={{ fontSize: 12.5, color: theme.ink3 }}>h</span>
                           </div>
                           <TimePicker value={endTime || '10:00'} icon={<IconClock size={14} />} onChange={setEnd} compact noBorder />
                         </div>
@@ -1793,8 +1789,11 @@ export function TileSidebar({
                       padding: 0,
                       cursor: 'text',
                       fontFamily: 'var(--ob-font-sans)',
-                      fontSize: 13.5,
-                      color: theme.ink2,
+                      fontSize: 12.5,
+                      // Segnaposto appena percettibile: `ink3` è il grigio più
+                      // spento della scala, ulteriormente attenuato.
+                      color: theme.ink3,
+                      opacity: 0.6,
                     }}
                     title="Scrivi una nota"
                   >

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { Inter, Press_Start_2P, JetBrains_Mono, Geist, Geist_Mono } from 'next/font/google';
+import { Press_Start_2P, JetBrains_Mono, Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import './pixel.css';
 import './obsidian.css';
@@ -18,8 +18,6 @@ import './obsidian-ask.css';
 import './obsidian-modals.css';
 import './obsidian-states.css';
 import { Providers } from './providers';
-
-const inter = Inter({ subsets: ['latin'] });
 
 // Obsidian design system fonts. CSS vars exposed via `variable:` so the
 // Obsidian tokens (lib/theme/obsidian.ts, app/obsidian.css) can read them
@@ -66,7 +64,10 @@ export default function RootLayout({
       className={`dark ${pressStart.variable} ${jetbrains.variable} ${geistSans.variable} ${geistMono.variable}`}
       style={{ colorScheme: 'dark' }}
     >
-      <body className={`${inter.className} bg-zinc-950 text-white antialiased`} suppressHydrationWarning>
+      {/* Font unico dell'app: Geist Sans, lo stesso a cui punta `--ob-font-sans`.
+          Prima qui c'era Inter, e chi non dichiarava un font proprio ereditava
+          quello — due caratteri diversi nella stessa schermata. */}
+      <body className={`${geistSans.className} bg-zinc-950 text-white antialiased`} suppressHydrationWarning>
         <Providers>{children}</Providers>
       </body>
     </html>

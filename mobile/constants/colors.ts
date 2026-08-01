@@ -102,7 +102,16 @@ export const lightTheme = {
   overlayLight: 'rgba(0, 0, 0, 0.3)',
 } as const;
 
-export type ThemeColors = typeof darkTheme;
+/**
+ * Forma del tema. I due temi sono `as const`, quindi ogni colore ha un tipo
+ * LETTERALE: preso alla lettera, `typeof darkTheme` NON accetta `lightTheme`
+ * perché i valori differiscono (es. `overlay` è "rgba(0,0,0,0.75)" contro
+ * "rgba(0,0,0,0.5)"). Allarghiamo quindi le sole stringhe a `string`, tenendo
+ * intatta la struttura: i letterali restano dove servono davvero, cioè in
+ * `captureColors` (oggetto condiviso dai due temi, da cui deriva `CaptureType`).
+ */
+type WidenStrings<T> = { [K in keyof T]: T[K] extends string ? string : T[K] };
+export type ThemeColors = WidenStrings<typeof darkTheme>;
 export type CaptureType = keyof typeof captureColors;
 
 // Default export for backward compatibility during migration

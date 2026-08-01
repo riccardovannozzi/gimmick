@@ -38,33 +38,42 @@
 
 /* ── Toolbar ── */
 /* Prima barra della vista, nella fascia sotto la navbar: 48, come toolbar del
-   canvas, header della sidebar e tabbar dell'inspector (56 · 48 · 40). */
-.ob-chrono__toolbar { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
+   canvas, header della sidebar e tabbar dell'inspector (56 · 48 · 40).
+   Fondo e hairline sono gli STESSI della toolbar del canvas (`CanvasTopbar` usa
+   `theme.bg2` = --ob-surface e `theme.border` = --ob-line-2): prima qui c'era
+   --ob-head, tre punti più scuro, e le due fasce non combaciavano. Anche il gap
+   è quello del canvas (4). */
+.ob-chrono__toolbar { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line-2); }
 
-/* Pulsante "+Tile": neutro a riposo, violaceo in hover e quando armato (modalità posizionamento). */
-.ob-chrono__add-tile {
+/* Controlli della toolbar: stessa ricetta dei bottoni del canvas
+   (lib/pixel-toolbar.ts → `obsidianToolbarBtn`) — 30 di altezza, raggio 10,
+   fondo surface-2, testo muted, 12.5/600; attivo = accent PIENO con testo
+   on-accent. Nel canvas i toggle sono chip indipendenti, senza contenitore
+   segmentato: qui idem, così le due barre si leggono come lo stesso oggetto. */
+.ob-chrono__tbtn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-family: var(--ob-font-sans);
-  font-size: 12.5px;
-  font-weight: 500;
-  line-height: 1;
-  /* Controllo di barra: 30, come toolbar canvas / tab inspector / segmented. */
   height: 30px;
   padding: 0 12px;
-  border-radius: var(--ob-radius-control, 8px);
   border: none;
-  background: var(--ob-surface);
-  color: var(--ob-text);
+  border-radius: 10px;
+  background: var(--ob-surface-2);
+  color: var(--ob-muted);
+  font-family: var(--ob-font-sans);
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.ob-chrono__add-tile:hover,
-.ob-chrono__add-tile--armed {
-  background: var(--ob-accent-soft);
-  color: var(--ob-accent);
-}
+.ob-chrono__tbtn:hover { color: var(--ob-text); }
+.ob-chrono__tbtn--active,
+.ob-chrono__tbtn--active:hover { background: var(--ob-accent); color: var(--ob-accent-ink); }
+
+/* Separatore fra gruppi di controlli, identico a quello del canvas. */
+.ob-chrono__tbar-sep { width: 1px; height: 20px; background: var(--ob-line-2); margin: 0 4px; flex-shrink: 0; }
 
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
@@ -162,7 +171,7 @@
 .ob-chrono__daycol--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 35%, transparent); }
 .ob-chrono__daycol--creatable { cursor: cell; }
 /* Maniglia di resize in basso all'evento (cambia la durata). */
-.ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 3px 3px; }
+.ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 5px 5px; }
 .ob-chrono__event-resize:hover { background: color-mix(in srgb, var(--ev-c) 45%, transparent); }
 .ob-chrono__card-title { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-chrono__card-bars { display: flex; gap: 3px; }
@@ -208,7 +217,9 @@
 .ob-chrono__allday-cell--first { border-left: none; }
 .ob-chrono__allday-cell--today { background: var(--ob-today-bg); }
 .ob-chrono__allday-cell--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 35%, transparent); }
-.ob-chrono__allday-pill { position: relative; display: flex; align-items: center; gap: 5px; border-radius: 3px; padding: 3px 6px; min-width: 0; overflow: hidden; background: color-mix(in srgb, var(--ev-c) 14%, transparent); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+/* Stessa ricetta dei tile: la velatura poggia sul fondo unico, non su transparent. */
+.ob-chrono__allday-pill { position: relative; display: flex; align-items: center; gap: 5px; border-radius: 5px; padding: 3px 6px; min-width: 0; overflow: hidden; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+.ob-chrono__allday-pill--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
 /* Scadenze: etichetta verticale rossa sul bordo sinistro (unico marcatore). */
 .ob-chrono__allday-pill--deadline { padding-left: 9px; }
 .ob-chrono__allday-pill--deadline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ob-error); border-radius: 3px 0 0 3px; }
@@ -236,9 +247,20 @@
 }
 /* Sfondo OPACO (mix con la surface, non transparent) così gli eventi affiancati
    in caso di sovrapposizione non si vedono in trasparenza l'uno sull'altro. */
-.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: 3px; overflow: hidden; display: flex; background: color-mix(in srgb, var(--ev-c) 16%, var(--ob-surface)); border: 1px solid color-mix(in srgb, var(--ev-c) 38%, var(--ob-surface)); }
-.ob-chrono__event--tall { flex-direction: column; padding: 3px 6px; gap: 1px; }
-.ob-chrono__event--tiny { flex-direction: row; align-items: center; padding: 2px 6px; gap: 5px; }
+/* Stessa ricetta dei tile di CANVAS/KANBAN/colonne: base `--ob-tile-bg`, velatura
+   del colore al 14%, bordo tinto al 22%, raggio 5. Il blocco è sempre una riga
+   (strip status + corpo); è il CORPO a cambiare direzione fra tall e tiny. */
+.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: 5px; overflow: hidden; display: flex; flex-direction: row; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+/* Senza colorazione: fondo unico dei tile e bordo neutro. */
+.ob-chrono__event--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
+.ob-chrono__event--plain .ob-chrono__event-time { color: var(--ob-muted); }
+/* Deadline: bordo rosso tratteggiato, come sul canvas. */
+.ob-chrono__event--deadline { border: 1px dashed #E24B4A; }
+/* Strip STATUS a sinistra, 16px come il canvas — solo se la tile ha uno status. */
+.ob-chrono__event-strip { width: 16px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.18); border-right: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+.ob-chrono__event-body { flex: 1; min-width: 0; display: flex; }
+.ob-chrono__event--tall .ob-chrono__event-body { flex-direction: column; padding: 3px 6px; gap: 1px; }
+.ob-chrono__event--tiny .ob-chrono__event-body { flex-direction: row; align-items: center; padding: 2px 6px; gap: 5px; }
 /* Righe del titolo = quante ne stanno nell'altezza del blocco (--title-lines,
    impostata inline); l'ellissi cade sempre sull'ultima riga visibile invece di
    tagliare il testo a metà. */

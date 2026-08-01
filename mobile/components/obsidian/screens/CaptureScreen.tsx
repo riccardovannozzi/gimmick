@@ -13,7 +13,6 @@ import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, I
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconWaveSine, IconPaperclip,
   IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
-  IconMenu2, IconSparkles,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot, IconEraser,
 } from '@tabler/icons-react-native';
@@ -30,6 +29,7 @@ import type { ActionType, Tag, BufferItem, SparkType } from '@/types';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianDrawer } from '../Drawer';
+import { HeaderMenuButton, HeaderActions } from '../AppHeader';
 import type { MobileViewId } from '../TopNav';
 
 // Risoluzione icone Tabler per nome (come il web): i tipi salvano il glifo in
@@ -91,19 +91,11 @@ const KEBAB_W = 36;
 const HEADER_GAP = 20;
 
 // ─── Header "VAULT / Gimmick" ──────────────────────────────────────────────────
-// Titolo del vault a sinistra (statico), menu + Ask a destra. Sostituisce
-// l'AppHeader centrato: qui la home ha un'identità da "vault" alla Obsidian.
-// Il cambio vista vive solo nel Drawer (hamburger), non sul titolo.
-function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: () => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
+// Riga VAULT (identità + stato) e sotto il pulsante-marchio col nome del vault:
+// premuto, apre il Drawer. A destra i quadrati Tiles / Chrono / Ask, gli stessi
+// delle altre finestre (vedi AppHeader.tsx, dove vivono).
+function CaptureHeader({ onMenu, onNavigateView, onAsk, connection, pendingCount }: { onMenu?: () => void; onNavigateView?: (id: MobileViewId) => void; onAsk?: () => void; connection?: ConnectionStatus; pendingCount?: number }) {
   const c = useObsidian();
-
-  // 48×48 come la barra di cattura: soglia di tocco Material raggiunta dal
-  // riquadro stesso, senza `hitSlop`. Con 42 + hitSlop 6 il bersaglio arrivava
-  // a 54 ma sconfinava nei 10dp di gap fra i due pulsanti, quindi le due aree
-  // sensibili si sovrapponevano di 2dp e il confine era ambiguo.
-  const sqBtn = {
-    width: 48, height: 48, borderRadius: 12, alignItems: 'center' as const, justifyContent: 'center' as const,
-  };
 
   // Pallino di stato: verde = online + account ok, arancio = offline + account
   // ok, rosso = account non valido (non autenticato).
@@ -116,9 +108,14 @@ function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: (
     : null;
 
   return (
-    <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 20, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
-      {/* Sinistra — VAULT / Gimmick (solo identità, nessuna azione) */}
-      <View>
+    // paddingHorizontal 12 = quello del composer: VAULT/Gimmick, il campo nota e
+    // la barra dei tondi partono tutti dalla stessa verticale. NON alzarlo a 20
+    // senza rifare i conti della barra di cattura: quella riga è larga
+    // 5×52 + 36 + 5×6 = 326 e con 20 per lato servirebbero 366dp di schermo,
+    // sopra i 360 di parecchi Android — e in RN i pulsanti non si comprimono.
+    <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
+      {/* Sinistra — VAULT (stato) e sotto il pulsante-marchio che apre il menu */}
+      <View style={{ flexShrink: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
           <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.5, color: c.subtle }}>VAULT</Text>
           {dot && (
@@ -138,42 +135,12 @@ function CaptureHeader({ onMenu, onAsk, connection, pendingCount }: { onMenu?: (
             </View>
           )}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          {/* Marchio: si usa `adaptive-icon`, non `icon`. Sono lo stesso robot,
-              ma `icon.png` ha lo sfondo BIANCO OPACO (è la piastrella completa
-              per il launcher) e sull'header scuro diventerebbe un quadrato
-              bianco; l'adattiva è il solo primo piano, su fondo trasparente.
-              30px per un glifo che pesa quanto il titolo a 22: l'asset ha un
-              margine interno generoso, quindi il robot ne occupa meno. */}
-          <Image
-            source={require('../../../assets/adaptive-icon.png')}
-            style={{ width: 30, height: 30 }}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
-          <Text style={{ fontSize: 22, fontWeight: '700', color: c.text }}>Gimmick</Text>
-        </View>
+        <HeaderMenuButton label="Gimmick" brand onPress={onMenu} />
       </View>
 
-      {/* Destra — menu (Drawer) + Ask (chat) */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <Pressable
-          onPress={onMenu}
-          accessibilityLabel="Menu"
-          android_ripple={{ color: c.line, borderless: true }}
-          style={[sqBtn, { backgroundColor: c.surface2 }]}
-        >
-          <IconMenu2 size={19} color={c.text} strokeWidth={1.9} />
-        </Pressable>
-        <Pressable
-          onPress={onAsk}
-          accessibilityLabel="Ask Gimmick"
-          android_ripple={{ color: c.accent + '40', borderless: true }}
-          style={[sqBtn, { backgroundColor: c.accent + '2E' }]}
-        >
-          <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
-        </Pressable>
-      </View>
+      {/* Destra — Tiles, Chrono, Ask. Nessuno di questi è più nel Drawer per le
+          prime due: sono le destinazioni che si raggiungono di continuo. */}
+      <HeaderActions onNavigateView={onNavigateView} onAsk={onAsk} />
     </View>
   );
 }
@@ -867,6 +834,28 @@ export function ObsidianCaptureScreen({
   // (quando sotto ci sono gli spark che scorrono).
   const renderNote = (fill: boolean) => (
     <View style={fill ? { flex: 1 } : undefined}>
+      {/* Riga del microfono (dettatura vocale), da sola. Non è più in
+          sovraimpressione sul campo: sta su una riga propria, così il testo
+          sotto usa TUTTA la larghezza e non deve lasciare un corridoio libero
+          in alto a destra. In ascolto → accent acceso. */}
+      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', height: 36 }}>
+        <Pressable
+          onPress={() => dictation.toggle(note)}
+          accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
+          hitSlop={8}
+          android_ripple={{ color: c.accent + '33', borderless: true }}
+          // `marginRight: 6` allinea il GLIFO a quello dei pulsanti dell'header,
+          // non i bordi: il mic è largo 36 e non ha fondo, l'header ne ha 48 con
+          // la pastiglia, quindi allineare i bordi lascerebbe i glifi fuori asse.
+          // Centro del glifo = 12 (padding del contenitore) + 6 + 18 = 36 dal
+          // bordo schermo, uguale a 12 (padding header) + 24 dei pulsanti.
+          style={{ marginRight: 6, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
+        >
+          {/* Bianco sul fondo scuro del composer; in tema chiaro segue il testo,
+              altrimenti sparirebbe. In ascolto passa ad accent. */}
+          <IconMicrophone size={23} color={dictation.listening ? c.accent : (c.dark ? '#FFFFFF' : c.text)} strokeWidth={1.9} />
+        </Pressable>
+      </View>
       <TextInput
         ref={noteRef}
         value={note}
@@ -875,31 +864,13 @@ export function ObsidianCaptureScreen({
         placeholderTextColor={c.subtle}
         multiline
         textAlignVertical="top"
-        // paddingRight: spazio per il mic in alto a destra. Deve coprire
-        // `right` + larghezza del mic (14 + 36 = 50), altrimenti il testo ci
-        // scorre sotto.
+        // Nessun padding orizzontale: il campo occupa tutta la larghezza fra i
+        // margini del composer, da bordo a bordo.
         style={[
-          { fontSize: 18, lineHeight: 26, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 54 },
+          { fontSize: 18, lineHeight: 26, color: c.text, paddingTop: 2, paddingBottom: 0, paddingLeft: 0, paddingRight: 0 },
           fill ? { flex: 1 } : { minHeight: 120 },
         ]}
       />
-      {/* Mic in sovraimpressione (dettatura vocale). In ascolto → accent acceso. */}
-      <Pressable
-        onPress={() => dictation.toggle(note)}
-        accessibilityLabel={dictation.listening ? 'Ferma dettatura' : 'Detta la nota'}
-        hitSlop={8}
-        android_ripple={{ color: c.accent + '33', borderless: true }}
-        // `right: 14` allinea il GLIFO a quello dei pulsanti dell'header, non i
-        // bordi: il mic è largo 36 e non ha fondo, l'header ne ha 48 con la
-        // pastiglia, quindi allineare i bordi lascerebbe i glifi fuori asse.
-        // Centro del glifo = 12 (padding del contenitore) + 14 + 18 = 44 dal
-        // bordo schermo, uguale a 20 (padding header) + 24 dei pulsanti.
-        style={{ position: 'absolute', top: 6, right: 14, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accent + '2E' : 'transparent' }}
-      >
-        {/* Bianco sul fondo scuro del composer; in tema chiaro segue il testo,
-            altrimenti sparirebbe. In ascolto passa ad accent. */}
-        <IconMicrophone size={23} color={dictation.listening ? c.accent : (c.dark ? '#FFFFFF' : c.text)} strokeWidth={1.9} />
-      </Pressable>
     </View>
   );
 
@@ -968,7 +939,7 @@ export function ObsidianCaptureScreen({
   return (
     <View style={{ flex: 1, backgroundColor: shellBg }}>
       <ObsidianStatusBar background={shellBg} />
-      <CaptureHeader onMenu={() => setDrawer(true)} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
+      <CaptureHeader onMenu={() => setDrawer(true)} onNavigateView={onNavigateView} onAsk={onAsk} connection={connection} pendingCount={pendingCount} />
 
       {/* Colonna contenuti: il campo nota riempie tutta l'altezza, la barra dei
           canali resta ancorata in fondo (stile Keep). Il contenuto scorre solo a

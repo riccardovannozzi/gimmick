@@ -8,9 +8,9 @@ import { isObsidianShellEnabled } from '@/lib/feature-flags';
 export default function TabsLayout() {
   const theme = usePixelTheme();
 
-  // Strangler: every Obsidian tab now draws its own chrome — the views a
-  // TopNav, Capture an AppHeader whose drawer carries the view links — so the
-  // legacy strip would only double up.
+  // Strangler: every Obsidian tab now draws its own chrome — a navbar with the
+  // Tiles/Chrono squares plus a drawer for the rest — so the legacy strip would
+  // only double up.
   const showLegacyNav = !isObsidianShellEnabled();
 
   return (

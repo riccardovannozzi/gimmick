@@ -148,7 +148,8 @@
 /* TileSidebar date input (shell): la calendar-icon di leading è disegnata in
    JSX; nascondiamo l'indicatore nativo webkit (il campo apre il picker via
    showPicker su click). */
-.ob-ts-date::-webkit-calendar-picker-indicator { opacity: 0; cursor: pointer; }
+/* (La regola `.ob-ts-date` è stata rimossa insieme all'ultimo
+   `<input type="date">`: le date usano ora `components/ui/date-picker.tsx`.) */
 
 /* ── Scrollbar (shell ON) ──────────────────────────────────────────────────────
    Quando lo shell Obsidian è attivo (`data-ob="on"` sul root, impostato da
@@ -157,6 +158,15 @@
    sottile: track trasparente, thumb neutro arrotondato. Lo scoping
    `[data-ob='on']` vince per specificità sulle regole `*` / `::-webkit-scrollbar`
    non scoped. */
+/* ── Font di base dello shell ────────────────────────────────────────────────
+   Ridondante rispetto a `geistSans.className` sul <body> (app/layout.tsx), ma
+   la teniamo come rete: garantisce che sia il TOKEN del design system a decidere
+   la tipografia di base, qualunque classe finisca sul body. `html[data-ob='on']
+   body` (0,1,2) batte `body.<classe-font>` (0,1,1) senza !important. */
+html[data-ob='on'] body {
+  font-family: var(--ob-font-sans);
+}
+
 [data-ob='on'] * {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--ob-subtle) 50%, transparent) transparent;

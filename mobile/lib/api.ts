@@ -45,7 +45,7 @@ export function apiBaseUrl(): string {
   return API_URL;
 }
 
-interface ApiResponse<T> {
+interface ApiResponse<T = unknown> {
   success: boolean;
   data?: T;
   error?: string;

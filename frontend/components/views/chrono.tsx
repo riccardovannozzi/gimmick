@@ -336,8 +336,15 @@ const DEMO_CALENDAR: ChronoCalendar = {
   ],
 };
 
-function eventColor(e: ChronoTimed): string {
-  return e.color ?? (e.amber ? 'var(--ob-warning)' : KIND_COLOR[e.kind]);
+/**
+ * Colore dell'evento secondo la modalità di colorazione attiva. `undefined` =
+ * nessuna colorazione impostata → l'evento resta sul fondo unico dei tile
+ * (variante `--plain`), esattamente come sul canvas. NON si ripiega più sul
+ * colore della categoria (`KIND_COLOR`): timed/all-day si distinguono già dalla
+ * posizione nella griglia e le deadline dal bordo tratteggiato rosso.
+ */
+function eventColor(e: ChronoTimed): string | undefined {
+  return e.color ?? (e.amber ? 'var(--ob-warning)' : undefined);
 }
 
 /**
@@ -467,6 +474,7 @@ function DayColumn({
         const ctx = onEventContextMenu && e.id ? (ev: React.MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEventContextMenu(ev, e.id!, { dayIndex, startFrac: Math.max(e.s, START) }); } : undefined;
         const draggable = !!onEventReschedule && !!e.id;
         const resizable = draggable && !tiny;
+        const evColor = eventColor(e);
         // Posizionamento orizzontale per gestire le sovrapposizioni (colonne).
         const lay = layout.get(e) ?? { col: 0, cols: 1 };
         const left = `calc(${(lay.col / lay.cols) * 100}% + 3px)`;
@@ -474,8 +482,8 @@ function DayColumn({
         return (
           <div
             key={e.id ?? j}
-            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active', e.done && 'ob-chrono__event--done')}
-            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: eventColor(e) }}
+            className={cn('ob-chrono__event', tiny ? 'ob-chrono__event--tiny' : 'ob-chrono__event--tall', !evColor && 'ob-chrono__event--plain', e.kind === 'deadline' && 'ob-chrono__event--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!e.id && e.id === selectedId && 'ob-chrono__event--active', e.done && 'ob-chrono__event--done')}
+            style={{ top, height, left, width, right: 'auto', ['--ev-c' as string]: evColor ?? 'var(--ob-tile-bg)' }}
             onClick={click}
             onContextMenu={ctx}
             role={click ? 'button' : undefined}
@@ -488,10 +496,19 @@ function DayColumn({
               de.dataTransfer.setData('application/x-chrono-event', JSON.stringify({ id: e.id, dur: Math.max(e.e - e.s, SNAP), grab }));
             } : undefined}
           >
-            <span className="ob-chrono__event-title" style={{ ['--title-lines' as string]: titleLines }}>{e.title}</span>
-            {(e.type || e.status) && (
-              <span className="ob-chrono__event-meta"><TileMeta type={e.type} status={e.status} compact={tiny} /></span>
+            {/* Strip STATUS a sinistra, come canvas/kanban/colonne: presente solo
+                se la tile ha uno status. */}
+            {e.status && (
+              <span className="ob-chrono__event-strip" title={e.status.label}>
+                <StatusSwatch shape={e.status.shape} color={e.status.color} size={9} />
+              </span>
             )}
+            <div className="ob-chrono__event-body">
+              <span className="ob-chrono__event-title" style={{ ['--title-lines' as string]: titleLines }}>{e.title}</span>
+              {e.type && (
+                <span className="ob-chrono__event-meta"><TileMeta type={e.type} compact={tiny} /></span>
+              )}
+            </div>
             {resizable && (
               <div
                 className="ob-chrono__event-resize"
@@ -614,8 +631,8 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
         return (
           <div
             key={a.id ?? j}
-            className={cn('ob-chrono__allday-pill', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active', a.done && 'ob-chrono__allday-pill--done')}
-            style={{ ['--ev-c' as string]: a.color ?? KIND_COLOR[a.kind] }}
+            className={cn('ob-chrono__allday-pill', !a.color && 'ob-chrono__allday-pill--plain', a.kind === 'deadline' && 'ob-chrono__allday-pill--deadline', click && 'ob-chrono__event--clickable', draggable && 'ob-chrono__event--draggable', !!a.id && a.id === cal.selectedId && 'ob-chrono__allday-pill--active', a.done && 'ob-chrono__allday-pill--done')}
+            style={{ ['--ev-c' as string]: a.color ?? 'var(--ob-tile-bg)' }}
             onClick={click}
             onContextMenu={ctx}
             draggable={draggable}
@@ -778,24 +795,28 @@ export function ChronoView({
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
-      {/* Toolbar */}
+      {/* Toolbar — gemella della toolbar del canvas (`CanvasTopbar`): stessa
+          fascia da 48, stessi chip da 30, e come lì i controlli stanno tutti a
+          destra (nel canvas la sinistra è occupata dalle linguette dei tag
+          pinnati, qui non c'è nulla di equivalente). */}
       <div className="ob-chrono__toolbar">
-        {colorMode && onSetColorMode && (
-          <div className="ob-chrono__cal-seg" title="Colore dei tile: per Tag, per Tipo o per Status">
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'tag' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('tag')}>By Tag</button>
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'type' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('type')}>By Type</button>
-            <button type="button" className={cn('ob-chrono__cal-seg-item', colorMode === 'status' && 'ob-chrono__cal-seg-item--active')} onClick={() => onSetColorMode('status')}>By Status</button>
-          </div>
-        )}
         <div style={{ flex: 1 }} />
+        {colorMode && onSetColorMode && (
+          <>
+            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'tag' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('tag')} title="Colora i tile per Tag">By Tag</button>
+            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'type' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('type')} title="Colora i tile per Tipo">By Type</button>
+            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'status' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('status')} title="Colora i tile per Status">By Status</button>
+            <div className="ob-chrono__tbar-sep" />
+          </>
+        )}
         <button
           type="button"
-          className={cn('ob-chrono__add-tile', addArmed && 'ob-chrono__add-tile--armed')}
+          className={cn('ob-chrono__tbtn', addArmed && 'ob-chrono__tbtn--active')}
           onClick={onAddTile}
           aria-pressed={addArmed}
           title={addArmed ? 'Clicca sul calendario per posizionare la tile (Esc per annullare)' : 'Posiziona una nuova tile sul calendario'}
         >
-          <Icon name="plus" size={13} />Tile
+          <Icon name="plus" size={12} />Tile
         </button>
       </div>
 

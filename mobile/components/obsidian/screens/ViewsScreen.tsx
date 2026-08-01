@@ -6,20 +6,21 @@
  * flow / event colors come from the canonical scale.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Image } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, TextInput, Image, PanResponder } from 'react-native';
 import {
   IconBolt, IconTag, IconCategory, IconCircleCheck, IconChevronDown, IconTrash,
   IconHourglass, IconArrowBackUp, IconCheck, IconX, IconUser,
   IconChevronLeft, IconChevronRight, IconClock, IconAlertCircle,
   IconDeviceMobileVibration, IconBell, IconWorld, IconSparkles,
   IconArrowUp, IconCalendar, IconPlayerPause, IconLock,
-  IconFilter, IconArrowsSort, IconSearch, IconPaperclip,
+  IconFilter, IconArrowsSort, IconSearch, IconPaperclip, IconPlus,
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import {
-  DEADLINE_BORDER, DEFAULT_ACTION_COLORS, STATUS_HEX, STATUS_HEX_FALLBACK,
+  DEFAULT_ACTION_COLORS, STATUS_HEX, STATUS_HEX_FALLBACK,
   readableOn, type TileActionKey,
 } from '@/constants/tile-colors';
 import type { ObTileVM, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
@@ -168,22 +169,16 @@ function ToggleChip({ c, label, on, color, onPress }: { c: ObsidianColors; label
   );
 }
 
-// Hairline neutra del perimetro, un filo sopra `line2`: la shell mobile è nero
-// pieno e non `canvas` come la pagina del canvas web, quindi il bordo riceve
-// meno aiuto dal contesto attorno.
-const TILE_BORDER_DARK = 'rgba(255,255,255,0.22)';
-
 function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
   const action = actionKey(t);
-  const isDeadline = action === 'deadline';
-  // Bordo: rosso (tratteggiato) per le scadenze, altrimenti la tinta del tipo;
-  // hairline neutra se il tile non ha un tipo assegnato.
-  const neutralBorder = c.dark ? TILE_BORDER_DARK : c.line2;
-  const borderColor = isDeadline ? DEADLINE_BORDER : (t.typeColor ? t.typeColor + '3A' : neutralBorder);
   // Fondo della card: il token standard della scala Obsidian — `surface`,
   // #1e1e1e in scuro e #ffffff in chiaro. Come la tile del canvas web.
   const cardBg = c.surface;
   const glyph = statusGlyph(t.statusName);
+  // Striscia STATUS: presente SOLO se c'è un glifo da mostrare, come su canvas,
+  // chrono e kanban del web. Senza status la corsia non si disegna affatto e il
+  // contenuto parte da sinistra, invece di lasciare una fascia vuota.
+  const hasStrip = glyph.kind !== 'none';
   const stCol = (t.statusName ? STATUS_HEX[t.statusName] : undefined) ?? STATUS_HEX_FALLBACK;
   const ActionIcon = ACTION_ICON[action];
   const actionColor = actionColors[action] ?? DEFAULT_ACTION_COLORS[action];
@@ -198,15 +193,9 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
       onPress={onPress ? () => onPress(t.id) : undefined}
       disabled={!onPress}
       android_ripple={{ color: c.accent + '22' }}
-      style={{
-        borderRadius: 13, overflow: 'hidden', backgroundColor: cardBg,
-        borderWidth: 1, borderColor,
-        // `borderStyle` SOLO per le scadenze. Impostarlo anche quando vale
-        // 'solid' (il default) è superfluo e su Android, insieme a
-        // `borderRadius`, manda il fondo su un percorso di disegno diverso in
-        // cui può sparire.
-        ...(isDeadline ? { borderStyle: 'dashed' as const } : null),
-      }}
+      // Nessun contorno: la card si stacca dal nero della pagina per il solo
+      // fondo `surface`, come i tile del web dopo la stessa pulizia.
+      style={{ borderRadius: 13, overflow: 'hidden', backgroundColor: cardBg }}
     >
       {/* Velatura del colore del tipo sopra la surface (canvas: colore + '24'). */}
       {t.typeColor ? (
@@ -214,27 +203,26 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
       ) : null}
 
       <View style={{ flexDirection: 'row' }}>
-        {/* Colonna STATUS a sinistra — sempre presente: dà al tile la sua
-            "striscia" riconoscibile. Con status 'active' (o assente) resta la
-            sola traccia, senza glifo.
+        {/* Colonna STATUS a sinistra — solo quando c'è un glifo da mostrare.
             NON è il colore della pagina. Sul canvas web la traccia è `bg1`, cioè
             proprio la pagina, e lì funziona perché pagina (#161616) e card
             (#1e1e1e) distano un passo: si legge come una scanalatura. Sul mobile
             la pagina è nero pieno, quindi lo stesso valore ritaglia una feritoia
-            nel fianco sinistro e la card perde il perimetro dove dovrebbe
-            chiudersi. Qui è una velatura CHIARA sopra il corpo della card: resta
-            una corsia distinta e la card resta un blocco unico. */}
-        <View style={{ width: 22, backgroundColor: c.dark ? 'rgba(255,255,255,0.05)' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
-          {glyph.kind === 'dot' ? (
-            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: stCol }} />
-          ) : glyph.kind === 'icon' ? (
-            <glyph.Icon size={13} color={stCol} strokeWidth={1.9} />
-          ) : glyph.kind === 'text' ? (
-            <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 1.5, color: stCol, transform: [{ rotate: '-90deg' }], width: 60, textAlign: 'center' }}>
-              {glyph.text}
-            </Text>
-          ) : null}
-        </View>
+            nel fianco sinistro. Qui è una velatura CHIARA sopra il corpo della
+            card: resta una corsia distinta e la card resta un blocco unico. */}
+        {hasStrip && (
+          <View style={{ width: 22, backgroundColor: c.dark ? 'rgba(255,255,255,0.05)' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
+            {glyph.kind === 'dot' ? (
+              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: stCol }} />
+            ) : glyph.kind === 'icon' ? (
+              <glyph.Icon size={13} color={stCol} strokeWidth={1.9} />
+            ) : glyph.kind === 'text' ? (
+              <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 1.5, color: stCol, transform: [{ rotate: '-90deg' }], width: 60, textAlign: 'center' }}>
+                {glyph.text}
+              </Text>
+            ) : null}
+          </View>
+        )}
 
         <View style={{ flex: 1, paddingHorizontal: 13, paddingVertical: 12 }}>
           {/* Titolo — due righe, barrato e attenuato quando completato. */}
@@ -598,18 +586,112 @@ function FlowsContent({ c, flows, loading, active = 'wait', onFilter, onOpenFlow
 }
 
 // ─── CHRONO ───────────────────────────────────────────────────────────────────
-const CH_H = 56, CH_START = 8, CH_END = 16;
-const CH_HOURS = Array.from({ length: CH_END - CH_START + 1 }, (_, i) => CH_START + i);
+// Griglia dell'INTERA giornata: 24 fasce da CH_H. Non entra in nessuno schermo,
+// ed è voluto — la pagina scorre in verticale e all'apertura si posiziona da sé
+// sull'ora utile (adesso se è oggi, altrimenti il primo evento del giorno).
+const CH_H = 56, CH_START = 0, CH_END = 24;
+const CH_HOURS = Array.from({ length: CH_END - CH_START }, (_, i) => CH_START + i);
+/** Colonna delle ore a sinistra e margine destro della pista degli eventi. */
+const CH_GUTTER = 46, CH_PAD_R = 10;
+/** Altezza minima di un evento: sotto i 30' il blocco resta comunque toccabile. */
+const CH_MIN_H = 20;
+/** Sotto questa altezza il blocco si stringe: padding ridotto e testo centrato. */
+const CH_TINY = 34;
+/** Interlinea del titolo: serve anche a contare quante righe stanno nel blocco. */
+const CH_LINE = 14;
+/** Spazio fra due eventi affiancati. */
+const CH_COL_GAP = 3;
+
+/**
+ * Barra di comando in cima a Chrono: sei pulsanti TONDI tutti uguali —
+ * precedente / Oggi / successivo, poi 1 / 7 / M.
+ *
+ * 36 è il massimo che entra: la riga misura 2×(3×36 + 2×6) + 3 gap da 8 + la
+ * data (~62) = 326dp, contro i 328 utili di uno schermo da 360 con padding 16.
+ * Per andare oltre bisogna togliere qualcosa dalla riga, non allargare qui —
+ * la data si troncherebbe e basta.
+ *
+ * Anche "Oggi" è un tondo, non più una pillola: la pillola costava ~14dp in più
+ * della sua sagoma, ed erano esattamente i dp che mancavano per portare tutti i
+ * pulsanti da 30 a 36.
+ *
+ * 36 resta sotto la soglia di tocco Material: sono pulsanti compatti dentro una
+ * barra ad altezza fissa, il caso in cui `constants/obsidian.ts` prescrive
+ * `hitSlop` invece di un riquadro più grande.
+ *
+ * Il glifo è 30 dentro un tondo da 36 e non sborda: le icone Tabler disegnano
+ * in una viewBox 24 con margine abbondante, quindi una freccetta a 30 traccia
+ * un segno di ~7×15 — che riempie il cerchio quanto lo riempiono le cifre
+ * 1/7/M, ed è il punto: le frecce devono pesare come gli altri pulsanti.
+ */
+const CH_NAV_BTN = 36;
+const CH_NAV_GLYPH = 30;
+const chRound = (c: ObsidianColors, on?: boolean) => ({
+  width: CH_NAV_BTN, height: CH_NAV_BTN, borderRadius: CH_NAV_BTN / 2,
+  alignItems: 'center' as const, justifyContent: 'center' as const,
+  backgroundColor: on ? c.accentSoft : 'transparent',
+  borderWidth: 1, borderColor: on ? 'transparent' : c.line2,
+});
+
+/** Ampiezza della vista: giorno singolo, settimana, mese. */
+const CH_RANGES: Array<{ value: string; label: string; a11y: string }> = [
+  { value: 'daily', label: '1', a11y: 'Vista giornaliera' },
+  { value: 'week', label: '7', a11y: 'Vista settimanale' },
+  { value: 'month', label: 'M', a11y: 'Vista mensile' },
+];
+
 const DEMO_CHRONO: ObChronoEvent[] = [
   { id: 'd1', tileId: 'd1', title: 'Contattare Giovanni', startHour: 11.5, endHour: 12.5, timeLabel: '11:30 – 12:30' },
 ];
-function ChronoContent({ c, events, loading, dayLabel, isToday, onPrev, onNext, onToday, onOpenEvent }: {
+
+type ChPlaced = { ev: ObChronoEvent; col: number; cols: number };
+/**
+ * Dispone in COLONNE gli eventi che si sovrappongono, così due cose alla stessa
+ * ora stanno affiancate invece che una sopra l'altra (prima l'ultima disegnata
+ * copriva le precedenti). Gli eventi si raggruppano in "grappoli" di
+ * sovrapposizioni: dentro un grappolo ognuno prende la prima colonna libera e
+ * tutti condividono il numero TOTALE di colonne, così hanno la stessa larghezza
+ * e i bordi si allineano in verticale.
+ */
+function placeChronoEvents(rows: ObChronoEvent[]): ChPlaced[] {
+  const sorted = [...rows].sort((a, b) => a.startHour - b.startHour || a.endHour - b.endHour);
+  const out: ChPlaced[] = [];
+  let cluster: ChPlaced[] = [];
+  let clusterEnd = -Infinity;
+  const flush = () => {
+    const cols = cluster.reduce((m, p) => Math.max(m, p.col + 1), 1);
+    cluster.forEach((p) => { p.cols = cols; out.push(p); });
+    cluster = [];
+    clusterEnd = -Infinity;
+  };
+  for (const ev of sorted) {
+    // L'evento non tocca nessuno di quelli in corso → il grappolo si chiude.
+    if (cluster.length && ev.startHour >= clusterEnd) flush();
+    const busy = new Set(cluster.filter((p) => p.ev.endHour > ev.startHour).map((p) => p.col));
+    let col = 0;
+    while (busy.has(col)) col += 1;
+    cluster.push({ ev, col, cols: 1 });
+    clusterEnd = Math.max(clusterEnd, ev.endHour);
+  }
+  if (cluster.length) flush();
+  return out;
+}
+
+function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, onNext, onToday, onPickDate, onOpenEvent, onAddTile }: {
   c: ObsidianColors; events?: ObChronoEvent[]; loading?: boolean; dayLabel?: string; isToday?: boolean;
-  onPrev?: () => void; onNext?: () => void; onToday?: () => void; onOpenEvent?: (tileId: string) => void;
+  /** Giorno mostrato: valore iniziale del picker. */
+  date?: Date;
+  onPrev?: () => void; onNext?: () => void; onToday?: () => void;
+  /** Salta a una data scelta col picker. Omesso → la data non è premibile. */
+  onPickDate?: (d: Date) => void;
+  onOpenEvent?: (tileId: string) => void;
+  onAddTile?: () => void;
 }) {
   const [seg, setSeg] = React.useState('daily');
+  const [picker, setPicker] = React.useState(false);
   const live = events !== undefined;
   const rows = events ?? DEMO_CHRONO;
+  const placed = React.useMemo(() => placeChronoEvents(rows), [rows]);
   // "Now" line — only meaningful on today's column and within the grid window.
   const now = new Date();
   const nowHour = now.getHours() + now.getMinutes() / 60;
@@ -618,52 +700,191 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, onPrev, onNext, 
 
   const clampTop = (h: number) => (Math.min(Math.max(h, CH_START), CH_END) - CH_START) * CH_H + 5;
 
+  // Posizionamento iniziale: con 24 ore aperte a mezzanotte non si vedrebbe
+  // niente di utile. Si punta all'adesso quando il giorno è oggi, altrimenti al
+  // primo evento; una fascia sopra, per contesto.
+  const scrollRef = React.useRef<ScrollView>(null);
+  const focusHour = (isToday ?? true) ? nowHour : (placed[0]?.ev.startHour ?? 8);
+  React.useEffect(() => {
+    const y = Math.max(0, (focusHour - CH_START - 1) * CH_H);
+    // Rinviato di un tick: al primo render la ScrollView non ha ancora misurato
+    // il contenuto e lo scroll verrebbe ignorato.
+    const id = setTimeout(() => scrollRef.current?.scrollTo({ y, animated: false }), 0);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayLabel]);
+
+  // Swipe orizzontale = giorno precedente/successivo. La cattura avviene SOLO
+  // per gesti chiaramente orizzontali (oltre 24px e almeno il doppio dello
+  // scostamento verticale): sotto quella soglia il responder resta alla
+  // ScrollView e lo scorrimento verticale continua a funzionare.
+  const pan = React.useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 2,
+      onPanResponderRelease: (_e, g) => {
+        if (g.dx <= -40) onNext?.();
+        else if (g.dx >= 40) onPrev?.();
+      },
+    }),
+    [onPrev, onNext],
+  );
+
   return (
     <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 6 }}>
-        <Pressable onPress={onPrev} style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}><IconChevronLeft size={14} color={c.muted} /></Pressable>
-        <Pressable onPress={onToday} style={{ paddingHorizontal: 13, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: c.line2 }}><Text style={{ fontSize: 12, fontWeight: '600', color: c.text }}>Oggi</Text></Pressable>
-        <Pressable onPress={onNext} style={{ width: 30, height: 30, borderRadius: 8, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}><IconChevronRight size={14} color={c.muted} /></Pressable>
+      {/* Unica barra di comando: navigazione giorno, ampiezza (1/7/M) e data.
+          Il segmentato Daily/Week/Month che stava su una riga propria è sparito
+          — occupava una fascia intera per tre parole, e la griglia sotto ne
+          guadagna l'altezza. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 10 }}>
+        {/* Navigazione del giorno */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Pressable onPress={onPrev} accessibilityLabel="Giorno precedente" hitSlop={6} style={chRound(c)}><IconChevronLeft size={CH_NAV_GLYPH} color={c.muted} /></Pressable>
+          <Pressable onPress={onToday} accessibilityLabel="Vai a oggi" hitSlop={6} style={chRound(c)}><Text style={{ fontSize: 11, fontWeight: '700', color: c.text }}>Oggi</Text></Pressable>
+          <Pressable onPress={onNext} accessibilityLabel="Giorno successivo" hitSlop={6} style={chRound(c)}><IconChevronRight size={CH_NAV_GLYPH} color={c.muted} /></Pressable>
+        </View>
+
         <View style={{ flex: 1 }} />
-        <Text style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{dayLabel ?? 'Sab 27 giu'}</Text>
-      </View>
-      <View style={{ marginHorizontal: 16, marginTop: 4, marginBottom: 10 }}>
-        <Segmented c={c} value={seg} onChange={setSeg} items={[{ value: 'daily', label: 'Daily' }, { value: 'week', label: 'Week' }, { value: 'month', label: 'Month' }]} />
-      </View>
-      <ScrollView style={{ flex: 1 }}>
-        <View style={{ height: CH_HOURS.length * CH_H, paddingVertical: 4 }}>
-          {CH_HOURS.map((x, i) => (
-            <View key={x} style={{ position: 'absolute', top: i * CH_H + 4, left: 0, right: 0, borderTopWidth: 1, borderTopColor: c.gridLine }}>
-              <Text style={{ position: 'absolute', top: -7, left: 12, fontSize: 10, color: c.subtle, backgroundColor: c.canvas, paddingHorizontal: 4 }}>{(x < 10 ? '0' + x : x) + ':00'}</Text>
-            </View>
-          ))}
-          {loading ? (
-            <Text style={{ position: 'absolute', top: 8, left: 52, fontSize: 12, color: c.subtle }}>Caricamento…</Text>
-          ) : rows.length === 0 ? (
-            <Text style={{ position: 'absolute', top: 8, left: 52, fontSize: 12, color: c.subtle }}>Nessun evento.</Text>
-          ) : rows.map((ev) => {
-            const top = clampTop(ev.startHour);
-            const bottom = clampTop(ev.endHour);
-            const height = Math.max(bottom - top, CH_H - 6);
+
+        {/* Ampiezza della vista: un carattere per pulsante. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          {CH_RANGES.map((r) => {
+            const on = r.value === seg;
             return (
               <Pressable
-                key={ev.id}
-                onPress={onOpenEvent ? () => onOpenEvent(ev.tileId) : undefined}
-                disabled={!onOpenEvent}
-                style={{ position: 'absolute', top, left: 52, right: 12, height, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, gap: 2, backgroundColor: c.timed + (c.dark ? '2b' : '1c'), borderWidth: 1, borderColor: c.timed + (c.dark ? '3a' : '30') }}
+                key={r.value}
+                onPress={() => setSeg(r.value)}
+                accessibilityRole="button"
+                accessibilityLabel={r.a11y}
+                accessibilityState={{ selected: on }}
+                hitSlop={6}
+                style={chRound(c, on)}
               >
-                <Text numberOfLines={1} style={{ fontSize: 12.5, fontWeight: '600', color: c.text }}>{ev.title}</Text>
-                <Text style={{ fontSize: 10, color: c.dark ? c.muted : c.timed }}>{ev.timeLabel}</Text>
+                <Text style={{ fontSize: 15, fontWeight: '700', color: on ? c.accent : c.muted }}>{r.label}</Text>
               </Pressable>
             );
           })}
-          {showNow && (
-            <View style={{ position: 'absolute', top: nowTop, left: 46, right: 0, borderTopWidth: 1.5, borderTopColor: c.accent }}>
-              <View style={{ position: 'absolute', left: 0, top: -3.5, width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent }} />
-            </View>
-          )}
         </View>
-      </ScrollView>
+
+        {/* Data = selettore. Premuta apre il picker nativo, così per arrivare
+            a una data lontana non si scorre a colpi di freccia.
+            Tinta d'accento e non `text` perché è l'UNICO segnale che è
+            premibile: un glifo calendario a fianco costerebbe ~18dp e la riga
+            ne ha 2 di margine, quindi la data comincerebbe a troncarsi.
+            `numberOfLines` + `flexShrink`: su schermi più stretti si accorcia
+            invece di spingere i pulsanti oltre il bordo (in RN non si
+            comprimono). */}
+        <Pressable
+          onPress={onPickDate ? () => setPicker(true) : undefined}
+          disabled={!onPickDate}
+          accessibilityRole="button"
+          accessibilityLabel={`${dayLabel ?? ''} — scegli una data`}
+          hitSlop={10}
+          style={{ flexShrink: 1 }}
+        >
+          <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '600', color: onPickDate ? c.accent : c.text }}>{dayLabel ?? 'Sab 27 giu'}</Text>
+        </Pressable>
+      </View>
+
+      {/* Picker nativo: montato solo mentre è aperto (su Android è un dialogo,
+          e resta a schermo finché il componente è montato). */}
+      {picker && (
+        <DateTimePicker
+          value={date ?? new Date()}
+          mode="date"
+          onChange={(e, d) => { setPicker(false); if (e.type === 'set' && d) onPickDate?.(d); }}
+        />
+      )}
+
+      <View style={{ flex: 1 }} {...pan.panHandlers}>
+        <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 96 }}>
+          <View style={{ height: CH_HOURS.length * CH_H, paddingVertical: 4 }}>
+            {CH_HOURS.map((x, i) => (
+              <View key={x} style={{ position: 'absolute', top: i * CH_H + 4, left: 0, right: 0, borderTopWidth: 1, borderTopColor: c.gridLine }}>
+                <Text style={{ position: 'absolute', top: -7, left: 12, fontSize: 10, color: c.subtle, backgroundColor: c.canvas, paddingHorizontal: 4 }}>{(x < 10 ? '0' + x : x) + ':00'}</Text>
+              </View>
+            ))}
+            {loading ? (
+              <Text style={{ position: 'absolute', top: 8, left: CH_GUTTER + 6, fontSize: 12, color: c.subtle }}>Caricamento…</Text>
+            ) : placed.length === 0 ? (
+              <Text style={{ position: 'absolute', top: 8, left: CH_GUTTER + 6, fontSize: 12, color: c.subtle }}>Nessun evento.</Text>
+            ) : (
+              // Pista degli eventi: contenitore proprio, così le colonne si
+              // posizionano in percentuale sulla sua larghezza (in RN non
+              // esiste calc() per mescolare px e %).
+              <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, left: CH_GUTTER, right: CH_PAD_R }}>
+                {placed.map(({ ev, col, cols }) => {
+                  const top = clampTop(ev.startHour);
+                  const bottom = clampTop(ev.endHour);
+                  const height = Math.max(bottom - top - 2, CH_MIN_H);
+                  const tiny = height < CH_TINY;
+                  // Righe di titolo che ci stanno davvero, invece di un tetto
+                  // fisso: senza l'orario lo spazio è tutto del testo, e un
+                  // evento lungo può usarlo.
+                  const pv = tiny ? 3 : 5;
+                  const titleLines = Math.max(1, Math.floor((height - pv * 2) / CH_LINE));
+                  return (
+                    <Pressable
+                      key={ev.id}
+                      onPress={onOpenEvent ? () => onOpenEvent(ev.tileId) : undefined}
+                      disabled={!onOpenEvent}
+                      // L'orario non è più scritto nel blocco: chi legge lo
+                      // ricava dalla posizione sulla griglia. Per chi usa un
+                      // lettore di schermo quella pista non esiste, quindi
+                      // l'informazione resta qui.
+                      accessibilityLabel={`${ev.title}, ${ev.timeLabel}`}
+                      style={{
+                        position: 'absolute', top, height,
+                        left: `${(col / cols) * 100}%`,
+                        width: `${100 / cols}%`,
+                        paddingRight: cols > 1 ? CH_COL_GAP : 0,
+                      }}
+                    >
+                      <View
+                        style={{
+                          // Fondo tile standard, lo stesso del web: l'evento è
+                          // una tile come le altre, non un oggetto proprio del
+                          // calendario. Niente barra colorata a sinistra —
+                          // nessuna tile ne ha una.
+                          flex: 1, borderRadius: 6, overflow: 'hidden',
+                          paddingHorizontal: 7, paddingVertical: pv,
+                          justifyContent: tiny ? 'center' : 'flex-start',
+                          backgroundColor: c.tileBg,
+                        }}
+                      >
+                        <Text numberOfLines={titleLines} style={{ fontSize: 11.5, lineHeight: CH_LINE, fontWeight: '600', color: c.text }}>{ev.title}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            )}
+            {showNow && (
+              <View style={{ position: 'absolute', top: nowTop, left: CH_GUTTER, right: 0, borderTopWidth: 1.5, borderTopColor: c.accent }}>
+                <View style={{ position: 'absolute', left: 0, top: -3.5, width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent }} />
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Pillola flottante di creazione, ancorata in basso al centro. */}
+      {onAddTile && (
+        <Pressable
+          onPress={onAddTile}
+          accessibilityLabel="Aggiungi un tile in questo giorno"
+          android_ripple={{ color: '#ffffff22' }}
+          style={{
+            position: 'absolute', bottom: 20, alignSelf: 'center',
+            flexDirection: 'row', alignItems: 'center', gap: 10,
+            paddingLeft: 20, paddingRight: 14, height: 48, borderRadius: 24,
+            backgroundColor: c.dark ? '#3a3a3a' : c.surface2,
+            elevation: 8, shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 12, shadowOffset: { width: 0, height: 4 },
+          }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.text }}>Add Tile</Text>
+          <IconPlus size={20} color={c.text} strokeWidth={2} />
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -796,10 +1017,16 @@ export interface ObsidianViewsScreenProps {
   chronoLoading?: boolean;
   chronoDayLabel?: string;
   chronoIsToday?: boolean;
+  /** Giorno mostrato: valore iniziale del selettore di data. */
+  chronoDate?: Date;
   onChronoPrev?: () => void;
   onChronoNext?: () => void;
   onChronoToday?: () => void;
+  /** Salta al giorno scelto col picker. Omessa → la data non è premibile. */
+  onChronoPickDate?: (d: Date) => void;
   onOpenEvent?: (tileId: string) => void;
+  /** Crea un tile-evento nel giorno mostrato. Omessa → la pillola non compare. */
+  onChronoAddTile?: () => void;
   /** Settings tab — live controls (settingsStore). Omit for the mock. */
   haptic?: boolean;
   onHaptic?: (v: boolean) => void;
@@ -833,8 +1060,8 @@ export function ObsidianViewsScreen({
   tiles, actionColors, tilesLoading, onOpenTile,
   onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds,
   flows, flowsLoading, flowFilter, onFlowFilter, onOpenFlow,
-  chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday,
-  onChronoPrev, onChronoNext, onChronoToday, onOpenEvent,
+  chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday, chronoDate,
+  onChronoPrev, onChronoNext, onChronoToday, onChronoPickDate, onOpenEvent, onChronoAddTile,
   haptic, onHaptic, confirmDelete, onConfirmDelete, themeMode, onThemeMode,
   errorText, account, onHome, onAsk,
 }: ObsidianViewsScreenProps = {}) {
@@ -850,11 +1077,13 @@ export function ObsidianViewsScreen({
   return (
     <View style={{ flex: 1, backgroundColor: shellBg }}>
       <ObsidianStatusBar background={shellBg} />
-      {/* Stessa navbar della Capture: titolo a sinistra, menu (Drawer) + Ask a
-          destra. Il cambio vista vive solo nel Drawer. */}
+      {/* Stessa navbar della Capture: pulsante-menu col nome della finestra a
+          sinistra, quadrati Tiles / Chrono / Ask a destra. */}
       <ObsidianAppHeader
         title={VIEW_LABEL[active]}
+        active={active}
         onMenu={() => setDrawer(true)}
+        onNavigateView={setActive}
         onAsk={onAsk}
       />
       {errorText ? <ErrorBanner c={c} text={errorText} /> : null}
@@ -873,7 +1102,7 @@ export function ObsidianViewsScreen({
         />
       )}
       {active === 'flows' && <FlowsContent c={c} flows={flows} loading={flowsLoading} active={flowFilter} onFilter={onFlowFilter} onOpenFlow={onOpenFlow} />}
-      {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onOpenEvent={onOpenEvent} />}
+      {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} date={chronoDate} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onPickDate={onChronoPickDate} onOpenEvent={onOpenEvent} onAddTile={onChronoAddTile} />}
       {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
       <ObsidianNavPill background={shellBg} />
 
