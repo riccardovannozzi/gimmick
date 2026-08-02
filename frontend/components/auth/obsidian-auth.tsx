@@ -9,6 +9,8 @@
  */
 import * as React from 'react';
 import Link from 'next/link';
+import { GimmickLogo } from '@/components/shell/GimmickLogo';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 export function AuthLayout({
   title, subtitle, children,
@@ -37,17 +39,13 @@ export function AuthLayout({
         }}
       >
         <div style={{ padding: '26px 22px 18px', textAlign: 'center', borderBottom: '1px solid var(--ob-line)' }}>
-          <div
-            aria-hidden
-            style={{
-              width: 30, height: 30, borderRadius: 9, background: 'var(--ob-accent)',
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12,
-            }}
-          >
-            <div style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--ob-accent-ink)' }} />
+          {/* Il marchio del brand, lo stesso dell'header e dell'app mobile.
+              Prima era la piastrella accent segnaposto del design system. */}
+          <div style={{ marginBottom: 12 }}>
+            <GimmickLogo size={34} />
           </div>
-          <h1 style={{ fontSize: 22, fontWeight: 600, letterSpacing: '-0.015em', color: 'var(--ob-text)', margin: 0 }}>{title}</h1>
-          {subtitle && <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: '6px 0 0' }}>{subtitle}</p>}
+          <h1 style={{ fontSize: 22, fontWeight: OB_WEIGHT.emphasis, letterSpacing: '-0.015em', color: 'var(--ob-text)', margin: 0 }}>{title}</h1>
+          {subtitle && <p style={{ fontSize: OB_TEXT.control, color: 'var(--ob-muted)', margin: '6px 0 0' }}>{subtitle}</p>}
         </div>
         <div style={{ padding: 22 }}>{children}</div>
       </div>
@@ -61,25 +59,25 @@ export function AuthField({
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 6 }}>
-        <label htmlFor={htmlFor} style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 11, letterSpacing: '0.04em', color: 'var(--ob-muted)' }}>
+        <label htmlFor={htmlFor} style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, letterSpacing: '0.04em', color: 'var(--ob-muted)' }}>
           {label}
         </label>
         {action}
       </div>
       {children}
-      {error && <p style={{ fontSize: 12, color: 'var(--ob-error)', margin: '5px 0 0' }}>{error}</p>}
+      {error && <p style={{ fontSize: OB_TEXT.card, color: 'var(--ob-error)', margin: '5px 0 0' }}>{error}</p>}
     </div>
   );
 }
 
 export function AuthError({ children }: { children: React.ReactNode }) {
-  return <p style={{ fontSize: 12, color: 'var(--ob-error)', textAlign: 'center', margin: 0 }}>{children}</p>;
+  return <p style={{ fontSize: OB_TEXT.card, color: 'var(--ob-error)', textAlign: 'center', margin: 0 }}>{children}</p>;
 }
 
 export function AuthFoot({ children }: { children: React.ReactNode }) {
-  return <p style={{ marginTop: 2, textAlign: 'center', fontSize: 13, color: 'var(--ob-muted)' }}>{children}</p>;
+  return <p style={{ marginTop: 2, textAlign: 'center', fontSize: OB_TEXT.control, color: 'var(--ob-muted)' }}>{children}</p>;
 }
 
 export function AuthLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return <Link href={href} style={{ color: 'var(--ob-accent-text)', fontWeight: 600, textDecoration: 'none' }}>{children}</Link>;
+  return <Link href={href} style={{ color: 'var(--ob-accent-text)', fontWeight: OB_WEIGHT.emphasis, textDecoration: 'none' }}>{children}</Link>;
 }

@@ -13,6 +13,7 @@ import { tilesApi } from '@/lib/api';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { DatePicker } from '@/components/ui/date-picker';
 import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType } from '@/types';
@@ -140,12 +141,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
+  // Eyebrow di sezione: la tipografia arriva dall'helper condiviso, come nella
+  // sidebar gemella TileSidebar. Qui divergeva — 9px e nessun peso, cioè 400
+  // contro 700 — su due pannelli affiancati con le stesse etichette.
   const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
+    ...obLabel(theme),
+    lineHeight: OB_LEADING.none,
     display: 'block',
     marginBottom: 4,
   };
@@ -190,7 +191,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
             <div
               style={{
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.accent,
@@ -205,12 +206,8 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  fontFamily: 'var(--ob-font-mono)',
-                  fontSize: 8,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: theme.ink3,
                   padding: 0,
+                  ...obLabel(theme),
                 }}
               >
                 Annulla
@@ -243,13 +240,13 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                       justifyContent: 'center',
                       gap: 6,
                       height: 34,
-                      borderRadius: 9,
+                      borderRadius: 'var(--ob-radius-sm)',
                       background: isActive ? `${theme.accent}22` : 'transparent',
                       color: isActive ? theme.accent : theme.ink2,
                       border: `1px solid ${isActive ? theme.accent : theme.border}`,
                       fontFamily: 'var(--ob-font-sans)',
-                      fontSize: 12.5,
-                      fontWeight: 600,
+                      fontSize: OB_TEXT.control,
+                      fontWeight: OB_WEIGHT.emphasis,
                       letterSpacing: 0,
                       textTransform: 'none',
                       cursor: saving ? 'not-allowed' : 'pointer',
@@ -304,12 +301,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
           <div
             style={{
               fontFamily: 'var(--ob-font-sans)',
-              fontSize: 11,
+              fontSize: OB_TEXT.meta,
               fontStyle: 'italic',
               color: theme.ink3,
               paddingTop: 8,
               borderTop: `${bW}px solid ${theme.border}`,
-              lineHeight: 1.5,
+              lineHeight: OB_LEADING.text,
             }}
           >
             Title, tag e contenuti sono modificabili solo aprendo un singolo tile.
@@ -353,12 +350,12 @@ function MixedTypeIconPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Eyebrow di sezione: la tipografia arriva dall'helper condiviso, come nella
+  // sidebar gemella TileSidebar. Qui divergeva — 9px e nessun peso, cioè 400
+  // contro 700 — su due pannelli affiancati con le stesse etichette.
   const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 9,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
+    ...obLabel(theme),
+    lineHeight: OB_LEADING.none,
     display: 'block',
     marginBottom: 4,
   };
@@ -369,12 +366,12 @@ function MixedTypeIconPicker({
     width: '100%',
     padding: '6px 8px',
     textAlign: 'left',
-    borderRadius: 6,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.surfaceVariant : 'transparent',
     border: `${bW}px solid transparent`,
     color: active ? theme.ink : theme.ink2,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12,
+    fontSize: OB_TEXT.card,
     cursor: 'pointer',
   });
 
@@ -394,19 +391,19 @@ function MixedTypeIconPicker({
           gap: 8,
           background: current?.color ? `${current.color}40` : (theme.surface),
           border: `${bW}px solid ${theme.border}`,
-          borderRadius: 10,
+          borderRadius: 'var(--ob-radius-sm)',
           padding: '0 10px',
           height: 36,
           color: theme.ink,
           fontFamily: 'var(--ob-font-sans)',
-          fontSize: 13,
+          fontSize: OB_TEXT.control,
           cursor: disabled ? 'not-allowed' : 'pointer',
           textAlign: 'left',
           opacity: disabled ? 0.6 : 1,
         }}
       >
         {mixed ? (
-          <span style={{ color: '#F5A623', flex: 1, fontSize: 11 }}>Misto</span>
+          <span style={{ color: '#F5A623', flex: 1, fontSize: OB_TEXT.meta }}>Misto</span>
         ) : CurrentComp && current ? (
           <>
             <div
@@ -415,7 +412,7 @@ function MixedTypeIconPicker({
                 height: 18,
                 background: current.color || theme.surfaceVariant,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: 5,
+                borderRadius: 'var(--ob-radius-sm)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -427,7 +424,7 @@ function MixedTypeIconPicker({
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Nessuno</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: OB_TEXT.meta }}>Nessuno</span>
         )}
       </button>
       {open && dropPos && createPortal(
@@ -441,7 +438,7 @@ function MixedTypeIconPicker({
             zIndex: 9999,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 192,
@@ -464,7 +461,7 @@ function MixedTypeIconPicker({
                       height: 18,
                       background: icon.color || theme.surfaceVariant,
                       border: `${bW}px solid ${theme.border}`,
-                      borderRadius: 5,
+                      borderRadius: 'var(--ob-radius-sm)',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',

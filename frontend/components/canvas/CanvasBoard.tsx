@@ -12,6 +12,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { TextEditor } from './TextEditor';
+import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
 /** Vista (pan + zoom) persistita per canvas: `canvas_view_<tagId>`. */
 const VIEW_LS_PREFIX = 'canvas_view_';
@@ -796,7 +797,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Nome leggibile sullo sfondo del gruppo: chiaro su scuro e viceversa.
         // Senza sfondo, colore muted (o accento se selezionato).
         const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? selAccent : theme.ink3);
-        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', 11).attr('font-weight', isSel ? 600 : 500)
+        gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', OB_TEXT.meta).attr('font-weight', isSel ? OB_WEIGHT.emphasis : OB_WEIGHT.body)
           .text(grp.label || 'Gruppo').style('cursor', 'pointer')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
           .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); });
@@ -996,7 +997,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           const bgRect = g.append('rect').style('pointer-events', 'none');
           const txt = g.append('text').attr('x', mx).attr('y', my)
             .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-            .attr('fill', theme.ink).attr('font-family', labelFont).attr('font-size', 10).attr('font-weight', 600)
+            .attr('fill', theme.ink).attr('font-family', labelFont).attr('font-size', OB_TEXT.meta).attr('font-weight', OB_WEIGHT.emphasis)
             .style('pointer-events', 'none').text(edge.label);
           try {
             const bb = (txt.node() as SVGTextElement).getBBox();
@@ -1108,7 +1109,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .attr('transform', `rotate(-90, ${cx}, ${cy})`)
           .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
           .attr('fill', meta.hex).attr('font-family', labelFont)
-          .attr('font-size', 9).attr('font-weight', 700)
+          .attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.mono)
           .style('letter-spacing', '0.15em').style('pointer-events', 'none')
           .text(glyph.text);
       } else if (glyph.kind === 'icon') {
@@ -1128,12 +1129,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const g = d3.select(this);
       const cx0 = contentLeft(d);
       const fo = g.append('foreignObject').attr('x', cx0).attr('y', 6).attr('width', TILE_W - cx0 - 6).attr('height', TILE_H - 26);
-      // Testo su velatura chiara → colore leggibile sulla surface.
-      const fg = readableOn(theme.surface);
+      // Titolo del tile: stessa tipografia degli altri quattro resi
+      // (canvas demo, kanban, chrono, staging) — 12/600/16, --ob-text.
+      // Il colore passava da `readableOn(theme.surface)`: quella funzione serve
+      // per i fondi COLORATI, e su una surface neutra restituiva #FFFFFF, un
+      // bianco che nel design system non esiste. Qui basta il token, che dentro
+      // un foreignObject eredita normalmente (è HTML, non SVG).
+      const fg = theme.ink;
       // Barrato + attenuato quando completato, come nel titolo della sidebar.
       const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
       fo.append('xhtml:div')
-        .attr('style', `color:${fg};font-size:12px;font-weight:300;line-height:16px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
+        .attr('style', `color:${fg};font-size: var(--ob-text-card);font-weight: var(--ob-weight-emphasis);letter-spacing:-0.01em;line-height: var(--ob-leading-tight);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
         .text(d.title);
     });
     // Footer: date info + checklist (LIST) + action badge + type icon badge
@@ -1161,13 +1167,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const textX = contentLeft(d) + 24;
       if (dateLine && timeLine) {
         g.append('text').attr('x', textX).attr('y', TILE_H - 16)
-          .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
+          .attr('fill', theme.ink).attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.body).text(dateLine);
         g.append('text').attr('x', textX).attr('y', TILE_H - 6)
-          .attr('fill', theme.ink2).attr('font-size', 8).attr('font-weight', 400).text(timeLine);
+          .attr('fill', theme.ink2).attr('font-size', OB_TEXT.eyebrow).attr('font-weight', OB_WEIGHT.body).text(timeLine);
       } else if (dateLine) {
         // Single line — center vertically between badges.
         g.append('text').attr('x', textX).attr('y', TILE_H - 11)
-          .attr('fill', theme.ink).attr('font-size', 9).attr('font-weight', 400).text(dateLine);
+          .attr('fill', theme.ink).attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.body).text(dateLine);
       }
     });
     // Checklist bar (LIST) — sits between title and the badges row.
@@ -1247,7 +1253,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
         .attr('text-anchor', 'middle')
         .attr('font-family', labelFont)
-        .attr('font-size', 8).attr('font-weight', 700)
+        .attr('font-size', OB_TEXT.eyebrow).attr('font-weight', OB_WEIGHT.mono)
         .attr('fill', theme.onAccent)
         .style('letter-spacing', '0.08em')
         .style('text-transform', 'uppercase')

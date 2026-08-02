@@ -24,6 +24,7 @@ import { useFilterStore } from '@/store/filter-store';
 import { sparksApi } from '@/lib/api';
 import { formatFileSize } from '@/lib/spark-utils';
 import type { Spark } from '@/types';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 /** Mappa i tipi reali sugli accenti-tipo del design Obsidian. */
 const TYPE_TO_KIND: Record<string, SparkItem['type']> = {
@@ -98,8 +99,8 @@ export function SparksLive() {
             borderBottom: '1px solid var(--ob-line)',
             color: 'var(--ob-accent-text)',
             fontFamily: 'var(--ob-font-mono)',
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: OB_TEXT.card,
+            fontWeight: OB_WEIGHT.emphasis,
             letterSpacing: '0.04em',
           }}
         >
@@ -119,7 +120,7 @@ export function SparksLive() {
               alignItems: 'center',
               justifyContent: 'center',
               color: 'var(--ob-subtle)',
-              fontSize: 13,
+              fontSize: OB_TEXT.control,
               fontFamily: 'var(--ob-font-sans)',
             }}
           >
@@ -146,7 +147,7 @@ export function SparksLive() {
             background: 'var(--ob-head)',
           }}
         >
-          <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 12, color: 'var(--ob-muted)' }}>
+          <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.card, color: 'var(--ob-muted)' }}>
             Pagina {pagination.page} di {pagination.totalPages} · {pagination.total} totali
           </span>
           <div style={{ display: 'flex', gap: 8 }}>

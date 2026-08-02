@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { subtasksApi } from '@/lib/api';
 import type { Subtask } from '@/types';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 import {
   IconPlus,
   IconTrash,
@@ -84,7 +85,7 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, marginTop: 16 }}>
+      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, color: theme.ink3, marginTop: 16 }}>
         Caricamento...
       </p>
     );
@@ -96,7 +97,7 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
         <p
           style={{
             fontFamily: 'var(--ob-font-mono)',
-            fontSize: 11,
+            fontSize: OB_TEXT.meta,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink3,
@@ -143,10 +144,10 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
           background: 'transparent',
           color: theme.ink2,
           border: `1px dashed ${theme.border}`,
-          borderRadius: 10,
+          borderRadius: 'var(--ob-radius-sm)',
           fontFamily: 'var(--ob-font-sans)',
-          fontSize: 12.5,
-          fontWeight: 600,
+          fontSize: OB_TEXT.control,
+          fontWeight: OB_WEIGHT.emphasis,
           letterSpacing: 0,
           textTransform: 'none',
           cursor: addMutation.isPending ? 'not-allowed' : 'pointer',
@@ -216,7 +217,7 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
       style={{
         background: theme.surface,
         border: `1px solid ${theme.border}`,
-        borderRadius: 10,
+        borderRadius: 'var(--ob-radius-md)',
         padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
@@ -245,7 +246,7 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             justifyContent: 'center',
             background: subtask.is_done ? theme.accent : 'transparent',
             border: `1.5px solid ${subtask.is_done ? (theme.accent) : theme.ink3}`,
-            borderRadius: 5,
+            borderRadius: 'var(--ob-radius-sm)',
             cursor: 'pointer',
             marginTop: 2,
           }}
@@ -268,8 +269,8 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             background: 'transparent',
             color: subtask.is_done ? theme.ink3 : theme.ink,
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 12,
-            lineHeight: 1.3,
+            fontSize: OB_TEXT.card,
+            lineHeight: OB_LEADING.tight,
             resize: 'none',
             outline: 'none',
             border: 'none',
@@ -303,10 +304,10 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
           onClick={handleDeleteClick}
           style={{
             padding: 2,
-            background: confirmDelete ? '#E24B4A' : 'transparent',
+            background: confirmDelete ? 'var(--ob-danger)' : 'transparent',
             color: confirmDelete ? '#FFFFFF' : theme.ink3,
             border: confirmDelete ? `1px solid ${theme.border}` : 'none',
-            borderRadius: 5,
+            borderRadius: 'var(--ob-radius-sm)',
             cursor: 'pointer',
             display: 'inline-flex',
             ...(confirmDelete ? { opacity: 1 } : {}),

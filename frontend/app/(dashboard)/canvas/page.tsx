@@ -23,6 +23,7 @@ import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 export default function CanvasPage() {
   const theme = usePixelTheme();
@@ -1214,7 +1215,7 @@ export default function CanvasPage() {
                     background: theme.surface,
                     border: `1px solid ${theme.border}`,
                     boxShadow: 'var(--ob-shadow-card)',
-                    borderRadius: 12,
+                    borderRadius: 'var(--ob-radius-md)',
                     padding: 4,
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
@@ -1223,7 +1224,7 @@ export default function CanvasPage() {
                     style={{
                       padding: '6px 10px',
                       fontFamily: 'var(--ob-font-mono)',
-                      fontSize: 9,
+                      fontSize: OB_TEXT.micro,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       color: theme.ink3,
@@ -1232,7 +1233,7 @@ export default function CanvasPage() {
                   >
                     {selectedIds.length} elementi
                     {tbCount > 0 && tileCount > 0 && (
-                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: 10 }}>({tileCount} tile · {tbCount} note)</span>
+                      <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
                   <button
@@ -1252,7 +1253,7 @@ export default function CanvasPage() {
                       color: groupAllowed ? theme.ink2 : theme.ink3,
                       opacity: groupAllowed ? 1 : 0.4,
                       fontFamily: ('var(--ob-font-sans)'),
-                      fontSize: 12,
+                      fontSize: OB_TEXT.card,
                     }}
                   >
                     <IconBoxMultiple size={14} />
@@ -1270,9 +1271,9 @@ export default function CanvasPage() {
                       background: 'transparent',
                       border: 'none',
                       cursor: 'pointer',
-                      color: '#E24B4A',
+                      color: 'var(--ob-danger)',
                       fontFamily: ('var(--ob-font-sans)'),
-                      fontSize: 12,
+                      fontSize: OB_TEXT.card,
                     }}
                   >
                     <IconTrash size={14} />
@@ -1301,9 +1302,9 @@ export default function CanvasPage() {
                 cursor: 'pointer',
                 color: theme.ink2,
                 fontFamily: ('var(--ob-font-sans)'),
-                fontSize: 12,
+                fontSize: OB_TEXT.card,
               };
-              const dangerItem: React.CSSProperties = { ...menuItem, color: '#E24B4A' };
+              const dangerItem: React.CSSProperties = { ...menuItem, color: 'var(--ob-danger)' };
               return (
                 <>
                   <div className="fixed inset-0 z-[9998]" onClick={() => setTileCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTileCtx(null); }} />
@@ -1326,7 +1327,7 @@ export default function CanvasPage() {
                           style={{
                             padding: '6px 10px',
                             fontFamily: 'var(--ob-font-mono)',
-                            fontSize: 9,
+                            fontSize: OB_TEXT.micro,
                             letterSpacing: '0.08em',
                             textTransform: 'uppercase',
                             color: theme.ink3,
@@ -1414,7 +1415,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >
@@ -1432,7 +1433,7 @@ export default function CanvasPage() {
                     cursor: 'pointer',
                     color: theme.ink2,
                     fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                   }}
                 >
                   <IconCopy size={14} />
@@ -1450,9 +1451,9 @@ export default function CanvasPage() {
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#E24B4A',
+                    color: 'var(--ob-danger)',
                     fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                   }}
                 >
                   <IconTrash size={14} />
@@ -1477,7 +1478,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >
@@ -1495,7 +1496,7 @@ export default function CanvasPage() {
                     cursor: 'pointer',
                     color: theme.ink2,
                     fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                   }}
                 >
                   <IconClipboard size={14} />
@@ -1521,7 +1522,7 @@ export default function CanvasPage() {
                 cursor: 'pointer',
                 color: theme.ink2,
                 fontFamily: 'var(--ob-font-sans)',
-                fontSize: 12,
+                fontSize: OB_TEXT.card,
               };
               const group = canvasGroups.find((g) => g.id === groupCtx.groupId);
               return (
@@ -1537,7 +1538,7 @@ export default function CanvasPage() {
                       background: theme.surface,
                       border: `1px solid ${theme.border}`,
                       boxShadow: 'var(--ob-shadow-card)',
-                      borderRadius: 12,
+                      borderRadius: 'var(--ob-radius-md)',
                       padding: 4,
                     }}
                   >
@@ -1550,7 +1551,7 @@ export default function CanvasPage() {
                     </button>
                     <button
                       onClick={() => { handleDeleteGroup(groupCtx.groupId); setGroupCtx(null); }}
-                      style={{ ...menuItem, color: '#E24B4A' }}
+                      style={{ ...menuItem, color: 'var(--ob-danger)' }}
                     >
                       <IconTrash size={14} />
                       Elimina gruppo
@@ -1588,10 +1589,10 @@ export default function CanvasPage() {
                   padding: '9px 12px',
                   background: theme.bg1,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
+                  borderRadius: 'var(--ob-radius-sm)',
                   color: theme.ink,
                   fontFamily: 'var(--ob-font-sans)',
-                  fontSize: 13,
+                  fontSize: OB_TEXT.control,
                   outline: 'none',
                 }}
               />
@@ -1603,10 +1604,10 @@ export default function CanvasPage() {
                     padding: '8px 14px',
                     background: 'transparent',
                     border: `1px solid ${theme.border}`,
-                    borderRadius: 8,
+                    borderRadius: 'var(--ob-radius-sm)',
                     color: theme.ink2,
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 12.5,
+                    fontSize: OB_TEXT.control,
                     cursor: 'pointer',
                   }}
                 >
@@ -1618,11 +1619,11 @@ export default function CanvasPage() {
                     padding: '8px 14px',
                     background: theme.accent,
                     border: `1px solid ${theme.accent}`,
-                    borderRadius: 8,
+                    borderRadius: 'var(--ob-radius-sm)',
                     color: theme.onAccent,
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     cursor: 'pointer',
                   }}
                 >
@@ -1646,7 +1647,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >
@@ -1662,9 +1663,9 @@ export default function CanvasPage() {
                     background: 'transparent',
                     border: 'none',
                     cursor: 'pointer',
-                    color: '#E24B4A',
+                    color: 'var(--ob-danger)',
                     fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                   }}
                 >
                   <IconTrash size={14} />
@@ -1720,7 +1721,7 @@ export default function CanvasPage() {
             <p
               style={{
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink2,
@@ -1729,7 +1730,7 @@ export default function CanvasPage() {
             >
               Seleziona un tag dalla sidebar
             </p>
-            <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta, color: theme.ink3, margin: 0 }}>
               per aprire la lavagna
             </p>
           </div>

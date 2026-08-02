@@ -10,6 +10,7 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useChatStore } from '@/store/chat-store';
 import { useCardRoster } from '@/store/card-roster-store';
 import { settingsApi } from '@/lib/api';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 export default function DashboardLayout({
   children,
@@ -77,7 +78,7 @@ export default function DashboardLayout({
           style={{
             color: theme.ink2,
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
           }}
         >
           Caricamento…

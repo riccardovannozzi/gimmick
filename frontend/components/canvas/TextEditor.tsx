@@ -33,7 +33,7 @@ export function TextEditor({ initialHtml, onChange, editing = false, fontSize = 
     editorProps: {
       attributes: {
         class: 'tiptap-canvas focus:outline-none w-full h-full overflow-auto',
-        style: `color:#D4D4D8;font-size:${fontSize}px;line-height:1.45;padding:0;`,
+        style: `color:#D4D4D8;font-size:${fontSize}px;line-height: var(--ob-leading-text);padding:0;`,
       },
     },
     onUpdate: ({ editor: ed }) => {

@@ -11,6 +11,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconTrash, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
 import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBoard';
 
@@ -41,18 +42,9 @@ interface GroupSidebarProps {
   onSelectTile: (id: string) => void;
 }
 
-type PT = ReturnType<typeof usePixelTheme>;
-
-function eyebrowStyle(theme: PT): React.CSSProperties {
-  return {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 8,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-  };
-}
+/** Eyebrow di sezione — alias locale della ricetta condivisa, per non toccare
+ *  i tre punti che la chiamano già con questo nome. */
+const eyebrowStyle = obLabel;
 
 /** Campo colore: swatch cliccabile che apre una palette (GIMMICK_PALETTE). */
 export function ColorField({ label, value, onChange, allowNone, palette = GIMMICK_PALETTE }: {
@@ -83,13 +75,13 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
             display: 'flex', alignItems: 'center', gap: 8,
             width: '100%', padding: '6px 8px',
             // Nessun contorno: l'oggetto si distingue per il fondo (vedi TextSidebar).
-            background: theme.bg1, border: 'none', borderRadius: 8,
-            cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: 11,
+            background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-sm)',
+            cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta,
           }}
         >
           <span
             style={{
-              width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+              width: 20, height: 20, borderRadius: 'var(--ob-radius-sm)', flexShrink: 0,
               border: `1px solid ${theme.border}`,
               // Solo proprietà longhand: mischiare `background` (shorthand) con
               // backgroundImage/Size/Position genera un warning React.
@@ -107,7 +99,7 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
           <div
             style={{
               position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-              background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10,
+              background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)',
               boxShadow: 'var(--ob-shadow-card)', padding: 8,
               display: 'flex', flexDirection: 'column', gap: 6,
             }}
@@ -122,7 +114,7 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
                     title={c.name}
                     onClick={() => { onChange(c.hex); setOpen(false); }}
                     style={{
-                      width: '100%', aspectRatio: '1', borderRadius: 4,
+                      width: '100%', aspectRatio: '1', borderRadius: 'var(--ob-radius-sm)',
                       background: c.hex,
                       border: `2px solid ${on ? theme.ink : 'transparent'}`,
                       cursor: 'pointer',
@@ -137,11 +129,11 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
                 onClick={() => { onChange(null); setOpen(false); }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '6px 8px',
-                  background: 'transparent', border: `1px solid ${theme.border}`, borderRadius: 8,
-                  cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: 12,
+                  background: 'transparent', border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                  cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card,
                 }}
               >
-                <span style={{ width: 16, height: 16, borderRadius: 4, border: `1px solid ${theme.border}`, position: 'relative', overflow: 'hidden' }}>
+                <span style={{ width: 16, height: 16, borderRadius: 'var(--ob-radius-sm)', border: `1px solid ${theme.border}`, position: 'relative', overflow: 'hidden' }}>
                   <span style={{ position: 'absolute', inset: 0, background: `linear-gradient(to top right, transparent 46%, #E24B4A 46%, #E24B4A 54%, transparent 54%)` }} />
                 </span>
                 Nessuno
@@ -182,9 +174,9 @@ export function Segmented<T extends string | number>({ label, value, options, on
                 // tab della navbar — non il lavanda pieno.
                 background: active ? 'var(--ob-accent-soft)' : theme.bg1,
                 border: `1px solid ${active ? 'transparent' : theme.border}`,
-                borderRadius: 8,
+                borderRadius: 'var(--ob-radius-sm)',
                 color: active ? 'var(--ob-accent)' : theme.ink2,
-                fontFamily: 'var(--ob-font-mono)', fontSize: 12, fontWeight: 600,
+                fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.card, fontWeight: OB_WEIGHT.emphasis,
                 cursor: 'pointer',
               }}
             >
@@ -252,7 +244,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
           {open ? <IconLayoutSidebarRightCollapse size={16} /> : <IconLayoutSidebarRightExpand size={16} />}
         </button>
         {open && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis }}>
             <IconBoxMultiple size={15} style={{ color: theme.accent }} />
             Gruppo
           </div>
@@ -272,8 +264,8 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
               placeholder="Nome del gruppo"
               style={{
                 width: '100%', padding: '8px 10px',
-                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 8,
-                color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, outline: 'none',
+                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, outline: 'none',
               }}
             />
           </div>
@@ -326,7 +318,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
                   style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '7px 10px',
                     textAlign: 'left', background: theme.bg1, border: `1px solid ${theme.border}`,
-                    borderRadius: 8, color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: 12.5,
+                    borderRadius: 'var(--ob-radius-sm)', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
                     cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}
                 >
@@ -342,8 +334,8 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: '#E24B4A',
-              fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer',
+              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: 'var(--ob-danger)',
+              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer',
             }}
           >
             <IconTrash size={14} />

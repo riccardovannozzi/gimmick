@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
@@ -10,6 +10,7 @@ import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
 import type { Tag } from '@/types';
 import { cn } from '@/lib/utils';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT, obLabel as obLabelBase } from '@/lib/theme/ob-typography';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useActionColors } from '@/store/action-colors-store';
@@ -50,19 +51,13 @@ const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ 
 // niente uppercase pixel né ombre dure).
 type PT = ReturnType<typeof usePixelTheme>;
 
-/** Eyebrow/section label (TITOLO, AZIONE, …). */
+/**
+ * Eyebrow/section label (TITOLO, AZIONE, …) — la tipografia arriva dall'helper
+ * condiviso `lib/theme/ob-typography`; qui si aggiunge solo il layout di blocco,
+ * che è specifico di questa sidebar (etichetta sopra il campo, non in riga).
+ */
 function obLabel(theme: PT): React.CSSProperties {
-  return {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 8,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: theme.ink3,
-    display: 'block',
-    lineHeight: 1.1,
-    marginBottom: 3,
-  };
+  return { ...obLabelBase(theme), display: 'block', lineHeight: OB_LEADING.none, marginBottom: 3 };
 }
 
 /** Field / select trigger box (input, dropdown trigger).
@@ -74,10 +69,10 @@ function obField(theme: PT): React.CSSProperties {
   return {
     background: theme.bg1,
     border: 'none',
-    borderRadius: 10,
+    borderRadius: 'var(--ob-radius-sm)',
     color: theme.ink,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
+    fontSize: OB_TEXT.control,
   };
 }
 
@@ -90,12 +85,12 @@ function obPopupRow(theme: PT, active: boolean): React.CSSProperties {
     width: '100%',
     padding: '6px 8px',
     textAlign: 'left',
-    borderRadius: 6,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.surfaceVariant : 'transparent',
     border: `1px solid transparent`,
     color: active ? theme.ink : theme.ink2,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
+    fontSize: OB_TEXT.control,
     cursor: 'pointer',
   };
 }
@@ -160,7 +155,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
                 height: 18,
                 background: current?.color || theme.surfaceVariant,
                 border: `1px solid ${theme.border}`,
-                borderRadius: 5,
+                borderRadius: 'var(--ob-radius-sm)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -172,7 +167,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current!.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Type</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: OB_TEXT.control }}>Type</span>
         )}
         {<IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />}
       </button>
@@ -187,7 +182,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
             zIndex: 9999,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight:192,
@@ -251,7 +246,7 @@ function DefaultSwatch({ size = 18 }: { size?: number }) {
       style={{
         width: size,
         height: size,
-        borderRadius: 4,
+        borderRadius: 'var(--ob-radius-sm)',
         flexShrink: 0,
         display: 'inline-block',
         background: 'linear-gradient(135deg, color-mix(in srgb, var(--ob-muted) 16%, transparent), color-mix(in srgb, var(--ob-muted) 4%, transparent))',
@@ -269,7 +264,7 @@ function StatusGlyphView({ name, size = 18 }: { name: string; size?: number }) {
   const box: React.CSSProperties = { width: size, height: size, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
   if (glyph.kind === 'none') return <DefaultSwatch size={size} />;
   if (glyph.kind === 'dot') return <span style={box}><span style={{ width: size * 0.44, height: size * 0.44, borderRadius: '50%', background: meta.hex }} /></span>;
-  if (glyph.kind === 'text') return <span style={{ ...box, width: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', color: meta.hex }}>{glyph.text}</span>;
+  if (glyph.kind === 'text') return <span style={{ ...box, width: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, fontWeight: OB_WEIGHT.mono, letterSpacing: '0.1em', color: meta.hex }}>{glyph.text}</span>;
   const Icon = AllIcons[glyph.icon];
   return <span style={box}>{Icon ? <Icon size={Math.round(size * 0.72)} color={meta.hex} /> : null}</span>;
 }
@@ -335,7 +330,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{currentMeta.label}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 12.5 }}>Status</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: OB_TEXT.control }}>Status</span>
         )}
         <IconChevronDown size={15} style={{ color: theme.ink3, flexShrink: 0 }} />
       </button>
@@ -350,7 +345,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
             zIndex: 9999,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 240,
@@ -380,7 +375,7 @@ function TagIcon({ emoji, color, size = 14 }: { emoji: string; color: string; si
     const Comp = (TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; style?: React.CSSProperties }>>)[emoji];
     if (Comp) return <Comp size={size} style={{ color }} />;
   }
-  if (emoji) return <span style={{ fontSize: size * 0.85, lineHeight: 1 }}>{emoji}</span>;
+  if (emoji) return <span style={{ fontSize: size * 0.85, lineHeight: OB_LEADING.none }}>{emoji}</span>;
   return <span className="rounded-full shrink-0" style={{ width: size * 0.55, height: size * 0.55, backgroundColor: color }} />;
 }
 
@@ -581,7 +576,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedTag.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, fontSize: 12.5 }}>Seleziona tag...</span>
+          <span style={{ color: theme.ink3, fontSize: OB_TEXT.control }}>Seleziona tag...</span>
         )}
       </div>
       {open && dropPos && createPortal(
@@ -595,7 +590,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
             zIndex: 9999,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight:256,
@@ -614,7 +609,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
                 else if (e.key === 'Enter' && visibleTags.length > 0) { e.preventDefault(); handleSelect(visibleTags[0]); }
               }}
               placeholder={suggestActive ? 'Suggeriti dal testo' : 'Cerca tag...'}
-              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: 12.5, outline: 'none' }}
+              style={{ ...obField(theme), width: '100%', height: 32, padding: '0 56px 0 28px', fontSize: OB_TEXT.control, outline: 'none' }}
             />
             {/* Bacchetta magica: propone tag esistenti ricavati dal testo del tile. */}
             <button
@@ -622,7 +617,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
               title={suggestText.trim() ? 'Suggerisci tag dal testo' : 'Nessun testo da cui suggerire'}
               disabled={!suggestText.trim()}
               onClick={() => { setQuery(''); setSuggestActive(true); }}
-              style={{ position: 'absolute', right: (suggestActive || query) ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: suggestActive ? `${theme.accent}2a` : 'transparent', color: suggestActive ? theme.accent : theme.ink3, cursor: suggestText.trim() ? 'pointer' : 'not-allowed', opacity: suggestText.trim() ? 1 : 0.4 }}
+              style={{ position: 'absolute', right: (suggestActive || query) ? 30 : 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: suggestActive ? `${theme.accent}2a` : 'transparent', color: suggestActive ? theme.accent : theme.ink3, cursor: suggestText.trim() ? 'pointer' : 'not-allowed', opacity: suggestText.trim() ? 1 : 0.4 }}
             >
               <IconWand size={14} />
             </button>
@@ -632,16 +627,16 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
                 type="button"
                 title="Pulisci"
                 onClick={() => { setQuery(''); setSuggestActive(false); searchRef.current?.focus(); }}
-                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'transparent', color: theme.ink3, cursor: 'pointer' }}
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: 'transparent', color: theme.ink3, cursor: 'pointer' }}
               >
                 <IconX size={14} />
               </button>
             )}
           </div>
           {allTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>Nessun tag</p>
           ) : visibleTags.length === 0 ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, textAlign: 'center', padding: '12px 0', margin: 0 }}>{suggestActive ? 'Nessun tag pertinente al testo' : 'Nessun risultato'}</p>
           ) : (
             visibleTags.map((tag) => {
               const assigned = selectedTag?.id === tag.id;
@@ -715,15 +710,15 @@ function SparkEditor({
     overflow: 'hidden',
     background: theme.bg1,
     border: 'none',
-    borderRadius: 12,
+    borderRadius: 'var(--ob-radius-md)',
     position: 'relative',
   };
   const overlayBtn = (danger: boolean): React.CSSProperties => ({
     padding: 4,
-    background: danger ? '#E24B4A' : theme.surface,
+    background: danger ? 'var(--ob-danger)' : theme.surface,
     color: danger ? '#FFFFFF' : theme.ink2,
     border: `1px solid ${theme.border}`,
-    borderRadius: 6,
+    borderRadius: 'var(--ob-radius-sm)',
     cursor: 'pointer',
     display: 'inline-flex',
   });
@@ -735,7 +730,7 @@ function SparkEditor({
         style={{
           background: theme.bg1,
           border: 'none',
-          borderRadius: 12,
+          borderRadius: 'var(--ob-radius-md)',
           padding: '10px 12px',
           position: 'relative',
           height: 128,
@@ -762,7 +757,7 @@ function SparkEditor({
           {editText.trim() ? (
             <MarkdownPreview markdown={editText} />
           ) : (
-            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: 12.5 }}>Vuoto — clicca per scrivere…</span>
+            <span style={{ color: theme.ink3, fontStyle: 'italic', fontSize: OB_TEXT.control }}>Vuoto — clicca per scrivere…</span>
           )}
         </div>
         {/* Action chips (edit + delete) appear on hover, top-right corner. */}
@@ -777,7 +772,7 @@ function SparkEditor({
               background: theme.surface,
               color: theme.ink2,
               border: `1px solid ${theme.border}`,
-              borderRadius: 6,
+              borderRadius: 'var(--ob-radius-sm)',
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -789,10 +784,10 @@ function SparkEditor({
             onClick={handleDeleteClick}
             style={{
               padding: 2,
-              background: confirmDelete ? '#E24B4A' : theme.surface,
+              background: confirmDelete ? 'var(--ob-danger)' : theme.surface,
               color: confirmDelete ? '#FFFFFF' : theme.ink2,
               border: `1px solid ${theme.border}`,
-              borderRadius: 6,
+              borderRadius: 'var(--ob-radius-sm)',
               cursor: 'pointer',
               display: 'inline-flex',
             }}
@@ -886,7 +881,7 @@ function SparkEditor({
             padding: '4px 8px',
           }}
         >
-          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink2, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {spark.file_name}
           </span>
         </div>
@@ -912,7 +907,7 @@ function SparkEditor({
           style={{
             background: theme.bg1,
             border: 'none',
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             overflow: 'hidden',
             position: 'relative',
             cursor: 'zoom-in',
@@ -941,7 +936,7 @@ function SparkEditor({
             <span
               style={{
                 fontFamily: 'var(--ob-font-sans)',
-                fontSize: 12.5,
+                fontSize: OB_TEXT.control,
                 color: theme.ink2,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -982,7 +977,7 @@ function SparkEditor({
               style={{
                 background: theme.surface,
                 border: `1px solid ${theme.border}`,
-                borderRadius: 16,
+                borderRadius: 'var(--ob-radius-md)',
                 boxShadow: 'var(--ob-shadow-modal, var(--ob-shadow-card))',
                 display: 'flex',
                 flexDirection: 'column',
@@ -1007,8 +1002,8 @@ function SparkEditor({
                 <span
                   style={{
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 12.5,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     letterSpacing: 0,
                     textTransform: 'none',
                     color: theme.ink,
@@ -1061,7 +1056,7 @@ function SparkEditor({
       style={{
         background: theme.bg1,
         border: 'none',
-        borderRadius: 12,
+        borderRadius: 'var(--ob-radius-md)',
         padding: '8px 10px',
         display: 'flex',
         alignItems: 'center',
@@ -1086,7 +1081,7 @@ function SparkEditor({
       >
         <SparkIcon size={18} style={{ color: theme.ink2 }} />
       </div>
-      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+      <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
         {spark.file_name || spark.type}
       </span>
       {signedUrl && (
@@ -1097,7 +1092,7 @@ function SparkEditor({
         className="opacity-0 group-hover:opacity-100 transition-opacity"
         style={{
           padding: 2,
-          background: confirmDelete ? '#E24B4A' : 'transparent',
+          background: confirmDelete ? 'var(--ob-danger)' : 'transparent',
           color: confirmDelete ? '#FFFFFF' : theme.ink3,
           border: confirmDelete ? `1px solid ${theme.border}` : 'none',
           cursor: 'pointer',
@@ -1432,7 +1427,7 @@ export function TileSidebar({
                 // 30 come tutti i controlli di barra (tab, toolbar, segmented).
                 width: 30,
                 height: 30,
-                borderRadius: 8,
+                borderRadius: 'var(--ob-radius-sm)',
                 background: 'transparent',
                 color: theme.ink2,
                 border: 'none',
@@ -1457,11 +1452,11 @@ export function TileSidebar({
           style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
         >
           {!tileId ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
-            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
+            <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
           ) : activeTab === 'flow' ? (
             <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
@@ -1487,13 +1482,16 @@ export function TileSidebar({
                           display: 'block',
                           width: '100%',
                           padding: '8px 10px',
-                          lineHeight: '20px',
+                          lineHeight: OB_LEADING.text,
                           // Altezza ESPLICITA invece che dedotta da `rows`: con
                           // box-sizing border-box il browser fa rientrare il
                           // padding nell'altezza calcolata dalle righe, e l'area
                           // di testo finisce per mostrare una riga a metà.
-                          // 2 righe da 20 + 8+8 di padding = 56 esatti.
-                          height: 56,
+                          // Espressa in `em` così segue il rapporto: 2 righe da
+                          // 1.5em = 3em, più 8+8 di padding. Prima era 20px di
+                          // interlinea e 56 fissi; con il rapporto quel 56 non
+                          // tornava più e la terza riga sarebbe riaffiorata.
+                          height: 'calc(3em + 16px)',
                           overflowY: 'auto',
                           outline: 'none',
                           resize: 'none',
@@ -1565,7 +1563,7 @@ export function TileSidebar({
                           // 30 come ogni altro controllo di barra dello shell —
                           // stesso ingombro dei tab Edit/List/Flow qui sopra.
                           height: 30,
-                          borderRadius: 8,
+                          borderRadius: 'var(--ob-radius-sm)',
                           // Tutti i bottoni hanno un leggero sfondo violaceo (accent);
                           // l'attivo è più marcato e con contorno accent.
                           background: isActive ? `${theme.accent}2E` : `${theme.accent}14`,
@@ -1574,8 +1572,8 @@ export function TileSidebar({
                           // testo accent: niente contorno.
                           border: 'none',
                           fontFamily: 'var(--ob-font-sans)',
-                          fontSize: 12.5,
-                          fontWeight: 600,
+                          fontSize: OB_TEXT.control,
+                          fontWeight: OB_WEIGHT.emphasis,
                           letterSpacing: 0,
                           textTransform: 'none',
                           cursor: 'pointer',
@@ -1592,7 +1590,7 @@ export function TileSidebar({
                   return (
                     // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
                     // surface + padding, come segmented control. Niente cornice.
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 10, padding: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-md)', padding: 6 }}>
                       <div style={{ display: 'flex', gap: 6 }}>{row1.map(renderBtn)}</div>
                       <div style={{ display: 'flex', gap: 6 }}>{row2.map(renderBtn)}</div>
                     </div>
@@ -1665,7 +1663,7 @@ export function TileSidebar({
                 const cellBase: React.CSSProperties = {
                   background: theme.bg1, border: 'none',
                   // 30 come ogni altro campo/controllo della sidebar.
-                  borderRadius: 8, height: 30,
+                  borderRadius: 'var(--ob-radius-sm)', height: 30,
                 };
 
                 return (
@@ -1675,7 +1673,7 @@ export function TileSidebar({
                         riga inizio/durata/fine. Niente label: segnaposti illustrativi inline. */}
                     {/* Contenitore trasparente: le celle sono già su bg1, un
                         gruppo dello stesso colore le farebbe sparire. */}
-                    <div style={{ background: 'transparent', border: 'none', borderRadius: 10, padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <div style={{ background: 'transparent', border: 'none', borderRadius: 'var(--ob-radius-md)', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {/* Riga 1: data a piena larghezza. Selettore nostro e non
                           `<input type="date">`: il campo nativo disegna i segmenti
                           con cifre a larghezza fissa e non combacia col resto. */}
@@ -1705,12 +1703,12 @@ export function TileSidebar({
                                 outline: 'none',
                                 textAlign: 'right',
                                 fontFamily: 'var(--ob-font-sans)',
-                                fontSize: 12.5,
-                                fontWeight: 400,
+                                fontSize: OB_TEXT.control,
+                                fontWeight: OB_WEIGHT.body,
                                 color: theme.ink,
                               }}
                             />
-                            <span style={{ fontSize: 12.5, color: theme.ink3 }}>h</span>
+                            <span style={{ fontSize: OB_TEXT.control, color: theme.ink3 }}>h</span>
                           </div>
                           <TimePicker value={endTime || '10:00'} icon={<IconClock size={14} />} onChange={setEnd} compact noBorder />
                         </div>
@@ -1765,7 +1763,7 @@ export function TileSidebar({
                   }}
                   style={{
                     background: boxDragOver ? `${theme.accent}1F` : theme.bg1,
-                    borderRadius: 10,
+                    borderRadius: 'var(--ob-radius-md)',
                     padding: 12,
                     marginBottom: 12,
                     // Inset: un contorno esterno allargherebbe il box e farebbe
@@ -1789,7 +1787,7 @@ export function TileSidebar({
                       padding: 0,
                       cursor: 'text',
                       fontFamily: 'var(--ob-font-sans)',
-                      fontSize: 12.5,
+                      fontSize: OB_TEXT.control,
                       // Segnaposto appena percettibile: `ink3` è il grigio più
                       // spento della scala, ulteriormente attenuato.
                       color: theme.ink3,
@@ -1892,7 +1890,7 @@ export function TileSidebar({
             <span
               style={{
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 8,
+                fontSize: OB_TEXT.eyebrow,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink3,

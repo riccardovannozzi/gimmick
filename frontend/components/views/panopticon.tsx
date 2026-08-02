@@ -14,6 +14,7 @@ import { IconZoomIn, IconZoomOut, IconMaximize, IconAdjustmentsHorizontal } from
 import { IconButton, SegmentedControl } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon } from '@/components/shell';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 // ─── Node palette → token CSS vars ────────────────────────────────────────────
 type NodeType = 'blue' | 'grey' | 'green' | 'amber' | 'red' | 'violet';
@@ -138,7 +139,7 @@ function Graph() {
               x={hb.x}
               y={hb.y + hb.r + 15}
               textAnchor="middle"
-              style={{ fill: 'var(--ob-text)', fontSize: 9, fontWeight: 700, letterSpacing: '0.06em' }}
+              style={{ fill: 'var(--ob-text)', fontSize: OB_TEXT.micro, fontWeight: OB_WEIGHT.mono, letterSpacing: '0.06em' }}
             >
               {hb.name}
             </text>

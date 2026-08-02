@@ -27,6 +27,7 @@ import { StatusSwatch } from '@/components/statuses/status-swatch';
 import { SHAPE_LABELS, ALL_SHAPES } from '@/components/statuses/status-preview';
 import { readableOn } from '@/lib/palette';
 import type { ActionType, StatusShape } from '@/types';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ size?: number; color?: string }>>;
 
@@ -50,11 +51,11 @@ function ColorControl({ value, onChange }: { value: string; onChange: (hex: stri
       }}
       title="Cambia colore"
     >
-      <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 11, color: 'var(--ob-subtle)', textTransform: 'uppercase' }}>{value}</span>
+      <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, color: 'var(--ob-subtle)', textTransform: 'uppercase' }}>{value}</span>
       <span
         aria-hidden
         style={{
-          width: 26, height: 26, borderRadius: 8, background: value,
+          width: 26, height: 26, borderRadius: 'var(--ob-radius-sm)', background: value,
           border: '1px solid var(--ob-line-2)', flexShrink: 0,
         }}
       />

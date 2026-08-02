@@ -21,7 +21,7 @@ export function StatusPreview({ shape, size = 40, color = PREVIEW_COLOR, selecte
       style={{
         width: size,
         height: size,
-        borderRadius: 6,
+        borderRadius: 'var(--ob-radius-sm)',
         border: selected ? `1.5px solid #3B82F6` : '0.5px solid #3f3f46',
         backgroundColor: previewBg,
       }}

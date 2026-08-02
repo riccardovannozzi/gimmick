@@ -85,32 +85,21 @@ export interface AskViewProps {
   onSuggestion?: (s: string) => void;
   onSparkFilter?: (ids: string[]) => void;
   onTileFilter?: (ids: string[]) => void;
-  onNewChat?: () => void;
-  onClose?: () => void;
 }
 
 export function AskView({
   messages, input, onInput, onSend, isLoading, suggestions = DEFAULT_SUGGESTIONS,
-  onSuggestion, onSparkFilter, onTileFilter, onNewChat, onClose,
+  onSuggestion, onSparkFilter, onTileFilter,
 }: AskViewProps = {}) {
   const live = messages !== undefined;
 
+  // Niente header: c'era una fascia con mascotte, titolo, sottotitolo e "Nuova
+  // chat", ma il pannello è già identificato dal pulsante che lo apre e la
+  // conversazione non è persistita, quindi "Nuova chat" non aveva un contenuto
+  // da azzerare che l'utente potesse ritrovare. La chiusura vive ora in
+  // `AskPanel` (ask-live.tsx), come controllo flottante senza barra.
   return (
     <div className="ob-ask">
-      {/* Header */}
-      <div className="ob-ask__header">
-        <span className="ob-ask__header-mascot"><Beniamino name="bito" size={28} title="" /></span>
-        <div>
-          <div className="ob-ask__header-title">Ask Gimmick</div>
-          <div className="ob-ask__header-sub">Bito conosce tutti i tuoi tile e spark</div>
-        </div>
-        <div style={{ flex: 1 }} />
-        <Button variant="secondary" size="sm" icon={<Icon name="plus" size={14} />} onClick={onNewChat}>Nuova chat</Button>
-        {onClose && (
-          <Button variant="ghost" size="sm" icon={<Icon name="chevR" size={15} />} onClick={onClose} aria-label="Chiudi" />
-        )}
-      </div>
-
       {/* Thread */}
       <div className="ob-ask__thread ob-scroll">
         <div className="ob-ask__thread-inner">

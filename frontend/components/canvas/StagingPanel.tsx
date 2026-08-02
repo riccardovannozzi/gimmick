@@ -11,7 +11,6 @@ import {
   IconLock,
   IconPlayerPause,
 } from '@tabler/icons-react';
-import { readableOn } from '@/lib/palette';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
@@ -23,6 +22,7 @@ import { ActionBadge } from '@/components/actions/action-badge';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import type { Tile } from '@/types';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 // Icone usate dalla colonna status (config `statusGlyph`, kind 'icon').
 const STATUS_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
@@ -136,8 +136,9 @@ export function StagingPanel({
   const headFont = 'var(--ob-font-sans)';
   const bodyFont = 'var(--ob-font-sans)';
   const headTransform: 'none' | 'uppercase' = 'none';
-  const headWeight = 600;
-  const radius = 8;
+  const headWeight = OB_WEIGHT.emphasis;
+  // Raggio dei tile dello staging: sono card → md.
+  const radius = 'var(--ob-radius-md)';
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -291,7 +292,7 @@ export function StagingPanel({
       if (glyph.kind === 'none' || !sMeta) return null;
       if (glyph.kind === 'dot') return <span style={{ width: 8, height: 8, borderRadius: '50%', background: sMeta.hex }} />;
       if (glyph.kind === 'text') return (
-        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
+        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, fontWeight: OB_WEIGHT.mono, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
       );
       const Icon = STATUS_ICONS[glyph.icon];
       return Icon ? <Icon size={12} color={sMeta.hex} /> : null;
@@ -350,11 +351,19 @@ export function StagingPanel({
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <p
                   style={{
+                    // Stessa tipografia del titolo tile di canvas/kanban/chrono
+                    // (.ob-*__card-title): 12/400/16/-0.01em su --ob-text.
+                    // Il colore passava da `readableOn`, che è la funzione giusta
+                    // per il testo su fondo COLORATO — ma qui il fondo è neutro e
+                    // il token esiste: `readableOn` restituiva #FFFFFF, mentre
+                    // --ob-text in dark è #dcdcdc. Il tile identico due colonne
+                    // più in là usava il token.
                     fontFamily: bodyFont,
-                    fontSize: 12,
-                    fontWeight: 300,
-                    lineHeight: '16px',
-                    color: readableOn(theme.surface),
+                    fontSize: OB_TEXT.card,
+                    fontWeight: OB_WEIGHT.emphasis,
+                    lineHeight: OB_LEADING.tight,
+                    letterSpacing: '-0.01em',
+                    color: theme.ink,
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
@@ -379,9 +388,9 @@ export function StagingPanel({
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, position: 'relative', zIndex: 10 }}>
                 <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
                 {(dateLine || timeLine) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05, minWidth: 0 }}>
-                    {dateLine && <span style={{ fontSize: 9, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
-                    {timeLine && <span style={{ fontSize: 8, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: OB_LEADING.none, minWidth: 0 }}>
+                    {dateLine && <span style={{ fontSize: OB_TEXT.micro, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
+                    {timeLine && <span style={{ fontSize: OB_TEXT.eyebrow, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
                   </div>
                 )}
                 <div style={{ marginLeft: 'auto' }} />
@@ -411,11 +420,14 @@ export function StagingPanel({
               background: theme.accent,
               color: theme.onAccent,
               border: `${bW}px solid transparent`,
-              borderRadius: 6,
+              borderRadius: 'var(--ob-radius-sm)',
               fontFamily: headFont,
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               fontWeight: headWeight,
-              letterSpacing: 0.2,
+              // Era `0.2`, numero nudo: React lo legge come PIXEL, quindi il
+              // tracking era di fatto assente. Allineato al glifo status di
+              // questo stesso pannello, che usa correttamente la stringa em.
+              letterSpacing: '0.15em',
               textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
@@ -447,8 +459,8 @@ export function StagingPanel({
         <button
           onClick={onToggle}
           style={{
-            // Stessa fascia della toolbar canvas e della tabbar destra (48).
-            height: 48,
+            // Stessa fascia della toolbar canvas e della tabbar destra.
+            height: 'var(--ob-toolbar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -465,7 +477,7 @@ export function StagingPanel({
         </button>
         {tiles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
-            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
+            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -487,8 +499,8 @@ export function StagingPanel({
     >
       <div
         style={{
-          // Fascia sotto la navbar: 48 (vedi CanvasTopbar / TileSidebar).
-          height: 48,
+          // Fascia sotto la navbar (vedi CanvasTopbar / TileSidebar).
+          height: 'var(--ob-toolbar-height)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -519,7 +531,7 @@ export function StagingPanel({
         <span
           style={{
             fontFamily: headFont,
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
             fontWeight: headWeight,
             letterSpacing: 0,
             textTransform: headTransform,
@@ -528,7 +540,7 @@ export function StagingPanel({
         >
           Staging
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 11, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
           {tiles.length}
         </span>
       </div>
@@ -562,7 +574,7 @@ export function StagingPanel({
               border: 'none',
               color: theme.ink2,
               fontFamily: headFont,
-              fontSize: 11.5,
+              fontSize: OB_TEXT.meta,
               fontWeight: headWeight,
               letterSpacing: 0,
               textTransform: headTransform,
@@ -584,7 +596,7 @@ export function StagingPanel({
                 zIndex: 9999,
                 background: theme.surface,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: 10,
+                borderRadius: 'var(--ob-radius-md)',
                 boxShadow: 'var(--ob-shadow-card)',
                 padding: 4,
               }}
@@ -597,12 +609,12 @@ export function StagingPanel({
                     width: '100%',
                     textAlign: 'left',
                     padding: '6px 10px',
-                    borderRadius: 6,
+                    borderRadius: 'var(--ob-radius-sm)',
                     background: groupBy === opt ? theme.surfaceVariant : 'transparent',
                     border: `${bW}px solid transparent`,
                     color: groupBy === opt ? theme.ink : theme.ink2,
                     fontFamily: bodyFont,
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                     cursor: 'pointer',
                   }}
                 >
@@ -641,11 +653,11 @@ export function StagingPanel({
           <p
             style={{
               fontFamily: bodyFont,
-              fontSize: 12,
+              fontSize: OB_TEXT.card,
               color: theme.ink3,
               textAlign: 'center',
               padding: '24px 8px',
-              lineHeight: 1.5,
+              lineHeight: OB_LEADING.text,
               margin: 0,
             }}
           >
@@ -668,7 +680,7 @@ export function StagingPanel({
                     gap: 6,
                     marginBottom: 4,
                     fontFamily: headFont,
-                    fontSize: 11,
+                    fontSize: OB_TEXT.meta,
                     fontWeight: headWeight,
                     letterSpacing: 0,
                     textTransform: headTransform,

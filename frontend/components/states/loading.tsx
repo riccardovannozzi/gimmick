@@ -18,7 +18,7 @@ export function Spinner({ className, ...rest }: React.HTMLAttributes<HTMLSpanEle
 function SkeletonRow() {
   return (
     <div className="ob-skrow">
-      <Skeleton width={32} height={32} style={{ borderRadius: 9, flexShrink: 0 }} />
+      <Skeleton width={32} height={32} style={{ borderRadius: 'var(--ob-radius-sm)', flexShrink: 0 }} />
       <div className="ob-skrow__main">
         <Skeleton width="62%" height={13} />
         <Skeleton width="38%" height={10} />

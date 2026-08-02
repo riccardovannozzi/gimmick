@@ -5,6 +5,7 @@ import { IconPlus, IconX } from '@tabler/icons-react';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { usePixelTheme } from '@/components/pixel';
 import type { Contact } from '@/types/flow';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface Props {
   value: string | null;
@@ -111,10 +112,10 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             background: theme.surface,
             color: theme.ink,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: 10,
+            borderRadius: 'var(--ob-radius-sm)',
             cursor: 'pointer',
             fontFamily: sansFont,
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
           }}
         >
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -144,7 +145,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
               padding: 0,
             }}
             title="Rimuovi contatto"
-            onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--ob-danger)')}
             onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
           >
             <IconX size={12} />
@@ -161,12 +162,12 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             width: '100%',
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: 10,
+            borderRadius: 'var(--ob-radius-sm)',
             padding: '0 10px',
             height: 36,
             color: theme.ink,
             fontFamily: sansFont,
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
             outline: 'none',
           }}
         />
@@ -183,7 +184,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
             zIndex: 50,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 256,
@@ -195,7 +196,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
               style={{
                 padding: '8px 10px',
                 fontFamily: sansFont,
-                fontSize: 11,
+                fontSize: OB_TEXT.meta,
                 color: theme.ink3,
               }}
             >
@@ -216,12 +217,12 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
                   padding: '6px 8px',
                   height: 34,
                   textAlign: 'left',
-                  borderRadius: 6,
+                  borderRadius: 'var(--ob-radius-sm)',
                   background: isActive ? theme.surfaceVariant : 'transparent',
                   border: `${bW}px solid transparent`,
                   color: isActive ? theme.ink : theme.ink2,
                   fontFamily: sansFont,
-                  fontSize: 12,
+                  fontSize: OB_TEXT.card,
                   cursor: 'pointer',
                 }}
               >
@@ -245,7 +246,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
                     style={{
                       marginLeft: 'auto',
                       fontFamily: monoFont,
-                      fontSize: 8,
+                      fontSize: OB_TEXT.eyebrow,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       color: theme.ink3,
@@ -275,7 +276,7 @@ export function ContactCombobox({ value, onChange, autoOpen = false }: Props) {
                 borderTop: `${bW}px solid ${theme.border}`,
                 marginTop: 2,
                 fontFamily: monoFont,
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 cursor: creating ? 'not-allowed' : 'pointer',

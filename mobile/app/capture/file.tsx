@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IconPaperclip } from '@tabler/icons-react-native';
 import { useBufferStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
+import { invalidateTileData } from '@/lib/invalidate';
 import { useObsidian } from '@/lib/obsidian';
 
 export default function FileCaptureScreen() {
@@ -49,7 +50,7 @@ export default function FileCaptureScreen() {
             router.back();
             return;
           }
-          queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+          invalidateTileData(queryClient, tileId);
           toast.success(`File "${asset.name}" salvato`);
           router.back();
           return;

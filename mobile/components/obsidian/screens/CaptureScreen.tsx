@@ -61,14 +61,16 @@ const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
 /**
  * Pulsanti tondi della barra di cattura: i 5 canali e il kebab Options.
  *
- * 48 è il bersaglio di tocco minimo di Material; da qui in su è scelta
- * espressiva. Il glifo segue la proporzione originale 23/48 ≈ 0.48.
+ * NOTA: vale 52 come `OB_CAP_BTN` in constants/obsidian.ts, che è il token
+ * delle schermate di cattura. È una duplicazione da riconciliare: qui resta una
+ * costante locale finché non si decide di passare al token.
  *
- * ATTENZIONE alla larghezza: la riga occupa `6 × CAP_BTN + 6 × gap` in orizzontale
+ * Il glifo segue la proporzione storica 23/48 ≈ 0.48.
+ *
+ * ATTENZIONE alla larghezza: la riga occupa `5 × CAP_BTN + KEBAB_W + 6 × gap`
  * dentro `paddingHorizontal: 12`. In RN `flexShrink` vale 0, quindi se non ci
  * sta i pulsanti NON si comprimono — il kebab esce dal bordo destro e diventa
- * irraggiungibile. A 52 con gap 6 servono 348dp utili, cioè uno schermo da
- * almeno 372dp.
+ * irraggiungibile.
  */
 const CAP_BTN = 52;
 const CAP_GLYPH = 25;
@@ -1014,7 +1016,9 @@ export function ObsidianCaptureScreen({
       )}
 
       {/* Overlays */}
-      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} />
+      {/* Niente `onHome`: siamo GIÀ sulla home, quindi la riga resta come sola
+          identità e non porta dove si è già. */}
+      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} onAsk={onAsk} />
       <VoiceSheet open={voice} onClose={() => setVoice(false)} />
     </View>
   );

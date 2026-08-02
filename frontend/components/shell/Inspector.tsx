@@ -9,8 +9,8 @@
  * recreate the DC tile-editor look. Reference: GimmickInspector.dc.html.
  */
 import * as React from 'react';
+import { IconLayoutSidebarRightCollapse, IconEdit, IconList, IconShare2 } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
-import { SegmentedControl } from '@/components/primitives';
 import { Icon, type ShellIconName } from './icons';
 
 export type InspectorMode = 'edit' | 'list' | 'flow';
@@ -25,21 +25,21 @@ export interface InspectorProps {
 export function Inspector({ mode = 'edit', onModeChange, onTogglePanel, children }: InspectorProps) {
   return (
     <aside className="ob-insp">
+      {/* Barra di testa IDENTICA a quella di `TileSidebar`: è la stessa sidebar
+          destra, vista senza un tile selezionato. Prima qui c'era il primitivo
+          `SegmentedControl`, che porta con sé un track a pillola con fondo e
+          bordo; `.ob-insp-tab` invece è a tutta larghezza, senza track, e la
+          sola cosa visibile è la pill del tab attivo. Anche i glifi sono gli
+          stessi: il vocabolario `Icon` dello shell mappa altri tre disegni
+          (matita semplice, affiliate) e le due barre non combaciavano. */}
       <div className="ob-insp__top">
-        <button type="button" className="ob-insp__panel-toggle" aria-label="Comprimi pannello" onClick={onTogglePanel}>
-          <Icon name="panel" size={16} />
+        <button type="button" className="ob-insp__panel-toggle" aria-label="Comprimi pannello" title="Collassa sidebar" onClick={onTogglePanel}>
+          <IconLayoutSidebarRightCollapse size={14} />
         </button>
-        <div style={{ flex: 1 }}>
-          <SegmentedControl
-            aria-label="Vista inspector"
-            value={mode}
-            onChange={(v) => onModeChange?.(v as InspectorMode)}
-            items={[
-              { value: 'edit', label: <><Icon name="edit" size={13} /> Edit</> },
-              { value: 'list', label: <><Icon name="list" size={13} /> List</> },
-              { value: 'flow', label: <><Icon name="flow" size={13} /> Flow</> },
-            ]}
-          />
+        <div className="ob-insp-tabs">
+          <button type="button" className={cn('ob-insp-tab', mode === 'edit' && 'ob-insp-tab--active')} onClick={() => onModeChange?.('edit')}><IconEdit size={14} />Edit</button>
+          <button type="button" className={cn('ob-insp-tab', mode === 'list' && 'ob-insp-tab--active')} onClick={() => onModeChange?.('list')}><IconList size={14} />List</button>
+          <button type="button" className={cn('ob-insp-tab', mode === 'flow' && 'ob-insp-tab--active')} onClick={() => onModeChange?.('flow')}><IconShare2 size={14} />Flow</button>
         </div>
       </div>
       <div className="ob-insp__body ob-scroll">{children}</div>

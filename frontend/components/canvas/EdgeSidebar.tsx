@@ -13,6 +13,7 @@ import {
   IconArrowsRightLeft, IconLine, IconLineDashed, IconLineDotted, IconRestore,
 } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
 import { ColorField, Segmented } from '@/components/canvas/GroupSidebar';
 import type { CanvasEdge } from '@/components/canvas/CanvasBoard';
@@ -33,10 +34,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
 
   useEffect(() => { setLabel(edge.label || ''); }, [edge.id, edge.label]);
 
-  const eyebrow: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)', fontSize: 8, fontWeight: 700,
-    letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.ink3,
-  };
+  const eyebrow = obLabel(theme);
 
   const commitLabel = () => {
     const trimmed = label.trim();
@@ -81,7 +79,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
           {open ? <IconLayoutSidebarRightCollapse size={16} /> : <IconLayoutSidebarRightExpand size={16} />}
         </button>
         {open && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis }}>
             <IconArrowsRightLeft size={15} style={{ color: theme.accent }} />
             Collegamento
           </div>
@@ -135,8 +133,8 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
               placeholder="Etichetta del collegamento"
               style={{
                 width: '100%', padding: '8px 10px',
-                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 8,
-                color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, outline: 'none',
+                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, outline: 'none',
               }}
             />
           </div>
@@ -147,8 +145,8 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.ink2,
-              fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer',
+              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: theme.ink2,
+              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer',
             }}
             title="Riporta colore, linea, spessore e testo ai valori di default"
           >
@@ -160,8 +158,8 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: '#E24B4A',
-              fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer',
+              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: 'var(--ob-danger)',
+              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer',
             }}
           >
             <IconTrash size={14} />

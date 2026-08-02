@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { Animated, Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
-import { IconSettings, IconRoute, IconHome } from '@tabler/icons-react-native';
+import { IconSettings, IconRoute, IconLayoutGrid, IconCalendarTime, IconSparkles } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H } from '@/constants/obsidian';
@@ -43,13 +43,17 @@ const DRAWER_MARGIN_V = 22;
 const DRAWER_RADIUS = 22;
 
 /**
- * Tiles e Chrono NON sono qui: hanno un quadrato proprio nella navbar
- * (`HeaderActions` in AppHeader.tsx), raggiungibile da qualsiasi finestra senza
- * aprire il menu. Restano nel Drawer le destinazioni che si visitano di rado.
- * Se una vista torna in navbar o ne esce, va spostata di conseguenza — averla
- * in due posti la fa sembrare due cose diverse.
+ * Tutte le destinazioni, nello stesso ordine della navbar.
+ *
+ * Tiles e Chrono stanno ANCHE qui pur avendo un quadrato proprio in
+ * `HeaderActions`. È una duplicazione voluta: il menu diventa l'elenco completo
+ * di dove si può andare, invece del posto dove finisce quello che non è entrato
+ * in navbar — e chi apre il menu cercando "Tiles" lo trova, senza doversi
+ * ricordare che quella vista si raggiunge da un'altra parte.
  */
 const VIEW_LINKS: Array<{ id: MobileViewId; name: string; Icon: typeof IconRoute }> = [
+  { id: 'tiles', name: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'chrono', name: 'Chrono', Icon: IconCalendarTime },
   { id: 'flows', name: 'Flows', Icon: IconRoute },
 ];
 
@@ -59,11 +63,14 @@ interface ObsidianDrawerProps {
   onSettings?: () => void;
   /** Naviga a una delle viste principali. Omesso → nessun collegamento (preview QA). */
   onNavigateView?: (id: MobileViewId) => void;
-  /** Torna alla Home/Cattura. Omesso (es. sulla Capture stessa) → voce nascosta. */
+  /** Torna alla Home (la pagina di cattura). Omesso, cioè stando già sulla home
+   *  → la riga resta come sola identità, non toccabile. */
   onHome?: () => void;
+  /** Apre "Ask Gimmick". Omesso → la voce non compare. */
+  onAsk?: () => void;
 }
 
-export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome }: ObsidianDrawerProps) {
+export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome, onAsk }: ObsidianDrawerProps) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
@@ -129,26 +136,36 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
         {/* Viste — Impostazioni sta nella stessa colonna, subito sotto gli altri
             link: unica differenza un separatore che la distingue dalle viste. */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 14, paddingBottom: 14 }}>
-          {/* Identità: stessa riga di tutte le altre, con il marchio della Home
-              (`adaptive-icon`, il robot) al posto del glifo. Non è un link. */}
-          <View style={rowStyle}>
-            <Image
-              source={require('../../assets/adaptive-icon.png')}
-              style={{ width: ICON, height: ICON }}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-            />
-            <Text style={labelStyle}>Gimmick</Text>
-          </View>
-          {onHome && (
+          {/* Home: marchio (`adaptive-icon`, il robot) come glifo, e insieme il
+              collegamento alla pagina di cattura — che È la home.
+              Prima erano due righe, "Gimmick" (solo identità) e "Cattura" (il
+              link): due voci per una destinazione sola. Ora è una riga che porta
+              dove dice. Senza `onHome` — cioè stando già sulla home — resta la
+              sola identità, non toccabile: portare dove si è già non serve. */}
+          {onHome ? (
             <Pressable
               onPress={() => { onHome(); onClose(); }}
               android_ripple={{ color: c.accent + '33' }}
               style={rowStyle}
             >
-              <IconHome size={ICON} color={c.muted} strokeWidth={1.8} />
-              <Text style={labelStyle}>Cattura</Text>
+              <Image
+                source={require('../../assets/adaptive-icon.png')}
+                style={{ width: ICON, height: ICON }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={labelStyle}>Home</Text>
             </Pressable>
+          ) : (
+            <View style={rowStyle}>
+              <Image
+                source={require('../../assets/adaptive-icon.png')}
+                style={{ width: ICON, height: ICON }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={labelStyle}>Home</Text>
+            </View>
           )}
           {onNavigateView && VIEW_LINKS.map((v) => (
             // Stile statico e non `({pressed}) => …`: passato come funzione non
@@ -164,6 +181,21 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
               <Text style={labelStyle}>{v.name}</Text>
             </Pressable>
           ))}
+
+          {/* Ask Gimmick: unica AZIONE in mezzo a destinazioni, quindi il glifo
+              è d'accento come il suo quadrato in navbar. Stessa riga di tutte
+              le altre — a distinguerlo basta il colore, un fondo tinto qui
+              peserebbe più di quanto la voce valga. */}
+          {onAsk ? (
+            <Pressable
+              onPress={() => { onAsk(); onClose(); }}
+              android_ripple={{ color: c.accent + '33' }}
+              style={rowStyle}
+            >
+              <IconSparkles size={ICON} color={c.accent} strokeWidth={1.8} />
+              <Text style={labelStyle}>Ask Gimmick</Text>
+            </Pressable>
+          ) : null}
 
           {/* Separatore dalle viste, poi Impostazioni con lo stesso stile dei link. */}
           <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: 10, marginVertical: 6 }} />

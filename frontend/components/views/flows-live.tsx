@@ -16,6 +16,7 @@ import { useRouter } from 'next/navigation';
 import { FlowsView, type FlowLane } from '@/components/views/flows';
 import { useFlowHub } from '@/lib/hooks/useFlowHub';
 import type { FlowHubItem } from '@/types/flow';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 function ago(item: FlowHubItem): string {
   const d = item.days_since_activity;
@@ -75,7 +76,7 @@ export function FlowsLive() {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'var(--ob-subtle)',
-          fontSize: 13,
+          fontSize: OB_TEXT.control,
           fontFamily: 'var(--ob-font-sans)',
         }}
       >

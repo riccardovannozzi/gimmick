@@ -15,6 +15,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 const WEEKDAYS = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
 const MONTHS = [
@@ -112,10 +113,10 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
   };
 
   const navBtn: React.CSSProperties = {
-    width: 24, height: 24, borderRadius: 7,
+    width: 24, height: 24, borderRadius: 'var(--ob-radius-sm)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'transparent', border: 'none', color: theme.ink2, cursor: 'pointer',
-    fontFamily: sansFont, fontSize: 13, lineHeight: 1,
+    fontFamily: sansFont, fontSize: OB_TEXT.control, lineHeight: OB_LEADING.none,
   };
 
   return (
@@ -133,12 +134,12 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
           padding: '0 10px',
           background: theme.bg1,
           border: noBorder ? '1px solid transparent' : `1px solid ${theme.border}`,
-          borderRadius: 8,
+          borderRadius: 'var(--ob-radius-sm)',
           cursor: 'pointer',
           textAlign: 'left',
           fontFamily: sansFont,
-          fontSize: 12.5,
-          fontWeight: 400,
+          fontSize: OB_TEXT.control,
+          fontWeight: OB_WEIGHT.body,
           color: selected ? theme.ink : theme.ink3,
         }}
       >
@@ -157,7 +158,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
             width: 244,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 10,
             fontFamily: sansFont,
@@ -166,7 +167,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
           {/* Testata: mese/anno + navigazione */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 8 }}>
             <button type="button" style={navBtn} onClick={() => shiftMonth(-1)} aria-label="Mese precedente">‹</button>
-            <span style={{ flex: 1, textAlign: 'center', fontSize: 12.5, fontWeight: 600, color: theme.ink }}>
+            <span style={{ flex: 1, textAlign: 'center', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis, color: theme.ink }}>
               {MONTHS[cursor.m]} {cursor.y}
             </span>
             <button type="button" style={navBtn} onClick={() => shiftMonth(1)} aria-label="Mese successivo">›</button>
@@ -174,7 +175,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 2 }}>
             {WEEKDAYS.map((w, i) => (
-              <span key={i} style={{ height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 600, color: theme.ink3 }}>{w}</span>
+              <span key={i} style={{ height: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: OB_TEXT.meta, fontWeight: OB_WEIGHT.emphasis, color: theme.ink3 }}>{w}</span>
             ))}
           </div>
 
@@ -191,12 +192,12 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
                   onClick={() => pick(d)}
                   style={{
                     height: 28,
-                    borderRadius: 7,
+                    borderRadius: 'var(--ob-radius-sm)',
                     border: 'none',
                     cursor: 'pointer',
                     fontFamily: sansFont,
-                    fontSize: 12.5,
-                    fontWeight: isSel || isToday ? 600 : 400,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: isSel || isToday ? OB_WEIGHT.emphasis : OB_WEIGHT.body,
                     background: isSel ? theme.accent : 'transparent',
                     color: isSel
                       ? theme.onAccent
@@ -218,7 +219,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
             <button
               type="button"
               onClick={() => pick(new Date())}
-              style={{ flex: 1, height: 26, borderRadius: 7, border: 'none', background: theme.bg1, color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
+              style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
             >
               Oggi
             </button>
@@ -226,7 +227,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
               <button
                 type="button"
                 onClick={() => { onChange(''); setOpen(false); }}
-                style={{ flex: 1, height: 26, borderRadius: 7, border: 'none', background: theme.bg1, color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
+                style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
               >
                 Cancella
               </button>

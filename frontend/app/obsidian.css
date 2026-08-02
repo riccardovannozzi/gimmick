@@ -122,13 +122,68 @@
   --ob-font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --ob-font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Radii */
+  /* ── Scala tipografica canonica ────────────────────────────────────────────
+     Sei corpi, tre pesi, tre interlinee. I nomi dicono il RUOLO, non la misura:
+     se un giorno `control` diventa 12.5 si cambia qui e non in trecento punti.
+
+     · eyebrow  etichetta di sezione (mono, maiuscola)
+     · micro    micro-etichette e contatori
+     · meta     dati di servizio: date, dimensioni, sottotitoli, conteggi
+     · card     testo dentro una tile
+     · control  testo dei controlli: bottoni, campi, righe di tabella, sidebar
+     · title    titolo di vista, di modale, di riga impostazioni
+
+     Mirror TypeScript per gli stili inline: lib/theme/ob-typography.ts. */
+  --ob-text-eyebrow: 8px;
+  --ob-text-micro: 9px;
+  --ob-text-meta: 11px;
+  --ob-text-card: 12px;
+  --ob-text-control: 13px;
+  --ob-text-title: 16px;
+
+  /* Tre pesi, nessun altro. `mono` è il 700 delle etichette monospaziate;
+     400 e 600 sono corpo ed enfasi. Il 300 e il 500 sono stati riassorbiti. */
+  --ob-weight-body: 400;
+  --ob-weight-emphasis: 600;
+  --ob-weight-mono: 700;
+
+  /* `none` non è un'interlinea ma una neutralizzazione: serve a badge, chip ed
+     etichette che stanno su una riga sola e devono combaciare con l'altezza del
+     loro contenitore. */
+  --ob-leading-text: 1.5;
+  --ob-leading-tight: 1.3;
+  --ob-leading-none: 1;
+
+  /* Radii — due soli valori.
+     · sm: controlli. Chip, badge, tag pill, pulsanti piccoli, input, select.
+     · md: contenitori. Card (Tile, Spark), pannelli, popover, modali.
+     Restano fuori i raggi circolari (50% / --ob-radius-pill): un avatar tondo
+     non è un raggio "consolidabile", è una forma. */
+  --ob-radius-sm: 4px;
+  --ob-radius-md: 6px;
+  --ob-radius-pill: 999px;
+
+  /* Residui della scala precedente: NON sono raggi letterali, quindi non
+     rientravano nella consolidazione. Finché restano, l'app ha cinque valori e
+     non due — vedi la nota nel changelog della consolidazione. */
   --ob-radius-panel: 12px;
   --ob-radius-card: 14px;
-  --ob-radius-control: 10px;
-  --ob-radius-chip: 8px;
   --ob-radius-icon: 8px;
-  --ob-radius-pill: 999px;
+
+  /* Scala verticale dello shell: 56 navbar · 48 prima barra della vista · 40
+     barre annidate. Questo token è il gradino di mezzo: la PRIMA barra di ogni
+     vista (toolbar/header di Ask, Flows, Sparks, Canvas, Chrono, Kanban,
+     Panopticon, Tiles). Le viste nascevano a 60/52/48 ciascuna per conto suo e
+     passando da una all'altra la fascia sotto la navbar saltava.
+     NON riguarda la navbar (56, in `.ob-hd`) né le barre di secondo livello. */
+  --ob-toolbar-height: 48px;
+
+  /* Rosso dell'azione distruttiva (elimina, conferma eliminazione).
+     È DISTINTO da `--ob-error`, che segnala uno stato e cambia col tema
+     (#E0544F / #F38682): questo è il colore di un comando, e resta identico in
+     chiaro e scuro — come si comportava già quando era scritto a mano in 17
+     punti, senza coincidere con nessuno dei due valori di --ob-error. */
+  --ob-danger: #E24B4A;
 
   /* Spacing scale (step of 4) */
   --ob-space-4: 4px;
@@ -264,14 +319,14 @@ html[data-ob='on'] body {
   height: 15px;
   padding: 0 4px;
   margin-left: 2px;
-  border-radius: 5px;
+  border-radius: var(--ob-radius-sm);
   flex-shrink: 0;
   color: var(--ob-muted);
   background: color-mix(in srgb, currentColor 16%, transparent);
   font-family: var(--ob-font-mono);
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
+  font-size: var(--ob-text-meta);
+  font-weight: var(--ob-weight-mono);
+  line-height: var(--ob-leading-none);
 }
 
 /* ── Meta-row del tile: chip TIPO + swatch STATUS (Variante A) ── */
@@ -279,7 +334,7 @@ html[data-ob='on'] body {
 .ob-tilemeta__type {
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: var(--ob-radius-sm);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;

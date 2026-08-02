@@ -18,6 +18,7 @@ import {
 import { settingsApi } from '@/lib/api';
 import { Beniamino } from '@/components/mascot';
 import { Button } from '@/components/primitives';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface CaptureBadge {
   icon: typeof IconCamera;
@@ -157,22 +158,22 @@ export default function WelcomePage() {
 }
 
 const obTitle: React.CSSProperties = {
-  fontSize: 18,
-  fontWeight: 600,
+  fontSize: OB_TEXT.title,
+  fontWeight: OB_WEIGHT.emphasis,
   letterSpacing: '-0.015em',
   color: 'var(--ob-text)',
   margin: 0,
 };
 const obBody: React.CSSProperties = {
-  fontSize: 14,
+  fontSize: OB_TEXT.title,
   color: 'var(--ob-muted)',
   margin: 0,
-  lineHeight: 1.55,
+  lineHeight: OB_LEADING.text,
   maxWidth: 400,
 };
 const obEyebrow: React.CSSProperties = {
   fontFamily: 'var(--ob-font-mono)',
-  fontSize: 11,
+  fontSize: OB_TEXT.meta,
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
   color: 'var(--ob-subtle)',
@@ -208,7 +209,7 @@ function ObStepCapture() {
               padding: 14,
               background: 'var(--ob-surface-2)',
               border: '1px solid var(--ob-line)',
-              borderRadius: 'var(--ob-radius-control)',
+              borderRadius: 'var(--ob-radius-sm)',
             }}
           >
             <div
@@ -224,7 +225,7 @@ function ObStepCapture() {
             >
               <Icon size={19} style={{ color: 'var(--ob-accent-ink)' }} />
             </div>
-            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--ob-muted)' }}>{label}</span>
+            <span style={{ fontSize: OB_TEXT.card, fontWeight: OB_WEIGHT.body, color: 'var(--ob-muted)' }}>{label}</span>
           </div>
         ))}
       </div>
@@ -250,7 +251,7 @@ function ObStepOrganize() {
           textAlign: 'left',
           background: 'var(--ob-surface-2)',
           border: '1px solid var(--ob-line)',
-          borderRadius: 'var(--ob-radius-control)',
+          borderRadius: 'var(--ob-radius-sm)',
         }}
       >
         <div
@@ -268,10 +269,10 @@ function ObStepOrganize() {
           <IconBolt size={28} style={{ color: 'var(--ob-accent-text)' }} />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--ob-text)', marginBottom: 4 }}>
+          <div style={{ fontSize: OB_TEXT.title, fontWeight: OB_WEIGHT.emphasis, color: 'var(--ob-text)', marginBottom: 4 }}>
             Tile = contenitore
           </div>
-          <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.5 }}>
+          <p style={{ fontSize: OB_TEXT.control, color: 'var(--ob-muted)', margin: 0, lineHeight: OB_LEADING.text }}>
             Ogni Spark vive dentro un Tile. Più Spark che parlano della stessa cosa formano una Tile, che puoi schedulare, taggare, condividere.
           </p>
         </div>

@@ -1,4 +1,5 @@
 import type { PixelTheme } from './pixel-theme';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 /**
  * Style condivisi per i bottoni delle toolbar (Canvas, Graph, Tags).
@@ -20,13 +21,13 @@ export function obsidianToolbarBtn(theme: PixelTheme, active: boolean): React.CS
     gap: 6,
     height: 30,
     padding: '0 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.accent : theme.surfaceVariant,
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
-    fontWeight: 600,
+    fontSize: OB_TEXT.control,
+    fontWeight: OB_WEIGHT.emphasis,
     letterSpacing: 0,
     textTransform: 'none',
     cursor: 'pointer',
@@ -42,13 +43,13 @@ export function obsidianSegmentedBtn(theme: PixelTheme, active: boolean): React.
     gap: 6,
     padding: '0 12px',
     height: 30,
-    borderRadius: 8,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
-    fontWeight: 600,
+    fontSize: OB_TEXT.control,
+    fontWeight: OB_WEIGHT.emphasis,
     letterSpacing: 0,
     textTransform: 'none',
     cursor: 'pointer',
@@ -62,7 +63,7 @@ export function obsidianSegmentedContainer(theme: PixelTheme): React.CSSProperti
     alignItems: 'center',
     background: theme.surfaceVariant,
     border: `1px solid ${theme.border}`,
-    borderRadius: 10,
+    borderRadius: 'var(--ob-radius-sm)',
     padding: 3,
   };
 }

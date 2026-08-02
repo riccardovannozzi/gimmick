@@ -5,6 +5,7 @@ import { IconX } from '@tabler/icons-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePixelTheme } from '@/components/pixel';
 import { MarkdownEditor } from './markdown-editor';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface MarkdownEditorModalProps {
   open: boolean;
@@ -114,7 +115,7 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
           height: '80vh',
           background: theme.surface,
           border: `1px solid ${theme.border}`,
-          borderRadius: 16,
+          borderRadius: 'var(--ob-radius-md)',
           boxShadow: 'var(--ob-shadow-modal, var(--ob-shadow-card))',
           display: 'flex',
           flexDirection: 'column',
@@ -138,8 +139,8 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
         >
           <span style={{
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: OB_TEXT.title,
+            fontWeight: OB_WEIGHT.emphasis,
             letterSpacing: 0,
             textTransform: 'none',
             color: theme.ink,
@@ -163,7 +164,7 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
                   background: theme.surfaceVariant,
                   color: theme.ink2,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 9,
+                  borderRadius: 'var(--ob-radius-sm)',
                   cursor: 'pointer',
                 }}
               >
@@ -179,10 +180,10 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
                     background: theme.surfaceVariant,
                     color: theme.ink2,
                     border: `1px solid ${theme.border}`,
-                    borderRadius: 9,
+                    borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     letterSpacing: 0,
                     textTransform: 'none',
                     cursor: 'pointer',
@@ -198,10 +199,10 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
                     background: theme.accent,
                     color: theme.onAccent,
                     border: `1px solid transparent`,
-                    borderRadius: 9,
+                    borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     letterSpacing: 0,
                     textTransform: 'none',
                     cursor: 'pointer',

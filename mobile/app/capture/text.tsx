@@ -6,6 +6,7 @@ import { IconX, IconCheck, IconTag } from '@tabler/icons-react-native';
 import { SafeAreaWrapper } from '@/components/layout/SafeAreaWrapper';
 import { useBufferStore, toast } from '@/store';
 import { usePendingTagStore } from '@/store/pendingTagStore';
+import { invalidateTileData } from '@/lib/invalidate';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_R } from '@/constants/obsidian';
 import { sparksApi, tagsApi } from '@/lib/api';
@@ -107,7 +108,7 @@ export default function TextCaptureScreen() {
           await tagsApi.tagTiles(pending.tagId, [tileId]).catch(() => {});
           clearPendingTag();
         }
-        queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+        invalidateTileData(queryClient, tileId);
         queryClient.invalidateQueries({ queryKey: ['tags'] });
         toast.success('Spark salvato');
         router.back();

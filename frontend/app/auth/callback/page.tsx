@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { authApi } from '@/lib/api';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 /**
  * /auth/callback — bridge per i link che Supabase manda via email.
@@ -84,16 +85,16 @@ function CallbackInner() {
             <h1
               style={{
                 fontFamily: 'var(--font-pixel-head)',
-                fontSize: 14,
+                fontSize: OB_TEXT.title,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
-                color: '#E24B4A',
+                color: 'var(--ob-danger)',
                 margin: '0 0 8px',
               }}
             >
               Errore
             </h1>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink2, margin: 0 }}>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: OB_TEXT.card, color: theme.ink2, margin: 0 }}>
               {error}
             </p>
             <button
@@ -107,7 +108,7 @@ function CallbackInner() {
                 color: theme.onAccent,
                 border: `2px solid ${theme.border}`,
                 fontFamily: 'var(--font-pixel-head)',
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
@@ -122,7 +123,7 @@ function CallbackInner() {
             <h1
               style={{
                 fontFamily: 'var(--font-pixel-head)',
-                fontSize: 14,
+                fontSize: OB_TEXT.title,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.ink,
@@ -131,7 +132,7 @@ function CallbackInner() {
             >
               Verifica in corso
             </h1>
-            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: 12, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: 'var(--font-pixel-body)', fontSize: OB_TEXT.card, color: theme.ink3, margin: 0 }}>
               Un momento…
             </p>
           </>

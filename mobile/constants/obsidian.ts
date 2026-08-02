@@ -144,14 +144,47 @@ export const obsidianDark: ObsidianColors = {
   dark: true,
 };
 
-/** Radii (px) — mirror of TOKENS.md. */
+/**
+ * Rosso di "elimina" (dp-independent) — mirror di `--ob-danger`
+ * (web: app/obsidian.css, lib/theme/obsidian.ts).
+ *
+ * DISTINTO da `error` dei due temi, che segnala uno stato e cambia col tema:
+ * questo è il colore di un COMANDO e resta identico in chiaro e scuro.
+ * Da usare in `SwipeToDelete` e nella variante `danger` di `ui/Button`, che oggi
+ * lo ripetono a mano.
+ */
+export const OB_DANGER = '#E24B4A';
+
+/**
+ * Altezza della PRIMA barra di una schermata (dp) — mirror di
+ * `--ob-toolbar-height` (web: app/obsidian.css, lib/theme/obsidian.ts).
+ *
+ * Scala verticale: 56 navbar · 48 prima barra · 40 barre annidate. È il gradino
+ * di mezzo e NON riguarda la navbar né le barre di secondo livello. Da non
+ * confondere con `OB_BTN_H` (52), che è il bersaglio di tocco dei pulsanti.
+ */
+export const OB_TOOLBAR_H = 48;
+
+/**
+ * Raggi (dp) — mirror di `--ob-radius-*` (web: app/obsidian.css,
+ * lib/theme/obsidian.ts). Due soli valori:
+ *
+ * · sm → controlli: chip, badge, tag pill, pulsanti piccoli, input, select.
+ * · md → contenitori: card (Tile, Spark), pannelli, popover, modali.
+ *
+ * `pill` non è un raggio consolidabile ma una forma (come il 50% del web),
+ * quindi resta. `panel`/`card`/`icon` sono i residui della scala precedente:
+ * sul web non erano raggi letterali, quindi la consolidazione non li ha toccati
+ * e qui restano allineati.
+ */
 export const obsidianRadius = {
+  sm: 4,
+  md: 6,
+  pill: 999,
+  // residui della scala precedente
   panel: 12,
   card: 14,
-  control: 10,
-  chip: 8,
   icon: 8,
-  pill: 999,
 } as const;
 
 /**

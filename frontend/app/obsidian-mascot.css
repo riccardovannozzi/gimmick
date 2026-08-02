@@ -6,9 +6,13 @@
    Reference: Mascot.dc.html + GimmickCaptureFlows.dc.html (Salva spark).
    ───────────────────────────────────────────────────────────────────────────── */
 
+/* Niente `line-height`: qui c'era uno 0, che non è un valore tipografico ma un
+   antidoto allo spazio sotto la linea di base delle immagini inline. Con
+   `display: inline-flex` e l'svg figlio a `display: block` quello spazio non si
+   forma comunque, quindi la dichiarazione era inerte — tolta invece che
+   convertita a un rapporto, che l'avrebbe reintrodotto. */
 .ob-beniamino {
   display: inline-flex;
-  line-height: 0;
   flex-shrink: 0;
 }
 .ob-beniamino svg {
@@ -24,14 +28,14 @@
   gap: 11px;
   background: var(--ob-accent-soft);
   border: 1px solid color-mix(in srgb, var(--ob-accent) 20%, transparent);
-  border-radius: 13px;
+  border-radius: var(--ob-radius-md);
   padding: 12px 13px;
 }
 .ob-mascot-suggestion__body { flex: 1; min-width: 0; }
 .ob-mascot-suggestion__title {
   font-family: var(--ob-font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-emphasis);
   color: var(--ob-accent-text);
 }
 .ob-mascot-suggestion__chips {
@@ -46,12 +50,12 @@
   align-items: center;
   gap: 4px;
   font-family: var(--ob-font-sans);
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--ob-text-meta);
+  font-weight: var(--ob-weight-emphasis);
   color: var(--ob-accent);
   background: var(--ob-surface);
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--ob-radius-sm);
   padding: 3px 8px;
 }
 .ob-suggestion-chip--interactive {

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { IconPhoto } from '@tabler/icons-react-native';
 import { useBufferStore, toast } from '@/store';
 import { createSparkForTile } from '@/lib/api';
+import { invalidateTileData } from '@/lib/invalidate';
 import { useObsidian } from '@/lib/obsidian';
 
 export default function GalleryCaptureScreen() {
@@ -55,7 +56,7 @@ export default function GalleryCaptureScreen() {
           });
           if (res.success) ok += 1;
         }
-        queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+        invalidateTileData(queryClient, tileId);
         toast.success(ok === 1 ? 'Immagine salvata' : `${ok} immagini salvate`);
         router.back();
         return;

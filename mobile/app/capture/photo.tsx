@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { PreviewOverlay } from '@/components/capture/PreviewOverlay';
 import { useBufferStore, useSettingsStore, toast } from '@/store';
+import { invalidateTileData } from '@/lib/invalidate';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_CAP_BTN, OB_CAP_BTN_BG, OB_CAP_BTN_GLYPH, OB_CAP_BTN_LG, OB_CAP_BTN_R } from '@/constants/obsidian';
 import { createSparkForTile } from '@/lib/api';
@@ -79,7 +80,7 @@ export default function PhotoCaptureScreen() {
         toast.error(res.error || 'Errore nel salvataggio');
         return;
       }
-      queryClient.invalidateQueries({ queryKey: ['tile', tileId] });
+      invalidateTileData(queryClient, tileId);
       toast.success('Foto salvata');
       router.back();
       return;

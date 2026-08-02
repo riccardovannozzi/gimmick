@@ -15,12 +15,14 @@
  */
 import React from 'react';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBufferStore } from '@/store/bufferStore';
 import { useAuthStore } from '@/store/authStore';
 import { usePendingTagStore } from '@/store/pendingTagStore';
 import { toast } from '@/store';
 import { useConnectivityStore } from '@/store/connectivityStore';
 import { sendComposing } from '@/lib/outbox';
+import { invalidateTileData } from '@/lib/invalidate';
 import { ObsidianCaptureScreen, EMPTY_CAPTURE_OPTIONS, type CaptureOptions, type ConnectionStatus } from './CaptureScreen';
 import type { MobileViewId } from '../TopNav';
 
@@ -42,6 +44,7 @@ const VIEW_ROUTE: Record<MobileViewId, string> = {
 
 export function ObsidianCaptureScreenLive() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const items = useBufferStore((s) => s.items);
   const batches = useBufferStore((s) => s.batches);
   const addItem = useBufferStore((s) => s.addItem);
@@ -102,6 +105,12 @@ export function ObsidianCaptureScreenLive() {
       const tagIds = tileOptions.tag_id ? [tileOptions.tag_id] : undefined;
       const { result, count } = await sendComposing({ tagIds, options: tileOptions });
       if (result === 'sent') {
+        // Il tile è nato ORA sul server, ma la lista Tiles non lo sa: il
+        // QueryClient ha `staleTime` di 5 minuti, quindi tornando su Tiles
+        // riproponeva la cache e il tile appena inviato non compariva. Sembrava
+        // che l'invio non avesse memorizzato niente — e invece era la lista a
+        // guardare una fotografia vecchia.
+        invalidateTileData(queryClient);
         toast.success(`${count} ${count === 1 ? 'elemento inviato' : 'elementi inviati'}`);
         resetComposer();
       } else if (result === 'queued') {
@@ -120,7 +129,7 @@ export function ObsidianCaptureScreenLive() {
     } finally {
       setUploading(false);
     }
-  }, [composing.length, uploading, accessToken, router, tileOptions, resetComposer]);
+  }, [composing.length, uploading, accessToken, router, tileOptions, resetComposer, queryClient]);
 
   return (
     <ObsidianCaptureScreen

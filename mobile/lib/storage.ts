@@ -3,6 +3,7 @@ import {
   EncodingType,
 } from 'expo-file-system/legacy';
 import { supabase } from './supabase';
+import { uploadApi } from './api';
 import { getFileExtension, getMimeType } from '@/utils/formatters';
 
 const BUCKET_NAME = 'sparks';
@@ -106,26 +107,24 @@ export async function getSignedUrl(path: string): Promise<{ url: string; error?:
 /**
  * URL firmati per PIÙ file in una sola richiesta.
  *
- * Serve alle liste: la lista Tiles mostra un'anteprima per card, e con la forma
- * singola ogni card costerebbe una richiesta. Il bucket è privato, quindi
- * `getPublicUrl` non serve a mostrare i media.
+ * Serve alle liste: la lista Tiles e il dettaglio mostrano un'anteprima per
+ * scheda, e con la forma singola ogni scheda costerebbe una richiesta.
+ *
+ * Passa dal BACKEND e non da `supabase.storage.createSignedUrls`. Il client
+ * Supabase del mobile non ha mai una sessione — l'accesso avviene contro le API
+ * nostre, e in tutta l'app non esiste una `supabase.auth.setSession` — quindi
+ * firmare da qui vuol dire firmare da anonimi: le policy del bucket privato
+ * rifiutano, l'errore veniva inghiottito e la mappa tornava vuota. Il risultato
+ * era che ogni anteprima ripiegava sulla riga con icona e nome, senza un solo
+ * messaggio d'errore. Il backend usa la chiave di servizio e non ha il problema.
  *
  * Restituisce una mappa percorso → URL. I percorsi che falliscono vengono
- * omessi: chi disegna mostra il fallback, non un errore.
+ * omessi: chi disegna mostra il ripiego, non un errore.
  */
-export async function getSignedUrls(paths: string[], expiresIn = 3600): Promise<Map<string, string>> {
+export async function getSignedUrls(paths: string[]): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   if (paths.length === 0) return out;
-  try {
-    const { data, error } = await supabase.storage
-      .from(BUCKET_NAME)
-      .createSignedUrls(paths, expiresIn);
-    if (error || !data) return out;
-    for (const row of data) {
-      if (row.signedUrl && row.path) out.set(row.path, row.signedUrl);
-    }
-    return out;
-  } catch {
-    return out;
-  }
+  const res = await uploadApi.getSignedUrls(paths);
+  for (const [path, url] of Object.entries(res.data?.urls ?? {})) out.set(path, url);
+  return out;
 }
