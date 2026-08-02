@@ -135,7 +135,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
               placeholder="Etichetta del collegamento"
               style={{
                 width: '100%', padding: '8px 10px',
-                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 8,
+                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
                 color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, outline: 'none',
               }}
             />
@@ -147,7 +147,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: theme.ink2,
+              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: theme.ink2,
               fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer',
             }}
             title="Riporta colore, linea, spessore e testo ai valori di default"
@@ -160,7 +160,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
             style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 8, color: '#E24B4A',
+              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: '#E24B4A',
               fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer',
             }}
           >

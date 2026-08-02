@@ -122,13 +122,29 @@
   --ob-font-sans: var(--font-geist-sans), system-ui, sans-serif;
   --ob-font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Radii */
+  /* Radii — due soli valori.
+     · sm: controlli. Chip, badge, tag pill, pulsanti piccoli, input, select.
+     · md: contenitori. Card (Tile, Spark), pannelli, popover, modali.
+     Restano fuori i raggi circolari (50% / --ob-radius-pill): un avatar tondo
+     non è un raggio "consolidabile", è una forma. */
+  --ob-radius-sm: 4px;
+  --ob-radius-md: 6px;
+  --ob-radius-pill: 999px;
+
+  /* Residui della scala precedente: NON sono raggi letterali, quindi non
+     rientravano nella consolidazione. Finché restano, l'app ha cinque valori e
+     non due — vedi la nota nel changelog della consolidazione. */
   --ob-radius-panel: 12px;
   --ob-radius-card: 14px;
-  --ob-radius-control: 10px;
-  --ob-radius-chip: 8px;
   --ob-radius-icon: 8px;
-  --ob-radius-pill: 999px;
+
+  /* Scala verticale dello shell: 56 navbar · 48 prima barra della vista · 40
+     barre annidate. Questo token è il gradino di mezzo: la PRIMA barra di ogni
+     vista (toolbar/header di Ask, Flows, Sparks, Canvas, Chrono, Kanban,
+     Panopticon, Tiles). Le viste nascevano a 60/52/48 ciascuna per conto suo e
+     passando da una all'altra la fascia sotto la navbar saltava.
+     NON riguarda la navbar (56, in `.ob-hd`) né le barre di secondo livello. */
+  --ob-toolbar-height: 48px;
 
   /* Spacing scale (step of 4) */
   --ob-space-4: 4px;
@@ -264,7 +280,7 @@ html[data-ob='on'] body {
   height: 15px;
   padding: 0 4px;
   margin-left: 2px;
-  border-radius: 5px;
+  border-radius: var(--ob-radius-sm);
   flex-shrink: 0;
   color: var(--ob-muted);
   background: color-mix(in srgb, currentColor 16%, transparent);
@@ -279,7 +295,7 @@ html[data-ob='on'] body {
 .ob-tilemeta__type {
   width: 16px;
   height: 16px;
-  border-radius: 5px;
+  border-radius: var(--ob-radius-sm);
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;

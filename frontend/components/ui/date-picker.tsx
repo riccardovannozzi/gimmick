@@ -112,7 +112,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
   };
 
   const navBtn: React.CSSProperties = {
-    width: 24, height: 24, borderRadius: 7,
+    width: 24, height: 24, borderRadius: 'var(--ob-radius-sm)',
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     background: 'transparent', border: 'none', color: theme.ink2, cursor: 'pointer',
     fontFamily: sansFont, fontSize: 13, lineHeight: 1,
@@ -133,7 +133,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
           padding: '0 10px',
           background: theme.bg1,
           border: noBorder ? '1px solid transparent' : `1px solid ${theme.border}`,
-          borderRadius: 8,
+          borderRadius: 'var(--ob-radius-sm)',
           cursor: 'pointer',
           textAlign: 'left',
           fontFamily: sansFont,
@@ -157,7 +157,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
             width: 244,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 10,
             fontFamily: sansFont,
@@ -191,7 +191,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
                   onClick={() => pick(d)}
                   style={{
                     height: 28,
-                    borderRadius: 7,
+                    borderRadius: 'var(--ob-radius-sm)',
                     border: 'none',
                     cursor: 'pointer',
                     fontFamily: sansFont,
@@ -218,7 +218,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
             <button
               type="button"
               onClick={() => pick(new Date())}
-              style={{ flex: 1, height: 26, borderRadius: 7, border: 'none', background: theme.bg1, color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
+              style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
             >
               Oggi
             </button>
@@ -226,7 +226,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
               <button
                 type="button"
                 onClick={() => { onChange(''); setOpen(false); }}
-                style={{ flex: 1, height: 26, borderRadius: 7, border: 'none', background: theme.bg1, color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
+                style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: 12 }}
               >
                 Cancella
               </button>

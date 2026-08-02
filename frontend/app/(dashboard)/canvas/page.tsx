@@ -1214,7 +1214,7 @@ export default function CanvasPage() {
                     background: theme.surface,
                     border: `1px solid ${theme.border}`,
                     boxShadow: 'var(--ob-shadow-card)',
-                    borderRadius: 12,
+                    borderRadius: 'var(--ob-radius-md)',
                     padding: 4,
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
@@ -1414,7 +1414,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >
@@ -1477,7 +1477,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >
@@ -1537,7 +1537,7 @@ export default function CanvasPage() {
                       background: theme.surface,
                       border: `1px solid ${theme.border}`,
                       boxShadow: 'var(--ob-shadow-card)',
-                      borderRadius: 12,
+                      borderRadius: 'var(--ob-radius-md)',
                       padding: 4,
                     }}
                   >
@@ -1588,7 +1588,7 @@ export default function CanvasPage() {
                   padding: '9px 12px',
                   background: theme.bg1,
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 8,
+                  borderRadius: 'var(--ob-radius-sm)',
                   color: theme.ink,
                   fontFamily: 'var(--ob-font-sans)',
                   fontSize: 13,
@@ -1603,7 +1603,7 @@ export default function CanvasPage() {
                     padding: '8px 14px',
                     background: 'transparent',
                     border: `1px solid ${theme.border}`,
-                    borderRadius: 8,
+                    borderRadius: 'var(--ob-radius-sm)',
                     color: theme.ink2,
                     fontFamily: 'var(--ob-font-sans)',
                     fontSize: 12.5,
@@ -1618,7 +1618,7 @@ export default function CanvasPage() {
                     padding: '8px 14px',
                     background: theme.accent,
                     border: `1px solid ${theme.accent}`,
-                    borderRadius: 8,
+                    borderRadius: 'var(--ob-radius-sm)',
                     color: theme.onAccent,
                     fontFamily: 'var(--ob-font-sans)',
                     fontSize: 12.5,
@@ -1646,7 +1646,7 @@ export default function CanvasPage() {
                   background: theme.surface,
                   border: `1px solid ${theme.border}`,
                   boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   padding: 4,
                 }}
               >

@@ -208,7 +208,7 @@ function ObStepCapture() {
               padding: 14,
               background: 'var(--ob-surface-2)',
               border: '1px solid var(--ob-line)',
-              borderRadius: 'var(--ob-radius-control)',
+              borderRadius: 'var(--ob-radius-sm)',
             }}
           >
             <div
@@ -250,7 +250,7 @@ function ObStepOrganize() {
           textAlign: 'left',
           background: 'var(--ob-surface-2)',
           border: '1px solid var(--ob-line)',
-          borderRadius: 'var(--ob-radius-control)',
+          borderRadius: 'var(--ob-radius-sm)',
         }}
       >
         <div

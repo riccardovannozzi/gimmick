@@ -12,6 +12,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Button, IconButton } from '@/components/primitives';
 import { Icon } from './icons';
+import { GimmickLogo } from './GimmickLogo';
 import {
   type ViewId, type ViewTab,
   DEFAULT_LEFT_VIEWS, DEFAULT_RIGHT_VIEWS,
@@ -67,7 +68,7 @@ export function Header({
   return (
     <header className="ob-hd">
       <div className="ob-hd__logo">
-        <div className="ob-hd__logo-mark" aria-hidden />
+        <GimmickLogo size={28} className="ob-hd__logo-mark" />
         <span className="ob-hd__logo-name">{appName}</span>
       </div>
 

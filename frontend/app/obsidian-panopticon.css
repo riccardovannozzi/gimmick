@@ -29,7 +29,7 @@
 
 /* ── Header ── */
 /* Prima barra della vista → fascia sotto la navbar (48). */
-.ob-pan__header { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line); }
+.ob-pan__header { height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 16px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line); }
 .ob-pan__header-mascot { width: 30px; height: 30px; border-radius: 8px; background: var(--ob-surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .ob-pan__header-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
 .ob-pan__header-sub { font-size: 11px; color: var(--ob-subtle); margin-top: 1px; }
@@ -39,7 +39,7 @@
 /* Seconda barra della vista, sotto l'header → livello 3 (40). */
 .ob-pan__toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
 .ob-pan__div { width: 1px; height: 22px; background: var(--ob-line-2); margin: 0 2px; }
-.ob-pan__dd { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: 9px; font-size: 12px; font-weight: 600; color: var(--ob-muted); background: var(--ob-surface); border: 1px solid var(--ob-line-2); cursor: pointer; }
+.ob-pan__dd { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: 12px; font-weight: 600; color: var(--ob-muted); background: var(--ob-surface); border: 1px solid var(--ob-line-2); cursor: pointer; }
 .ob-pan__dd-icon { color: var(--ob-subtle); display: inline-flex; }
 .ob-pan__meta { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
 
@@ -58,7 +58,7 @@
   position: absolute; right: 16px; bottom: 16px;
   display: flex; flex-direction: column; gap: 7px;
   background: var(--ob-pan-label-bg);
-  border: 1px solid var(--ob-line); border-radius: 10px;
+  border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md);
   padding: 11px 13px;
 }
 .ob-pan__legend-row { display: flex; align-items: center; gap: 8px; }

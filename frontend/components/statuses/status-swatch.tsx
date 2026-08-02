@@ -16,7 +16,7 @@ export function StatusSwatch({ shape, color, size = 16 }: { shape: StatusShape; 
         position: 'relative',
         width: size,
         height: size,
-        borderRadius: 4,
+        borderRadius: 'var(--ob-radius-sm)',
         overflow: 'hidden',
         flexShrink: 0,
         display: 'inline-block',

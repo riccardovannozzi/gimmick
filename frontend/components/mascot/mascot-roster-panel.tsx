@@ -133,7 +133,7 @@ function MascotCard({ name, onOpen }: { name: BeniaminoName; onOpen: () => void 
         padding: 12,
         background: 'var(--ob-surface)',
         border: '1px solid var(--ob-line)',
-        borderRadius: 14,
+        borderRadius: 'var(--ob-radius-md)',
         cursor: 'pointer',
         opacity: enabled ? 1 : 0.55,
         transition: 'border-color 140ms ease-out, opacity 140ms ease-out',
@@ -220,7 +220,7 @@ function MascotDetail({ name }: { name: BeniaminoName }) {
               padding: '11px 13px',
               background: 'var(--ob-accent-soft)',
               border: '1px solid color-mix(in srgb, var(--ob-accent) 20%, transparent)',
-              borderRadius: 12,
+              borderRadius: 'var(--ob-radius-md)',
               fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontStyle: 'italic',
               color: 'var(--ob-accent-text)',
             }}
@@ -261,7 +261,7 @@ function SettingsSection({ label, children }: { label: string; children: React.R
         padding: 14,
         background: 'var(--ob-surface-2)',
         border: '1px solid var(--ob-line)',
-        borderRadius: 14,
+        borderRadius: 'var(--ob-radius-md)',
         display: 'flex', flexDirection: 'column', gap: 12,
       }}
     >

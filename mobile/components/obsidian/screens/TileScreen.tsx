@@ -6,11 +6,13 @@
  * Save bar. Reference: GimmickMobileTile.dc.html. Reuses the mobile shell.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, Modal } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as TablerIcons from '@tabler/icons-react-native';
 import {
   IconArrowLeft, IconTrash, IconDots, IconClock, IconAlertCircle, IconCalendarEvent,
   IconNote, IconCheckbox, IconCalendar, IconTag, IconPhone, IconCircleCheck,
-  IconPlayerPlay, IconChevronDown,
+  IconPlayerPlay, IconChevronDown, IconCheck,
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
@@ -20,6 +22,26 @@ import { formatDuration } from '@/utils/formatters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 
+/**
+ * Corpo del testo della schermata, in un punto solo.
+ *
+ * 15/20 è la misura del titolo del tile nella lista (ViewsScreen.TileCard),
+ * verificata leggibile sul dispositivo. Il web usa 12.5 per quasi tutto, ma
+ * quei numeri sono tarati per un monitor a 60cm: sul telefono risulterebbero
+ * più piccoli del testo che nella lista si legge già bene.
+ *
+ * Gli eyebrow di sezione restano il SECONDO livello della scala e non seguono
+ * questa costante: portarli a 15 li renderebbe indistinguibili dai valori.
+ */
+const TILE_TEXT = 15;
+const TILE_LINE = 20;
+
+// Risoluzione icone Tabler per nome, come ViewsScreen: i tipi e gli stati
+// salvano il glifo come stringa (es. "IconBuilding").
+type TablerGlyph = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+const TablerMap = TablerIcons as unknown as Record<string, TablerGlyph>;
+const resolveGlyph = (name?: string | null): TablerGlyph | undefined => (name ? TablerMap[name] : undefined);
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 function Eyebrow({ c, children }: { c: ObsidianColors; children: React.ReactNode }) {
   return <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle, marginBottom: 9 }}>{children}</Text>;
@@ -27,88 +49,264 @@ function Eyebrow({ c, children }: { c: ObsidianColors; children: React.ReactNode
 function Section({ c, eyebrow, children }: { c: ObsidianColors; eyebrow: string; children: React.ReactNode }) {
   return <View style={{ marginTop: 20 }}><Eyebrow c={c}>{eyebrow}</Eyebrow>{children}</View>;
 }
-function Field({ c, value, Icon, iconColor, chev }: { c: ObsidianColors; value: string; Icon?: typeof IconClock; iconColor?: string; chev?: boolean }) {
+function Field({ c, value, Icon, iconColor, chev, onPress, placeholder }: {
+  // L'icona può arrivare come glifo importato (IconClock…) o risolta per nome
+  // da `resolveGlyph`, che ha una firma più stretta: il campo accetta entrambi.
+  c: ObsidianColors; value: string; Icon?: typeof IconClock | TablerGlyph; iconColor?: string;
+  chev?: boolean; onPress?: () => void; placeholder?: boolean;
+}) {
+  // `Pressable` solo quando c'è qualcosa da aprire: senza `onPress` resta un
+  // View, così non finge di essere toccabile.
+  const Box = onPress ? Pressable : View;
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12 }}>
+    // Senza bordo, come il campo TITOLO: i controlli si staccano dal fondo per
+    // la sola superficie `field`.
+    // `minHeight` e non `height`: se il valore va a capo il campo cresce invece
+    // di tagliarlo, e regge l'ingrandimento dei caratteri di sistema. Senza,
+    // l'altezza era il risultato accidentale di padding + interlinea (≈44) e
+    // non combaciava con i controlli che usano il token.
+    <Box
+      {...(onPress ? { onPress, android_ripple: { color: c.accent + '22' } } : {})}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, backgroundColor: c.field, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12, overflow: 'hidden' }}
+    >
       {Icon ? <Icon size={16} color={iconColor ?? c.subtle} strokeWidth={1.8} /> : null}
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, color: c.text }}>{value}</Text>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: TILE_TEXT, color: placeholder ? c.subtle : c.text }}>{value}</Text>
       {chev ? <IconChevronDown size={14} color={c.subtle} strokeWidth={1.8} /> : null}
-    </View>
+    </Box>
   );
 }
 
-const WHEN = [
-  { id: 'due', label: 'Scadenza', Icon: IconAlertCircle },
-  { id: 'allday', label: 'Giornata', Icon: IconCalendarEvent },
-  { id: 'timed', label: 'A orario', Icon: IconClock },
-] as const;
+/** Voce di un elenco a scelta singola (TIPO, STATUS). */
+export interface PickOption { id: string; name: string; icon?: string; color?: string }
 
-const CAPS: Array<{ key: string; label: string; color: (c: ObsidianColors) => string; Icon: typeof IconCamera }> = [
-  { key: 'photo', label: 'Photo', color: (c) => c.cap.photo, Icon: IconCamera },
-  { key: 'video', label: 'Video', color: (c) => c.cap.video, Icon: IconVideo },
-  { key: 'gallery', label: 'Image', color: (c) => c.cap.gallery, Icon: IconPhoto },
-  { key: 'text', label: 'Text', color: (c) => c.cap.text, Icon: IconAlignLeft },
-  { key: 'voice', label: 'Voice', color: (c) => c.cap.voice, Icon: IconMicrophone },
-  { key: 'file', label: 'File', color: (c) => c.cap.file, Icon: IconPaperclip },
+/**
+ * Foglio di scelta singola, dal basso. Serve a TIPO e STATUS, che sul web sono
+ * due dropdown: su mobile un menu a discesa ancorato al campo è scomodo da
+ * centrare col pollice, mentre il foglio arriva da dove la mano già sta.
+ * Include sempre la voce "nessuno": un tipo o uno stato devono poter essere
+ * tolti, non solo cambiati.
+ */
+function PickerSheet({ c, open, title, options, selectedId, emptyLabel, onPick, onClose }: {
+  c: ObsidianColors; open: boolean; title: string; options: PickOption[];
+  selectedId?: string | null; emptyLabel: string;
+  onPick: (id: string | null) => void; onClose: () => void;
+}) {
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
+      <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' }} onPress={onClose} accessibilityLabel="Chiudi">
+        <View style={{ maxHeight: '75%', backgroundColor: c.surface, borderTopLeftRadius: 18, borderTopRightRadius: 18, padding: 16 }}>
+          <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle, marginBottom: 10 }}>{title}</Text>
+          <ScrollView>
+            <Pressable
+              onPress={() => { onPick(null); onClose(); }}
+              android_ripple={{ color: c.accent + '22' }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}
+            >
+              <View style={{ width: 15, height: 15, borderRadius: 8, borderWidth: 1.5, borderColor: c.subtle }} />
+              <Text style={{ flex: 1, fontSize: TILE_TEXT, color: c.text }}>{emptyLabel}</Text>
+              {!selectedId && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+            </Pressable>
+            {options.map((o) => {
+              const on = o.id === selectedId;
+              const G = resolveGlyph(o.icon);
+              return (
+                <Pressable
+                  key={o.id}
+                  onPress={() => { onPick(on ? null : o.id); onClose(); }}
+                  android_ripple={{ color: c.accent + '22' }}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: OB_BTN_H, paddingHorizontal: 6, borderRadius: 8 }}
+                >
+                  {G
+                    ? <G size={17} color={o.color ?? (on ? c.accent : c.subtle)} strokeWidth={1.8} />
+                    : <View style={{ width: 15, height: 15, borderRadius: 8, backgroundColor: o.color ?? c.subtle }} />}
+                  <Text numberOfLines={1} style={{ flex: 1, fontSize: TILE_TEXT, color: c.text }}>{o.name}</Text>
+                  {on && <IconCheck size={17} color={c.accent} strokeWidth={2} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      </Pressable>
+    </Modal>
+  );
+}
+
+/**
+ * Le CINQUE azioni del tile, in un gruppo solo — come la sidebar web.
+ *
+ * Prima il mobile le spezzava in due controlli separati (un segmented
+ * Scadenza/Giornata/A orario + una coppia Note/To-do), che raccontava una
+ * gerarchia inesistente: sono cinque valori dello stesso campo, mutuamente
+ * esclusivi. `Daily` e `Timing` sono entrambe `event` e si distinguono per
+ * `all_day`, per questo la chiave non basta come identificatore.
+ */
+type ActionOpt = {
+  key: string;
+  label: string;
+  Icon: typeof IconClock;
+  patch: { action_type: string; is_event: boolean; all_day: boolean };
+};
+const ACTIONS: ActionOpt[] = [
+  { key: 'none', label: 'Note', Icon: IconNote, patch: { action_type: 'none', is_event: false, all_day: false } },
+  { key: 'anytime', label: 'To-do', Icon: IconCheckbox, patch: { action_type: 'anytime', is_event: false, all_day: false } },
+  { key: 'deadline', label: 'Due', Icon: IconAlertCircle, patch: { action_type: 'deadline', is_event: false, all_day: false } },
+  { key: 'allday', label: 'Daily', Icon: IconCalendarEvent, patch: { action_type: 'event', is_event: true, all_day: true } },
+  { key: 'timed', label: 'Timing', Icon: IconClock, patch: { action_type: 'event', is_event: true, all_day: false } },
 ];
+
+const pad2 = (n: number) => String(n).padStart(2, '0');
+/** "gg/mm/aaaa" — stesso formato della sidebar web. */
+const fmtDate = (d: Date) => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
+const fmtTime = (d: Date) => `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+/** Data valida o `null` — le stringhe dal server possono essere assenti o rotte. */
+function parseIso(s?: string | null): Date | null {
+  if (!s) return null;
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+/** Durata in ore fra inizio e fine, come la mostra il web ("1 h"). */
+function durationLabel(start: Date | null, end: Date | null): string {
+  if (!start || !end) return '—';
+  const min = Math.round((end.getTime() - start.getTime()) / 60000);
+  if (min <= 0) return '—';
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return h && m ? `${h}h ${m}m` : h ? `${h} h` : `${m} m`;
+}
+/** Riporta l'ora di `time` sul giorno di `day`, senza toccare il resto. */
+function combine(day: Date, time: Date): Date {
+  const out = new Date(day);
+  out.setHours(time.getHours(), time.getMinutes(), 0, 0);
+  return out;
+}
+
+/** Chiave dell'azione attiva a partire dal tile. */
+function activeActionKey(t?: Tile): string {
+  if (!t) return 'none';
+  if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
+  return t.action_type ?? 'none';
+}
+
+/**
+ * Canali del composer, nell'ordine della sidebar web: foto · immagine · video ·
+ * testo · voce · file. Le chiavi corrispondono alle rotte sotto `app/capture/`,
+ * che accettano tutte `?tile=<id>` e agganciano lo spark al tile giusto.
+ */
+export type CaptureKey = 'photo' | 'gallery' | 'video' | 'text' | 'voice' | 'file';
+const CAPS: Array<{ key: CaptureKey; label: string; Icon: typeof IconCamera }> = [
+  { key: 'photo', label: 'Scatta una foto', Icon: IconCamera },
+  { key: 'gallery', label: 'Scegli un\'immagine', Icon: IconPhoto },
+  { key: 'video', label: 'Registra un video', Icon: IconVideo },
+  { key: 'text', label: 'Scrivi un testo', Icon: IconAlignLeft },
+  { key: 'voice', label: 'Registra un vocale', Icon: IconMicrophone },
+  { key: 'file', label: 'Allega un file', Icon: IconPaperclip },
+];
+
+/**
+ * Lato dei tondi di cattura. 48 e non 52 come la barra della home: su uno
+ * schermo da 360 restano 328 di larghezza utile (16 di rientro per lato), e a
+ * 52 i sei pulsanti lascerebbero appena 3 di spazio fra l'uno e l'altro — sotto
+ * gli 8 minimi fra due bersagli, cioè tocchi presi dal pulsante sbagliato. A 48
+ * i vuoti tornano esattamente a 8, e 48 è comunque il minimo Material.
+ */
+const COMPOSER_BTN = 48;
 const VOICE_BARS = [8, 14, 20, 12, 24, 30, 18, 10, 22, 28, 16, 9, 15, 22, 13, 18, 10];
-
-const MONTHS_LONG = ['gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno', 'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre'];
-const DAYS_SHORT = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
-
-function hhmm(d: Date): string {
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-}
-
-/** Header chip text for a scheduled tile, e.g. "Oggi · 11:00–12:00". */
-function chipText(t: Tile): string | null {
-  if (!t.start_at) return null;
-  const s = new Date(t.start_at);
-  if (Number.isNaN(s.getTime())) return null;
-  const now = new Date();
-  const sameDay = s.toDateString() === now.toDateString();
-  const datePart = sameDay
-    ? 'Oggi'
-    : `${DAYS_SHORT[s.getDay()]} ${s.getDate()} ${MONTHS_LONG[s.getMonth()].slice(0, 3)}`;
-  if (t.all_day) return `${datePart} · Giornata`;
-  const range = t.end_at ? `${hhmm(s)}–${hhmm(new Date(t.end_at))}` : hhmm(s);
-  return `${datePart} · ${range}`;
-}
 
 export interface ObsidianTileScreenProps {
   onBack?: () => void;
   /** API tile (with sparks). Omit for the static QA mockup. */
   tile?: Tile;
   loading?: boolean;
+  /**
+   * Salvataggio IMMEDIATO di un campo, come la sidebar web: ogni controllo
+   * scrive appena cambia e non esiste una barra Salva. Assente nel mockup QA,
+   * dove i controlli restano decorativi.
+   */
+  onPatch?: (updates: Record<string, unknown>) => void;
+  /** Tipi disponibili e tipo assegnato al tile (vive in una tabella a parte). */
+  types?: PickOption[];
+  typeId?: string | null;
+  onSelectType?: (id: string | null) => void;
+  /** Stati disponibili; quello del tile sta in `tile.status_id`. */
+  statuses?: PickOption[];
+  /** Apre un canale di cattura agganciato a questo tile. */
+  onCapture?: (key: CaptureKey) => void;
 }
 
-export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreenProps) {
+export function ObsidianTileScreen({
+  onBack, tile, loading, onPatch, types = [], typeId, onSelectType, statuses = [],
+  onCapture,
+}: ObsidianTileScreenProps) {
   const c = useObsidian();
   const live = !!tile;
   const sparks: Spark[] = tile?.sparks ?? [];
   const voiceSpark = sparks.find((s) => s.type === 'audio_recording');
   const textSpark = sparks.find((s) => s.type === 'text');
   const tagName = tile?.tags?.find((tg) => !tg.is_root)?.name;
-  const chip = tile ? chipText(tile) : 'Oggi · 11:00–12:00';
-  const title = live ? (tile?.title?.trim() || 'Senza titolo') : 'OM/call con barbini';
   const sparksCount = live ? sparks.length : 3;
 
-  const initialWhen: 'due' | 'allday' | 'timed' =
-    tile?.action_type === 'deadline' ? 'due' : tile?.all_day ? 'allday' : 'timed';
-  const [when, setWhen] = React.useState<'due' | 'allday' | 'timed'>(initialWhen);
-  const [action, setAction] = React.useState<'note' | 'todo'>(
-    tile?.action_type === 'anytime' ? 'todo' : 'note',
-  );
-
-  const ActionBtn = ({ id, label, Icon }: { id: 'note' | 'todo'; label: string; Icon: typeof IconNote }) => {
-    const on = action === id;
-    return (
-      <Pressable onPress={() => setAction(id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, minHeight: OB_BTN_H, borderRadius: 10, backgroundColor: on ? c.accentSoft : c.field, borderWidth: 1, borderColor: on ? 'transparent' : c.line2 }}>
-        <Icon size={15} color={on ? c.accent : c.muted} strokeWidth={1.8} />
-        <Text style={{ fontSize: 13.5, fontWeight: '500', color: on ? c.accent : c.text }}>{label}</Text>
-      </Pressable>
-    );
+  // Titolo: stato locale mentre si scrive, scritto sul server all'uscita dal
+  // campo. Salvare a ogni battuta manderebbe una richiesta per carattere.
+  const serverTitle = live ? (tile?.title ?? '') : 'OM/call con barbini';
+  const [title, setTitle] = React.useState(serverTitle);
+  React.useEffect(() => { setTitle(serverTitle); }, [serverTitle]);
+  const commitTitle = () => {
+    const next = title.trim();
+    if (next !== (serverTitle ?? '').trim()) onPatch?.({ title: next });
   };
+
+  // Commit anche allo SMONTAGGIO. Con il solo `onBlur` una modifica si perdeva
+  // in silenzio: premendo Indietro con il campo ancora a fuoco la schermata si
+  // smonta e l'evento di blur può non arrivare mai. Il ref tiene l'ultimo
+  // valore perché la funzione di pulizia gira una volta sola, alla chiusura, e
+  // catturerebbe altrimenti lo stato del primo render.
+  const latest = React.useRef({ title, serverTitle, onPatch });
+  latest.current = { title, serverTitle, onPatch };
+  React.useEffect(() => () => {
+    const { title: t, serverTitle: s, onPatch: p } = latest.current;
+    const next = t.trim();
+    if (next !== (s ?? '').trim()) p?.({ title: next });
+  }, []);
+
+  const activeAction = activeActionKey(tile);
+  const isTimed = activeAction === 'timed';
+  const hasWhen = activeAction !== 'none' && activeAction !== 'anytime';
+
+  // Data e orari veri, presi dal tile. Prima erano tre stringhe scritte a mano.
+  const start = parseIso(tile?.start_at);
+  const end = parseIso(tile?.end_at);
+  const day = start ?? end;
+
+  // Un solo selettore nativo alla volta: `picking` dice quale campo sta
+  // chiedendo un valore, così i tre campi condividono lo stesso componente.
+  const [picking, setPicking] = React.useState<null | 'date' | 'start' | 'end'>(null);
+  const [sheet, setSheet] = React.useState<null | 'type' | 'status'>(null);
+
+  /** Applica il valore scelto dal selettore nativo al campo che l'ha aperto. */
+  const applyPicked = (picked: Date) => {
+    const base = day ?? new Date();
+    if (picking === 'date') {
+      // Cambia il GIORNO conservando gli orari già impostati.
+      const nextStart = start ? combine(picked, start) : picked;
+      const nextEnd = end ? combine(picked, end) : null;
+      onPatch?.({ start_at: nextStart.toISOString(), ...(nextEnd ? { end_at: nextEnd.toISOString() } : {}) });
+    } else if (picking === 'start') {
+      const nextStart = combine(base, picked);
+      // La fine non può precedere l'inizio: la si trascina avanti mantenendo la
+      // durata, altrimenti si otterrebbe un evento di durata negativa.
+      const keep = start && end ? end.getTime() - start.getTime() : 0;
+      const nextEnd = end ? new Date(nextStart.getTime() + Math.max(keep, 0)) : null;
+      onPatch?.({ start_at: nextStart.toISOString(), ...(nextEnd ? { end_at: nextEnd.toISOString() } : {}) });
+    } else if (picking === 'end') {
+      const nextEnd = combine(base, picked);
+      onPatch?.({ end_at: nextEnd.toISOString() });
+    }
+    setPicking(null);
+  };
+
+  const typeName = types.find((t) => t.id === typeId)?.name;
+  const typeMeta = types.find((t) => t.id === typeId);
+  const statusMeta = statuses.find((s) => s.id === tile?.status_id);
 
   return (
     <View style={{ flex: 1, backgroundColor: c.canvas }}>
@@ -125,75 +323,134 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
       </View>
 
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 6, paddingBottom: 24 }}>
-        {/* Title */}
-        <View style={{ marginTop: 6 }}>
-          {chip ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', backgroundColor: c.accentSoft, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 10 }}>
-              <IconClock size={13} color={c.accent} strokeWidth={1.8} />
-              <Text style={{ fontSize: 11, fontWeight: '600', color: c.accent }}>{chip}</Text>
-            </View>
-          ) : null}
-          <Text style={{ fontSize: 23, fontWeight: '700', letterSpacing: -0.4, color: c.text, lineHeight: 27 }}>
-            {loading ? 'Caricamento…' : title}
-          </Text>
-        </View>
+        {/* TITOLO — campo editabile, come il web. Prima qui c'erano un chip con
+            la data e un titolo in sola lettura: il chip ripeteva un'informazione
+            già presente in DATA E ORARIO, e il titolo non si poteva cambiare. */}
+        <Section c={c} eyebrow="TITOLO">
+          <TextInput
+            value={loading ? '' : title}
+            onChangeText={setTitle}
+            onBlur={commitTitle}
+            editable={!!onPatch}
+            placeholder={loading ? 'Caricamento…' : 'Titolo…'}
+            placeholderTextColor={c.subtle}
+            multiline
+            // Senza bordo: il campo si stacca dal fondo per la sola superficie
+            // `field`, come nella sidebar web.
+            style={{ fontSize: TILE_TEXT, lineHeight: TILE_LINE, color: c.text, backgroundColor: c.field, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12, minHeight: OB_BTN_H }}
+          />
+        </Section>
 
-        {/* Timing segmented */}
-        <View style={{ marginTop: 16, flexDirection: 'row', gap: 3, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line, borderRadius: 11, padding: 3 }}>
-          {WHEN.map((w) => {
-            const on = when === w.id;
-            return (
-              <Pressable key={w.id} onPress={() => setWhen(w.id)} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 8, backgroundColor: on ? c.accentSoft : 'transparent' }}>
-                <w.Icon size={13} color={on ? c.accent : c.muted} strokeWidth={1.8} />
-                <Text style={{ fontSize: 12.5, fontWeight: on ? '600' : '500', color: on ? c.accent : c.muted }}>{w.label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        {/* Action */}
+        {/* AZIONE — i cinque valori in un contenitore unico, 2 + 3 su due righe.
+            Ogni bottone scrive subito: niente barra Salva, come il web. */}
         <Section c={c} eyebrow="AZIONE">
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <ActionBtn id="note" label="Note" Icon={IconNote} />
-            <ActionBtn id="todo" label="To-do" Icon={IconCheckbox} />
+          <View style={{ gap: 6, backgroundColor: c.canvas, borderRadius: 10, padding: 6 }}>
+            {[ACTIONS.slice(0, 2), ACTIONS.slice(2)].map((row, ri) => (
+              <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
+                {row.map((a) => {
+                  const on = a.key === activeAction;
+                  return (
+                    <Pressable
+                      key={a.key}
+                      onPress={onPatch ? () => onPatch(a.patch) : undefined}
+                      disabled={!onPatch}
+                      android_ripple={{ color: c.accent + '22' }}
+                      style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: OB_BTN_H, borderRadius: 8, backgroundColor: on ? c.accent + '2E' : c.accent + '14' }}
+                    >
+                      <a.Icon size={14} color={on ? c.accent : c.muted} strokeWidth={1.8} />
+                      <Text numberOfLines={1} style={{ fontSize: TILE_TEXT, fontWeight: '600', color: on ? c.accent : c.text }}>{a.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
           </View>
         </Section>
 
-        {/* Date & time */}
-        <Section c={c} eyebrow="DATA E ORARIO">
-          <View style={{ gap: 8 }}>
-            <Field c={c} value="Sab 22 giugno 2026" Icon={IconCalendar} />
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <View style={{ flex: 1 }}><Field c={c} value="11:00" Icon={IconClock} /></View>
-              <View style={{ flex: 1 }}><Field c={c} value="12:00" Icon={IconClock} /></View>
+        {/* DATA E ORARIO — valori veri dal tile, toccabili. La riga degli orari
+            compare solo per gli eventi a orario: una scadenza o una giornata
+            intera non hanno un'ora, e mostrarne una era parte del finto. */}
+        {hasWhen && (
+          <Section c={c} eyebrow="DATA E ORARIO">
+            <View style={{ gap: 8 }}>
+              <Field
+                c={c}
+                value={day ? fmtDate(day) : 'Scegli una data'}
+                placeholder={!day}
+                Icon={IconCalendar}
+                onPress={onPatch ? () => setPicking('date') : undefined}
+              />
+              {isTimed && (
+                <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <View style={{ flex: 1 }}>
+                    <Field c={c} value={start ? fmtTime(start) : '--:--'} placeholder={!start} Icon={IconClock} onPress={onPatch ? () => setPicking('start') : undefined} />
+                  </View>
+                  {/* Durata: sola lettura, come sul web — si cambia spostando gli
+                      estremi, non digitandola. */}
+                  <Text style={{ fontSize: TILE_TEXT, color: c.subtle, minWidth: 46, textAlign: 'center' }}>{durationLabel(start, end)}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Field c={c} value={end ? fmtTime(end) : '--:--'} placeholder={!end} Icon={IconClock} onPress={onPatch ? () => setPicking('end') : undefined} />
+                  </View>
+                </View>
+              )}
             </View>
-          </View>
-        </Section>
+          </Section>
+        )}
 
         {/* Tag */}
         <Section c={c} eyebrow="TAG">
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.line, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, minHeight: OB_BTN_H, backgroundColor: c.accentSoft, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12 }}>
             <IconTag size={16} color={c.accent} strokeWidth={1.8} />
-            <Text style={{ fontSize: 14, fontWeight: '500', color: c.accent }}>{live ? (tagName ?? 'Senza tag') : 'Golfo del Sole'}</Text>
+            <Text style={{ fontSize: TILE_TEXT, fontWeight: '500', color: c.accent }}>{live ? (tagName ?? 'Senza tag') : 'Golfo del Sole'}</Text>
           </View>
         </Section>
 
-        {/* Type & status */}
-        <Section c={c} eyebrow="TIPO E STATO">
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <View style={{ flex: 1 }}><Field c={c} value="Call" Icon={IconPhone} iconColor={c.muted} chev /></View>
-            <View style={{ flex: 1 }}><Field c={c} value="Done" Icon={IconCircleCheck} iconColor={c.timed} chev /></View>
-          </View>
+        {/* TIPO e STATUS — due sezioni separate a piena larghezza, come il web.
+            Affiancate in una sola sezione i due valori si troncavano, e la
+            gerarchia suggeriva un legame fra i campi che non esiste. */}
+        <Section c={c} eyebrow="TIPO">
+          <Field
+            c={c}
+            value={typeName ?? 'Nessun tipo'}
+            placeholder={!typeName}
+            Icon={resolveGlyph(typeMeta?.icon) ?? IconPhone}
+            iconColor={typeMeta?.color ?? c.muted}
+            chev
+            onPress={onSelectType ? () => setSheet('type') : undefined}
+          />
+        </Section>
+
+        <Section c={c} eyebrow="STATUS">
+          <Field
+            c={c}
+            value={statusMeta?.name ?? 'Nessuno stato'}
+            placeholder={!statusMeta}
+            Icon={resolveGlyph(statusMeta?.icon) ?? IconCircleCheck}
+            iconColor={statusMeta?.color ?? c.muted}
+            chev
+            onPress={onPatch ? () => setSheet('status') : undefined}
+          />
         </Section>
 
         {/* Sparks */}
         <Section c={c} eyebrow={`SPARKS · ${sparksCount}`}>
-          <View style={{ flexDirection: 'row', backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, overflow: 'hidden' }}>
-            {CAPS.map((cap, i) => (
-              <View key={cap.key} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', gap: 3, borderLeftWidth: i === 0 ? 0 : 1, borderLeftColor: c.line }}>
-                <cap.Icon size={17} color={cap.color(c)} strokeWidth={1.8} />
-                <Text style={{ fontSize: 8.5, fontWeight: '600', color: c.subtle }}>{cap.label}</Text>
-              </View>
+          {/* CANALI DI CATTURA — solo i sei tondi, senza riquadro attorno.
+              Il campo nota che stava sopra è stato tolto: il canale "testo" apre
+              già l'editor completo, quindi il riquadro conteneva un secondo modo
+              di fare la stessa cosa e disegnava un contenitore attorno a pulsanti
+              che si leggono benissimo da soli. */}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            {CAPS.map((cap) => (
+              <Pressable
+                key={cap.key}
+                onPress={onCapture ? () => onCapture(cap.key) : undefined}
+                disabled={!onCapture}
+                accessibilityLabel={cap.label}
+                android_ripple={{ color: '#ffffff22' }}
+                style={{ width: COMPOSER_BTN, height: COMPOSER_BTN, borderRadius: COMPOSER_BTN / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: '#3a3a3a' }}
+              >
+                <cap.Icon size={22} color={c.dark ? '#FFFFFF' : c.text} strokeWidth={1.8} />
+              </Pressable>
             ))}
           </View>
 
@@ -219,7 +476,7 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
                 <IconAlignLeft size={14} color={c.cap.text} strokeWidth={1.8} />
                 <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.subtle }}>TESTO</Text>
               </View>
-              <Text style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: 13, lineHeight: 19.5, color: c.muted }}>
+              <Text style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: TILE_TEXT, lineHeight: TILE_LINE, color: c.muted }}>
                 {live
                   ? (textSpark?.content?.trim() || '')
                   : 'Abbiamo n°3 D-matrix (per ricevere segnale satellitare) ed una centrale Galaxia (già installata sul tetto…)'}
@@ -229,15 +486,45 @@ export function ObsidianTileScreen({ onBack, tile, loading }: ObsidianTileScreen
         </Section>
       </ScrollView>
 
-      {/* Save bar */}
-      <View style={{ flexDirection: 'row', gap: 10, paddingHorizontal: 16, paddingTop: 10, paddingBottom: 12, borderTopWidth: 1, borderTopColor: c.line }}>
-        <Pressable onPress={onBack} style={{ flex: 1, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: c.muted }}>Annulla</Text>
-        </Pressable>
-        <Pressable style={{ flex: 2, minHeight: OB_BTN_H, borderRadius: 12, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ fontSize: 14, fontWeight: '600', color: c.accentInk }}>Salva</Text>
-        </Pressable>
-      </View>
+      {/* Niente barra Annulla/Salva: il modello è quello del web, ogni controllo
+          scrive appena cambia. La barra qui non salvava comunque nulla — il
+          pulsante Salva non aveva `onPress`. */}
+
+      {/* Selettore nativo di data/ora: uno solo, condiviso dai tre campi.
+          `display: default` lascia ad Android il suo dialogo, che l'utente
+          riconosce già. Su annullamento `type` è 'dismissed' e non si tocca nulla. */}
+      {picking && (
+        <DateTimePicker
+          value={(picking === 'end' ? end : picking === 'start' ? start : day) ?? new Date()}
+          mode={picking === 'date' ? 'date' : 'time'}
+          is24Hour
+          onChange={(ev, d) => {
+            if (ev.type !== 'set' || !d) { setPicking(null); return; }
+            applyPicked(d);
+          }}
+        />
+      )}
+
+      <PickerSheet
+        c={c}
+        open={sheet === 'type'}
+        title="TIPO"
+        options={types}
+        selectedId={typeId ?? null}
+        emptyLabel="Nessun tipo"
+        onPick={(id) => onSelectType?.(id)}
+        onClose={() => setSheet(null)}
+      />
+      <PickerSheet
+        c={c}
+        open={sheet === 'status'}
+        title="STATUS"
+        options={statuses}
+        selectedId={tile?.status_id ?? null}
+        emptyLabel="Nessuno stato"
+        onPick={(id) => onPatch?.({ status_id: id })}
+        onClose={() => setSheet(null)}
+      />
 
       <ObsidianNavPill />
     </View>

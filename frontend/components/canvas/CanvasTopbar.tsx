@@ -61,7 +61,8 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
   const chipFontSize = 12.5;
-  const chipRadius = 10;
+  // Linguetta = controllo → raggio sm (i due soli valori vivono in obsidian.css).
+  const chipRadius = 'var(--ob-radius-sm)';
   const chipTransform: 'none' | 'uppercase' = 'none';
   const chipWeight = 600;
   // Forma "linguetta": angoli superiori arrotondati, base piatta appoggiata sulla
@@ -76,7 +77,8 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   //   · la linguetta è ancorata in basso, dunque va da 47-38=9 a 47; la scatola del
   //     contenuto è 38-8=30 e parte da 9, quindi il suo testo cade a 9+15=24.
   // Mezzo pixel di scarto, invisibile. Cambiando TAB_H va ricalcolato TAB_PAD_B
-  // come TAB_H - 30.
+  // come TAB_H - 30 — e lo stesso vale se cambia `--ob-toolbar-height`: i conti
+  // qui sopra partono da quel 48.
   const TAB_H = 38;
   const TAB_PAD_B = TAB_H - 30;
   const tabShape = {
@@ -119,9 +121,12 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     <div
       className="shrink-0"
       style={{
-        // Fascia sotto la navbar: 48, come header staging e tabbar destra.
+        // Fascia sotto la navbar, come header staging e tabbar destra.
         // Scala verticale dello shell: 56 navbar · 48 fascia · 40 sotto-barre.
-        height: 48,
+        // Il valore è il token `--ob-toolbar-height` (app/obsidian.css): questa
+        // è la toolbar VERA del canvas, quella che l'utente vede, quindi deve
+        // seguire il token come le toolbar dichiarate in CSS.
+        height: 'var(--ob-toolbar-height)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -253,7 +258,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 justifyContent: 'center',
                 background: theme.surface,
                 border: `${chipBorderW}px solid ${theme.border}`,
-                borderRadius: 5,
+                borderRadius: 'var(--ob-radius-sm)',
                 color: '#E24B4A',
                 cursor: 'pointer',
               }}

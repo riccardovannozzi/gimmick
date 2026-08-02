@@ -140,10 +140,16 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
+  // Eyebrow di sezione: stesso canone di `obLabel` in TileSidebar (la sidebar
+  // destra gemella) e di GroupSidebar/EdgeSidebar/TextSidebar — mono, 8px, 700.
+  // Qui erano 9px SENZA peso, cioè 400 contro 700: due sidebar affiancate con
+  // le stesse etichette e un pixel e trecento punti di differenza.
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--ob-font-mono)',
-    fontSize: 9,
+    fontSize: 8,
+    fontWeight: 700,
     letterSpacing: '0.08em',
+    lineHeight: 1.1,
     textTransform: 'uppercase',
     color: theme.ink3,
     display: 'block',
@@ -207,6 +213,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                   cursor: 'pointer',
                   fontFamily: 'var(--ob-font-mono)',
                   fontSize: 8,
+                  fontWeight: 700,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
                   color: theme.ink3,
@@ -243,7 +250,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                       justifyContent: 'center',
                       gap: 6,
                       height: 34,
-                      borderRadius: 9,
+                      borderRadius: 'var(--ob-radius-sm)',
                       background: isActive ? `${theme.accent}22` : 'transparent',
                       color: isActive ? theme.accent : theme.ink2,
                       border: `1px solid ${isActive ? theme.accent : theme.border}`,
@@ -353,10 +360,16 @@ function MixedTypeIconPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
+  // Eyebrow di sezione: stesso canone di `obLabel` in TileSidebar (la sidebar
+  // destra gemella) e di GroupSidebar/EdgeSidebar/TextSidebar — mono, 8px, 700.
+  // Qui erano 9px SENZA peso, cioè 400 contro 700: due sidebar affiancate con
+  // le stesse etichette e un pixel e trecento punti di differenza.
   const labelStyle: React.CSSProperties = {
     fontFamily: 'var(--ob-font-mono)',
-    fontSize: 9,
+    fontSize: 8,
+    fontWeight: 700,
     letterSpacing: '0.08em',
+    lineHeight: 1.1,
     textTransform: 'uppercase',
     color: theme.ink3,
     display: 'block',
@@ -369,7 +382,7 @@ function MixedTypeIconPicker({
     width: '100%',
     padding: '6px 8px',
     textAlign: 'left',
-    borderRadius: 6,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.surfaceVariant : 'transparent',
     border: `${bW}px solid transparent`,
     color: active ? theme.ink : theme.ink2,
@@ -394,7 +407,7 @@ function MixedTypeIconPicker({
           gap: 8,
           background: current?.color ? `${current.color}40` : (theme.surface),
           border: `${bW}px solid ${theme.border}`,
-          borderRadius: 10,
+          borderRadius: 'var(--ob-radius-sm)',
           padding: '0 10px',
           height: 36,
           color: theme.ink,
@@ -415,7 +428,7 @@ function MixedTypeIconPicker({
                 height: 18,
                 background: current.color || theme.surfaceVariant,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: 5,
+                borderRadius: 'var(--ob-radius-sm)',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -441,7 +454,7 @@ function MixedTypeIconPicker({
             zIndex: 9999,
             background: theme.surface,
             border: `${bW}px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             boxShadow: 'var(--ob-shadow-card)',
             padding: 4,
             maxHeight: 192,
@@ -464,7 +477,7 @@ function MixedTypeIconPicker({
                       height: 18,
                       background: icon.color || theme.surfaceVariant,
                       border: `${bW}px solid ${theme.border}`,
-                      borderRadius: 5,
+                      borderRadius: 'var(--ob-radius-sm)',
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',

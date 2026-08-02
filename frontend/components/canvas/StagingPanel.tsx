@@ -11,7 +11,6 @@ import {
   IconLock,
   IconPlayerPause,
 } from '@tabler/icons-react';
-import { readableOn } from '@/lib/palette';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
@@ -137,7 +136,8 @@ export function StagingPanel({
   const bodyFont = 'var(--ob-font-sans)';
   const headTransform: 'none' | 'uppercase' = 'none';
   const headWeight = 600;
-  const radius = 8;
+  // Raggio dei tile dello staging: sono card → md.
+  const radius = 'var(--ob-radius-md)';
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -350,11 +350,19 @@ export function StagingPanel({
               <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
                 <p
                   style={{
+                    // Stessa tipografia del titolo tile di canvas/kanban/chrono
+                    // (.ob-*__card-title): 12/400/16/-0.01em su --ob-text.
+                    // Il colore passava da `readableOn`, che è la funzione giusta
+                    // per il testo su fondo COLORATO — ma qui il fondo è neutro e
+                    // il token esiste: `readableOn` restituiva #FFFFFF, mentre
+                    // --ob-text in dark è #dcdcdc. Il tile identico due colonne
+                    // più in là usava il token.
                     fontFamily: bodyFont,
                     fontSize: 12,
-                    fontWeight: 300,
+                    fontWeight: 400,
                     lineHeight: '16px',
-                    color: readableOn(theme.surface),
+                    letterSpacing: '-0.01em',
+                    color: theme.ink,
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
@@ -411,11 +419,17 @@ export function StagingPanel({
               background: theme.accent,
               color: theme.onAccent,
               border: `${bW}px solid transparent`,
-              borderRadius: 6,
+              borderRadius: 'var(--ob-radius-sm)',
               fontFamily: headFont,
               fontSize: 9,
               fontWeight: headWeight,
-              letterSpacing: 0.2,
+              // Era `0.2`: React interpreta i numeri nudi come PIXEL, quindi il
+              // badge riceveva 0.2px di tracking, cioè praticamente niente. Lo
+              // fisso a 0 — il valore dei controlli di barra — così quello che
+              // si legge resta identico e sparisce l'ambiguità px/em. Se
+              // l'intenzione era `0.2em`, è un'altra cosa: sarebbe 20 volte
+              // tanto, e va deciso.
+              letterSpacing: 0,
               textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
@@ -447,8 +461,8 @@ export function StagingPanel({
         <button
           onClick={onToggle}
           style={{
-            // Stessa fascia della toolbar canvas e della tabbar destra (48).
-            height: 48,
+            // Stessa fascia della toolbar canvas e della tabbar destra.
+            height: 'var(--ob-toolbar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -487,8 +501,8 @@ export function StagingPanel({
     >
       <div
         style={{
-          // Fascia sotto la navbar: 48 (vedi CanvasTopbar / TileSidebar).
-          height: 48,
+          // Fascia sotto la navbar (vedi CanvasTopbar / TileSidebar).
+          height: 'var(--ob-toolbar-height)',
           display: 'flex',
           alignItems: 'center',
           gap: 6,
@@ -584,7 +598,7 @@ export function StagingPanel({
                 zIndex: 9999,
                 background: theme.surface,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: 10,
+                borderRadius: 'var(--ob-radius-md)',
                 boxShadow: 'var(--ob-shadow-card)',
                 padding: 4,
               }}
@@ -597,7 +611,7 @@ export function StagingPanel({
                     width: '100%',
                     textAlign: 'left',
                     padding: '6px 10px',
-                    borderRadius: 6,
+                    borderRadius: 'var(--ob-radius-sm)',
                     background: groupBy === opt ? theme.surfaceVariant : 'transparent',
                     border: `${bW}px solid transparent`,
                     color: groupBy === opt ? theme.ink : theme.ink2,

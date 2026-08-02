@@ -20,7 +20,7 @@ export function obsidianToolbarBtn(theme: PixelTheme, active: boolean): React.CS
     gap: 6,
     height: 30,
     padding: '0 12px',
-    borderRadius: 10,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.accent : theme.surfaceVariant,
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
@@ -42,7 +42,7 @@ export function obsidianSegmentedBtn(theme: PixelTheme, active: boolean): React.
     gap: 6,
     padding: '0 12px',
     height: 30,
-    borderRadius: 8,
+    borderRadius: 'var(--ob-radius-sm)',
     background: active ? theme.accent : 'transparent',
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
@@ -62,7 +62,7 @@ export function obsidianSegmentedContainer(theme: PixelTheme): React.CSSProperti
     alignItems: 'center',
     background: theme.surfaceVariant,
     border: `1px solid ${theme.border}`,
-    borderRadius: 10,
+    borderRadius: 'var(--ob-radius-sm)',
     padding: 3,
   };
 }

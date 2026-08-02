@@ -238,7 +238,7 @@ export function CameraCapture({ open, mode, onCancel, onCapture }: CameraCapture
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 'min(680px, 92vw)', background: 'var(--ob-surface)',
-          border: '1px solid var(--ob-line-2)', borderRadius: 12, overflow: 'hidden',
+          border: '1px solid var(--ob-line-2)', borderRadius: 'var(--ob-radius-md)', overflow: 'hidden',
           boxShadow: 'var(--ob-shadow-card)', fontFamily: 'var(--ob-font-sans)',
         }}
       >
@@ -338,21 +338,21 @@ export function CameraCapture({ open, mode, onCancel, onCapture }: CameraCapture
 }
 
 const iconBtn: React.CSSProperties = {
-  width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center',
+  width: 24, height: 24, borderRadius: 'var(--ob-radius-sm)', display: 'flex', alignItems: 'center',
   justifyContent: 'center', color: 'var(--ob-subtle)', background: 'transparent',
   border: 'none', cursor: 'pointer',
 };
 
 const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px',
-  borderRadius: 8, background: 'transparent', color: 'var(--ob-text)',
+  borderRadius: 'var(--ob-radius-sm)', background: 'transparent', color: 'var(--ob-text)',
   border: '1px solid var(--ob-line-2)', fontFamily: 'var(--ob-font-sans)',
   fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
 };
 
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px',
-  borderRadius: 8, background: 'var(--ob-accent)', color: 'var(--ob-on-accent, #fff)',
+  borderRadius: 'var(--ob-radius-sm)', background: 'var(--ob-accent)', color: 'var(--ob-on-accent, #fff)',
   border: 'none', fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, fontWeight: 600,
   cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
 });

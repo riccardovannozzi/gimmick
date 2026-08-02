@@ -90,7 +90,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               src={signedUrl!}
               alt={spark.file_name || 'Immagine'}
               className="max-h-[70vh] max-w-full object-contain"
-              style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 12 }}
+              style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)'}}
             />
           </div>
         );
@@ -101,7 +101,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             src={signedUrl!}
             controls
             className="max-h-[70vh] w-full"
-            style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 12, background: '#000' }}
+            style={{ border: `${bW}px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)', background: '#000' }}
           >
             Il tuo browser non supporta il tag video.
           </video>
@@ -138,7 +138,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               padding: 14,
               background: theme.surfaceVariant,
               border: `${bW}px solid ${theme.border}`,
-              borderRadius: 10,
+              borderRadius: 'var(--ob-radius-md)',
               color: theme.ink,
               fontFamily: 'var(--ob-font-sans)',
               fontSize: 13.5,
@@ -189,7 +189,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                   background: theme.accent,
                   color: theme.onAccent,
                   border: `${bW}px solid transparent`,
-                  borderRadius: 10,
+                  borderRadius: 'var(--ob-radius-sm)',
                   fontFamily: 'var(--ob-font-sans)',
                   fontSize: 13,
                   fontWeight: 600,
@@ -223,7 +223,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
     width: '100%',
     background: theme.surface,
     border: `${bW}px solid ${theme.border}`,
-    borderRadius: 14,
+    borderRadius: 'var(--ob-radius-md)',
     color: theme.ink,
     boxShadow: 'var(--ob-shadow-card)',
     padding: 0,
@@ -278,7 +278,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                 width: 22, height: 22,
                 background: theme.surface,
                 border: `${bW}px solid ${theme.border}`,
-                borderRadius: 6,
+                borderRadius: 'var(--ob-radius-sm)',
                 color: theme.ink2,
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -302,7 +302,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                     background: theme.surface,
                     color: theme.ink2,
                     border: `${bW}px solid ${theme.border}`,
-                    borderRadius: 6,
+                    borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-mono)',
                     fontSize: 9.5,
                     letterSpacing: '0.08em',

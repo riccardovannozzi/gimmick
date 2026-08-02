@@ -11,9 +11,10 @@
  * GAP (vedi MIGRATION_PLAN.md): voce (Whisper) e TTS non portati; le risposte
  * sono rese come testo semplice (no markdown) nelle bolle Obsidian.
  */
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { AskView, type AskMessage } from '@/components/views/ask';
+import { Icon } from '@/components/shell';
 import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
 import { useFilterStore } from '@/store/filter-store';
 import { chatApi } from '@/lib/api';
@@ -89,8 +90,6 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
       onSuggestion={(s) => send(s)}
       onSparkFilter={onSparkFilter}
       onTileFilter={onTileFilter}
-      onNewChat={() => setMessages([])}
-      onClose={onClose}
     />
   );
 }
@@ -98,6 +97,17 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
 /** Overlay a destra montato dallo shell quando "Ask Gimmick" è aperto. */
 export function AskPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { mode } = useObsidianTheme();
+
+  // Il pulsante "Ask Gimmick" della navbar apre soltanto, non fa toggle: tolta
+  // la testata, chiudere il pannello dipende da qui. Esc + il controllo
+  // flottante qui sotto sono le due strade, nessuna barra di mezzo.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
   if (!open) return null;
   return (
     <div
@@ -117,6 +127,15 @@ export function AskPanel({ open, onClose }: { open: boolean; onClose: () => void
         flexDirection: 'column',
       }}
     >
+      <button
+        type="button"
+        className="ob-ask__close"
+        onClick={onClose}
+        aria-label="Chiudi Ask Gimmick"
+        title="Chiudi (Esc)"
+      >
+        <Icon name="chevR" size={16} />
+      </button>
       <AskLive onClose={onClose} />
     </div>
   );

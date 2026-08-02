@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { Animated, Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
-import { IconSettings, IconRoute, IconHome } from '@tabler/icons-react-native';
+import { IconSettings, IconRoute } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H } from '@/constants/obsidian';
@@ -59,7 +59,8 @@ interface ObsidianDrawerProps {
   onSettings?: () => void;
   /** Naviga a una delle viste principali. Omesso → nessun collegamento (preview QA). */
   onNavigateView?: (id: MobileViewId) => void;
-  /** Torna alla Home/Cattura. Omesso (es. sulla Capture stessa) → voce nascosta. */
+  /** Torna alla Home (la pagina di cattura). Omesso, cioè stando già sulla home
+   *  → la riga resta come sola identità, non toccabile. */
   onHome?: () => void;
 }
 
@@ -129,26 +130,36 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
         {/* Viste — Impostazioni sta nella stessa colonna, subito sotto gli altri
             link: unica differenza un separatore che la distingue dalle viste. */}
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 10, paddingTop: 14, paddingBottom: 14 }}>
-          {/* Identità: stessa riga di tutte le altre, con il marchio della Home
-              (`adaptive-icon`, il robot) al posto del glifo. Non è un link. */}
-          <View style={rowStyle}>
-            <Image
-              source={require('../../assets/adaptive-icon.png')}
-              style={{ width: ICON, height: ICON }}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-            />
-            <Text style={labelStyle}>Gimmick</Text>
-          </View>
-          {onHome && (
+          {/* Home: marchio (`adaptive-icon`, il robot) come glifo, e insieme il
+              collegamento alla pagina di cattura — che È la home.
+              Prima erano due righe, "Gimmick" (solo identità) e "Cattura" (il
+              link): due voci per una destinazione sola. Ora è una riga che porta
+              dove dice. Senza `onHome` — cioè stando già sulla home — resta la
+              sola identità, non toccabile: portare dove si è già non serve. */}
+          {onHome ? (
             <Pressable
               onPress={() => { onHome(); onClose(); }}
               android_ripple={{ color: c.accent + '33' }}
               style={rowStyle}
             >
-              <IconHome size={ICON} color={c.muted} strokeWidth={1.8} />
-              <Text style={labelStyle}>Cattura</Text>
+              <Image
+                source={require('../../assets/adaptive-icon.png')}
+                style={{ width: ICON, height: ICON }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={labelStyle}>Home</Text>
             </Pressable>
+          ) : (
+            <View style={rowStyle}>
+              <Image
+                source={require('../../assets/adaptive-icon.png')}
+                style={{ width: ICON, height: ICON }}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+              <Text style={labelStyle}>Home</Text>
+            </View>
           )}
           {onNavigateView && VIEW_LINKS.map((v) => (
             // Stile statico e non `({pressed}) => …`: passato come funzione non

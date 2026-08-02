@@ -16,7 +16,15 @@ export default function ObsidianTileRoute() {
   const onBack = () => { if (router.canGoBack()) router.back(); };
 
   if (isObsidianShellEnabled() && id) {
-    return <ObsidianTileScreenLive tileId={id} onBack={onBack} />;
+    return (
+      <ObsidianTileScreenLive
+        tileId={id}
+        onBack={onBack}
+        // `?tile=` aggancia lo spark a QUESTO tile invece di crearne uno nuovo:
+        // tutte e sei le rotte sotto app/capture/ leggono già quel parametro.
+        onCapture={(key) => router.push(`/capture/${key}?tile=${id}` as never)}
+      />
+    );
   }
   return <ObsidianTileScreen onBack={onBack} />;
 }

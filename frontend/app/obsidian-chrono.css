@@ -27,7 +27,7 @@
 
 /* ── Header ── */
 .ob-chrono__header {
-  height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 12px;
+  height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 12px;
   padding: 0 16px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line);
 }
 .ob-chrono__header-mascot { width: 30px; height: 30px; border-radius: 8px; background: var(--ob-surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
@@ -43,7 +43,7 @@
    `theme.bg2` = --ob-surface e `theme.border` = --ob-line-2): prima qui c'era
    --ob-head, tre punti più scuro, e le due fasce non combaciavano. Anche il gap
    è quello del canvas (4). */
-.ob-chrono__toolbar { height: 48px; flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line-2); }
+.ob-chrono__toolbar { height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line-2); }
 
 /* Controlli della toolbar: stessa ricetta dei bottoni del canvas
    (lib/pixel-toolbar.ts → `obsidianToolbarBtn`) — 30 di altezza, raggio 10,
@@ -57,7 +57,7 @@
   height: 30px;
   padding: 0 12px;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--ob-radius-sm);
   background: var(--ob-surface-2);
   color: var(--ob-muted);
   font-family: var(--ob-font-sans);
@@ -86,7 +86,7 @@
 /* Drop di un tile dalla griglia/altra colonna su Notes/Todo. */
 .ob-chrono__col--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ob-accent) 40%, transparent); }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
-.ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
+.ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
 .ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
 /* Colonna collassata: barra verticale stretta, cliccabile per riaprire. */
 .ob-chrono__col--collapsed { width: 40px; }
@@ -99,7 +99,7 @@
 .ob-chrono__colhead-label { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
 .ob-chrono__colhead-btns { display: flex; gap: 1px; }
-.ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
+.ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__colhead-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
 .ob-chrono__colbody { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .ob-chrono__empty { font-size: 11px; color: var(--ob-subtle); padding: 4px; }
@@ -110,7 +110,7 @@
    (surface) + velatura del colore (14%), bordo tinto (22%), raggio 8px. */
 /* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80). flex-shrink 0:
    nella colonna il tile non si comprime. */
-.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: 5px; padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
+.ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: var(--ob-radius-md); padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
 /* Tile SENZA colorazione: nessuna velatura, solo il fondo unico dei tile e un
    bordo neutro (come canvas/staging quando manca il colore del tipo). Gli
    elementi che si tingono di `--card-c` passano al neutro: col fondo tile come
@@ -128,7 +128,7 @@
 .ob-chrono__card-main { flex: 1; min-width: 0; padding: 6px 6px 6px 8px; display: flex; flex-direction: column; justify-content: space-between; }
 .ob-chrono__card-bottom { display: flex; flex-direction: column; gap: 5px; }
 /* Badge azione (icona in quadrato) 16px come il canvas (RX_BADGE 4). */
-.ob-chrono__card-actbadge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; background: var(--ob-surface-2); border: 1px solid var(--ob-line-2); flex-shrink: 0; }
+.ob-chrono__card-actbadge { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: var(--ob-radius-sm); background: var(--ob-surface-2); border: 1px solid var(--ob-line-2); flex-shrink: 0; }
 /* Tile/evento completato: titolo barrato e attenuato. */
 .ob-chrono__card--done .ob-chrono__card-title,
 .ob-chrono__event--done .ob-chrono__event-title,
@@ -147,12 +147,12 @@
 .ob-chrono__month-num { font-family: var(--ob-font-sans); font-size: 12px; font-weight: 600; color: var(--ob-muted); }
 .ob-chrono__month-cell--today .ob-chrono__month-num { color: var(--ob-accent); }
 .ob-chrono__month-evs { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
-.ob-chrono__month-ev { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 5px; border-radius: 3px; background: color-mix(in srgb, var(--ev-c) 14%, transparent); }
+.ob-chrono__month-ev { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 5px; border-radius: var(--ob-radius-md); background: color-mix(in srgb, var(--ev-c) 14%, transparent); }
 .ob-chrono__month-ev-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ev-c); flex-shrink: 0; }
 .ob-chrono__month-ev-title { flex: 1; min-width: 0; font-family: var(--ob-font-sans); font-size: 11px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-chrono__month-more { font-family: var(--ob-font-sans); font-size: 10px; color: var(--ob-subtle); padding-left: 4px; }
 
-.ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: 8px; border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; }
+.ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; }
 .ob-chrono__colsearch:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
 .ob-chrono__card--clickable { cursor: pointer; }
 .ob-chrono__card--active { box-shadow: inset 0 0 0 2px var(--ob-accent); }
@@ -171,9 +171,10 @@
 .ob-chrono__daycol--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 35%, transparent); }
 .ob-chrono__daycol--creatable { cursor: cell; }
 /* Maniglia di resize in basso all'evento (cambia la durata). */
-.ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 5px 5px; }
+.ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 var(--ob-radius-md) var(--ob-radius-md); }
 .ob-chrono__event-resize:hover { background: color-mix(in srgb, var(--ev-c) 45%, transparent); }
-.ob-chrono__card-title { font-size: 12px; line-height: 16px; font-weight: 400; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* Stessa tipografia del titolo tile di canvas/kanban/staging. */
+.ob-chrono__card-title { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: -0.01em; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-chrono__card-bars { display: flex; gap: 3px; }
 .ob-chrono__card-bar { flex: 1; height: 4px; border-radius: 2px; background: var(--ob-line-2); }
 .ob-chrono__card-bar--on { background: var(--ob-success); }
@@ -192,11 +193,11 @@
 .ob-chrono__cal-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__cal-range { font-size: 12px; color: var(--ob-muted); }
 /* Ingombro esterno 30 come gli altri controlli: 26 di item + 2+2 di padding. */
-.ob-chrono__cal-seg { display: flex; gap: 2px; background: var(--ob-surface-2); border: none; border-radius: 8px; padding: 2px; }
-.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 6px; font-size: 12.5px; font-weight: 600; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
+.ob-chrono__cal-seg { display: flex; gap: 2px; background: var(--ob-surface-2); border: none; border-radius: var(--ob-radius-sm); padding: 2px; }
+.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: 12.5px; font-weight: 600; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__cal-seg-item--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
-.ob-chrono__cal-nav { width: 26px; height: 26px; border-radius: 7px; display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__cal-today { padding: 5px 12px; border-radius: 7px; font-size: 12px; font-weight: 500; color: var(--ob-text); border: none; background: transparent; cursor: pointer; }
+.ob-chrono__cal-nav { width: 26px; height: 26px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
+.ob-chrono__cal-today { padding: 5px 12px; border-radius: var(--ob-radius-sm); font-size: 12px; font-weight: 500; color: var(--ob-text); border: none; background: transparent; cursor: pointer; }
 
 /* day header */
 .ob-chrono__dayhead { display: flex; height: 46px; flex-shrink: 0; border-bottom: 1px solid var(--ob-line); }
@@ -218,11 +219,11 @@
 .ob-chrono__allday-cell--today { background: var(--ob-today-bg); }
 .ob-chrono__allday-cell--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ob-accent) 35%, transparent); }
 /* Stessa ricetta dei tile: la velatura poggia sul fondo unico, non su transparent. */
-.ob-chrono__allday-pill { position: relative; display: flex; align-items: center; gap: 5px; border-radius: 5px; padding: 3px 6px; min-width: 0; overflow: hidden; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+.ob-chrono__allday-pill { position: relative; display: flex; align-items: center; gap: 5px; border-radius: var(--ob-radius-md); padding: 3px 6px; min-width: 0; overflow: hidden; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
 .ob-chrono__allday-pill--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
 /* Scadenze: etichetta verticale rossa sul bordo sinistro (unico marcatore). */
 .ob-chrono__allday-pill--deadline { padding-left: 9px; }
-.ob-chrono__allday-pill--deadline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ob-error); border-radius: 3px 0 0 3px; }
+.ob-chrono__allday-pill--deadline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ob-error); border-radius: var(--ob-radius-md) 0 0 var(--ob-radius-md); }
 .ob-chrono__allday-title { flex: 1; min-width: 0; font-size: 9.5px; font-weight: 400; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Badge TIPO/STATUS in coda alla pill all-day (riga singola). */
 .ob-chrono__allday-meta { display: inline-flex; flex-shrink: 0; }
@@ -250,7 +251,7 @@
 /* Stessa ricetta dei tile di CANVAS/KANBAN/colonne: base `--ob-tile-bg`, velatura
    del colore al 14%, bordo tinto al 22%, raggio 5. Il blocco è sempre una riga
    (strip status + corpo); è il CORPO a cambiare direzione fra tall e tiny. */
-.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: 5px; overflow: hidden; display: flex; flex-direction: row; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
+.ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: var(--ob-radius-md); overflow: hidden; display: flex; flex-direction: row; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
 /* Senza colorazione: fondo unico dei tile e bordo neutro. */
 .ob-chrono__event--plain { background: var(--ob-tile-bg); border-color: var(--ob-tile-border); }
 .ob-chrono__event--plain .ob-chrono__event-time { color: var(--ob-muted); }
@@ -278,8 +279,8 @@
 .ob-chrono__now-dot { position: absolute; left: -3px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-accent); }
 
 /* ── Menu contestuale (tasto destro su card/evento): Copia · Incolla · Apri flow · Elimina ── */
-.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 8px; box-shadow: var(--ob-shadow-card); }
-.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: 6px; cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; line-height: 1.2; }
+.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); box-shadow: var(--ob-shadow-card); }
+.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; line-height: 1.2; }
 .ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
 .ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
 .ob-ctx__item--danger { color: var(--ob-error); }

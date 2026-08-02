@@ -1256,7 +1256,7 @@ export default function GraphPage() {
     zIndex: 50,
     background: theme.surface,
     border: `${bW}px solid ${theme.border}`,
-    borderRadius: 12,
+    borderRadius: 'var(--ob-radius-md)',
     boxShadow: 'var(--ob-shadow-card)',
     padding: 4,
   };
@@ -1268,7 +1268,7 @@ export default function GraphPage() {
       width: '100%',
       padding: '6px 8px',
       textAlign: 'left',
-      borderRadius: 6,
+      borderRadius: 'var(--ob-radius-sm)',
       background: active ? theme.surfaceVariant : 'transparent',
       border: `${bW}px solid transparent`,
       color: active ? theme.ink : theme.ink2,
@@ -1357,7 +1357,7 @@ export default function GraphPage() {
                             width: 12,
                             height: 12,
                             border: `1.5px solid ${clr}`,
-                            borderRadius: 4,
+                            borderRadius: 'var(--ob-radius-sm)',
                             background: active ? clr : 'transparent',
                           }}
                         />
@@ -2035,7 +2035,7 @@ export default function GraphPage() {
                   zIndex: 50,
                   background: theme.surface,
                   border: `${bW}px solid ${theme.border}`,
-                  borderRadius: 12,
+                  borderRadius: 'var(--ob-radius-md)',
                   boxShadow: 'var(--ob-shadow-card)',
                   padding: 4,
                   minWidth: 200,

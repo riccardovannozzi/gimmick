@@ -121,18 +121,40 @@ export const OBSIDIAN_SEMANTIC: Record<ObsidianMode, ObsidianSemantic> = {
 };
 
 // ─── Radii ────────────────────────────────────────────────────────────────────
+/**
+ * Due soli valori — mirror di `--ob-radius-*` (app/obsidian.css).
+ *
+ * · sm → controlli: chip, badge, tag pill, pulsanti piccoli, input, select.
+ * · md → contenitori: card (Tile, Spark), pannelli, popover, modali.
+ *
+ * `pill` non è un raggio consolidabile ma una forma (come `50%`), quindi resta.
+ * `panel`/`card`/`icon` sono i residui della scala precedente: non erano raggi
+ * letterali, quindi la consolidazione non li ha toccati.
+ */
 export const OBSIDIAN_RADIUS = {
-  panel: '12px',   // Card / pannelli — lower bound of 12–14px
-  card: '14px',    // Card / pannelli — upper bound of 12–14px
-  control: '10px', // input, bottoni, chip rettangolari — 8–10px
-  chip: '8px',     // chip rettangolari — lower bound of 8–10px
-  icon: '8px',     // icona in box — 6–10px
-  pill: '999px',   // pill / chip / segmented — full
+  sm: '4px',
+  md: '6px',
+  pill: '999px',
+  // residui della scala precedente
+  panel: '12px',
+  card: '14px',
+  icon: '8px',
 } as const;
 
 // ─── Spacing scale (step of 4) ────────────────────────────────────────────────
 export const OBSIDIAN_SPACING = [4, 6, 8, 10, 12, 14, 18, 22, 24, 32, 40, 56] as const;
 export type ObsidianSpace = (typeof OBSIDIAN_SPACING)[number];
+
+// ─── Vertical rhythm ──────────────────────────────────────────────────────────
+/**
+ * Altezza della PRIMA barra di una vista (px) — toolbar/header di Ask, Flows,
+ * Sparks, Canvas, Chrono, Kanban, Panopticon, Tiles.
+ *
+ * Scala verticale dello shell: 56 navbar · 48 prima barra · 40 barre annidate.
+ * Emesso come `--ob-toolbar-height`; è il gradino di mezzo e NON riguarda la
+ * navbar né le barre di secondo livello.
+ */
+export const OBSIDIAN_TOOLBAR_HEIGHT = 48;
 
 // ─── Elevation ────────────────────────────────────────────────────────────────
 // No hard shadows. Separation relies on surface vs surface2 + hairlines.
@@ -152,22 +174,20 @@ export const OBSIDIAN_TILE_TINT = {
 } as const;
 
 // ─── Typography ───────────────────────────────────────────────────────────────
-// Geist for UI, Geist Mono for dates/counts/technical labels/eyebrow.
-// Font families are wired through CSS variables (see obsidian.css / layout.tsx):
-//   --font-geist-sans, --font-geist-mono
-export const OBSIDIAN_TYPOGRAPHY = {
-  fontSans: 'var(--font-geist-sans), system-ui, sans-serif',
-  fontMono: 'var(--font-geist-mono), ui-monospace, monospace',
-  weights: { regular: 400, medium: 500, semibold: 600, bold: 700 },
-  /** Eyebrow / label: uppercase, mono, wide tracking, `subtle` color. */
-  eyebrow: { fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' as const },
-  /** Screen titles. */
-  title: { fontSize: '24px', fontWeight: 600, letterSpacing: '-0.015em' },
-  /** Body copy. */
-  body: { fontSize: '14px', lineHeight: 1.5 },
-  /** Smallest readable size (cards). */
-  minReadable: '12px',
-} as const;
+// Qui viveva `OBSIDIAN_TYPOGRAPHY`. Rimosso: non era importato da nessun file e
+// dichiarava una scala che il codice non ha mai avuto. Nasceva dagli INTERVALLI
+// di design_handoff_obsidian/TOKENS.md (eyebrow 10–11px, titoli 20–30px, corpo
+// 13–15px) congelati in valori singoli — 10.5px, 24px, 14px — che non compaiono
+// in nessun punto dell'interfaccia. Una costante del genere non documenta: mente,
+// e chi la legge crede di aver trovato la regola.
+//
+// La tipografia vive in due posti veri:
+//   · le famiglie → `--ob-font-sans` / `--ob-font-mono` (app/obsidian.css,
+//     alimentati da next/font in app/layout.tsx);
+//   · le scale → TOKENS.md come intento di design, e il CSS/gli stili inline
+//     come stato di fatto.
+// Se un giorno serve una scala tipografica in TypeScript, va DEDOTTA dal codice
+// e mantenuta con lui, non trascritta da un intervallo.
 
 // ─── CSS variable map ─────────────────────────────────────────────────────────
 /**
@@ -211,6 +231,9 @@ export function obsidianCssVars(mode: ObsidianMode): Record<string, string> {
     '--ob-warning': s.warning,
     // elevation
     '--ob-shadow-card': OBSIDIAN_SHADOW[mode],
+    // ritmo verticale (indipendente dal tema, ma emesso qui per completezza:
+    // chi tematizza un contenitore in modo programmatico ottiene il set intero)
+    '--ob-toolbar-height': `${OBSIDIAN_TOOLBAR_HEIGHT}px`,
   };
 }
 

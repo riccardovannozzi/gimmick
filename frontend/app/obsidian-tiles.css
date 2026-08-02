@@ -18,11 +18,19 @@
 }
 
 /* ── Top bar (count + Add tile) ── */
+/* Prima barra della vista → `--ob-toolbar-height`, come le altre viste.
+   L'altezza qui era IMPLICITA: nessun `height`, solo `padding: 13px 18px`, e la
+   barra veniva alta quanto il bottone più i 26 di padding (≈56) — sempre un po'
+   diversa dalle altre viste. Con l'altezza esplicita il padding verticale non
+   serve più: `box-sizing: border-box` non lo somma all'altezza, ma stringerebbe
+   la scatola del contenuto a 22px, meno del bottone che deve contenere, che
+   quindi ne uscirebbe fuori. Resta solo il padding orizzontale. */
 .ob-tiles__topbar {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 13px 18px;
+  height: var(--ob-toolbar-height);
+  padding: 0 18px;
   background: var(--ob-surface);
   border-bottom: 1px solid var(--ob-line);
   flex-shrink: 0;
@@ -79,10 +87,13 @@
 .ob-tiles__cell--ctrl { padding: 0 10px; }
 
 .ob-tiles__checkbox {
-  width: 16px; height: 16px; border-radius: 4px; border: 1.5px solid var(--ob-line-2);
+  width: 16px; height: 16px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2);
   flex-shrink: 0; padding: 0; margin: 0; background: transparent; cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
-  color: #fff; transition: background-color 120ms ease-out, border-color 120ms ease-out;
+  /* La spunta sta su --ob-accent (riga --on qui sotto), quindi il suo inchiostro
+     è --ob-accent-ink. Era `#fff`: in light coincide per caso, ma in dark
+     l'accent è #AB9FF2 (violetto chiaro) e l'ink è #1b0d2e (quasi nero). */
+  color: var(--ob-accent-ink); transition: background-color 120ms ease-out, border-color 120ms ease-out;
 }
 .ob-tiles__checkbox:hover { border-color: var(--ob-accent); }
 .ob-tiles__checkbox--on { background: var(--ob-accent); border-color: var(--ob-accent); }
@@ -94,7 +105,7 @@
 .ob-tiles__dash { font-size: 13px; color: var(--ob-faint); }
 
 /* ghost control (action / type / status) */
-.ob-tiles__ctrl { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: 6px; min-width: 0; width: 100%; }
+.ob-tiles__ctrl { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: var(--ob-radius-sm); min-width: 0; width: 100%; }
 .ob-tiles__ctrl-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .ob-tiles__ctrl-dot--sq { border-radius: 2px; }
 .ob-tiles__ctrl-label { font-size: 13px; font-weight: 500; color: var(--ob-text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -106,20 +117,20 @@
 .ob-tiles__sched-time { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); line-height: 1.25; }
 
 /* tags */
-.ob-tiles__tag { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 7px; max-width: 100%; }
+.ob-tiles__tag { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: var(--ob-radius-sm); max-width: 100%; }
 .ob-tiles__tag-name { font-size: 12.5px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* sparks */
 .ob-tiles__sparks { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .ob-tiles__spark-box {
-  width: 30px; height: 30px; border-radius: 7px;
+  width: 30px; height: 30px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; border: 1px solid var(--ob-line);
 }
 .ob-tiles__spark-box--photo { background: var(--ob-surface-2); color: var(--ob-subtle); }
 .ob-tiles__spark-chip {
   display: flex; align-items: center; gap: 6px; max-width: 180px;
-  padding: 5px 9px; border-radius: 7px;
+  padding: 5px 9px; border-radius: var(--ob-radius-sm);
   background: var(--ob-surface-2); border: 1px solid var(--ob-line);
 }
 .ob-tiles__spark-chip-text { font-size: 12px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -11,7 +11,7 @@
 
 /* ── Header ── */
 .ob-canvas__header {
-  height: 52px; flex-shrink: 0;
+  height: var(--ob-toolbar-height); flex-shrink: 0;
   display: flex; align-items: center; gap: 12px;
   padding: 0 16px;
   background: var(--ob-surface);
@@ -55,27 +55,33 @@
   background: var(--ob-surface-2);
   border-bottom: 1px solid var(--ob-line);
 }
-.ob-canvas__stage-label { font-size: 11px; font-weight: 700; letter-spacing: 0.16em; color: var(--ob-text); }
-.ob-canvas__stage-count { font-family: var(--ob-font-mono); font-size: 11px; font-weight: 600; color: var(--ob-accent-ink); background: var(--ob-accent); border-radius: 6px; padding: 1px 7px; }
+/* Allineata alla testata STAGING reale (`StagingPanel.tsx`, quella che si vede
+   nel canvas): 13/600, tracking 0. Qui era 11/700/0.16em — due pixel di corpo,
+   cento punti di peso e tutto il tracking di differenza sulla stessa parola. */
+.ob-canvas__stage-label { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--ob-text); }
+.ob-canvas__stage-count { font-family: var(--ob-font-mono); font-size: 11px; font-weight: 600; color: var(--ob-accent-ink); background: var(--ob-accent); border-radius: var(--ob-radius-sm); padding: 1px 7px; }
 .ob-canvas__stage-group { height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--ob-line); color: var(--ob-subtle); }
 .ob-canvas__stage-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: var(--ob-subtle); flex: 1; }
 .ob-canvas__stage-list { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; }
 
 /* ── Card (shared by staging tiles + canvas nodes) ── */
 .ob-canvas__card {
-  border-radius: 9px;
+  border-radius: var(--ob-radius-md);
   padding: 11px 12px;
   background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg));
   border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent);
 }
 [data-theme='light'] .ob-canvas__card { box-shadow: 0 1px 2px rgba(24, 20, 38, 0.04); }
 .ob-canvas__card--sel { border: 2px solid var(--ob-accent); }
-.ob-canvas__card-title { font-size: 12.5px; line-height: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
+/* Titolo del tile 150×80. Identico in CANVAS, KANBAN, CHRONO e STAGING: è lo
+   stesso oggetto, e prima ognuna delle quattro viste lo scriveva a modo suo
+   (12.5/600 qui, 12/300 in kanban e staging, 12/400 in chrono). */
+.ob-canvas__card-title { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: -0.01em; color: var(--ob-text); }
 .ob-canvas__card-title--clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .ob-canvas__sparkrow { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
 .ob-canvas__cap {
-  width: 20px; height: 20px; border-radius: 6px;
+  width: 20px; height: 20px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   background: color-mix(in srgb, var(--cap-c) 16%, transparent);
   color: var(--cap-c);
@@ -86,7 +92,7 @@
 
 /* ── Toolbar (file tabs + tools) ── */
 .ob-canvas__toolbar {
-  height: 52px; flex-shrink: 0;
+  height: var(--ob-toolbar-height); flex-shrink: 0;
   display: flex; align-items: flex-end; gap: 2px;
   padding: 0 14px;
   background: var(--ob-head);
@@ -100,7 +106,7 @@
   cursor: pointer;
   background: transparent;
   border: 1px solid transparent;
-  border-top-left-radius: 9px; border-top-right-radius: 9px;
+  border-top-left-radius: var(--ob-radius-sm); border-top-right-radius: var(--ob-radius-sm);
   margin-bottom: -1px;
   position: relative; z-index: 1;
 }
@@ -118,7 +124,7 @@
 .ob-canvas__toolbtn {
   display: flex; align-items: center; gap: 7px;
   height: 30px; padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--ob-radius-sm);
   font-size: 12px; font-weight: 600; color: var(--ob-muted);
   background: var(--ob-surface); border: 1px solid var(--ob-line-2);
   cursor: pointer;
@@ -127,7 +133,7 @@
 .ob-canvas__tooldiv { width: 1px; height: 22px; background: var(--ob-line-2); margin: 0 2px; }
 .ob-canvas__zoom {
   display: flex; align-items: center; height: 30px; padding: 0 12px;
-  border-radius: 8px;
+  border-radius: var(--ob-radius-sm);
   font-family: var(--ob-font-mono); font-size: 12px; font-weight: 600; color: var(--ob-muted);
   background: var(--ob-surface); border: 1px solid var(--ob-line-2);
 }

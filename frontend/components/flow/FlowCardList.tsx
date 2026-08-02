@@ -131,7 +131,7 @@ export function FlowCardList({ tileId }: Props) {
           background: 'transparent',
           color: theme.ink2,
           border: `1px dashed ${theme.border}`,
-          borderRadius: 10,
+          borderRadius: 'var(--ob-radius-sm)',
           fontFamily: 'var(--ob-font-sans)',
           fontSize: 12.5,
           fontWeight: 600,
@@ -218,7 +218,7 @@ function FlowCard({
       style={{
         background: theme.surface,
         border: `1px solid ${theme.border}`,
-        borderRadius: 10,
+        borderRadius: 'var(--ob-radius-md)',
         padding: 10,
         position: 'relative',
         opacity: isDragging ? 0.4 : 1,
@@ -370,7 +370,7 @@ function StatusChip({
         height: 24,
         background: active ? theme.accent : theme.surface,
         border: `1px solid ${theme.border}`,
-        borderRadius: 7,
+        borderRadius: 'var(--ob-radius-sm)',
         cursor: 'pointer',
       }}
       title={state === 'active' ? 'Imposta status' : FLOW_STATE_LABELS[state]}
@@ -414,7 +414,7 @@ function ContactChip({
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
         border: `1px solid ${theme.border}`,
-        borderRadius: 8,
+        borderRadius: 'var(--ob-radius-sm)',
         fontFamily: 'var(--ob-font-sans)',
         fontSize: 11,
         cursor: 'pointer',
@@ -458,7 +458,7 @@ function DateChip({
         background: active ? theme.accent : theme.surface,
         color: active ? theme.onAccent : theme.ink2,
         border: `1px solid ${theme.border}`,
-        borderRadius: 8,
+        borderRadius: 'var(--ob-radius-sm)',
         fontFamily: 'var(--ob-font-sans)',
         fontSize: 11,
         cursor: 'pointer',
@@ -500,7 +500,7 @@ function StatusEditor({
               padding: '0 10px',
               background: isActive ? color : theme.surfaceVariant,
               border: `1px solid ${theme.border}`,
-              borderRadius: 8,
+              borderRadius: 'var(--ob-radius-sm)',
               color: isActive ? '#000000' : theme.ink,
               fontFamily: 'var(--ob-font-mono)',
               fontSize: 9,
@@ -567,7 +567,7 @@ function DateEditor({
             flex: 1,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 10,
+            borderRadius: 'var(--ob-radius-sm)',
             padding: '0 10px',
             height: 36,
             color: theme.ink,
@@ -588,7 +588,7 @@ function DateEditor({
               background: theme.surface,
               color: '#E24B4A',
               border: `1px solid ${theme.border}`,
-              borderRadius: 10,
+              borderRadius: 'var(--ob-radius-sm)',
               cursor: 'pointer',
               fontFamily: 'var(--ob-font-sans)',
               fontSize: 14,
@@ -636,13 +636,13 @@ function MiniCalendar({
     background: theme.surface,
     color: theme.ink2,
     border: `1px solid ${theme.border}`,
-    borderRadius: 7,
+    borderRadius: 'var(--ob-radius-sm)',
     cursor: 'pointer',
     fontFamily: 'var(--ob-font-sans)',
     fontSize: 14,
   };
   return (
-    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 12, padding: 8 }}>
+    <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)', padding: 8 }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
         <button onClick={() => stepMonth(-1)} style={navBtn}>‹</button>
@@ -695,7 +695,7 @@ function MiniCalendar({
                 background: isSel ? theme.accent : 'transparent',
                 color: isSel ? theme.onAccent : inMonth ? theme.ink : theme.ink3,
                 border: isTd && !isSel ? `1px solid ${theme.accent}` : `1px solid transparent`,
-                borderRadius: 7,
+                borderRadius: 'var(--ob-radius-sm)',
                 fontFamily: 'var(--ob-font-sans)',
                 fontSize: 11,
                 fontWeight: isSel ? 700 : 400,

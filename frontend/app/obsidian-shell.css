@@ -1,4 +1,4 @@
-﻿/* ─────────────────────────────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────────────────────────────
    Gimmick · Obsidian — Desktop shell styles.
 
    Header, ViewTabs (navbar), Sidebar (tag/cartelle), Inspector, ViewContainer
@@ -48,19 +48,18 @@
   border-bottom: 1px solid var(--ob-line);
 }
 .ob-hd__logo { display: flex; align-items: center; gap: 9px; }
-.ob-hd__logo-mark {
-  width: 28px; height: 28px; border-radius: 9px;
-  background: var(--ob-accent);
-  display: flex; align-items: center; justify-content: center;
-}
-.ob-hd__logo-mark::after { content: ''; width: 9px; height: 9px; border-radius: 3px; background: var(--ob-accent-ink); }
+/* Il marchio è il mostriciattolo rosso (<GimmickLogo>), che si porta dietro
+   forma e colori: qui resta solo il posizionamento. Prima era una piastrella
+   accent 28×28 disegnata in CSS con un quadratino nello `::after` — il
+   segnaposto di default del design system. */
+.ob-hd__logo-mark { display: block; flex-shrink: 0; }
 .ob-hd__logo-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
 .ob-hd__search {
   width: 300px;
   display: flex; align-items: center; gap: 9px;
   background: var(--ob-surface-2);
   border: 1px solid var(--ob-line);
-  border-radius: 9px;
+  border-radius: var(--ob-radius-sm);
   padding: 8px 12px;
   color: var(--ob-subtle);
   font-size: 13px;
@@ -73,7 +72,7 @@
   display: flex; align-items: center; gap: 8px;
   background: var(--ob-surface-2);
   border: 1px solid var(--ob-line);
-  border-radius: 10px;
+  border-radius: var(--ob-radius-sm);
   padding: 4px 11px 4px 6px;
 }
 .ob-hd__buffer-count { font-size: 12px; font-weight: 600; color: var(--ob-text); line-height: 1.1; }
@@ -101,7 +100,7 @@
 .ob-tab {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 13px;
-  border-radius: 9px;
+  border-radius: var(--ob-radius-sm);
   font-size: 13px;
   font-weight: 500;
   color: var(--ob-muted);
@@ -150,7 +149,7 @@
   font-size: 11px; font-weight: 600;
   color: var(--ob-muted);
   background: var(--ob-surface);
-  padding: 2px 8px; border-radius: 7px;
+  padding: 2px 8px; border-radius: var(--ob-radius-sm);
 }
 /* I tab Storage/Tags/Pinned occupano l'intera larghezza della sidebar, con
    angoli meno arrotondati (no pill). Altezza 30 come gli altri controlli di
@@ -165,10 +164,10 @@
 /* Ricerca tag: input con icona a sinistra e clear a destra. */
 .ob-sb__search { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
 .ob-sb__search-icon { position: absolute; left: 9px; color: var(--ob-subtle); pointer-events: none; }
-.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-md, 8px); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; transition: border-color 0.12s ease; }
+.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-sm) var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; transition: border-color 0.12s ease; }
 .ob-sb__search-input::placeholder { color: var(--ob-subtle); }
 .ob-sb__search-input:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
-.ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: 5px; background: transparent; color: var(--ob-subtle); font-size: 15px; line-height: 1; cursor: pointer; }
+.ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--ob-radius-sm); background: transparent; color: var(--ob-subtle); font-size: 15px; line-height: 1; cursor: pointer; }
 .ob-sb__search-clear:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
 /* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
 .ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 500; color: var(--ob-subtle); }
@@ -176,7 +175,7 @@
 .ob-sb-group { margin-bottom: 1px; }
 .ob-sb-group__head {
   display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px; border-radius: 8px;
+  padding: 7px 8px; border-radius: var(--ob-radius-sm);
   cursor: pointer;
   transition: background-color 120ms ease-out;
   background: transparent;
@@ -193,7 +192,7 @@
 /* Riga tag: contenitore (nome cliccabile + azioni pin/canvas su hover). */
 .ob-sb-child {
   display: flex; align-items: center; gap: 2px;
-  padding: 0 5px 0 9px; border-radius: 7px;
+  padding: 0 5px 0 9px; border-radius: var(--ob-radius-sm);
   transition: background-color 120ms ease-out;
 }
 .ob-sb-child:hover:not(.ob-sb-child--active) { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
@@ -203,7 +202,7 @@
 .ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: 600; }
 .ob-sb-child__actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; }
 .ob-sb-child__act {
-  width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+  width: 24px; height: 24px; border-radius: var(--ob-radius-sm); flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   color: var(--ob-subtle); background: transparent; border: none; cursor: pointer;
   opacity: 0; transition: opacity 120ms ease-out, color 120ms ease-out, background-color 120ms ease-out;
@@ -230,7 +229,7 @@
   gap: 0;
   padding: 0;
   border: none;
-  border-radius: var(--ob-radius-md, 8px);
+  border-radius: var(--ob-radius-sm) var(--ob-radius-sm);
   /* Nessun track: l'unica cosa che si vede è la pill del tab attivo. A sinistra
      era già così di fatto (il track aveva lo stesso fondo della sidebar); qui,
      dove la barra ha un fondo diverso, il track andava tolto esplicitamente. */
@@ -243,7 +242,7 @@
   height: 30px;
   padding: 0 5px;
   border: none;
-  border-radius: var(--ob-radius-md, 8px);
+  border-radius: var(--ob-radius-sm) var(--ob-radius-sm);
   background: transparent;
   color: var(--ob-muted);
   font-family: var(--ob-font-sans);
@@ -295,7 +294,7 @@
   flex-shrink: 0;
 }
 .ob-insp__panel-toggle {
-  width: 32px; height: 32px; border-radius: 8px;
+  width: 32px; height: 32px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   color: var(--ob-muted);
   border: 1px solid var(--ob-line);
@@ -315,7 +314,7 @@
   display: flex; align-items: center; gap: 9px;
   background: var(--ob-field);
   border: 1px solid var(--ob-line-2);
-  border-radius: 8px;
+  border-radius: var(--ob-radius-sm);
   padding: 9px 11px;
 }
 .ob-insp-field__value { font-size: 13px; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -328,14 +327,14 @@
   display: flex; align-items: center; gap: 8px; width: 100%;
   background: var(--ob-accent-soft);
   border: 1px solid var(--ob-line);
-  border-radius: 8px;
+  border-radius: var(--ob-radius-sm);
   padding: 9px 11px;
   font-size: 13px; font-weight: 500;
   color: var(--ob-accent);
 }
 
 /* Inspector sparks capture strip */
-.ob-insp-caps { display: flex; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: 8px; overflow: hidden; }
+.ob-insp-caps { display: flex; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: var(--ob-radius-sm); overflow: hidden; }
 .ob-insp-cap { flex: 1; padding: 10px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-left: 1px solid var(--ob-line); }
 .ob-insp-cap:first-child { border-left: none; }
 .ob-insp-cap__label { font-size: 9px; font-weight: 600; color: var(--ob-subtle); }

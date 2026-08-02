@@ -54,7 +54,7 @@ function ColorControl({ value, onChange }: { value: string; onChange: (hex: stri
       <span
         aria-hidden
         style={{
-          width: 26, height: 26, borderRadius: 8, background: value,
+          width: 26, height: 26, borderRadius: 'var(--ob-radius-sm)', background: value,
           border: '1px solid var(--ob-line-2)', flexShrink: 0,
         }}
       />

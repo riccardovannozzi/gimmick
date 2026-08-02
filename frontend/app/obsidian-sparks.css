@@ -11,7 +11,7 @@
 
 /* ── Toolbar ── */
 .ob-sparks__toolbar {
-  height: 60px; flex-shrink: 0;
+  height: var(--ob-toolbar-height); flex-shrink: 0;
   display: flex; align-items: center; gap: 12px;
   padding: 0 20px;
   background: var(--ob-head);
@@ -25,7 +25,7 @@
 .ob-sparks__typefilter {
   display: inline-flex; align-items: center; gap: 7px;
   height: 34px; padding: 0 13px;
-  border-radius: 9px;
+  border-radius: var(--ob-radius-sm);
   border: 1px solid var(--ob-line-2);
   background: transparent;
   font-size: 13px; font-weight: 600; color: var(--ob-muted);
@@ -45,7 +45,7 @@
 .ob-sparks__chip {
   display: inline-flex; align-items: center; gap: 7px;
   height: 32px; padding: 0 12px;
-  border-radius: 9px;
+  border-radius: var(--ob-radius-sm);
   background: var(--ob-surface);
   border: 1px solid var(--ob-line);
   color: var(--ob-muted);
@@ -112,7 +112,7 @@
 /* type badge */
 .ob-sparks__type {
   display: inline-flex; align-items: center; gap: 6px;
-  border-radius: 7px; padding: 3px 9px;
+  border-radius: var(--ob-radius-sm); padding: 3px 9px;
   background: color-mix(in srgb, var(--badge-c) 13%, transparent);
   border: 1px solid color-mix(in srgb, var(--badge-c) 26%, transparent);
 }
@@ -121,12 +121,12 @@
 [data-theme='dark'] .ob-sparks__type-name { color: var(--ob-text); }
 
 /* AI cell */
-.ob-sparks__ai { width: 18px; height: 18px; border-radius: 6px; border: 1.5px solid var(--ob-line-2); }
+.ob-sparks__ai { width: 18px; height: 18px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2); }
 .ob-sparks__ai--on { border: none; background: var(--ob-type-text); color: #fff; display: flex; align-items: center; justify-content: center; }
 
 /* row delete */
 .ob-sparks__del {
-  width: 28px; height: 28px; border-radius: 7px;
+  width: 28px; height: 28px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   color: var(--ob-faint);
   border: 1px solid var(--ob-line);

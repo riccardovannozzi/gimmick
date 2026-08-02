@@ -56,7 +56,7 @@ function tintedBtn(color: string): React.CSSProperties {
     background: `${color}22`,
     color,
     border: `1px solid ${color}66`,
-    borderRadius: 8,
+    borderRadius: 'var(--ob-radius-sm)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -128,19 +128,19 @@ function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<
   const trigger: React.CSSProperties = compact
     ? {
         display: 'inline-flex', alignItems: 'center', gap: 4, height: 28, padding: '0 10px',
-        background: theme.accent, color: theme.onAccent, border: 'none', borderRadius: 8,
+        background: theme.accent, color: theme.onAccent, border: 'none', borderRadius: 'var(--ob-radius-sm)',
         fontFamily: 'var(--ob-font-sans)', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
       }
     : {
         width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         background: `${ACTION_TINTS.ai}22`, color: ACTION_TINTS.ai,
-        border: `1px solid ${open ? ACTION_TINTS.ai : `${ACTION_TINTS.ai}66`}`, borderRadius: 8,
+        border: `1px solid ${open ? ACTION_TINTS.ai : `${ACTION_TINTS.ai}66`}`, borderRadius: 'var(--ob-radius-sm)',
         cursor: busy ? 'wait' : 'pointer', flexShrink: 0,
       };
 
   const row: React.CSSProperties = {
     display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px',
-    background: 'transparent', border: 'none', borderRadius: 6, color: theme.ink,
+    background: 'transparent', border: 'none', borderRadius: 'var(--ob-radius-sm)', color: theme.ink,
     fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
   };
 
@@ -160,7 +160,7 @@ function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<
         <div
           style={{
             position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 100, minWidth: 200,
-            background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 10,
+            background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)',
             padding: 4, boxShadow: 'var(--ob-shadow-card)',
           }}
         >
@@ -306,7 +306,7 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
       <BubbleMenu editor={editor} shouldShow={() => !editor.state.selection.empty}>
         <div
           onMouseDown={(e) => e.preventDefault()}
-          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, background: theme.bg2, border: `1px solid ${theme.border}`, borderRadius: 10, boxShadow: 'var(--ob-shadow-card)' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: 4, background: theme.bg2, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)', boxShadow: 'var(--ob-shadow-card)' }}
         >
           <AiMenu editor={editor} theme={theme} compact />
         </div>
@@ -337,7 +337,7 @@ function Toolbar({ editor, theme }: ToolbarProps) {
     background: active ? (`${theme.accent}22`) : 'transparent',
     color: active ? theme.accent : theme.ink2,
     border: `1px solid ${active ? theme.accent : 'transparent'}`,
-    borderRadius: 8,
+    borderRadius: 'var(--ob-radius-sm)',
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -546,7 +546,7 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
             zIndex: 100,
             background: theme.surface,
             border: `1px solid ${theme.border}`,
-            borderRadius: 12,
+            borderRadius: 'var(--ob-radius-md)',
             padding: 6,
             display: 'grid',
             gridTemplateColumns: 'repeat(6, 22px)',
@@ -567,7 +567,7 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
                   height: 22,
                   background: isRemove ? theme.surfaceVariant : (opt.color as string),
                   border: `1px solid ${theme.border}`,
-                  borderRadius: 6,
+                  borderRadius: 'var(--ob-radius-sm)',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
