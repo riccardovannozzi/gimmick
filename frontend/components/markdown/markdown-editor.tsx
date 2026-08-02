@@ -24,6 +24,7 @@ import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
 import { aiApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 // Soft pastel highlight palette — the Light2 row of GIMMICK_PALETTE.
 // "Remove" (null) clears the mark.
@@ -129,7 +130,7 @@ function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<
     ? {
         display: 'inline-flex', alignItems: 'center', gap: 4, height: 28, padding: '0 10px',
         background: theme.accent, color: theme.onAccent, border: 'none', borderRadius: 'var(--ob-radius-sm)',
-        fontFamily: 'var(--ob-font-sans)', fontSize: 12, fontWeight: 700, cursor: busy ? 'wait' : 'pointer',
+        fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, fontWeight: OB_WEIGHT.mono, cursor: busy ? 'wait' : 'pointer',
       }
     : {
         width: 30, height: 30, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -141,7 +142,7 @@ function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<
   const row: React.CSSProperties = {
     display: 'block', width: '100%', textAlign: 'left', padding: '6px 10px',
     background: 'transparent', border: 'none', borderRadius: 'var(--ob-radius-sm)', color: theme.ink,
-    fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer', whiteSpace: 'nowrap',
+    fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer', whiteSpace: 'nowrap',
   };
 
   return (
@@ -164,7 +165,7 @@ function AiMenu({ editor, theme, compact }: { editor: Editor; theme: ReturnType<
             padding: 4, boxShadow: 'var(--ob-shadow-card)',
           }}
         >
-          <div style={{ padding: '4px 10px 6px', fontFamily: 'var(--ob-font-mono)', fontSize: 10, letterSpacing: '0.06em', textTransform: 'uppercase', color: theme.ink3 }}>
+          <div style={{ padding: '4px 10px 6px', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, letterSpacing: '0.06em', textTransform: 'uppercase', color: theme.ink3 }}>
             Riscrivi: {scope}
           </div>
           {AI_ACTIONS.map((a) => (
@@ -318,8 +319,8 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
           padding: 16,
           fontFamily: 'var(--ob-font-sans)',
           color: theme.ink,
-          fontSize: 14,
-          lineHeight: 1.6,
+          fontSize: OB_TEXT.title,
+          lineHeight: OB_LEADING.text,
         }}
       >
         <EditorContent editor={editor} />
@@ -573,8 +574,8 @@ function HighlightPicker({ editor, btnStyle, theme }: HighlightPickerProps) {
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: theme.ink2,
-                  fontSize: 12,
-                  lineHeight: 1,
+                  fontSize: OB_TEXT.card,
+                  lineHeight: OB_LEADING.none,
                   padding: 0,
                 }}
               >

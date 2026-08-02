@@ -13,6 +13,7 @@ import { tilesApi } from '@/lib/api';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { DatePicker } from '@/components/ui/date-picker';
 import { readableOn } from '@/lib/palette';
 import type { Tile, ActionType } from '@/types';
@@ -140,18 +141,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
 
   const setIcon = (iconId: string | null) => { ids.forEach((id) => assignIcon(id, iconId)); };
 
-  // Eyebrow di sezione: stesso canone di `obLabel` in TileSidebar (la sidebar
-  // destra gemella) e di GroupSidebar/EdgeSidebar/TextSidebar — mono, 8px, 700.
-  // Qui erano 9px SENZA peso, cioè 400 contro 700: due sidebar affiancate con
-  // le stesse etichette e un pixel e trecento punti di differenza.
+  // Eyebrow di sezione: la tipografia arriva dall'helper condiviso, come nella
+  // sidebar gemella TileSidebar. Qui divergeva — 9px e nessun peso, cioè 400
+  // contro 700 — su due pannelli affiancati con le stesse etichette.
   const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 8,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    lineHeight: 1.1,
-    textTransform: 'uppercase',
-    color: theme.ink3,
+    ...obLabel(theme),
+    lineHeight: OB_LEADING.none,
     display: 'block',
     marginBottom: 4,
   };
@@ -196,7 +191,7 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
             <div
               style={{
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.accent,
@@ -211,13 +206,8 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                   background: 'transparent',
                   border: 'none',
                   cursor: 'pointer',
-                  fontFamily: 'var(--ob-font-mono)',
-                  fontSize: 8,
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  textTransform: 'uppercase',
-                  color: theme.ink3,
                   padding: 0,
+                  ...obLabel(theme),
                 }}
               >
                 Annulla
@@ -255,8 +245,8 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
                       color: isActive ? theme.accent : theme.ink2,
                       border: `1px solid ${isActive ? theme.accent : theme.border}`,
                       fontFamily: 'var(--ob-font-sans)',
-                      fontSize: 12.5,
-                      fontWeight: 600,
+                      fontSize: OB_TEXT.control,
+                      fontWeight: OB_WEIGHT.emphasis,
                       letterSpacing: 0,
                       textTransform: 'none',
                       cursor: saving ? 'not-allowed' : 'pointer',
@@ -311,12 +301,12 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
           <div
             style={{
               fontFamily: 'var(--ob-font-sans)',
-              fontSize: 11,
+              fontSize: OB_TEXT.meta,
               fontStyle: 'italic',
               color: theme.ink3,
               paddingTop: 8,
               borderTop: `${bW}px solid ${theme.border}`,
-              lineHeight: 1.5,
+              lineHeight: OB_LEADING.text,
             }}
           >
             Title, tag e contenuti sono modificabili solo aprendo un singolo tile.
@@ -360,18 +350,12 @@ function MixedTypeIconPicker({
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  // Eyebrow di sezione: stesso canone di `obLabel` in TileSidebar (la sidebar
-  // destra gemella) e di GroupSidebar/EdgeSidebar/TextSidebar — mono, 8px, 700.
-  // Qui erano 9px SENZA peso, cioè 400 contro 700: due sidebar affiancate con
-  // le stesse etichette e un pixel e trecento punti di differenza.
+  // Eyebrow di sezione: la tipografia arriva dall'helper condiviso, come nella
+  // sidebar gemella TileSidebar. Qui divergeva — 9px e nessun peso, cioè 400
+  // contro 700 — su due pannelli affiancati con le stesse etichette.
   const labelStyle: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)',
-    fontSize: 8,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    lineHeight: 1.1,
-    textTransform: 'uppercase',
-    color: theme.ink3,
+    ...obLabel(theme),
+    lineHeight: OB_LEADING.none,
     display: 'block',
     marginBottom: 4,
   };
@@ -387,7 +371,7 @@ function MixedTypeIconPicker({
     border: `${bW}px solid transparent`,
     color: active ? theme.ink : theme.ink2,
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12,
+    fontSize: OB_TEXT.card,
     cursor: 'pointer',
   });
 
@@ -412,14 +396,14 @@ function MixedTypeIconPicker({
           height: 36,
           color: theme.ink,
           fontFamily: 'var(--ob-font-sans)',
-          fontSize: 13,
+          fontSize: OB_TEXT.control,
           cursor: disabled ? 'not-allowed' : 'pointer',
           textAlign: 'left',
           opacity: disabled ? 0.6 : 1,
         }}
       >
         {mixed ? (
-          <span style={{ color: '#F5A623', flex: 1, fontSize: 11 }}>Misto</span>
+          <span style={{ color: '#F5A623', flex: 1, fontSize: OB_TEXT.meta }}>Misto</span>
         ) : CurrentComp && current ? (
           <>
             <div
@@ -440,7 +424,7 @@ function MixedTypeIconPicker({
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{current.name}</span>
           </>
         ) : (
-          <span style={{ color: theme.ink3, flex: 1, fontSize: 11 }}>Nessuno</span>
+          <span style={{ color: theme.ink3, flex: 1, fontSize: OB_TEXT.meta }}>Nessuno</span>
         )}
       </button>
       {open && dropPos && createPortal(

@@ -145,6 +145,17 @@ export const OBSIDIAN_RADIUS = {
 export const OBSIDIAN_SPACING = [4, 6, 8, 10, 12, 14, 18, 22, 24, 32, 40, 56] as const;
 export type ObsidianSpace = (typeof OBSIDIAN_SPACING)[number];
 
+// ─── Azione distruttiva ───────────────────────────────────────────────────────
+/**
+ * Rosso di "elimina" — mirror di `--ob-danger` (app/obsidian.css).
+ *
+ * DISTINTO da `OBSIDIAN_SEMANTIC[mode].error`, che segnala uno stato e cambia
+ * col tema (#E0544F chiaro / #F38682 scuro). Questo è il colore di un COMANDO e
+ * resta identico nei due temi: era già così quando viveva scritto a mano in 27
+ * punti, senza coincidere con nessuno dei due valori di `error`.
+ */
+export const OBSIDIAN_DANGER = '#E24B4A';
+
 // ─── Vertical rhythm ──────────────────────────────────────────────────────────
 /**
  * Altezza della PRIMA barra di una vista (px) — toolbar/header di Ask, Flows,
@@ -229,6 +240,8 @@ export function obsidianCssVars(mode: ObsidianMode): Record<string, string> {
     '--ob-error': s.error,
     '--ob-info': s.info,
     '--ob-warning': s.warning,
+    // azione distruttiva — uguale nei due temi, non è uno stato
+    '--ob-danger': OBSIDIAN_DANGER,
     // elevation
     '--ob-shadow-card': OBSIDIAN_SHADOW[mode],
     // ritmo verticale (indipendente dal tema, ma emesso qui per completezza:

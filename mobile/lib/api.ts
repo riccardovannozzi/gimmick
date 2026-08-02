@@ -52,7 +52,9 @@ interface ApiResponse<T = unknown> {
   message?: string;
 }
 
-interface PaginatedResponse<T> {
+/** Esportata: l'aggiornamento ottimistico deve riscrivere la cache di `tilesApi.list`
+ *  e per farlo deve conoscerne la forma. */
+export interface PaginatedResponse<T> {
   success: boolean;
   data: T[];
   pagination: {
@@ -749,6 +751,14 @@ export const uploadApi = {
   async getSignedUrl(path: string) {
     return apiRequest<{ url: string; expires_in: number }>(
       `/api/upload/signed-url?path=${encodeURIComponent(path)}`
+    );
+  },
+
+  /** Firma più file in una richiesta sola. Vedi `getSignedUrls` in lib/storage. */
+  async getSignedUrls(paths: string[]) {
+    return apiRequest<{ urls: Record<string, string>; expires_in: number }>(
+      '/api/upload/signed-urls',
+      { method: 'POST', body: JSON.stringify({ paths }) },
     );
   },
 };

@@ -14,6 +14,7 @@ import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import type { TagNode, TagEdge, ActionType } from '@/types';
+import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
 // ─── Content filter types ───
 type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'text' | 'file';
@@ -1272,9 +1273,9 @@ export default function GraphPage() {
       background: active ? theme.surfaceVariant : 'transparent',
       border: `${bW}px solid transparent`,
       color: active ? theme.ink : theme.ink2,
-      fontWeight: active ? 600 : 400,
+      fontWeight: active ? OB_WEIGHT.emphasis : OB_WEIGHT.body,
       fontFamily: bodyFont,
-      fontSize: 12,
+      fontSize: OB_TEXT.card,
       cursor: 'pointer',
     };
   };
@@ -1333,7 +1334,7 @@ export default function GraphPage() {
                       border: `${bW}px solid ${theme.border}`,
                       padding: '1px 5px',
                       fontFamily: headFont,
-                      fontSize: 8,
+                      fontSize: OB_TEXT.eyebrow,
                     }}
                   >
                     {activeFilters.size}
@@ -1376,7 +1377,7 @@ export default function GraphPage() {
                         border: 'none',
                         color: theme.accent,
                         fontFamily: headFont,
-                        fontSize: 9,
+                        fontSize: OB_TEXT.micro,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
                         cursor: 'pointer',
@@ -1427,7 +1428,7 @@ export default function GraphPage() {
                         }}
                       />
                       {tag.name}
-                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: headFont, fontSize: 9 }}>
+                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: headFont, fontSize: OB_TEXT.micro }}>
                         {tag.tile_ids.length}
                       </span>
                     </button>
@@ -1472,7 +1473,7 @@ export default function GraphPage() {
                   padding: '0 8px',
                   color: theme.ink,
                   fontFamily: bodyFont,
-                  fontSize: 12,
+                  fontSize: OB_TEXT.card,
                   outline: 'none',
                 }}
               />
@@ -1510,8 +1511,8 @@ export default function GraphPage() {
                 className="px-press"
                 style={{
                   ...pillBtn(false),
-                  color: '#E24B4A',
-                  border: `${bW}px solid #E24B4A`,
+                  color: 'var(--ob-danger)',
+                  border: `${bW}px solid var(--ob-danger)`,
                 }}
               >
                 <IconTrash size={12} />
@@ -1527,7 +1528,7 @@ export default function GraphPage() {
         <span
           style={{
             fontFamily: headFont,
-            fontSize: 9,
+            fontSize: OB_TEXT.micro,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink3,
@@ -1570,7 +1571,7 @@ export default function GraphPage() {
                   onClick={() => setTimeRange([startPct, 100])}
                   style={{
                     fontFamily: headFont,
-                    fontSize: 8,
+                    fontSize: OB_TEXT.eyebrow,
                     letterSpacing: '0.06em',
                     textTransform: 'uppercase',
                     padding: '2px 6px',
@@ -1589,7 +1590,7 @@ export default function GraphPage() {
             <span
               style={{
                 fontFamily: headFont,
-                fontSize: 8,
+                fontSize: OB_TEXT.eyebrow,
                 color: theme.ink2,
                 marginBottom: 8,
                 textAlign: 'center',
@@ -1664,7 +1665,7 @@ export default function GraphPage() {
             <span
               style={{
                 fontFamily: headFont,
-                fontSize: 8,
+                fontSize: OB_TEXT.eyebrow,
                 color: theme.ink2,
                 marginTop: 8,
                 textAlign: 'center',
@@ -1685,7 +1686,7 @@ export default function GraphPage() {
             <p
               style={{
                 fontFamily: headFont,
-                fontSize: 11,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.ink2,
@@ -1694,7 +1695,7 @@ export default function GraphPage() {
             >
               Nessun dato da visualizzare
             </p>
-            <p style={{ fontFamily: bodyFont, fontSize: 12, color: theme.ink3, margin: 0 }}>
+            <p style={{ fontFamily: bodyFont, fontSize: OB_TEXT.card, color: theme.ink3, margin: 0 }}>
               Crea dei tile e spark per vedere il grafo delle connessioni
             </p>
           </div>
@@ -1717,7 +1718,7 @@ export default function GraphPage() {
                   gap: 8,
                   boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
                   fontFamily: headFont,
-                  fontSize: 9,
+                  fontSize: OB_TEXT.micro,
                   letterSpacing: '0.08em',
                   textTransform: 'uppercase',
                 }}
@@ -1770,7 +1771,7 @@ export default function GraphPage() {
             {showPhysicsPanel && (() => {
               const sectionLabel: React.CSSProperties = {
                 fontFamily: headFont,
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.ink3,
@@ -1780,7 +1781,7 @@ export default function GraphPage() {
               };
               const fieldLabel: React.CSSProperties = {
                 fontFamily: headFont,
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.04em',
                 textTransform: 'uppercase',
                 color: theme.ink2,
@@ -1789,7 +1790,7 @@ export default function GraphPage() {
               };
               const fieldValue: React.CSSProperties = {
                 fontFamily: bodyFont,
-                fontSize: 11,
+                fontSize: OB_TEXT.meta,
                 color: theme.ink3,
                 width: 44,
                 textAlign: 'right',
@@ -1825,7 +1826,7 @@ export default function GraphPage() {
                   <h3
                     style={{
                       fontFamily: headFont,
-                      fontSize: 11,
+                      fontSize: OB_TEXT.meta,
                       letterSpacing: '0.1em',
                       textTransform: 'uppercase',
                       color: theme.ink,
@@ -1851,7 +1852,7 @@ export default function GraphPage() {
                         border: `${bW}px solid ${theme.border}`,
                         padding: '2px 8px',
                         fontFamily: headFont,
-                        fontSize: 8,
+                        fontSize: OB_TEXT.eyebrow,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
                         cursor: 'pointer',
@@ -1867,7 +1868,7 @@ export default function GraphPage() {
                         border: `${bW}px solid ${theme.border}`,
                         padding: '2px 8px',
                         fontFamily: headFont,
-                        fontSize: 8,
+                        fontSize: OB_TEXT.eyebrow,
                         letterSpacing: '0.08em',
                         textTransform: 'uppercase',
                         cursor: 'pointer',
@@ -1994,7 +1995,7 @@ export default function GraphPage() {
                       onChange={(e) => setPhysics((prev) => ({ ...prev, showTagClusters: e.target.checked ? 1 : 0 }))}
                       style={{ accentColor: theme.accent }}
                     />
-                    <span style={{ fontFamily: bodyFont, fontSize: 11, color: theme.ink2 }}>
+                    <span style={{ fontFamily: bodyFont, fontSize: OB_TEXT.meta, color: theme.ink2 }}>
                       Evidenzia tag cluster
                     </span>
                   </label>
@@ -2018,7 +2019,7 @@ export default function GraphPage() {
                   zIndex: 50,
                   color: theme.ink,
                   fontFamily: bodyFont,
-                  fontSize: 11,
+                  fontSize: OB_TEXT.meta,
                 }}
               >
                 {tooltip.content}
@@ -2047,7 +2048,7 @@ export default function GraphPage() {
                     padding: '6px 10px',
                     margin: 0,
                     fontFamily: headFont,
-                    fontSize: 9,
+                    fontSize: OB_TEXT.micro,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     color: theme.ink3,
@@ -2082,7 +2083,7 @@ export default function GraphPage() {
                             padding: '0 8px',
                             color: theme.ink,
                             fontFamily: bodyFont,
-                            fontSize: 12,
+                            fontSize: OB_TEXT.card,
                             outline: 'none',
                           }}
                         />
@@ -2121,7 +2122,7 @@ export default function GraphPage() {
                           border: 'none',
                           color: theme.ink2,
                           fontFamily: bodyFont,
-                          fontSize: 12,
+                          fontSize: OB_TEXT.card,
                           cursor: 'pointer',
                         }}
                       >
@@ -2147,9 +2148,9 @@ export default function GraphPage() {
                         textAlign: 'left',
                         background: 'transparent',
                         border: 'none',
-                        color: '#E24B4A',
+                        color: 'var(--ob-danger)',
                         fontFamily: bodyFont,
-                        fontSize: 12,
+                        fontSize: OB_TEXT.card,
                         cursor: 'pointer',
                       }}
                     >
@@ -2182,9 +2183,9 @@ export default function GraphPage() {
                       textAlign: 'left',
                       background: 'transparent',
                       border: 'none',
-                      color: '#E24B4A',
+                      color: 'var(--ob-danger)',
                       fontFamily: bodyFont,
-                      fontSize: 12,
+                      fontSize: OB_TEXT.card,
                       cursor: 'pointer',
                     }}
                   >
@@ -2214,7 +2215,7 @@ export default function GraphPage() {
                 <p
                   style={{
                     fontFamily: headFont,
-                    fontSize: 9,
+                    fontSize: OB_TEXT.micro,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                     color: theme.ink3,
@@ -2249,7 +2250,7 @@ export default function GraphPage() {
                       padding: '0 8px',
                       color: theme.ink,
                       fontFamily: bodyFont,
-                      fontSize: 12,
+                      fontSize: OB_TEXT.card,
                       outline: 'none',
                     }}
                   />
@@ -2291,10 +2292,10 @@ export default function GraphPage() {
                       gap: 4,
                       padding: '4px 8px',
                       background: 'transparent',
-                      color: '#E24B4A',
-                      border: `${bW}px solid #E24B4A`,
+                      color: 'var(--ob-danger)',
+                      border: `${bW}px solid var(--ob-danger)`,
                       fontFamily: headFont,
-                      fontSize: 9,
+                      fontSize: OB_TEXT.micro,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       cursor: 'pointer',
@@ -2311,7 +2312,7 @@ export default function GraphPage() {
                       color: theme.ink2,
                       border: `${bW}px solid ${theme.border}`,
                       fontFamily: headFont,
-                      fontSize: 9,
+                      fontSize: OB_TEXT.micro,
                       letterSpacing: '0.08em',
                       textTransform: 'uppercase',
                       cursor: 'pointer',

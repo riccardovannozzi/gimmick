@@ -103,38 +103,53 @@ export interface ObTileVM {
   /** Data di riferimento in epoch (start_at o end_at) per l'ordinamento. */
   whenTs?: number;
   /**
-   * Percorso storage dell'immagine da mostrare in anteprima nella card.
-   * NON è un URL: il bucket è privato, va firmato prima dell'uso (vedi
-   * `getSignedUrls` e come lo risolve ViewsScreenLive).
+   * Percorsi storage delle immagini da mostrare in anteprima nella card, al
+   * massimo `PREVIEW_MAX`. NON sono URL: il bucket è privato, vanno firmati
+   * prima dell'uso (vedi `getSignedUrls` e come li risolve ViewsScreenLive).
    */
-  previewPath?: string;
-  /** URL firmato corrispondente a `previewPath`, risolto dal layer dati. */
-  previewUri?: string;
+  previewPaths?: string[];
+  /** URL firmati corrispondenti a `previewPaths`, risolti dal layer dati. */
+  previewUris?: string[];
+  /** Quante immagini restano oltre quelle mostrate: diventa il contatore "+N". */
+  previewMore?: number;
   /** Allegato non-immagine: non ha miniatura, si mostra come chip col nome. */
   previewFile?: { name: string };
 }
 
+/** Quante anteprime stanno in una card prima del contatore. */
+export const PREVIEW_MAX = 3;
+
 /**
- * Sceglie l'anteprima della card fra gli spark del tile.
+ * Sceglie le anteprime della card fra gli spark del tile.
  *
- * Una sola per card, la prima disponibile: in una lista compatta una fila di
- * miniature diventa rumore, e il dettaglio del tile le mostra già tutte.
+ * Fino a `PREVIEW_MAX`, poi un contatore: una fila intera di miniature in una
+ * lista diventa rumore, ma una sola nascondeva che il tile ne avesse altre.
  * Previewabili sono i media (foto/immagine/video) e gli allegati il cui mime è
  * `image/*` — stessa regola dello spark della homepage. Si preferisce la
  * miniatura al file pieno: in lista conta il peso.
+ *
+ * Il contatore parte dal TOTALE delle immagini, non da quelle disegnabili: uno
+ * spark ancora privo di miniatura non si può mostrare, ma nel tile c'è, e
+ * lasciarlo fuori dal conto darebbe un "+2" dove le foto sono cinque.
  */
-function tilePreview(t: Tile): Pick<ObTileVM, 'previewPath' | 'previewFile'> {
+function tilePreview(t: Tile): Pick<ObTileVM, 'previewPaths' | 'previewMore' | 'previewFile'> {
   const sparks = t.sparks ?? [];
-  for (const s of sparks) {
+  const images = sparks.filter((s) => {
     const isMedia = s.type === 'photo' || s.type === 'image' || s.type === 'video';
     const isImageFile = s.type === 'file' && !!s.mime_type?.startsWith('image/');
-    if (!isMedia && !isImageFile) continue;
-    // SOLO `thumbnail_path`, mai `storage_path`: in una lista scaricare
-    // l'immagine originale costa troppo, e per un video non sarebbe nemmeno
-    // disegnabile da <Image>. Uno spark senza miniatura resta senza anteprima
-    // finché non gliela genera la pipeline di indicizzazione.
-    if (!s.thumbnail_path) continue;
-    return { previewPath: s.thumbnail_path };
+    return isMedia || isImageFile;
+  });
+  // SOLO `thumbnail_path`, mai `storage_path`: in una lista scaricare
+  // l'immagine originale costa troppo, e per un video non sarebbe nemmeno
+  // disegnabile da <Image>. Uno spark senza miniatura resta senza anteprima
+  // finché non gliela genera la pipeline di indicizzazione.
+  const paths = images
+    .map((s) => s.thumbnail_path)
+    .filter((p): p is string => !!p)
+    .slice(0, PREVIEW_MAX);
+
+  if (paths.length > 0) {
+    return { previewPaths: paths, previewMore: Math.max(0, images.length - paths.length) };
   }
   // Nessuna immagine: se c'è un allegato lo si annuncia come chip.
   const file = sparks.find((s) => s.type === 'file');

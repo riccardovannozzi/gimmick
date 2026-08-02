@@ -10,7 +10,8 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tilesApi, typeIconsApi, statusesApi } from '@/lib/api';
 import { STATUS_HEX, STATUS_HEX_FALLBACK } from '@/constants/tile-colors';
-import { ObsidianTileScreen, type CaptureKey } from './TileScreen';
+import { getSignedUrls } from '@/lib/storage';
+import { ObsidianTileScreen, sparkMediaPath, type CaptureKey } from './TileScreen';
 
 export interface ObsidianTileScreenLiveProps {
   tileId: string;
@@ -62,8 +63,26 @@ export function ObsidianTileScreenLive({ tileId, onBack, onCapture }: ObsidianTi
     },
   });
 
+  // Anteprime degli sparks. Il bucket è privato, quindi ogni media va firmato:
+  // si firmano TUTTI in una richiesta sola invece di una per scheda. La chiave
+  // della query è l'elenco dei percorsi, così il risultato si riusa finché gli
+  // sparks non cambiano; `staleTime` sta sotto l'ora di validità della firma,
+  // altrimenti si mostrerebbero URL scaduti.
+  const mediaPaths = React.useMemo(() => {
+    const paths = (data?.data?.sparks ?? []).map(sparkMediaPath).filter((p): p is string => !!p);
+    return [...new Set(paths)].sort();
+  }, [data]);
+  const mediaUrls = useQuery({
+    queryKey: ['tile-spark-urls', mediaPaths],
+    queryFn: () => getSignedUrls(mediaPaths),
+    enabled: mediaPaths.length > 0,
+    staleTime: 50 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+  });
+
   return (
     <ObsidianTileScreen
+      mediaUrls={mediaUrls.data}
       tile={data?.data}
       loading={isLoading}
       onBack={onBack}

@@ -5,6 +5,7 @@ import { IconX } from '@tabler/icons-react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { usePixelTheme } from '@/components/pixel';
 import { MarkdownEditor } from './markdown-editor';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface MarkdownEditorModalProps {
   open: boolean;
@@ -138,8 +139,8 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
         >
           <span style={{
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 14,
-            fontWeight: 600,
+            fontSize: OB_TEXT.title,
+            fontWeight: OB_WEIGHT.emphasis,
             letterSpacing: 0,
             textTransform: 'none',
             color: theme.ink,
@@ -181,8 +182,8 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
                     border: `1px solid ${theme.border}`,
                     borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     letterSpacing: 0,
                     textTransform: 'none',
                     cursor: 'pointer',
@@ -200,8 +201,8 @@ export function MarkdownEditorModal({ open, initialValue, onSave, onCancel, titl
                     border: `1px solid transparent`,
                     borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-sans)',
-                    fontSize: 13,
-                    fontWeight: 600,
+                    fontSize: OB_TEXT.control,
+                    fontWeight: OB_WEIGHT.emphasis,
                     letterSpacing: 0,
                     textTransform: 'none',
                     cursor: 'pointer',

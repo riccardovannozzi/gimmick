@@ -28,6 +28,7 @@ import { statusMeta } from '@/lib/status-meta';
 import { tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import type { Spark, Status, Tile } from '@/types';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 function toAction(t: Tile): 'timed' | 'allday' | 'notes' {
   if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
@@ -230,7 +231,7 @@ export function TilesLive() {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'var(--ob-subtle)',
-          fontSize: 13,
+          fontSize: OB_TEXT.control,
           fontFamily: 'var(--ob-font-sans)',
         }}
       >
@@ -253,8 +254,8 @@ export function TilesLive() {
             borderBottom: '1px solid var(--ob-line)',
             color: 'var(--ob-accent-text)',
             fontFamily: 'var(--ob-font-mono)',
-            fontSize: 12,
-            fontWeight: 600,
+            fontSize: OB_TEXT.card,
+            fontWeight: OB_WEIGHT.emphasis,
             letterSpacing: '0.04em',
           }}
         >
@@ -287,7 +288,7 @@ export function TilesLive() {
                     padding: '12px 0',
                     textAlign: 'center',
                     color: 'var(--ob-subtle)',
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                     fontFamily: 'var(--ob-font-sans)',
                   }}
                 >

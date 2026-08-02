@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { Field, Button } from '@/components/primitives';
 import { AuthLayout, AuthField, AuthFoot, AuthLink } from '@/components/auth/obsidian-auth';
 import { authApi } from '@/lib/api';
+import { OB_LEADING, OB_TEXT } from '@/lib/theme/ob-typography';
 
 const schema = z.object({
   email: z.string().email('Email non valida'),
@@ -39,7 +40,7 @@ export default function ForgotPasswordPage() {
     <AuthLayout title="Password dimenticata" subtitle="Ti invieremo un link per reimpostarla">
       {submitted ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+          <p style={{ fontSize: OB_TEXT.control, color: 'var(--ob-muted)', margin: 0, lineHeight: OB_LEADING.text}}>
             Se l&apos;email è registrata riceverai a breve un link per reimpostare la password. Controlla anche nello spam.
           </p>
           <AuthFoot><AuthLink href="/login">Torna al login</AuthLink></AuthFoot>

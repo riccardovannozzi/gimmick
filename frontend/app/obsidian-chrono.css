@@ -31,9 +31,9 @@
   padding: 0 16px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line);
 }
 .ob-chrono__header-mascot { width: 30px; height: 30px; border-radius: 8px; background: var(--ob-surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ob-chrono__header-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
-.ob-chrono__header-sub { font-size: 11px; color: var(--ob-subtle); margin-top: 1px; }
-.ob-chrono__header-meta { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ob-muted); }
+.ob-chrono__header-title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-chrono__header-sub { font-size: var(--ob-text-meta); color: var(--ob-subtle); margin-top: 1px; }
+.ob-chrono__header-meta { display: flex; align-items: center; gap: 8px; font-size: var(--ob-text-card); color: var(--ob-muted); }
 .ob-chrono__header-meta-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ob-error); }
 
 /* ── Toolbar ── */
@@ -61,9 +61,9 @@
   background: var(--ob-surface-2);
   color: var(--ob-muted);
   font-family: var(--ob-font-sans);
-  font-size: 12.5px;
-  font-weight: 600;
-  line-height: 1;
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-emphasis);
+  line-height: var(--ob-leading-none);
   letter-spacing: 0;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
@@ -93,16 +93,16 @@
 .ob-chrono__col-rail { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 9px 0; background: transparent; border: none; cursor: pointer; }
 .ob-chrono__col-rail:hover { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
 .ob-chrono__col-rail-icon { display: inline-flex; flex-shrink: 0; }
-.ob-chrono__col-rail-label { writing-mode: vertical-rl; font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-text); }
-.ob-chrono__col-rail-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+.ob-chrono__col-rail-label { writing-mode: vertical-rl; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-text); }
+.ob-chrono__col-rail-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-chrono__colhead-icon { display: inline-flex; flex-shrink: 0; }
-.ob-chrono__colhead-label { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-text); }
-.ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+.ob-chrono__colhead-label { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-text); }
+.ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-chrono__colhead-btns { display: flex; gap: 1px; }
 .ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__colhead-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
 .ob-chrono__colbody { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.ob-chrono__empty { font-size: 11px; color: var(--ob-subtle); padding: 4px; }
+.ob-chrono__empty { font-size: var(--ob-text-meta); color: var(--ob-subtle); padding: 4px; }
 
 /* tile card */
 /* Stile allineato ai tile del canvas: striscia STATUS a sinistra + contenuto
@@ -137,22 +137,22 @@
 /* ── Vista Mese ── */
 .ob-chrono__month { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .ob-chrono__month-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--ob-line); position: sticky; top: 0; background: var(--ob-surface); z-index: 1; }
-.ob-chrono__month-dow { padding: 7px 8px; font-family: var(--ob-font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-subtle); text-align: left; }
+.ob-chrono__month-dow { padding: 7px 8px; font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-subtle); text-align: left; }
 .ob-chrono__month-grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: minmax(84px, 1fr); }
 .ob-chrono__month-cell { border-right: 1px solid var(--ob-line); border-bottom: 1px solid var(--ob-line); padding: 5px 6px; display: flex; flex-direction: column; gap: 4px; min-width: 0; overflow: hidden; }
 .ob-chrono__month-cell:nth-child(7n) { border-right: none; }
 .ob-chrono__month-cell--out { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
 .ob-chrono__month-cell--out .ob-chrono__month-num { color: var(--ob-faint); }
 .ob-chrono__month-cell--today { background: var(--ob-today-bg); }
-.ob-chrono__month-num { font-family: var(--ob-font-sans); font-size: 12px; font-weight: 600; color: var(--ob-muted); }
+.ob-chrono__month-num { font-family: var(--ob-font-sans); font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); }
 .ob-chrono__month-cell--today .ob-chrono__month-num { color: var(--ob-accent); }
 .ob-chrono__month-evs { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ob-chrono__month-ev { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 2px 5px; border-radius: var(--ob-radius-md); background: color-mix(in srgb, var(--ev-c) 14%, transparent); }
 .ob-chrono__month-ev-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ev-c); flex-shrink: 0; }
-.ob-chrono__month-ev-title { flex: 1; min-width: 0; font-family: var(--ob-font-sans); font-size: 11px; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ob-chrono__month-more { font-family: var(--ob-font-sans); font-size: 10px; color: var(--ob-subtle); padding-left: 4px; }
+.ob-chrono__month-ev-title { flex: 1; min-width: 0; font-family: var(--ob-font-sans); font-size: var(--ob-text-meta); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__month-more { font-family: var(--ob-font-sans); font-size: var(--ob-text-meta); color: var(--ob-subtle); padding-left: 4px; }
 
-.ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; }
+.ob-chrono__colsearch { margin: 0 10px 6px; height: 28px; padding: 0 9px; border-radius: var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-control); outline: none; }
 .ob-chrono__colsearch:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
 .ob-chrono__card--clickable { cursor: pointer; }
 .ob-chrono__card--active { box-shadow: inset 0 0 0 2px var(--ob-accent); }
@@ -174,14 +174,14 @@
 .ob-chrono__event-resize { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; border-radius: 0 0 var(--ob-radius-md) var(--ob-radius-md); }
 .ob-chrono__event-resize:hover { background: color-mix(in srgb, var(--ev-c) 45%, transparent); }
 /* Stessa tipografia del titolo tile di canvas/kanban/staging. */
-.ob-chrono__card-title { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: -0.01em; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ob-chrono__card-title { font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-chrono__card-bars { display: flex; gap: 3px; }
 .ob-chrono__card-bar { flex: 1; height: 4px; border-radius: 2px; background: var(--ob-line-2); }
 .ob-chrono__card-bar--on { background: var(--ob-success); }
 .ob-chrono__card-foot { display: flex; align-items: center; gap: 6px; }
 .ob-chrono__card-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--action-c); flex-shrink: 0; }
 .ob-chrono__card-dot--sq { border-radius: 2px; }
-.ob-chrono__card-action { font-size: 10px; font-weight: 600; color: var(--ob-muted); }
+.ob-chrono__card-action { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); }
 .ob-chrono__card-spark { display: inline-flex; flex-shrink: 0; }
 .ob-chrono__card-tag { display: inline-flex; color: var(--card-c); flex-shrink: 0; }
 
@@ -190,14 +190,14 @@
 /* Barra annidata nel pannello calendario: livello 3 della scala → 40. */
 .ob-chrono__cal-head { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
 .ob-chrono__cal-icon { color: var(--ob-muted); display: inline-flex; }
-.ob-chrono__cal-eyebrow { font-size: 10px; font-weight: 600; letter-spacing: 0.13em; color: var(--ob-text); }
-.ob-chrono__cal-range { font-size: 12px; color: var(--ob-muted); }
+.ob-chrono__cal-eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.13em; color: var(--ob-text); }
+.ob-chrono__cal-range { font-size: var(--ob-text-card); color: var(--ob-muted); }
 /* Ingombro esterno 30 come gli altri controlli: 26 di item + 2+2 di padding. */
 .ob-chrono__cal-seg { display: flex; gap: 2px; background: var(--ob-surface-2); border: none; border-radius: var(--ob-radius-sm); padding: 2px; }
-.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: 12.5px; font-weight: 600; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
+.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__cal-seg-item--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
 .ob-chrono__cal-nav { width: 26px; height: 26px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__cal-today { padding: 5px 12px; border-radius: var(--ob-radius-sm); font-size: 12px; font-weight: 500; color: var(--ob-text); border: none; background: transparent; cursor: pointer; }
+.ob-chrono__cal-today { padding: 5px 12px; border-radius: var(--ob-radius-sm); font-size: var(--ob-text-card); font-weight: var(--ob-weight-body); color: var(--ob-text); border: none; background: transparent; cursor: pointer; }
 
 /* day header */
 .ob-chrono__dayhead { display: flex; height: 46px; flex-shrink: 0; border-bottom: 1px solid var(--ob-line); }
@@ -205,15 +205,15 @@
 .ob-chrono__day { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; border-left: 1px solid var(--ob-grid-col); }
 .ob-chrono__day--first { border-left: none; }
 .ob-chrono__day--today { background: var(--ob-today-bg); }
-.ob-chrono__day-dow { font-size: 9.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ob-subtle); }
+.ob-chrono__day-dow { font-size: var(--ob-text-micro); font-weight: var(--ob-weight-body); letter-spacing: 0.13em; text-transform: uppercase; color: var(--ob-subtle); }
 .ob-chrono__day--today .ob-chrono__day-dow { color: var(--ob-accent); }
-.ob-chrono__day-num { font-size: 15px; font-weight: 500; font-family: var(--ob-font-mono); color: var(--ob-text); }
+.ob-chrono__day-num { font-size: var(--ob-text-title); font-weight: var(--ob-weight-body); font-family: var(--ob-font-mono); color: var(--ob-text); }
 .ob-chrono__day--today .ob-chrono__day-num { color: var(--ob-accent); }
 
 /* all-day lane */
 .ob-chrono__allday { display: flex; min-height: 34px; flex-shrink: 0; border-bottom: 1px solid var(--ob-line-2); background: var(--ob-head); }
 .ob-chrono__allday-label { width: 52px; flex-shrink: 0; border-right: 1px solid var(--ob-grid-col); display: flex; align-items: center; justify-content: flex-end; padding: 0 6px; }
-.ob-chrono__allday-label span { font-size: 8px; font-weight: 500; letter-spacing: 0.04em; color: var(--ob-subtle); text-align: right; line-height: 1.1; }
+.ob-chrono__allday-label span { font-size: var(--ob-text-eyebrow); font-weight: var(--ob-weight-body); letter-spacing: 0.13em; color: var(--ob-subtle); text-align: right; line-height: var(--ob-leading-none); }
 .ob-chrono__allday-cell { flex: 1; border-left: 1px solid var(--ob-grid-col); padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .ob-chrono__allday-cell--first { border-left: none; }
 .ob-chrono__allday-cell--today { background: var(--ob-today-bg); }
@@ -224,14 +224,14 @@
 /* Scadenze: etichetta verticale rossa sul bordo sinistro (unico marcatore). */
 .ob-chrono__allday-pill--deadline { padding-left: 9px; }
 .ob-chrono__allday-pill--deadline::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--ob-error); border-radius: var(--ob-radius-md) 0 0 var(--ob-radius-md); }
-.ob-chrono__allday-title { flex: 1; min-width: 0; font-size: 9.5px; font-weight: 400; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-chrono__allday-title { flex: 1; min-width: 0; font-size: var(--ob-text-micro); font-weight: var(--ob-weight-body); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Badge TIPO/STATUS in coda alla pill all-day (riga singola). */
 .ob-chrono__allday-meta { display: inline-flex; flex-shrink: 0; }
 
 /* time grid */
 .ob-chrono__grid { flex: 1; overflow-y: auto; display: flex; }
 .ob-chrono__gutter { width: 52px; flex-shrink: 0; position: relative; border-right: 1px solid var(--ob-grid-col); }
-.ob-chrono__gutter-h { position: absolute; right: 6px; font-size: 9.5px; font-family: var(--ob-font-mono); color: var(--ob-subtle); }
+.ob-chrono__gutter-h { position: absolute; right: 6px; font-size: var(--ob-text-micro); font-family: var(--ob-font-mono); color: var(--ob-subtle); }
 .ob-chrono__grid-days { flex: 1; display: flex; position: relative; }
 .ob-chrono__daycol { flex: 1; position: relative; border-left: 1px solid var(--ob-grid-col); min-width: 0; }
 .ob-chrono__daycol--first { border-left: none; }
@@ -265,7 +265,7 @@
 /* Righe del titolo = quante ne stanno nell'altezza del blocco (--title-lines,
    impostata inline); l'ellissi cade sempre sull'ultima riga visibile invece di
    tagliare il testo a metà. */
-.ob-chrono__event-title { font-size: 9.5px; font-weight: 400; color: var(--ob-text); line-height: 12px; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--title-lines, 2); word-break: break-word; }
+.ob-chrono__event-title { font-size: var(--ob-text-micro); font-weight: var(--ob-weight-body); color: var(--ob-text); line-height: var(--ob-leading-tight); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--title-lines, 2); word-break: break-word; }
 /* Meta-row (TIPO + STATUS) dell'evento: in basso a destra, sopra la maniglia di resize. */
 .ob-chrono__event-meta { position: absolute; right: 4px; bottom: 4px; display: inline-flex; pointer-events: none; z-index: 1; }
 /* Negli eventi bassi (tiny) c'è spazio per una sola riga: troncamento inline. */
@@ -273,14 +273,14 @@
 /* Su blocco a riga singola i badge TIPO/STATUS stanno inline in coda alla riga,
    non ancorati in basso a destra (non ci sarebbe spazio verticale). */
 .ob-chrono__event--tiny .ob-chrono__event-meta { position: static; right: auto; bottom: auto; flex-shrink: 0; }
-.ob-chrono__event-time { font-size: 8.5px; font-family: var(--ob-font-mono); color: var(--ev-c); flex-shrink: 0; }
+.ob-chrono__event-time { font-size: var(--ob-text-eyebrow); font-family: var(--ob-font-mono); color: var(--ev-c); flex-shrink: 0; }
 [data-theme='dark'] .ob-chrono__event-time { color: var(--ob-muted); }
 .ob-chrono__now { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid var(--ob-accent); z-index: 5; }
 .ob-chrono__now-dot { position: absolute; left: -3px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-accent); }
 
 /* ── Menu contestuale (tasto destro su card/evento): Copia · Incolla · Apri flow · Elimina ── */
 .ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); box-shadow: var(--ob-shadow-card); }
-.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12px; line-height: 1.2; }
+.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); }
 .ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
 .ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
 .ob-ctx__item--danger { color: var(--ob-error); }

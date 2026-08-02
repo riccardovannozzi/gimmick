@@ -5,6 +5,7 @@ import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconL
 import { usePixelTheme } from '@/components/pixel';
 import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
+import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
 function ToolbarToggle({ icon, label, active, onClick }: {
   icon: React.ReactNode;
@@ -60,11 +61,11 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   const theme = usePixelTheme();
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
-  const chipFontSize = 12.5;
+  const chipFontSize = OB_TEXT.control;
   // Linguetta = controllo → raggio sm (i due soli valori vivono in obsidian.css).
   const chipRadius = 'var(--ob-radius-sm)';
   const chipTransform: 'none' | 'uppercase' = 'none';
-  const chipWeight = 600;
+  const chipWeight = OB_WEIGHT.emphasis;
   // Forma "linguetta": angoli superiori arrotondati, base piatta appoggiata sulla
   // linea inferiore della barra (tab-strip). Più alta dei 30 degli altri controlli,
   // altrimenti non si legge come tab.
@@ -259,7 +260,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 background: theme.surface,
                 border: `${chipBorderW}px solid ${theme.border}`,
                 borderRadius: 'var(--ob-radius-sm)',
-                color: '#E24B4A',
+                color: 'var(--ob-danger)',
                 cursor: 'pointer',
               }}
               title="Rimuovi dal pin"

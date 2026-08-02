@@ -25,7 +25,10 @@ export function ObsidianViewsTabHost({ view }: { view: MobileViewId }) {
 
   return (
     <ObsidianViewsScreenLive
-      initial={view}
+      // CONTROLLATA, non solo iniziale: le schermate dei tab restano montate in
+      // sottofondo, e con la sola forma interna questa istanza si portava dietro
+      // la vista scelta l'ultima volta — disabilitando le proprie query.
+      active={view}
       onActiveChange={(id) => {
         if (id !== view) router.replace(ROUTE_FOR[id] as never);
       }}

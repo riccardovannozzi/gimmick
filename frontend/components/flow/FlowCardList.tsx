@@ -31,6 +31,7 @@ import { ContactCombobox } from './ContactCombobox';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { usePixelTheme } from '@/components/pixel';
 import type { FlowNode, FlowNodeState } from '@/types/flow';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 const STATUSES: Exclude<FlowNodeState, 'active'>[] = ['done', 'wait', 'undo', 'stop'];
 const STATUS_SHORT: Record<Exclude<FlowNodeState, 'active'>, string> = {
@@ -71,7 +72,7 @@ export function FlowCardList({ tileId }: Props) {
 
   if (isLoading) {
     return (
-      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: theme.ink3, padding: 12 }}>
+      <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, color: theme.ink3, padding: 12 }}>
         Caricamento flow...
       </p>
     );
@@ -83,7 +84,7 @@ export function FlowCardList({ tileId }: Props) {
         <p
           style={{
             fontFamily: 'var(--ob-font-mono)',
-            fontSize: 9,
+            fontSize: OB_TEXT.micro,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink3,
@@ -133,8 +134,8 @@ export function FlowCardList({ tileId }: Props) {
           border: `1px dashed ${theme.border}`,
           borderRadius: 'var(--ob-radius-sm)',
           fontFamily: 'var(--ob-font-sans)',
-          fontSize: 12.5,
-          fontWeight: 600,
+          fontSize: OB_TEXT.control,
+          fontWeight: OB_WEIGHT.emphasis,
           letterSpacing: 0,
           textTransform: 'none',
           cursor: addNode.isPending ? 'not-allowed' : 'pointer',
@@ -256,8 +257,8 @@ function FlowCard({
             background: 'transparent',
             color: theme.ink,
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 12,
-            lineHeight: 1.3,
+            fontSize: OB_TEXT.card,
+            lineHeight: OB_LEADING.tight,
             resize: 'none',
             outline: 'none',
             border: 'none',
@@ -272,7 +273,7 @@ function FlowCard({
           }}
           style={{
             padding: 2,
-            background: confirmDelete ? '#E24B4A' : 'transparent',
+            background: confirmDelete ? 'var(--ob-danger)' : 'transparent',
             color: confirmDelete ? '#FFFFFF' : theme.ink3,
             border: confirmDelete ? `2px solid ${theme.border}` : 'none',
             cursor: 'pointer',
@@ -378,7 +379,7 @@ function StatusChip({
       {Icon ? (
         <Icon size={13} style={{ color: active ? theme.onAccent : color }} stroke={2.5} />
       ) : (
-        <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3, lineHeight: 1 }}>—</span>
+        <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta, color: theme.ink3, lineHeight: OB_LEADING.none }}>—</span>
       )}
     </button>
   );
@@ -416,7 +417,7 @@ function ContactChip({
         border: `1px solid ${theme.border}`,
         borderRadius: 'var(--ob-radius-sm)',
         fontFamily: 'var(--ob-font-sans)',
-        fontSize: 11,
+        fontSize: OB_TEXT.meta,
         cursor: 'pointer',
       }}
     >
@@ -460,7 +461,7 @@ function DateChip({
         border: `1px solid ${theme.border}`,
         borderRadius: 'var(--ob-radius-sm)',
         fontFamily: 'var(--ob-font-sans)',
-        fontSize: 11,
+        fontSize: OB_TEXT.meta,
         cursor: 'pointer',
       }}
     >
@@ -503,7 +504,7 @@ function StatusEditor({
               borderRadius: 'var(--ob-radius-sm)',
               color: isActive ? '#000000' : theme.ink,
               fontFamily: 'var(--ob-font-mono)',
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
@@ -572,7 +573,7 @@ function DateEditor({
             height: 36,
             color: theme.ink,
             fontFamily: 'var(--ob-font-sans)',
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
             outline: 'none',
           }}
         />
@@ -586,12 +587,12 @@ function DateEditor({
               padding: '0 10px',
               height: 36,
               background: theme.surface,
-              color: '#E24B4A',
+              color: 'var(--ob-danger)',
               border: `1px solid ${theme.border}`,
               borderRadius: 'var(--ob-radius-sm)',
               cursor: 'pointer',
               fontFamily: 'var(--ob-font-sans)',
-              fontSize: 14,
+              fontSize: OB_TEXT.title,
             }}
             title="Cancella"
           >
@@ -639,7 +640,7 @@ function MiniCalendar({
     borderRadius: 'var(--ob-radius-sm)',
     cursor: 'pointer',
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 14,
+    fontSize: OB_TEXT.title,
   };
   return (
     <div style={{ background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)', padding: 8 }}>
@@ -649,7 +650,7 @@ function MiniCalendar({
         <span
           style={{
             fontFamily: 'var(--ob-font-mono)',
-            fontSize: 10,
+            fontSize: OB_TEXT.meta,
             letterSpacing: '0.08em',
             textTransform: 'uppercase',
             color: theme.ink,
@@ -666,7 +667,7 @@ function MiniCalendar({
             key={i}
             style={{
               fontFamily: 'var(--ob-font-mono)',
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -697,8 +698,8 @@ function MiniCalendar({
                 border: isTd && !isSel ? `1px solid ${theme.accent}` : `1px solid transparent`,
                 borderRadius: 'var(--ob-radius-sm)',
                 fontFamily: 'var(--ob-font-sans)',
-                fontSize: 11,
-                fontWeight: isSel ? 700 : 400,
+                fontSize: OB_TEXT.meta,
+                fontWeight: isSel ? OB_WEIGHT.mono : OB_WEIGHT.body,
                 cursor: 'pointer',
               }}
             >

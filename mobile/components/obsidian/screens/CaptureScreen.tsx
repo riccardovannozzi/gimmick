@@ -1016,7 +1016,9 @@ export function ObsidianCaptureScreen({
       )}
 
       {/* Overlays */}
-      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} />
+      {/* Niente `onHome`: siamo GIÀ sulla home, quindi la riga resta come sola
+          identità e non porta dove si è già. */}
+      <ObsidianDrawer open={drawer} onClose={() => setDrawer(false)} onNavigateView={onNavigateView} onSettings={onSettings} onAsk={onAsk} />
       <VoiceSheet open={voice} onClose={() => setVoice(false)} />
     </View>
   );

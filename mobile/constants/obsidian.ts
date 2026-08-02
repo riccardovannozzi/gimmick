@@ -145,6 +145,17 @@ export const obsidianDark: ObsidianColors = {
 };
 
 /**
+ * Rosso di "elimina" (dp-independent) — mirror di `--ob-danger`
+ * (web: app/obsidian.css, lib/theme/obsidian.ts).
+ *
+ * DISTINTO da `error` dei due temi, che segnala uno stato e cambia col tema:
+ * questo è il colore di un COMANDO e resta identico in chiaro e scuro.
+ * Da usare in `SwipeToDelete` e nella variante `danger` di `ui/Button`, che oggi
+ * lo ripetono a mano.
+ */
+export const OB_DANGER = '#E24B4A';
+
+/**
  * Altezza della PRIMA barra di una schermata (dp) — mirror di
  * `--ob-toolbar-height` (web: app/obsidian.css, lib/theme/obsidian.ts).
  *

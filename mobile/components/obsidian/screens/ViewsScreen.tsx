@@ -6,7 +6,7 @@
  * flow / event colors come from the canonical scale.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput, Image, PanResponder } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, TextInput, PanResponder } from 'react-native';
 import {
   IconBolt, IconTag, IconCategory, IconCircleCheck, IconChevronDown, IconTrash,
   IconHourglass, IconArrowBackUp, IconCheck, IconX, IconUser,
@@ -25,6 +25,8 @@ import {
 } from '@/constants/tile-colors';
 import type { ObTileVM, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
 import type { FlowHubFilter } from '@/types';
+import { PreviewImage } from '../PreviewImage';
+import { SwipeToDelete } from '../SwipeToDelete';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { ObsidianAppHeader } from '../AppHeader';
@@ -133,7 +135,14 @@ const STATUS_FILTER_LABEL: Record<string, string> = {
   active: 'Attivo', done: 'Completato', paused: 'In pausa', blocked: 'Bloccato', cancelled: 'Annullato',
 };
 
-/** Pulsante icona della barra (Filtra / Ordina). `on` = criterio attivo. */
+/**
+ * Pulsante icona della barra (Filtra / Ordina). `on` = criterio attivo.
+ *
+ * Senza fondo: resta il solo glifo. A dire che un criterio è attivo bastano il
+ * COLORE d'accento e il contatore — il riquadro tinto era un terzo segnale per
+ * la stessa cosa. L'area sensibile resta 42×42, invariata: è la superficie
+ * dipinta a sparire, non quella toccabile.
+ */
 function ToolBtn({ c, Icon, label, on, count, onPress }: {
   c: ObsidianColors; Icon: typeof IconTag; label: string; on?: boolean; count?: number; onPress?: () => void;
 }) {
@@ -141,8 +150,10 @@ function ToolBtn({ c, Icon, label, on, count, onPress }: {
     <Pressable
       onPress={onPress}
       accessibilityLabel={label}
-      android_ripple={{ color: c.accent + '22' }}
-      style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.accent + '2E' : c.surface2 }}
+      // `borderless`: senza fondo l'onda quadrata disegnerebbe il riquadro che
+      // abbiamo tolto, e riapparirebbe a ogni tocco.
+      android_ripple={{ color: c.accent + '22', borderless: true }}
+      style={{ width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }}
     >
       <Icon size={19} color={on ? c.accent : c.text} strokeWidth={1.8} />
       {count ? (
@@ -168,6 +179,10 @@ function ToggleChip({ c, label, on, color, onPress }: { c: ObsidianColors; label
     </Pressable>
   );
 }
+
+/** Altezza delle anteprime nella card. Nel dettaglio tile sono più alte: là lo
+ *  spazio c'è, qui la riga deve restare compatta. */
+const PREVIEW_H = 60;
 
 function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
   const action = actionKey(t);
@@ -237,16 +252,21 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
             {t.title}
           </Text>
 
-          {/* Anteprima del contenuto. Stessa resa dello spark della homepage
-              (CaptureScreen.SparkRow): tutta larghezza, alta 72, ritagliata in
-              cover. Compare solo a URL firmato risolto — finché arriva non si
-              lascia un vuoto, la card resta quella senza anteprima. */}
-          {t.previewUri ? (
-            <Image
-              source={{ uri: t.previewUri }}
-              style={{ width: '100%', height: 72, borderRadius: 8, marginTop: 10 }}
-              resizeMode="cover"
-            />
+          {/* Anteprime del contenuto: fino a tre immagini INTERE alte 60, poi il
+              contatore. Prima era una sola a tutta larghezza, alta 72 e tagliata
+              in cover: di un ritratto restava una fascia centrale, e le altre
+              foto del tile non si sospettavano nemmeno.
+              Compaiono solo a URL firmato risolto — finché arriva non si lascia
+              un vuoto, la card resta quella senza anteprima. */}
+          {t.previewUris?.length ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+              {t.previewUris.map((uri) => <PreviewImage key={uri} c={c} uri={uri} height={PREVIEW_H} />)}
+              {t.previewMore ? (
+                <View style={{ height: PREVIEW_H, minWidth: 40, paddingHorizontal: 10, borderRadius: 8, backgroundColor: c.dark ? 'rgba(255,255,255,0.07)' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: c.muted }}>+{t.previewMore}</Text>
+                </View>
+              ) : null}
+            </View>
           ) : t.previewFile ? (
             /* Allegato senza miniatura (PDF, DOCX…): icona + nome, come fa la
                homepage quando il mime non è image/*. */
@@ -290,9 +310,11 @@ function normSearch(s: string): string {
   return s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 }
 
-function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds }: {
+function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onDeleteTile, onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds }: {
   c: ObsidianColors; tiles?: Tile[]; actionColors?: Record<TileActionKey, string>;
   loading?: boolean; onOpenTile?: (id: string) => void;
+  /** Elimina un tile. Omesso → niente scorri-per-eliminare (mockup QA). */
+  onDeleteTile?: (id: string) => void;
   /** Lancia la ricerca semantica (embedding) sul testo digitato. */
   onAiSearch?: (q: string) => void;
   onClearAiSearch?: () => void;
@@ -308,6 +330,10 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onAiSearch,
   const [filters, setFilters] = React.useState<TileFilters>(EMPTY_FILTERS);
   const [filterOpen, setFilterOpen] = React.useState(false);
   const [sortOpen, setSortOpen] = React.useState(false);
+  /** Card scorsa che mostra il cestino. Una sola per volta. */
+  const [swiped, setSwiped] = React.useState<string | null>(null);
+  /** Campo di ricerca a fuoco: fa comparire la bacchetta AI. */
+  const [searchFocused, setSearchFocused] = React.useState(false);
 
   const activeFilters = filters.action.length + filters.tag.length + filters.type.length + filters.status.length;
   const toggle = (dim: keyof TileFilters, value: string) =>
@@ -363,15 +389,24 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onAiSearch,
   return (
     <View style={{ flex: 1 }}>
       {/* Barra strumenti: Filtra · Ordina · ricerca testuale (con AI). */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+      {/* Il respiro sopra e sotto è cresciuto (12/8 → 20/16). Con i fondi dei
+          pulsanti tolti, la barra non ha più una forma propria a separarla da
+          navbar e lista: a tenerla distinta resta solo il vuoto attorno. */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16 }}>
         <ToolBtn c={c} Icon={IconFilter} label="Filtra" on={activeFilters > 0} count={activeFilters} onPress={() => setFilterOpen(true)} />
         <ToolBtn c={c} Icon={IconArrowsSort} label="Ordina" on={sort !== 'recent'} onPress={() => setSortOpen(true)} />
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, height: 42, borderRadius: 12, paddingLeft: 11, paddingRight: 5, backgroundColor: c.surface2 }}>
+        {/* Campo di ricerca senza fondo: lente, testo e bacchetta appoggiati
+            alla pagina. Il rientro a sinistra scende da 11 a 2 — serviva a
+            staccare il contenuto dal bordo del riquadro, e senza riquadro
+            allontanava la lente dai due glifi accanto senza motivo. */}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6, height: 42, paddingLeft: 2, paddingRight: 0 }}>
           <IconSearch size={16} color={c.subtle} strokeWidth={1.9} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             onSubmitEditing={runAi}
+            onFocus={() => setSearchFocused(true)}
+            onBlur={() => setSearchFocused(false)}
             returnKeyType="search"
             placeholder="Cerca…"
             placeholderTextColor={c.subtle}
@@ -383,16 +418,28 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onAiSearch,
             </Pressable>
           ) : null}
           {/* Bacchetta AI: ricerca semantica sul contenuto degli spark, non solo
-              sul titolo del tile. */}
+              sul titolo del tile. Compare entrando nel campo e sparisce
+              uscendone — a riposo la barra resta due glifi e una riga di testo.
+              La condizione NON è il solo fuoco: toccando la bacchetta il campo
+              perde il fuoco PRIMA che il tocco arrivi, quindi con `searchFocused`
+              da solo il pulsante si smonterebbe sotto il dito e la pressione non
+              atterrerebbe mai. Con del testo scritto resta comunque visibile —
+              che è poi l'unico momento in cui serve davvero. */}
+          {searchFocused || query.length > 0 ? (
           <Pressable
             onPress={runAi}
             disabled={!query.trim() || aiSearching}
             accessibilityLabel="Cerca con AI"
             android_ripple={{ color: c.accent + '33', borderless: true }}
-            style={{ width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: aiQuery ? c.accent : c.accent + '2E', opacity: query.trim() && !aiSearching ? 1 : 0.5 }}
+            // Il fondo pieno resta SOLO a ricerca AI attiva: lì non è decorazione
+            // ma lo stato acceso, l'unica cosa che distingue "puoi cercare" da
+            // "stai già guardando un risultato AI". A riposo è un glifo e basta,
+            // come gli altri due della barra.
+            style={{ width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: aiQuery ? c.accent : 'transparent', opacity: query.trim() && !aiSearching ? 1 : 0.5 }}
           >
             <IconSparkles size={16} color={aiQuery ? c.accentInk : c.accent} strokeWidth={1.9} />
           </Pressable>
+          ) : null}
         </View>
       </View>
 
@@ -418,7 +465,23 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onAiSearch,
           <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>
             {data.length === 0 ? 'Nessun tile.' : 'Nessun tile per questi criteri.'}
           </Text>
-        ) : visible.map((t) => <TileCard key={t.id} c={c} t={t} actionColors={colors} onPress={onOpenTile} />)}
+        ) : visible.map((t) => (
+          // Scorri a sinistra per eliminare, e solo dove l'eliminazione è
+          // collegata: nel mockup QA la card resta ferma invece di scoprire un
+          // cestino finto.
+          onDeleteTile ? (
+            <SwipeToDelete
+              key={t.id}
+              open={swiped === t.id}
+              onOpenChange={(o) => setSwiped(o ? t.id : null)}
+              onDelete={() => { setSwiped(null); onDeleteTile(t.id); }}
+            >
+              <TileCard c={c} t={t} actionColors={colors} onPress={onOpenTile} />
+            </SwipeToDelete>
+          ) : (
+            <TileCard key={t.id} c={c} t={t} actionColors={colors} onPress={onOpenTile} />
+          )
+        ))}
       </ScrollView>
 
       {/* Pannello ORDINA */}
@@ -1006,6 +1069,8 @@ export interface ObsidianViewsScreenProps {
   aiTileIds?: string[] | null;
   tilesLoading?: boolean;
   onOpenTile?: (id: string) => void;
+  /** Elimina un tile (scorri-per-eliminare). Omesso → il gesto non c'è. */
+  onDeleteTile?: (id: string) => void;
   /** Flows tab — live rows (pre-mapped via flowHubItemToVM). Omit for the mock. */
   flows?: ObFlowVM[];
   flowsLoading?: boolean;
@@ -1057,7 +1122,7 @@ function ErrorBanner({ c, text }: { c: ObsidianColors; text: string }) {
 
 export function ObsidianViewsScreen({
   initial = 'tiles', active: activeProp, onActiveChange,
-  tiles, actionColors, tilesLoading, onOpenTile,
+  tiles, actionColors, tilesLoading, onOpenTile, onDeleteTile,
   onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds,
   flows, flowsLoading, flowFilter, onFlowFilter, onOpenFlow,
   chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday, chronoDate,
@@ -1085,6 +1150,7 @@ export function ObsidianViewsScreen({
         onMenu={() => setDrawer(true)}
         onNavigateView={setActive}
         onAsk={onAsk}
+        onHome={onHome}
       />
       {errorText ? <ErrorBanner c={c} text={errorText} /> : null}
       {active === 'tiles' && (
@@ -1094,6 +1160,7 @@ export function ObsidianViewsScreen({
           actionColors={actionColors}
           loading={tilesLoading}
           onOpenTile={onOpenTile}
+          onDeleteTile={onDeleteTile}
           onAiSearch={onAiSearch}
           onClearAiSearch={onClearAiSearch}
           aiQuery={aiQuery}
@@ -1113,6 +1180,7 @@ export function ObsidianViewsScreen({
         onNavigateView={setActive}
         onSettings={() => setActive('settings')}
         onHome={onHome}
+        onAsk={onAsk}
       />
     </View>
   );

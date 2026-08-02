@@ -10,12 +10,12 @@
 /* ── Toolbar (header + filters) ── */
 .ob-flows__toolbar { height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
 .ob-flows__mascot { width: 34px; height: 34px; border-radius: 10px; background: var(--ob-surface-2); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ob-flows__title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
-.ob-flows__sub { font-size: 11px; color: var(--ob-subtle); }
+.ob-flows__title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-flows__sub { font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-flows__filter {
   display: flex; align-items: center; gap: 6px;
   height: 32px; padding: 0 12px; border-radius: var(--ob-radius-sm);
-  font-size: 12.5px; font-weight: 600; color: var(--st-c);
+  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--st-c);
   background: color-mix(in srgb, var(--st-c) 11%, transparent);
   border: 1px solid color-mix(in srgb, var(--st-c) 26%, transparent);
   cursor: pointer;
@@ -43,12 +43,12 @@
 [data-theme='dark'] .ob-flows__lane { background: #141414; }
 .ob-flows__lane-head { height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; }
 .ob-flows__lane-badge { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); background: color-mix(in srgb, var(--st-c) 16%, transparent); display: flex; align-items: center; justify-content: center; color: var(--st-c); flex-shrink: 0; }
-.ob-flows__lane-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--ob-text); }
-.ob-flows__lane-count { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+.ob-flows__lane-label { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-text); }
+.ob-flows__lane-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-flows__lane-add { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
 .ob-flows__lane-add:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
 .ob-flows__lane-body { flex: 1; overflow-y: auto; padding: 4px 10px 12px; }
-.ob-flows__empty { padding: 24px 0; text-align: center; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; color: var(--ob-faint); }
+.ob-flows__empty { padding: 24px 0; text-align: center; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.08em; color: var(--ob-faint); }
 
 /* ── Flow card (riga orizzontale a piena larghezza) ──
    Layout in una riga che usa lo spazio della lane allargata; in lane strette
@@ -57,19 +57,19 @@
 .ob-flows__card { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); padding: 12px 14px; margin-bottom: 10px; }
 .ob-flows__card-badge { width: 28px; height: 28px; border-radius: 50%; background: color-mix(in srgb, var(--st-c) 16%, transparent); display: flex; align-items: center; justify-content: center; color: var(--st-c); flex-shrink: 0; }
 .ob-flows__card-main { flex: 1 1 200px; min-width: 0; }
-.ob-flows__card-tag { font-family: var(--ob-font-mono); font-size: 10px; font-weight: 600; color: var(--ob-accent); margin-bottom: 3px; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ob-flows__card-title { font-size: 14px; font-weight: 600; color: var(--ob-text); line-height: 1.3; }
+.ob-flows__card-tag { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); margin-bottom: 3px; letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-flows__card-title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); line-height: var(--ob-leading-tight); }
 .ob-flows__card-action { display: flex; align-items: center; gap: 8px; flex: 1 1 240px; min-width: 0; padding: 7px 10px; background: var(--ob-surface-2); border-radius: var(--ob-radius-sm); }
-.ob-flows__card-action-text { font-size: 12px; color: var(--ob-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-flows__card-action-text { font-size: var(--ob-text-card); color: var(--ob-muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-flows__card-arrow { color: var(--ob-faint); display: inline-flex; flex-shrink: 0; }
 .ob-flows__card-who { display: flex; align-items: center; gap: 5px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-sm); padding: 3px 8px; flex-shrink: 0; }
 .ob-flows__card-who-icon { color: var(--ob-subtle); display: inline-flex; }
-.ob-flows__card-who-name { font-size: 11px; font-weight: 600; color: var(--ob-muted); white-space: nowrap; }
+.ob-flows__card-who-name { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); white-space: nowrap; }
 .ob-flows__card-meta { display: flex; align-items: center; gap: 10px; margin-left: auto; flex-shrink: 0; }
-.ob-flows__card-date { font-family: var(--ob-font-mono); font-size: 11px; color: var(--ob-subtle); }
+.ob-flows__card-date { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 
 /* Badge "giorni di ritardo" — la cosa più evidente della card. */
-.ob-flows__card-delay { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-family: var(--ob-font-mono); font-size: 11.5px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.ob-flows__card-delay { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); line-height: var(--ob-leading-none); white-space: nowrap; }
 .ob-flows__card-delay--none { color: var(--ob-subtle); background: color-mix(in srgb, var(--ob-text) 6%, transparent); }
 .ob-flows__card-delay--low { color: var(--ob-muted); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
 .ob-flows__card-delay--mid { color: var(--ob-warning); background: color-mix(in srgb, var(--ob-warning) 16%, transparent); border: 1px solid color-mix(in srgb, var(--ob-warning) 32%, transparent); }

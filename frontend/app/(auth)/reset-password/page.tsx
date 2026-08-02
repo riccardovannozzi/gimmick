@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 import { Field, Button } from '@/components/primitives';
 import { AuthLayout, AuthField } from '@/components/auth/obsidian-auth';
 import { authApi, getAccessToken } from '@/lib/api';
+import { OB_LEADING, OB_TEXT } from '@/lib/theme/ob-typography';
 
 const schema = z.object({
   new_password: z.string().min(6, 'Almeno 6 caratteri'),
@@ -63,7 +64,7 @@ export default function ResetPasswordPage() {
     <AuthLayout title="Nuova password">
       {missingToken ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <p style={{ fontSize: 13, color: 'var(--ob-muted)', margin: 0, lineHeight: 1.55 }}>
+          <p style={{ fontSize: OB_TEXT.control, color: 'var(--ob-muted)', margin: 0, lineHeight: OB_LEADING.text}}>
             Il link di reset non è più valido o è già stato utilizzato. Richiedine uno nuovo.
           </p>
           <Button variant="primary" onClick={() => router.push('/forgot-password')} style={{ width: '100%' }}>

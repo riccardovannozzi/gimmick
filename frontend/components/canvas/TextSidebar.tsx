@@ -20,6 +20,7 @@ import {
   IconMinus, IconPlus,
 } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { ColorField, GROUP_BG_PALETTE } from '@/components/canvas/GroupSidebar';
 
 // Dimensione font: scatti di 1 px alla volta, entro questi limiti.
@@ -73,10 +74,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
     editor.view.dom.style.fontSize = `${fontSize}px`;
   }, [fontSize, editor]);
 
-  const eyebrow: React.CSSProperties = {
-    fontFamily: 'var(--ob-font-mono)', fontSize: 8, fontWeight: 700,
-    letterSpacing: '0.08em', textTransform: 'uppercase', color: theme.ink3,
-  };
+  const eyebrow = obLabel(theme);
 
   const ToolBtn = ({ onClick, active, title, children }: {
     onClick: () => void; active?: boolean; title: string; children: React.ReactNode;
@@ -157,7 +155,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
           {open ? <IconLayoutSidebarRightCollapse size={16} /> : <IconLayoutSidebarRightExpand size={16} />}
         </button>
         {open && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis }}>
             <IconNote size={15} style={{ color: theme.accent }} />
             Testo
           </div>
@@ -204,7 +202,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
                 <div style={{
                   flex: 1, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-sm)',
-                  color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: 11,
+                  color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta,
                 }}>
                   {fontSize} px
                 </div>
@@ -238,8 +236,8 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
               // Senza contorno resterebbe testo nudo: prende il fondo degli altri
               // oggetti della sidebar, così continua a leggersi come pulsante.
               width: '100%', padding: '9px 12px', background: theme.bg1,
-              border: 'none', borderRadius: 'var(--ob-radius-sm)', color: '#E24B4A',
-              fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, cursor: 'pointer', flexShrink: 0,
+              border: 'none', borderRadius: 'var(--ob-radius-sm)', color: 'var(--ob-danger)',
+              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer', flexShrink: 0,
             }}
           >
             <IconTrash size={14} />

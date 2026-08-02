@@ -25,6 +25,7 @@ import { BENIAMINO_NAMES, BENIAMINO_META, type BeniaminoName } from './sprites';
 import { BENIAMINO_ROSTER } from './roster';
 import { Modal } from '@/components/primitives/overlays';
 import { Button, IconButton, Toggle, SegmentedControl, Field } from '@/components/primitives';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 import {
   useCardRoster, DEFAULT_SOUND_BASE, SUPPORTED_AUDIO_EXTS,
   type MascotFrequency, type MascotSoundConfig,
@@ -151,15 +152,15 @@ function MascotCard({ name, onOpen }: { name: BeniaminoName; onOpen: () => void 
         <Beniamino name={name} size={42} title="" />
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 14, fontWeight: 600, color: 'var(--ob-text)' }}>
+        <div style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.title, fontWeight: OB_WEIGHT.emphasis, color: 'var(--ob-text)' }}>
           {meta.label}
         </div>
-        <div style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9.5, letterSpacing: '0.08em', color: 'var(--ob-accent)', marginTop: 2 }}>
+        <div style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, letterSpacing: '0.08em', color: 'var(--ob-accent)', marginTop: 2 }}>
           {meta.role}
         </div>
         <div
           style={{
-            fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: 'var(--ob-subtle)', marginTop: 4,
+            fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, color: 'var(--ob-subtle)', marginTop: 4,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
           }}
         >
@@ -201,12 +202,12 @@ function MascotDetail({ name }: { name: BeniaminoName }) {
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <DetailField label="Descrizione">
-            <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 13, lineHeight: 1.45, color: 'var(--ob-text)' }}>
+            <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, lineHeight: OB_LEADING.text, color: 'var(--ob-text)' }}>
               {entry.description}
             </span>
           </DetailField>
           <DetailField label="Apparizione">
-            <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 13, color: 'var(--ob-text)' }}>
+            <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: 'var(--ob-text)' }}>
               {entry.where}
             </span>
           </DetailField>
@@ -221,7 +222,7 @@ function MascotDetail({ name }: { name: BeniaminoName }) {
               background: 'var(--ob-accent-soft)',
               border: '1px solid color-mix(in srgb, var(--ob-accent) 20%, transparent)',
               borderRadius: 'var(--ob-radius-md)',
-              fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontStyle: 'italic',
+              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontStyle: 'italic',
               color: 'var(--ob-accent-text)',
             }}
           >
@@ -245,7 +246,7 @@ function MascotDetail({ name }: { name: BeniaminoName }) {
 function DetailField({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9.5, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ob-subtle)', marginBottom: 5 }}>
+      <div style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ob-subtle)', marginBottom: 5 }}>
         {label}
       </div>
       {children}
@@ -265,14 +266,14 @@ function SettingsSection({ label, children }: { label: string; children: React.R
         display: 'flex', flexDirection: 'column', gap: 12,
       }}
     >
-      <div style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600, color: 'var(--ob-text)' }}>{label}</div>
+      <div style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis, color: 'var(--ob-text)' }}>{label}</div>
       {children}
     </div>
   );
 }
 
-const subText: React.CSSProperties = { fontFamily: 'var(--ob-font-sans)', fontSize: 12, color: 'var(--ob-subtle)', margin: 0 };
-const inlineLabel: React.CSSProperties = { fontFamily: 'var(--ob-font-sans)', fontSize: 13, color: 'var(--ob-text)', display: 'inline-flex', alignItems: 'center', gap: 8 };
+const subText: React.CSSProperties = { fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, color: 'var(--ob-subtle)', margin: 0 };
+const inlineLabel: React.CSSProperties = { fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: 'var(--ob-text)', display: 'inline-flex', alignItems: 'center', gap: 8 };
 
 function KronSettings() {
   const { getKron, updateKron } = useCardRoster();
@@ -394,7 +395,7 @@ function FlockySettings() {
 
 function ModeRadio({ checked, label, onChange }: { checked: boolean; label: string; onChange: () => void }) {
   return (
-    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontFamily: 'var(--ob-font-sans)', fontSize: 13, color: 'var(--ob-text)' }}>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 9, cursor: 'pointer', fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: 'var(--ob-text)' }}>
       <span
         style={{
           width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
@@ -522,7 +523,7 @@ function SoundSection({
         <span style={{ ...subText, marginLeft: 4 }}>{isCustom ? 'file personalizzato attivo' : 'file di default'}</span>
         <input ref={fileInputRef} type="file" accept="audio/*" onChange={handlePick} style={{ display: 'none' }} />
       </div>
-      {uploadError && <p style={{ ...subText, color: 'var(--ob-danger, #E24B4A)' }}>{uploadError}</p>}
+      {uploadError && <p style={{ ...subText, color: 'var(--ob-danger)' }}>{uploadError}</p>}
     </SettingsSection>
   );
 }

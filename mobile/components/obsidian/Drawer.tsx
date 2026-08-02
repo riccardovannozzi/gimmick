@@ -11,7 +11,7 @@
  */
 import React from 'react';
 import { Animated, Image, Modal, Pressable, ScrollView, Text, View, useWindowDimensions, type TextStyle, type ViewStyle } from 'react-native';
-import { IconSettings, IconRoute } from '@tabler/icons-react-native';
+import { IconSettings, IconRoute, IconLayoutGrid, IconCalendarTime, IconSparkles } from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H } from '@/constants/obsidian';
@@ -43,13 +43,17 @@ const DRAWER_MARGIN_V = 22;
 const DRAWER_RADIUS = 22;
 
 /**
- * Tiles e Chrono NON sono qui: hanno un quadrato proprio nella navbar
- * (`HeaderActions` in AppHeader.tsx), raggiungibile da qualsiasi finestra senza
- * aprire il menu. Restano nel Drawer le destinazioni che si visitano di rado.
- * Se una vista torna in navbar o ne esce, va spostata di conseguenza — averla
- * in due posti la fa sembrare due cose diverse.
+ * Tutte le destinazioni, nello stesso ordine della navbar.
+ *
+ * Tiles e Chrono stanno ANCHE qui pur avendo un quadrato proprio in
+ * `HeaderActions`. È una duplicazione voluta: il menu diventa l'elenco completo
+ * di dove si può andare, invece del posto dove finisce quello che non è entrato
+ * in navbar — e chi apre il menu cercando "Tiles" lo trova, senza doversi
+ * ricordare che quella vista si raggiunge da un'altra parte.
  */
 const VIEW_LINKS: Array<{ id: MobileViewId; name: string; Icon: typeof IconRoute }> = [
+  { id: 'tiles', name: 'Tiles', Icon: IconLayoutGrid },
+  { id: 'chrono', name: 'Chrono', Icon: IconCalendarTime },
   { id: 'flows', name: 'Flows', Icon: IconRoute },
 ];
 
@@ -62,9 +66,11 @@ interface ObsidianDrawerProps {
   /** Torna alla Home (la pagina di cattura). Omesso, cioè stando già sulla home
    *  → la riga resta come sola identità, non toccabile. */
   onHome?: () => void;
+  /** Apre "Ask Gimmick". Omesso → la voce non compare. */
+  onAsk?: () => void;
 }
 
-export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome }: ObsidianDrawerProps) {
+export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHome, onAsk }: ObsidianDrawerProps) {
   const c = useObsidian();
   const insets = useSafeAreaInsets();
   const { width: screenW } = useWindowDimensions();
@@ -175,6 +181,21 @@ export function ObsidianDrawer({ open, onClose, onSettings, onNavigateView, onHo
               <Text style={labelStyle}>{v.name}</Text>
             </Pressable>
           ))}
+
+          {/* Ask Gimmick: unica AZIONE in mezzo a destinazioni, quindi il glifo
+              è d'accento come il suo quadrato in navbar. Stessa riga di tutte
+              le altre — a distinguerlo basta il colore, un fondo tinto qui
+              peserebbe più di quanto la voce valga. */}
+          {onAsk ? (
+            <Pressable
+              onPress={() => { onAsk(); onClose(); }}
+              android_ripple={{ color: c.accent + '33' }}
+              style={rowStyle}
+            >
+              <IconSparkles size={ICON} color={c.accent} strokeWidth={1.8} />
+              <Text style={labelStyle}>Ask Gimmick</Text>
+            </Pressable>
+          ) : null}
 
           {/* Separatore dalle viste, poi Impostazioni con lo stesso stile dei link. */}
           <View style={{ height: 1, backgroundColor: c.line, marginHorizontal: 10, marginVertical: 6 }} />

@@ -9,7 +9,13 @@ Valori **esatti e autorevoli**. Tutti gli altri file derivano da questi.
 | UI / testo | **Geist** | pesi 400/500/600/700 |
 | Mono / etichette / date / conteggi / eyebrow | **Geist Mono** | pesi 400/500/600 |
 
-- Eyebrow/label: 10–11px, weight 700, `letter-spacing: 0.12–0.18em`, uppercase, colore `subtle`.
+- **Eyebrow/label: 8px**, weight 700, `letter-spacing: 0.08em`, uppercase, mono, colore `subtle`.
+  Ricetta unica in codice: `obLabel()` in `frontend/lib/theme/ob-typography.ts` — usarla, non
+  riscriverla. Diceva 10–11px / 0.12–0.18em, ma nessuna etichetta è mai stata scritta così:
+  le sidebar (Tile, MultiTile, Group, Edge, Text) sono tutte a 8px / 0.08em, che con 45
+  occorrenze è il canone tipografico più solido dell'app.
+  Fanno ancora eccezione le etichette maiuscole dichiarate nei CSS di view (`0.13em` / `0.16em`,
+  10–11px): sono una seconda famiglia, non ancora unificata — decisione aperta.
 - Titoli schermata: 20–30px, weight 600–700, `letter-spacing: -0.015em`.
 - Corpo: 13–15px, `line-height: 1.5–1.55`.
 - Minimo testo leggibile: **12px** (requisito di leggibilità su card piccole; usare ≥12.5px per il corpo).

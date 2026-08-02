@@ -133,14 +133,31 @@ export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewPr
 
   return (
     <div className="ob-sparks">
-      {/* Toolbar */}
+      {/* Toolbar — una sola fascia: i chip di filtro stavano in una seconda
+          barra sotto, e la prima conteneva solo il nome della vista (già scritto
+          nel tab della navbar) più il suo conteggio (già nel chip "Tutti"). */}
       <div className="ob-sparks__toolbar">
-        <div className="ob-sparks__brand">
-          <span className="ob-sparks__brand-icon"><Icon name="sparkles" size={20} /></span>
-          <span className="ob-sparks__brand-title">Sparks</span>
-          <span className="ob-sparks__brand-count">{sparks.length}</span>
+        <div className="ob-sparks__chipbar">
+          {chipDefs.map((c) => {
+            const active = filter === c.id;
+            const color = c.type ? TYPE_META[c.type].color : undefined;
+            return (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => setFilter(c.id)}
+                className={cn('ob-sparks__chip', active && (c.type ? 'ob-sparks__chip--type' : 'ob-sparks__chip--accent'))}
+                style={color ? ({ ['--badge-c' as string]: color }) : undefined}
+              >
+                <span className="ob-sparks__chip-icon">
+                  <Icon name={c.type ? TYPE_META[c.type].icon : 'sparkles'} size={c.type ? 13 : 12} />
+                </span>
+                {c.label}
+                <span className="ob-sparks__chip-count">{c.count}</span>
+              </button>
+            );
+          })}
         </div>
-        <div style={{ flex: 1 }} />
         <Field
           wrapperClassName="ob-sparks__search"
           leading={<Icon name="search" size={14} />}
@@ -153,29 +170,6 @@ export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewPr
           Tutti i tipi
           <span className="ob-sparks__typefilter-icon"><Icon name="chevD" size={12} /></span>
         </button>
-      </div>
-
-      {/* Filter chips */}
-      <div className="ob-sparks__chips ob-scroll">
-        {chipDefs.map((c) => {
-          const active = filter === c.id;
-          const color = c.type ? TYPE_META[c.type].color : undefined;
-          return (
-            <button
-              key={c.id}
-              type="button"
-              onClick={() => setFilter(c.id)}
-              className={cn('ob-sparks__chip', active && (c.type ? 'ob-sparks__chip--type' : 'ob-sparks__chip--accent'))}
-              style={color ? ({ ['--badge-c' as string]: color }) : undefined}
-            >
-              <span className="ob-sparks__chip-icon">
-                <Icon name={c.type ? TYPE_META[c.type].icon : 'sparkles'} size={c.type ? 13 : 12} />
-              </span>
-              {c.label}
-              <span className="ob-sparks__chip-count">{c.count}</span>
-            </button>
-          );
-        })}
       </div>
 
       {/* Table */}

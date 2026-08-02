@@ -32,6 +32,7 @@ import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
 import { tagsToSidebarGroups } from '@/lib/theme/tags-to-groups';
 import type { Tag } from '@/types';
+import { OB_LEADING, OB_TEXT } from '@/lib/theme/ob-typography';
 
 /** Mappa vista → rotta. Single source of truth per la navigazione dello shell. */
 const VIEW_TO_PATH: Record<ViewId, string> = {
@@ -245,8 +246,8 @@ function InspectorEmpty() {
         padding: '48px 20px',
         textAlign: 'center',
         color: 'var(--ob-subtle)',
-        fontSize: 13,
-        lineHeight: 1.5,
+        fontSize: OB_TEXT.control,
+        lineHeight: OB_LEADING.text,
         fontFamily: 'var(--ob-font-sans)',
       }}
     >

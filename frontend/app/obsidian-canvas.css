@@ -23,9 +23,9 @@
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
-.ob-canvas__header-title { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
-.ob-canvas__header-sub { font-size: 11px; color: var(--ob-subtle); margin-top: 1px; }
-.ob-canvas__header-meta { font-size: 11px; color: var(--ob-subtle); }
+.ob-canvas__header-title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-canvas__header-sub { font-size: var(--ob-text-meta); color: var(--ob-subtle); margin-top: 1px; }
+.ob-canvas__header-meta { font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 
 .ob-canvas__body { flex: 1; display: flex; min-height: 0; }
 
@@ -58,10 +58,10 @@
 /* Allineata alla testata STAGING reale (`StagingPanel.tsx`, quella che si vede
    nel canvas): 13/600, tracking 0. Qui era 11/700/0.16em — due pixel di corpo,
    cento punti di peso e tutto il tracking di differenza sulla stessa parola. */
-.ob-canvas__stage-label { font-size: 13px; font-weight: 600; letter-spacing: 0; color: var(--ob-text); }
-.ob-canvas__stage-count { font-family: var(--ob-font-mono); font-size: 11px; font-weight: 600; color: var(--ob-accent-ink); background: var(--ob-accent); border-radius: var(--ob-radius-sm); padding: 1px 7px; }
+.ob-canvas__stage-label { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); letter-spacing: 0; color: var(--ob-text); }
+.ob-canvas__stage-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent-ink); background: var(--ob-accent); border-radius: var(--ob-radius-sm); padding: 1px 7px; }
 .ob-canvas__stage-group { height: 34px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--ob-line); color: var(--ob-subtle); }
-.ob-canvas__stage-group-label { font-size: 10px; font-weight: 700; letter-spacing: 0.12em; color: var(--ob-subtle); flex: 1; }
+.ob-canvas__stage-group-label { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); flex: 1; }
 .ob-canvas__stage-list { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 9px; }
 
 /* ── Card (shared by staging tiles + canvas nodes) ── */
@@ -76,7 +76,7 @@
 /* Titolo del tile 150×80. Identico in CANVAS, KANBAN, CHRONO e STAGING: è lo
    stesso oggetto, e prima ognuna delle quattro viste lo scriveva a modo suo
    (12.5/600 qui, 12/300 in kanban e staging, 12/400 in chrono). */
-.ob-canvas__card-title { font-size: 12px; line-height: 16px; font-weight: 400; letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-canvas__card-title { font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
 .ob-canvas__card-title--clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 .ob-canvas__sparkrow { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
@@ -87,7 +87,7 @@
   color: var(--cap-c);
   flex-shrink: 0;
 }
-.ob-canvas__meta { font-family: var(--ob-font-mono); font-size: 10px; color: var(--card-c); }
+.ob-canvas__meta { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--card-c); }
 [data-theme='dark'] .ob-canvas__meta { color: var(--ob-muted); }
 
 /* ── Toolbar (file tabs + tools) ── */
@@ -102,7 +102,7 @@
 .ob-canvas__tab {
   display: flex; align-items: center; gap: 7px; align-self: flex-end;
   height: 34px; padding: 0 15px;
-  font-size: 12px; font-weight: 600; color: var(--ob-muted);
+  font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted);
   cursor: pointer;
   background: transparent;
   border: 1px solid transparent;
@@ -125,7 +125,7 @@
   display: flex; align-items: center; gap: 7px;
   height: 30px; padding: 0 12px;
   border-radius: var(--ob-radius-sm);
-  font-size: 12px; font-weight: 600; color: var(--ob-muted);
+  font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted);
   background: var(--ob-surface); border: 1px solid var(--ob-line-2);
   cursor: pointer;
 }
@@ -134,7 +134,7 @@
 .ob-canvas__zoom {
   display: flex; align-items: center; height: 30px; padding: 0 12px;
   border-radius: var(--ob-radius-sm);
-  font-family: var(--ob-font-mono); font-size: 12px; font-weight: 600; color: var(--ob-muted);
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted);
   background: var(--ob-surface); border: 1px solid var(--ob-line-2);
 }
 

@@ -68,7 +68,8 @@ export function Header({
   return (
     <header className="ob-hd">
       <div className="ob-hd__logo">
-        <GimmickLogo size={28} className="ob-hd__logo-mark" />
+        {/* 30 = l'altezza unica di tutto ciò che sta nella navbar. */}
+        <GimmickLogo size={30} className="ob-hd__logo-mark" />
         <span className="ob-hd__logo-name">{appName}</span>
       </div>
 

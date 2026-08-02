@@ -1,4 +1,5 @@
 import type { PixelTheme } from './pixel-theme';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 /**
  * Style condivisi per i bottoni delle toolbar (Canvas, Graph, Tags).
@@ -25,8 +26,8 @@ export function obsidianToolbarBtn(theme: PixelTheme, active: boolean): React.CS
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
-    fontWeight: 600,
+    fontSize: OB_TEXT.control,
+    fontWeight: OB_WEIGHT.emphasis,
     letterSpacing: 0,
     textTransform: 'none',
     cursor: 'pointer',
@@ -47,8 +48,8 @@ export function obsidianSegmentedBtn(theme: PixelTheme, active: boolean): React.
     color: active ? theme.onAccent : theme.ink2,
     border: 'none',
     fontFamily: 'var(--ob-font-sans)',
-    fontSize: 12.5,
-    fontWeight: 600,
+    fontSize: OB_TEXT.control,
+    fontWeight: OB_WEIGHT.emphasis,
     letterSpacing: 0,
     textTransform: 'none',
     cursor: 'pointer',

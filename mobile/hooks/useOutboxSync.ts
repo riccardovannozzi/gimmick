@@ -11,24 +11,32 @@
  */
 import { useEffect } from 'react';
 import { AppState } from 'react-native';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { useBufferStore } from '@/store/bufferStore';
 import { useConnectivityStore } from '@/store/connectivityStore';
 import { flushOutbox } from '@/lib/outbox';
+import { invalidateTileData } from '@/lib/invalidate';
 import { toast } from '@/store';
 
-async function runFlush(): Promise<void> {
+async function runFlush(qc: QueryClient): Promise<void> {
   // Solo i tile GIÀ committati in coda vengono sincronizzati in automatico.
   if (Object.keys(useBufferStore.getState().batches).length === 0) return;
   const res = await flushOutbox();
   // Feedback solo per un successo automatico con contenuti: il resto è silenzioso
   // (offline/busy non sono errori da sbandierare in background).
   if (res.status === 'ok' && res.uploaded > 0) {
+    // L'outbox vive FUORI da React Query: crea tile parlando direttamente con
+    // le API, e nessuno avvisa la cache che i dati sono cambiati. Col
+    // `staleTime` globale di 5 minuti il tile appena sincronizzato non compariva
+    // nella lista — non "al prossimo giro", proprio per cinque minuti.
+    invalidateTileData(qc);
     toast.success(`${res.uploaded} ${res.uploaded === 1 ? 'tile sincronizzato' : 'tile sincronizzati'}`);
   }
 }
 
 export function useOutboxSync(): void {
+  const qc = useQueryClient();
   const isInitialized = useAuthStore((s) => s.isInitialized);
   const accessToken = useAuthStore((s) => s.accessToken);
   const online = useConnectivityStore((s) => s.online);
@@ -37,8 +45,8 @@ export function useOutboxSync(): void {
   // la coda, senza aspettare un giro background→foreground. Il primo run a
   // `online` iniziale true è innocuo (guardia a buffer vuoto in runFlush).
   useEffect(() => {
-    if (online) runFlush();
-  }, [online]);
+    if (online) runFlush(qc);
+  }, [online, qc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -49,7 +57,7 @@ export function useOutboxSync(): void {
       // Serve auth pronta + token + buffer idratato da AsyncStorage.
       if (!auth.isInitialized || !auth.accessToken) return;
       if (!useBufferStore.persist.hasHydrated()) return;
-      runFlush();
+      runFlush(qc);
     };
 
     // Se il buffer non è ancora idratato, riprova a idratazione conclusa.
@@ -66,5 +74,5 @@ export function useOutboxSync(): void {
       unsubHydrate();
       sub.remove();
     };
-  }, [isInitialized, accessToken]);
+  }, [isInitialized, accessToken, qc]);
 }

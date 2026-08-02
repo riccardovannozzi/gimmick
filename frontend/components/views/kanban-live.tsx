@@ -28,6 +28,7 @@ import { getDayKey, formatDay } from '@/lib/tile-helpers';
 import { useStatuses } from '@/store/statuses-store';
 import { statusMeta } from '@/lib/status-meta';
 import type { Tile, Tag, KanbanColumn, Status } from '@/types';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 /** Status del tile reso come swatch (forma) nella meta-row della card.
  *  'active' è lo stato di default/prevalente → non si segnala. */
@@ -204,7 +205,7 @@ export function KanbanLive() {
           alignItems: 'center',
           justifyContent: 'center',
           color: 'var(--ob-subtle)',
-          fontSize: 13,
+          fontSize: OB_TEXT.control,
           fontFamily: 'var(--ob-font-sans)',
         }}
       >

@@ -16,6 +16,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { IconCamera, IconVideo, IconX, IconRefresh, IconCheck, IconPlayerStopFilled } from '@tabler/icons-react';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 type Phase = 'starting' | 'live' | 'recording' | 'review' | 'error';
 export type CaptureMode = 'photo' | 'video';
@@ -247,11 +248,11 @@ export function CameraCapture({ open, mode, onCancel, onCapture }: CameraCapture
           borderBottom: '1px solid var(--ob-line)', background: 'var(--ob-head)',
         }}>
           {isVideo ? <IconVideo size={16} style={{ color: accent }} /> : <IconCamera size={16} style={{ color: accent }} />}
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--ob-text)' }}>{title}</span>
+          <span style={{ fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis, color: 'var(--ob-text)' }}>{title}</span>
           {phase === 'recording' && (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginLeft: 4 }}>
               <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--ob-error)' }} />
-              <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 11.5, color: 'var(--ob-text)' }}>
+              <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, color: 'var(--ob-text)' }}>
                 {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}
               </span>
             </span>
@@ -265,7 +266,7 @@ export function CameraCapture({ open, mode, onCancel, onCapture }: CameraCapture
           display: 'flex', alignItems: 'center', justifyContent: 'center',
         }}>
           {phase === 'error' ? (
-            <p style={{ color: 'var(--ob-subtle)', fontSize: 12.5, textAlign: 'center', padding: '0 32px', lineHeight: 1.5 }}>
+            <p style={{ color: 'var(--ob-subtle)', fontSize: OB_TEXT.control, textAlign: 'center', padding: '0 32px', lineHeight: OB_LEADING.text }}>
               {error}
             </p>
           ) : phase === 'review' && shot ? (
@@ -287,7 +288,7 @@ export function CameraCapture({ open, mode, onCancel, onCapture }: CameraCapture
                 style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }}
               />
               {phase === 'starting' && (
-                <span style={{ position: 'absolute', color: 'var(--ob-subtle)', fontSize: 12 }}>
+                <span style={{ position: 'absolute', color: 'var(--ob-subtle)', fontSize: OB_TEXT.card }}>
                   Attivazione {isVideo ? 'fotocamera e microfono' : 'fotocamera'}…
                 </span>
               )}
@@ -347,12 +348,12 @@ const ghostBtn: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px',
   borderRadius: 'var(--ob-radius-sm)', background: 'transparent', color: 'var(--ob-text)',
   border: '1px solid var(--ob-line-2)', fontFamily: 'var(--ob-font-sans)',
-  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+  fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis, cursor: 'pointer',
 };
 
 const primaryBtn = (disabled: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px',
   borderRadius: 'var(--ob-radius-sm)', background: 'var(--ob-accent)', color: 'var(--ob-on-accent, #fff)',
-  border: 'none', fontFamily: 'var(--ob-font-sans)', fontSize: 12.5, fontWeight: 600,
+  border: 'none', fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis,
   cursor: disabled ? 'default' : 'pointer', opacity: disabled ? 0.6 : 1,
 });

@@ -240,3 +240,48 @@ uploadRouter.get('/signed-url', async (req: AuthenticatedRequest, res: Response,
     next(error);
   }
 });
+
+/**
+ * POST /api/upload/signed-urls
+ * Firma PIÙ file in una richiesta sola.
+ *
+ * Serve alle liste: la lista Tiles e il dettaglio mostrano un'anteprima per
+ * scheda, e con la forma singola ogni scheda costerebbe una richiesta.
+ *
+ * I percorsi che non appartengono all'utente vengono SCARTATI in silenzio
+ * invece di far fallire tutto: un solo percorso guasto in un elenco di cinquanta
+ * lascerebbe la pagina senza nessuna anteprima. Chi disegna mostra il ripiego
+ * per quelli che non tornano.
+ */
+uploadRouter.post('/signed-urls', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const bucket = resolveBucket(req.body?.bucket);
+    const paths: unknown = req.body?.paths;
+
+    if (!Array.isArray(paths)) {
+      throw new BadRequestError('paths must be an array');
+    }
+    // Tetto esplicito: firmare è lavoro per lo storage, e senza limite una
+    // richiesta sbagliata lo terrebbe occupato per migliaia di file.
+    if (paths.length > 200) {
+      throw new BadRequestError('Too many paths (max 200)');
+    }
+
+    const own = paths.filter(
+      (p): p is string => typeof p === 'string' && p.startsWith(`${req.user!.id}/`),
+    );
+
+    const urls: Record<string, string> = {};
+    if (own.length > 0) {
+      const { data, error } = await supabaseAdmin.storage.from(bucket).createSignedUrls(own, 3600);
+      if (error) throw error;
+      for (const row of data ?? []) {
+        if (row.signedUrl && row.path) urls[row.path] = row.signedUrl;
+      }
+    }
+
+    res.json({ success: true, data: { urls, expires_in: 3600 } });
+  } catch (error) {
+    next(error);
+  }
+});

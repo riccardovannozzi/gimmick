@@ -82,17 +82,23 @@ const NAV_BTNS: Array<{ id: MobileViewId; label: string; Icon: typeof IconLayout
 ];
 
 /**
- * Blocco di destra: Tiles, Chrono, Ask Gimmick.
+ * Blocco di destra: Home, Tiles, Chrono, Ask Gimmick.
  *
- * I tre quadrati hanno lo stesso fondo neutro tranne Ask, tinto d'accento: Ask
- * è un'azione, gli altri due sono navigazione. Fra i due di navigazione la
+ * I quadrati hanno lo stesso fondo neutro tranne Ask, tinto d'accento: Ask è
+ * un'azione, gli altri sono navigazione. Fra quelli di navigazione la
  * distinzione la fa il GLIFO — accento sulla vista in cui ci si trova — non il
  * fondo, che li renderebbe indistinguibili da Ask.
+ *
+ * Home compare solo dove `onHome` arriva, cioè nelle viste: sulla home il
+ * quadrato porterebbe dove si è già, e il robot sta comunque lì accanto al
+ * titolo come marchio.
  */
-export function HeaderActions({ active, onNavigateView, onAsk }: {
+export function HeaderActions({ active, onNavigateView, onAsk, onHome }: {
   active?: MobileViewId;
   onNavigateView?: (id: MobileViewId) => void;
   onAsk?: () => void;
+  /** Torna alla home (la schermata di cattura). Omesso → nessun quadrato Home. */
+  onHome?: () => void;
 }) {
   const c = useObsidian();
   const sqBtn = {
@@ -101,6 +107,25 @@ export function HeaderActions({ active, onNavigateView, onAsk }: {
   };
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: HEADER_BTN_GAP }}>
+      {onHome ? (
+        <Pressable
+          onPress={onHome}
+          accessibilityRole="button"
+          accessibilityLabel="Home"
+          android_ripple={{ color: c.line, borderless: true }}
+          style={[sqBtn, { backgroundColor: c.surface2 }]}
+        >
+          {/* 26 e non 19 come i glifi accanto: l'asset ha un margine interno
+              generoso, quindi il robot disegnato occupa meno del riquadro che
+              dichiara. A 19 risulterebbe più piccolo dei vicini, non uguale. */}
+          <Image
+            source={require('../../assets/adaptive-icon.png')}
+            style={{ width: 26, height: 26 }}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
+        </Pressable>
+      ) : null}
       {onNavigateView && NAV_BTNS.map((v) => {
         const on = active === v.id;
         return (
@@ -141,15 +166,17 @@ interface ObsidianAppHeaderProps {
   onNavigateView?: (id: MobileViewId) => void;
   /** "Ask Gimmick" a destra → chat. */
   onAsk?: () => void;
+  /** Quadrato col robot → home. Omesso → non compare (è così sulla home stessa). */
+  onHome?: () => void;
 }
 
-export function ObsidianAppHeader({ title = 'Gimmick', active, onMenu, onNavigateView, onAsk }: ObsidianAppHeaderProps) {
+export function ObsidianAppHeader({ title = 'Gimmick', active, onMenu, onNavigateView, onAsk, onHome }: ObsidianAppHeaderProps) {
   const c = useObsidian();
 
   return (
     <View style={{ marginTop: HEADER_GAP, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: c.dark ? '#000000' : c.canvas, zIndex: 10 }}>
       <HeaderMenuButton label={title} onPress={onMenu} />
-      <HeaderActions active={active} onNavigateView={onNavigateView} onAsk={onAsk} />
+      <HeaderActions active={active} onNavigateView={onNavigateView} onAsk={onAsk} onHome={onHome} />
     </View>
   );
 }

@@ -17,45 +17,49 @@
   background: var(--ob-head);
   border-bottom: 1px solid var(--ob-line);
 }
-.ob-sparks__brand { display: flex; align-items: center; gap: 9px; }
-.ob-sparks__brand-icon { color: var(--ob-accent); display: inline-flex; }
-.ob-sparks__brand-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
-.ob-sparks__brand-count { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-subtle); }
-.ob-sparks__search { width: 220px; background: var(--ob-surface-2); border-color: var(--ob-line); }
+/* Striscia dei chip di filtro, dentro l'UNICA toolbar della vista. Prende lo
+   spazio a sinistra e spinge ricerca e filtro-tipo a destra: niente più
+   spaziatore. Scorre in orizzontale quando i chip non ci stanno, con la barra
+   nascosta — in una fascia da 48 si mangerebbe l'altezza. */
+.ob-sparks__chipbar {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.ob-sparks__chipbar::-webkit-scrollbar { display: none; }
+/* 30 = altezza di ogni controllo di barra dello shell (toolbar canvas, chip,
+   tab dell'inspector, segmentati). `.ob-field` non dichiara un'altezza: cresce
+   sul contenuto con `padding: 9px 12px`, cioè ~40px, ed era il pezzo che
+   sfalsava la fascia. Il padding verticale va azzerato: con `border-box` non si
+   somma all'altezza, ma stringerebbe la scatola del contenuto sotto ai 30. */
+.ob-sparks__search { width: 220px; height: 30px; padding: 0 12px; background: var(--ob-surface-2); border-color: var(--ob-line); }
 .ob-sparks__typefilter {
   display: inline-flex; align-items: center; gap: 7px;
-  height: 34px; padding: 0 13px;
+  height: 30px; padding: 0 13px;
   border-radius: var(--ob-radius-sm);
   border: 1px solid var(--ob-line-2);
   background: transparent;
-  font-size: 13px; font-weight: 600; color: var(--ob-muted);
+  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted);
   cursor: pointer;
 }
 .ob-sparks__typefilter-icon { color: var(--ob-subtle); display: inline-flex; }
 
 /* ── Filter chips ── */
-.ob-sparks__chips {
-  height: 50px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 20px;
-  background: var(--ob-head);
-  border-bottom: 1px solid var(--ob-line);
-  overflow-x: auto;
-}
 .ob-sparks__chip {
   display: inline-flex; align-items: center; gap: 7px;
-  height: 32px; padding: 0 12px;
+  height: 30px; padding: 0 12px;
   border-radius: var(--ob-radius-sm);
   background: var(--ob-surface);
   border: 1px solid var(--ob-line);
   color: var(--ob-muted);
-  font-size: 12.5px; font-weight: 600;
+  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis);
   cursor: pointer; white-space: nowrap;
   transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
 }
 .ob-sparks__chip:hover { border-color: var(--ob-line-2); }
 .ob-sparks__chip-icon { color: var(--ob-subtle); display: inline-flex; }
-.ob-sparks__chip-count { font-family: var(--ob-font-mono); font-size: 11px; font-weight: 600; color: var(--ob-subtle); opacity: 0.8; }
+.ob-sparks__chip-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-subtle); opacity: 0.8; }
 /* active — accent ("Tutti") */
 .ob-sparks__chip--accent { background: var(--ob-accent-soft); border-color: transparent; color: var(--ob-accent); }
 .ob-sparks__chip--accent .ob-sparks__chip-icon { color: var(--ob-accent); }
@@ -85,7 +89,7 @@
 .ob-sparks__hcell { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .ob-sparks__hcell--center { justify-content: center; }
 .ob-sparks__hcell--sortable { cursor: pointer; background: none; border: none; padding: 0; font: inherit; }
-.ob-sparks__hlabel { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-subtle); }
+.ob-sparks__hlabel { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); }
 .ob-sparks__hcell--active .ob-sparks__hlabel { color: var(--ob-accent); }
 .ob-sparks__hsort { color: var(--ob-accent); display: inline-flex; }
 
@@ -104,9 +108,14 @@
 .ob-sparks__cell { display: flex; align-items: center; min-width: 0; }
 .ob-sparks__cell--center { justify-content: center; }
 
-.ob-sparks__name { font-family: var(--ob-font-mono); font-size: 13px; font-weight: 500; color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ob-sparks__date { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-muted); }
-.ob-sparks__dim { font-family: var(--ob-font-mono); font-size: 12px; color: var(--ob-muted); }
+/* Colonna-contenuto: il nome è testo scritto dall'utente, non un dato tecnico.
+   Sta quindi in sans (ereditato da `.ob-sparks`, come `.ob-tiles__title` nella
+   tabella gemella) e porta il peso di enfasi, che è ciò che la distingue dalle
+   celle di servizio. Era mono/500: il mono resta a date, dimensioni e contatori
+   qui sotto, dove incolonna cifre e serve davvero. */
+.ob-sparks__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ob-sparks__date { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); color: var(--ob-muted); }
+.ob-sparks__dim { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); color: var(--ob-muted); }
 .ob-sparks__dim--empty { color: var(--ob-faint); }
 
 /* type badge */
@@ -117,7 +126,7 @@
   border: 1px solid color-mix(in srgb, var(--badge-c) 26%, transparent);
 }
 .ob-sparks__type-icon { color: var(--badge-c); display: inline-flex; }
-.ob-sparks__type-name { font-size: 11px; font-weight: 600; letter-spacing: 0.02em; color: var(--badge-c); }
+.ob-sparks__type-name { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.02em; color: var(--badge-c); }
 [data-theme='dark'] .ob-sparks__type-name { color: var(--ob-text); }
 
 /* AI cell */
@@ -136,4 +145,4 @@
 }
 .ob-sparks__del:hover { color: var(--ob-error); border-color: color-mix(in srgb, var(--ob-error) 35%, transparent); background: color-mix(in srgb, var(--ob-error) 9%, transparent); }
 
-.ob-sparks__empty { padding: 40px; text-align: center; font-size: 13px; color: var(--ob-subtle); }
+.ob-sparks__empty { padding: 40px; text-align: center; font-size: var(--ob-text-control); color: var(--ob-subtle); }

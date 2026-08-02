@@ -21,6 +21,8 @@ import type { Tile, Spark } from '@/types';
 import { formatDuration } from '@/utils/formatters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
+import { PreviewImage } from '../PreviewImage';
+import { SparkViewer } from '../SparkViewer';
 
 /**
  * Corpo del testo della schermata, in un punto solo.
@@ -212,6 +214,121 @@ const CAPS: Array<{ key: CaptureKey; label: string; Icon: typeof IconCamera }> =
 const COMPOSER_BTN = 48;
 const VOICE_BARS = [8, 14, 20, 12, 24, 30, 18, 10, 22, 28, 16, 9, 15, 22, 13, 18, 10];
 
+/**
+ * Altezza dei media nell'elenco sparks. Il doppio dei 60 della lista Tiles: qui
+ * lo spazio c'è e la foto è il contenuto, non un indizio di cosa contiene la
+ * card. Come là, l'immagine si mostra intera e la larghezza segue le
+ * proporzioni.
+ */
+const SPARK_MEDIA_H = 120;
+
+/** Glifo per tipo di spark, per la riga di ripiego (file senza anteprima). */
+const SPARK_GLYPH: Record<string, typeof IconCamera> = {
+  photo: IconCamera,
+  image: IconPhoto,
+  video: IconVideo,
+  text: IconAlignLeft,
+  audio_recording: IconMicrophone,
+  file: IconPaperclip,
+};
+
+/**
+ * Percorso del file da mostrare per uno spark, `null` se non ne ha uno.
+ *
+ * Preferisce SEMPRE la miniatura: pesa una frazione dell'originale e a 128 di
+ * altezza non si distingue. Sull'originale si ripiega solo per le immagini —
+ * per un video `storage_path` è un mp4, che `Image` non sa disegnare, e per un
+ * PDF è il documento: senza miniatura quegli spark prendono la riga con icona
+ * e nome, che è informazione vera, non un riquadro rotto.
+ *
+ * Esportata perché il layer dati deve sapere quali percorsi firmare (il bucket
+ * è privato) prima ancora di disegnare.
+ */
+export function sparkMediaPath(s: Spark): string | null {
+  const isImage = s.type === 'photo' || s.type === 'image' || !!s.mime_type?.startsWith('image/');
+  if (isImage) return s.thumbnail_path ?? s.storage_path ?? null;
+  return s.thumbnail_path ?? null;
+}
+
+/**
+ * Una scheda per spark, scelta dal tipo: testo, vocale, media con anteprima,
+ * oppure riga con icona e nome quando l'anteprima non c'è.
+ */
+function SparkCard({ c, spark, uri, onOpen }: { c: ObsidianColors; spark: Spark; uri?: string; onOpen?: () => void }) {
+  // Toccabile solo se c'è davvero un file da aprire: senza `onOpen` resta un
+  // View, così non finge di reagire.
+  const Box = onOpen ? Pressable : View;
+  const box = onOpen ? { onPress: onOpen, android_ripple: { color: '#ffffff14' } } : {};
+
+  if (spark.type === 'text') {
+    return (
+      <View style={{ backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, overflow: 'hidden' }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.line }}>
+          <IconAlignLeft size={14} color={c.cap.text} strokeWidth={1.8} />
+          <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.subtle }}>TESTO</Text>
+        </View>
+        <Text numberOfLines={6} style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: TILE_TEXT, lineHeight: TILE_LINE, color: c.muted }}>
+          {spark.content?.trim() || ''}
+        </Text>
+      </View>
+    );
+  }
+
+  if (spark.type === 'audio_recording') {
+    return (
+      <Box {...box} style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 }}>
+        <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.cap.voice, alignItems: 'center', justifyContent: 'center' }}>
+          <IconPlayerPlay size={19} color="#fff" fill="#fff" />
+        </View>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 22 }}>
+          {VOICE_BARS.map((v, i) => <View key={i} style={{ width: 2.5, height: v, borderRadius: 2, backgroundColor: i < 6 ? c.cap.voice : c.line2 }} />)}
+        </View>
+        <Text style={{ fontSize: 11, color: c.subtle, fontVariant: ['tabular-nums'] }}>
+          {spark.duration ? formatDuration(spark.duration) : ''}
+        </Text>
+      </Box>
+    );
+  }
+
+  if (uri) {
+    return (
+      // `alignSelf: flex-start` fa stringere il riquadro attorno all'immagine:
+      // l'immagine si mostra INTERA, quindi la sua larghezza dipende dalle
+      // proporzioni e non è più quella della schermata. Senza, la fascia col
+      // nome resterebbe larga quanto la card, staccata dalla foto.
+      <Box {...box} style={{ alignSelf: 'flex-start', borderRadius: 12, overflow: 'hidden' }}>
+        <PreviewImage c={c} uri={uri} height={SPARK_MEDIA_H} radius={12} />
+        {spark.type === 'video' ? (
+          <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' }}>
+              <IconPlayerPlay size={20} color="#fff" fill="#fff" />
+            </View>
+          </View>
+        ) : null}
+        {/* Il nome sta su una fascia opaca in basso, non sopra l'immagine: su una
+            foto chiara il testo bianco sparirebbe. */}
+        {spark.file_name ? (
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 10, paddingVertical: 6 }}>
+            <Text numberOfLines={1} style={{ fontSize: 12.5, color: '#fff' }}>{spark.file_name}</Text>
+          </View>
+        ) : null}
+      </Box>
+    );
+  }
+
+  const Glyph = SPARK_GLYPH[spark.type] ?? IconPaperclip;
+  return (
+    <Box {...box} style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.field, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8 }}>
+      <View style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: c.surface2, alignItems: 'center', justifyContent: 'center' }}>
+        <Glyph size={18} color={c.muted} strokeWidth={1.8} />
+      </View>
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: TILE_TEXT, color: c.text }}>
+        {spark.file_name || spark.type}
+      </Text>
+    </Box>
+  );
+}
+
 export interface ObsidianTileScreenProps {
   onBack?: () => void;
   /** API tile (with sparks). Omit for the static QA mockup. */
@@ -231,19 +348,23 @@ export interface ObsidianTileScreenProps {
   statuses?: PickOption[];
   /** Apre un canale di cattura agganciato a questo tile. */
   onCapture?: (key: CaptureKey) => void;
+  /**
+   * URL firmati dei media degli sparks, per percorso. Il bucket è privato: senza
+   * firma non c'è immagine da mostrare. Li risolve il layer dati, in una
+   * richiesta sola — vedi `sparkMediaPath`.
+   */
+  mediaUrls?: Map<string, string>;
 }
 
 export function ObsidianTileScreen({
   onBack, tile, loading, onPatch, types = [], typeId, onSelectType, statuses = [],
-  onCapture,
+  onCapture, mediaUrls,
 }: ObsidianTileScreenProps) {
   const c = useObsidian();
   const live = !!tile;
   const sparks: Spark[] = tile?.sparks ?? [];
-  const voiceSpark = sparks.find((s) => s.type === 'audio_recording');
-  const textSpark = sparks.find((s) => s.type === 'text');
   const tagName = tile?.tags?.find((tg) => !tg.is_root)?.name;
-  const sparksCount = live ? sparks.length : 3;
+  const sparksCount = sparks.length;
 
   // Titolo: stato locale mentre si scrive, scritto sul server all'uscita dal
   // campo. Salvare a ogni battuta manderebbe una richiesta per carattere.
@@ -281,6 +402,8 @@ export function ObsidianTileScreen({
   // chiedendo un valore, così i tre campi condividono lo stesso componente.
   const [picking, setPicking] = React.useState<null | 'date' | 'start' | 'end'>(null);
   const [sheet, setSheet] = React.useState<null | 'type' | 'status'>(null);
+  /** Spark aperto a schermo intero; `null` = visore chiuso. */
+  const [viewing, setViewing] = React.useState<Spark | null>(null);
 
   /** Applica il valore scelto dal selettore nativo al campo che l'ha aperto. */
   const applyPicked = (picked: Date) => {
@@ -454,33 +577,27 @@ export function ObsidianTileScreen({
             ))}
           </View>
 
-          {/* voice card — shown when an audio spark exists (or in the QA mock) */}
-          {(!live || voiceSpark) && (
-            <View style={{ marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 12 }}>
-              <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: c.cap.voice, alignItems: 'center', justifyContent: 'center' }}>
-                <IconPlayerPlay size={19} color="#fff" fill="#fff" />
-              </View>
-              <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 2, height: 22 }}>
-                {VOICE_BARS.map((v, i) => <View key={i} style={{ width: 2.5, height: v, borderRadius: 2, backgroundColor: i < 6 ? c.cap.voice : c.line2 }} />)}
-              </View>
-              <Text style={{ fontSize: 11, color: c.subtle, fontVariant: ['tabular-nums'] }}>
-                {voiceSpark?.duration ? formatDuration(voiceSpark.duration) : '02:14'}
-              </Text>
-            </View>
-          )}
-
-          {/* text card — shown when a text spark exists (or in the QA mock) */}
-          {(!live || textSpark) && (
-            <View style={{ marginTop: 10, backgroundColor: c.field, borderWidth: 1, borderColor: c.line, borderRadius: 12, overflow: 'hidden' }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: c.line }}>
-                <IconAlignLeft size={14} color={c.cap.text} strokeWidth={1.8} />
-                <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.subtle }}>TESTO</Text>
-              </View>
-              <Text style={{ paddingHorizontal: 12, paddingVertical: 11, fontSize: TILE_TEXT, lineHeight: TILE_LINE, color: c.muted }}>
-                {live
-                  ? (textSpark?.content?.trim() || '')
-                  : 'Abbiamo n°3 D-matrix (per ricevere segnale satellitare) ed una centrale Galaxia (già installata sul tetto…)'}
-              </Text>
+          {/* ELENCO SPARKS — prima c'erano DUE schede fisse, una vocale e una di
+              testo, e nient'altro: un tile di sole foto mostrava "SPARKS · 2" e
+              sotto il vuoto. Ora si disegna ogni spark, nell'ordine in cui è
+              stato aggiunto, con la scheda che gli compete. */}
+          {sparks.length > 0 && (
+            <View style={{ marginTop: 12, gap: 10 }}>
+              {sparks.map((s) => {
+                const path = sparkMediaPath(s);
+                return (
+                  <SparkCard
+                    key={s.id}
+                    c={c}
+                    spark={s}
+                    uri={path ? mediaUrls?.get(path) : undefined}
+                    // Solo chi ha un file si apre. Uno spark di testo non ha
+                    // niente da mostrare a schermo pieno: il suo contenuto è già
+                    // tutto lì nella scheda.
+                    onOpen={s.storage_path ? () => setViewing(s) : undefined}
+                  />
+                );
+              })}
             </View>
           )}
         </Section>
@@ -525,6 +642,8 @@ export function ObsidianTileScreen({
         onPick={(id) => onPatch?.({ status_id: id })}
         onClose={() => setSheet(null)}
       />
+
+      <SparkViewer spark={viewing} onClose={() => setViewing(null)} />
 
       <ObsidianNavPill />
     </View>

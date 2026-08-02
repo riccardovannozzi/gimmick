@@ -12,6 +12,7 @@ import { uploadApi } from '@/lib/api';
 import { typeLabels, formatDuration, formatFileSize } from '@/lib/spark-utils';
 import { usePixelTheme } from '@/components/pixel';
 import type { Spark } from '@/types';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface SparkViewerProps {
   spark: Spark | null;
@@ -65,16 +66,16 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
       return (
         <div className="flex flex-col items-center justify-center py-12" style={{ color: theme.ink3 }}>
           <IconLoader2 className="h-8 w-8 animate-spin mb-3" />
-          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>Caricamento...</p>
+          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card }}>Caricamento...</p>
         </div>
       );
     }
 
     if (error) {
       return (
-        <div className="flex flex-col items-center justify-center py-12" style={{ color: '#E24B4A' }}>
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--ob-danger)' }}>
           <IconAlertCircle className="h-8 w-8 mb-3" />
-          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>{error}</p>
+          <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card }}>{error}</p>
         </div>
       );
     }
@@ -123,7 +124,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
             </div>
             <audio src={signedUrl!} controls className="w-full" />
             {spark.duration != null && (
-              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>
+              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta, color: theme.ink3 }}>
                 Durata: {formatDuration(spark.duration)}
               </p>
             )}
@@ -141,8 +142,8 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               borderRadius: 'var(--ob-radius-md)',
               color: theme.ink,
               fontFamily: 'var(--ob-font-sans)',
-              fontSize: 13.5,
-              lineHeight: 1.55,
+              fontSize: OB_TEXT.control,
+              lineHeight: OB_LEADING.text,
             }}
           >
             {spark.content || 'Nessun contenuto'}
@@ -164,14 +165,14 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               <IconFile size={32} style={{ color: theme.ink2 }} />
             </div>
             <div className="text-center" style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 13, fontWeight: 600, color: theme.ink, wordBreak: 'break-all' }}>
+              <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis, color: theme.ink, wordBreak: 'break-all' }}>
                 {spark.file_name || 'File'}
               </p>
               {spark.mime_type && (
-                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>{spark.mime_type}</p>
+                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta, color: theme.ink3 }}>{spark.mime_type}</p>
               )}
               {spark.file_size != null && (
-                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: 11, color: theme.ink3 }}>{formatFileSize(spark.file_size)}</p>
+                <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta, color: theme.ink3 }}>{formatFileSize(spark.file_size)}</p>
               )}
             </div>
             {signedUrl && (
@@ -191,8 +192,8 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                   border: `${bW}px solid transparent`,
                   borderRadius: 'var(--ob-radius-sm)',
                   fontFamily: 'var(--ob-font-sans)',
-                  fontSize: 13,
-                  fontWeight: 600,
+                  fontSize: OB_TEXT.control,
+                  fontWeight: OB_WEIGHT.emphasis,
                   letterSpacing: 0,
                   textTransform: 'none',
                   cursor: 'pointer',
@@ -209,7 +210,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
 
       default:
         return (
-          <p style={{ textAlign: 'center', padding: '32px 0', color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: 12 }}>
+          <p style={{ textAlign: 'center', padding: '32px 0', color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card }}>
             Tipo non supportato
           </p>
         );
@@ -258,7 +259,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
               style={{
                 flex: 1,
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 11,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink,
@@ -285,8 +286,8 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 fontFamily: 'var(--ob-font-mono)',
-                fontSize: 11,
-                lineHeight: 1,
+                fontSize: OB_TEXT.meta,
+                lineHeight: OB_LEADING.none,
                 flexShrink: 0,
               }}
             >
@@ -304,7 +305,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                     border: `${bW}px solid ${theme.border}`,
                     borderRadius: 'var(--ob-radius-sm)',
                     fontFamily: 'var(--ob-font-mono)',
-                    fontSize: 9.5,
+                    fontSize: OB_TEXT.micro,
                     letterSpacing: '0.08em',
                     textTransform: 'uppercase',
                   }}
@@ -312,7 +313,7 @@ export function SparkViewer({ spark, open, onOpenChange }: SparkViewerProps) {
                   {typeLabels[spark.type]}
                 </span>
               )}
-              <span style={{ color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: 11 }}>
+              <span style={{ color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta }}>
                 {dateText}
               </span>
             </div>

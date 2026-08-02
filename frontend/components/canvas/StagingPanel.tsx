@@ -22,6 +22,7 @@ import { ActionBadge } from '@/components/actions/action-badge';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
 import type { Tile } from '@/types';
+import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 // Icone usate dalla colonna status (config `statusGlyph`, kind 'icon').
 const STATUS_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
@@ -135,7 +136,7 @@ export function StagingPanel({
   const headFont = 'var(--ob-font-sans)';
   const bodyFont = 'var(--ob-font-sans)';
   const headTransform: 'none' | 'uppercase' = 'none';
-  const headWeight = 600;
+  const headWeight = OB_WEIGHT.emphasis;
   // Raggio dei tile dello staging: sono card → md.
   const radius = 'var(--ob-radius-md)';
   const actionColors = useActionColors();
@@ -291,7 +292,7 @@ export function StagingPanel({
       if (glyph.kind === 'none' || !sMeta) return null;
       if (glyph.kind === 'dot') return <span style={{ width: 8, height: 8, borderRadius: '50%', background: sMeta.hex }} />;
       if (glyph.kind === 'text') return (
-        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontWeight: 700, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
+        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, fontWeight: OB_WEIGHT.mono, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
       );
       const Icon = STATUS_ICONS[glyph.icon];
       return Icon ? <Icon size={12} color={sMeta.hex} /> : null;
@@ -358,9 +359,9 @@ export function StagingPanel({
                     // --ob-text in dark è #dcdcdc. Il tile identico due colonne
                     // più in là usava il token.
                     fontFamily: bodyFont,
-                    fontSize: 12,
-                    fontWeight: 400,
-                    lineHeight: '16px',
+                    fontSize: OB_TEXT.card,
+                    fontWeight: OB_WEIGHT.emphasis,
+                    lineHeight: OB_LEADING.tight,
                     letterSpacing: '-0.01em',
                     color: theme.ink,
                     display: '-webkit-box',
@@ -387,9 +388,9 @@ export function StagingPanel({
               <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, position: 'relative', zIndex: 10 }}>
                 <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
                 {(dateLine || timeLine) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.05, minWidth: 0 }}>
-                    {dateLine && <span style={{ fontSize: 9, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
-                    {timeLine && <span style={{ fontSize: 8, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
+                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: OB_LEADING.none, minWidth: 0 }}>
+                    {dateLine && <span style={{ fontSize: OB_TEXT.micro, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
+                    {timeLine && <span style={{ fontSize: OB_TEXT.eyebrow, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
                   </div>
                 )}
                 <div style={{ marginLeft: 'auto' }} />
@@ -421,15 +422,12 @@ export function StagingPanel({
               border: `${bW}px solid transparent`,
               borderRadius: 'var(--ob-radius-sm)',
               fontFamily: headFont,
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               fontWeight: headWeight,
-              // Era `0.2`: React interpreta i numeri nudi come PIXEL, quindi il
-              // badge riceveva 0.2px di tracking, cioè praticamente niente. Lo
-              // fisso a 0 — il valore dei controlli di barra — così quello che
-              // si legge resta identico e sparisce l'ambiguità px/em. Se
-              // l'intenzione era `0.2em`, è un'altra cosa: sarebbe 20 volte
-              // tanto, e va deciso.
-              letterSpacing: 0,
+              // Era `0.2`, numero nudo: React lo legge come PIXEL, quindi il
+              // tracking era di fatto assente. Allineato al glifo status di
+              // questo stesso pannello, che usa correttamente la stringa em.
+              letterSpacing: '0.15em',
               textTransform: headTransform,
               display: 'inline-flex',
               alignItems: 'center',
@@ -479,7 +477,7 @@ export function StagingPanel({
         </button>
         {tiles.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingTop: 8, color: theme.ink3 }}>
-            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: 9, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
+            <span style={{ fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, fontVariantNumeric: 'tabular-nums' }}>{tiles.length}</span>
           </div>
         )}
       </div>
@@ -533,7 +531,7 @@ export function StagingPanel({
         <span
           style={{
             fontFamily: headFont,
-            fontSize: 13,
+            fontSize: OB_TEXT.control,
             fontWeight: headWeight,
             letterSpacing: 0,
             textTransform: headTransform,
@@ -542,7 +540,7 @@ export function StagingPanel({
         >
           Staging
         </span>
-        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: 11, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
+        <span style={{ marginLeft: 'auto', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta, color: theme.ink3, fontVariantNumeric: 'tabular-nums' }}>
           {tiles.length}
         </span>
       </div>
@@ -576,7 +574,7 @@ export function StagingPanel({
               border: 'none',
               color: theme.ink2,
               fontFamily: headFont,
-              fontSize: 11.5,
+              fontSize: OB_TEXT.meta,
               fontWeight: headWeight,
               letterSpacing: 0,
               textTransform: headTransform,
@@ -616,7 +614,7 @@ export function StagingPanel({
                     border: `${bW}px solid transparent`,
                     color: groupBy === opt ? theme.ink : theme.ink2,
                     fontFamily: bodyFont,
-                    fontSize: 12,
+                    fontSize: OB_TEXT.card,
                     cursor: 'pointer',
                   }}
                 >
@@ -655,11 +653,11 @@ export function StagingPanel({
           <p
             style={{
               fontFamily: bodyFont,
-              fontSize: 12,
+              fontSize: OB_TEXT.card,
               color: theme.ink3,
               textAlign: 'center',
               padding: '24px 8px',
-              lineHeight: 1.5,
+              lineHeight: OB_LEADING.text,
               margin: 0,
             }}
           >
@@ -682,7 +680,7 @@ export function StagingPanel({
                     gap: 6,
                     marginBottom: 4,
                     fontFamily: headFont,
-                    fontSize: 11,
+                    fontSize: OB_TEXT.meta,
                     fontWeight: headWeight,
                     letterSpacing: 0,
                     textTransform: headTransform,

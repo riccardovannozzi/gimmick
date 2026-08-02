@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { usePixelTheme } from '@/components/pixel';
+import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
 // Ore a passi di 1: 00…23. I minuti NON hanno preset — si digitano.
 const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
@@ -98,7 +99,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: sansFont,
-        fontSize: 11,
+        fontSize: OB_TEXT.meta,
         color: theme.ink3,
       }
     : {
@@ -119,7 +120,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
         cursor: 'pointer',
         textAlign: 'left',
         fontFamily: sansFont,
-        fontSize: compact ? 12.5 : 12,
+        fontSize: compact ? OB_TEXT.control : OB_TEXT.card,
         color: theme.ink,
       };
 
@@ -129,8 +130,8 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
     border: `1px solid transparent`,
     borderRadius: 'var(--ob-radius-sm)',
     fontFamily: sansFont,
-    fontSize: 11,
-    fontWeight: 600,
+    fontSize: OB_TEXT.meta,
+    fontWeight: OB_WEIGHT.emphasis,
     cursor: 'pointer',
   });
 
@@ -142,7 +143,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
           <span
             style={{
               fontFamily: monoFont,
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -153,7 +154,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
           </span>
         )}
         {/* Peso normale come ogni altro valore dei campi della sidebar. */}
-        <span style={{ fontWeight: 400 }}>{selectedH}:{selectedM}</span>
+        <span style={{ fontWeight: OB_WEIGHT.body }}>{selectedH}:{selectedM}</span>
       </button>
       {open && createPortal(
         <div
@@ -176,7 +177,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
               <span
                 style={{
                   fontFamily: monoFont,
-                  fontSize: 9,
+                  fontSize: OB_TEXT.micro,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: theme.ink3,
@@ -208,7 +209,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
               <span
                 style={{
                   fontFamily: monoFont,
-                  fontSize: 9,
+                  fontSize: OB_TEXT.micro,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: theme.ink3,
@@ -252,7 +253,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
                   outline: 'none',
                   color: theme.ink,
                   fontFamily: sansFont,
-                  fontSize: 12.5,
+                  fontSize: OB_TEXT.control,
                 }}
               />
             </div>

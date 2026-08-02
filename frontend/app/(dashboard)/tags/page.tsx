@@ -22,6 +22,7 @@ import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
 import type { Tag, TagTypeEntity } from '@/types';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 // ─── Filter Popup ────────────────────────────────────────────
 function FilterPopup({ anchorRef, open, onClose, children }: {
@@ -145,7 +146,7 @@ function FilterableHead({
         className="flex items-center gap-1 w-full text-left"
         style={{
           fontFamily: ('var(--ob-font-mono)'),
-          fontSize: 9,
+          fontSize: OB_TEXT.micro,
           letterSpacing: '0.08em',
           textTransform: 'uppercase',
           color: theme.ink2,
@@ -212,7 +213,7 @@ function ColorDotPicker({ value, onChange }: { value: string; onChange: (hex: st
                 background: theme.surfaceVariant,
                 borderBottom: `1px solid ${theme.border}`,
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink,
@@ -275,7 +276,7 @@ function TagTypePills({
               color: isActive ? theme.onAccent : theme.ink2,
               border: `1px solid ${theme.border}`,
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.06em',
               textTransform: 'uppercase',
               cursor: 'pointer',
@@ -369,7 +370,7 @@ function TagTypesModal({
 
   const labelStyle: React.CSSProperties = {
     fontFamily: ('var(--ob-font-mono)'),
-    fontSize: 9,
+    fontSize: OB_TEXT.micro,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: theme.ink3,
@@ -384,7 +385,7 @@ function TagTypesModal({
     padding: '6px 8px',
     color: theme.ink,
     fontFamily: ('var(--ob-font-sans)'),
-    fontSize: 12,
+    fontSize: OB_TEXT.card,
     outline: 'none',
     height: 32,
   };
@@ -420,7 +421,7 @@ function TagTypesModal({
             <span
               style={{
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 11,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.1em',
                 textTransform: 'uppercase',
                 color: theme.ink,
@@ -520,7 +521,7 @@ function TagTypesModal({
                       <TagTypeIcon emoji={tt.emoji} size={16} color={theme.ink2} />
                     </span>
                     <div style={{ width: 14, height: 14, background: tt.color || '#94A3B8', border: `1px solid ${theme.border}`, flexShrink: 0 }} />
-                    <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 12, color: theme.ink, flex: 1 }}>{tt.name}</span>
+                    <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.card, color: theme.ink, flex: 1 }}>{tt.name}</span>
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => {
@@ -536,7 +537,7 @@ function TagTypesModal({
                     <button
                       className="opacity-0 group-hover:opacity-100 transition-opacity"
                       onClick={() => deleteMutation.mutate(tt.id)}
-                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: '#E24B4A', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ width: 28, height: 28, background: 'transparent', border: 'none', color: 'var(--ob-danger)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                     >
                       <IconTrash size={14} />
                     </button>
@@ -745,7 +746,7 @@ export default function TagsPage() {
 
   const labelStyle: React.CSSProperties = {
     fontFamily: ('var(--ob-font-mono)'),
-    fontSize: 9,
+    fontSize: OB_TEXT.micro,
     letterSpacing: '0.08em',
     textTransform: 'uppercase',
     color: theme.ink3,
@@ -760,7 +761,7 @@ export default function TagsPage() {
     padding: '8px 10px',
     color: theme.ink,
     fontFamily: ('var(--ob-font-sans)'),
-    fontSize: 12,
+    fontSize: OB_TEXT.card,
     outline: 'none',
   };
 
@@ -775,7 +776,7 @@ export default function TagsPage() {
             <span
               style={{
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink2,
@@ -793,7 +794,7 @@ export default function TagsPage() {
               }}
               style={{
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.06em',
                 textTransform: 'uppercase',
                 color: theme.accent,
@@ -830,7 +831,7 @@ export default function TagsPage() {
               textAlign: 'center',
               padding: '32px 0',
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 10,
+              fontSize: OB_TEXT.meta,
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -858,7 +859,7 @@ export default function TagsPage() {
             <p
               style={{
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 10,
+                fontSize: OB_TEXT.meta,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 color: theme.ink2,
@@ -867,7 +868,7 @@ export default function TagsPage() {
               {hasAnyFilter ? 'Nessun tag corrisponde ai filtri' : 'Nessun tag creato'}
             </p>
             {!hasAnyFilter && (
-              <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3, marginTop: 6 }}>
+              <p style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta, color: theme.ink3, marginTop: 6 }}>
                 Crea il primo tag per organizzare le tue tiles
               </p>
             )}
@@ -938,7 +939,7 @@ export default function TagsPage() {
                               padding: '0 6px',
                               color: theme.ink,
                               fontFamily: ('var(--ob-font-sans)'),
-                              fontSize: 12,
+                              fontSize: OB_TEXT.card,
                               outline: 'none',
                             }}
                           />
@@ -946,7 +947,7 @@ export default function TagsPage() {
                           <span
                             style={{
                               fontFamily: ('var(--ob-font-sans)'),
-                              fontSize: 12,
+                              fontSize: OB_TEXT.card,
                               color: theme.ink,
                               display: 'block',
                               overflow: 'hidden',
@@ -981,7 +982,7 @@ export default function TagsPage() {
                           <span
                             style={{
                               fontFamily: ('var(--ob-font-sans)'),
-                              fontSize: 12,
+                              fontSize: OB_TEXT.card,
                               color: theme.ink2,
                               flex: 1,
                               overflow: 'hidden',
@@ -1016,7 +1017,7 @@ export default function TagsPage() {
                           <span
                             style={{
                               fontFamily: ('var(--ob-font-sans)'),
-                              fontSize: 12,
+                              fontSize: OB_TEXT.card,
                               color: theme.ink2,
                               display: 'block',
                               overflow: 'hidden',
@@ -1027,7 +1028,7 @@ export default function TagsPage() {
                             {tag.aliases.join(', ')}
                           </span>
                         ) : (
-                          <span style={{ color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: 12 }}>—</span>
+                          <span style={{ color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.card }}>—</span>
                         )}
                       </TableCell>
 
@@ -1037,7 +1038,7 @@ export default function TagsPage() {
                           <span
                             style={{
                               fontFamily: ('var(--ob-font-mono)'),
-                              fontSize: 9,
+                              fontSize: OB_TEXT.micro,
                               letterSpacing: '0.08em',
                               textTransform: 'uppercase',
                               color: theme.ink3,
@@ -1060,7 +1061,7 @@ export default function TagsPage() {
                               alignItems: 'center',
                               justifyContent: 'center',
                             }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--ob-danger)')}
                             onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
                           >
                             <IconTrash size={14} />
@@ -1107,7 +1108,7 @@ export default function TagsPage() {
               <span
                 style={{
                   fontFamily: ('var(--ob-font-mono)'),
-                  fontSize: 11,
+                  fontSize: OB_TEXT.meta,
                   letterSpacing: '0.1em',
                   textTransform: 'uppercase',
                   color: theme.ink,
@@ -1166,7 +1167,7 @@ export default function TagsPage() {
                 color: theme.ink2,
                 border: `1px solid ${theme.border}`,
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: 'pointer',
@@ -1188,7 +1189,7 @@ export default function TagsPage() {
                 color: theme.onAccent,
                 border: `1px solid ${theme.border}`,
                 fontFamily: ('var(--ob-font-mono)'),
-                fontSize: 9,
+                fontSize: OB_TEXT.micro,
                 letterSpacing: '0.08em',
                 textTransform: 'uppercase',
                 cursor: createMutation.isPending ? 'not-allowed' : 'pointer',
@@ -1236,7 +1237,7 @@ export default function TagsPage() {
                   border: `2px solid ${isActive ? theme.border : 'transparent'}`,
                   cursor: 'pointer',
                   fontFamily: ('var(--ob-font-sans)'),
-                  fontSize: 12,
+                  fontSize: OB_TEXT.card,
                   color: theme.ink2,
                 }}
               >
@@ -1270,7 +1271,7 @@ export default function TagsPage() {
           <label
             style={{
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -1282,7 +1283,7 @@ export default function TagsPage() {
           </label>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 132, overflowY: 'auto', marginBottom: 8 }}>
             {editAliasesList.length === 0 ? (
-              <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: 11, color: theme.ink3 }}>
+              <span style={{ fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta, color: theme.ink3 }}>
                 Nessun alias
               </span>
             ) : (
@@ -1291,7 +1292,7 @@ export default function TagsPage() {
                   <span
                     style={{
                       fontFamily: ('var(--ob-font-sans)'),
-                      fontSize: 12,
+                      fontSize: OB_TEXT.card,
                       color: theme.ink2,
                       flex: 1,
                       overflow: 'hidden',
@@ -1304,7 +1305,7 @@ export default function TagsPage() {
                   <button
                     onClick={() => removeAlias(i)}
                     style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = '#E24B4A')}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--ob-danger)')}
                     onMouseLeave={(e) => (e.currentTarget.style.color = theme.ink3)}
                   >
                     <IconX size={12} />
@@ -1328,7 +1329,7 @@ export default function TagsPage() {
                 padding: '6px 8px',
                 color: theme.ink,
                 fontFamily: ('var(--ob-font-sans)'),
-                fontSize: 12,
+                fontSize: OB_TEXT.card,
                 outline: 'none',
               }}
             />
@@ -1363,7 +1364,7 @@ export default function TagsPage() {
           <label
             style={{
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -1395,7 +1396,7 @@ export default function TagsPage() {
                   border: `2px solid ${active ? theme.border : 'transparent'}`,
                   cursor: 'pointer',
                   fontFamily: ('var(--ob-font-sans)'),
-                  fontSize: 12,
+                  fontSize: OB_TEXT.card,
                   color: theme.ink2,
                 }}
               >
@@ -1415,7 +1416,7 @@ export default function TagsPage() {
           <label
             style={{
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -1431,7 +1432,7 @@ export default function TagsPage() {
               onChange={(e) => setNameFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: 11 }}
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta }}
             />
             {nameFilter && (
               <button onClick={() => setNameFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>
@@ -1447,7 +1448,7 @@ export default function TagsPage() {
           <label
             style={{
               fontFamily: ('var(--ob-font-mono)'),
-              fontSize: 9,
+              fontSize: OB_TEXT.micro,
               letterSpacing: '0.08em',
               textTransform: 'uppercase',
               color: theme.ink3,
@@ -1463,7 +1464,7 @@ export default function TagsPage() {
               onChange={(e) => setAliasFilter(e.target.value)}
               placeholder="Filtra..."
               autoFocus
-              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: 11 }}
+              style={{ background: 'transparent', color: theme.ink, width: '100%', outline: 'none', border: 'none', fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta }}
             />
             {aliasFilter && (
               <button onClick={() => setAliasFilter('')} style={{ background: 'transparent', border: 'none', color: theme.ink3, cursor: 'pointer', display: 'inline-flex' }}>

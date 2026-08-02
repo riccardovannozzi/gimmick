@@ -53,7 +53,7 @@
    accent 28×28 disegnata in CSS con un quadratino nello `::after` — il
    segnaposto di default del design system. */
 .ob-hd__logo-mark { display: block; flex-shrink: 0; }
-.ob-hd__logo-name { font-size: 16px; font-weight: 600; letter-spacing: -0.01em; color: var(--ob-text); }
+.ob-hd__logo-name { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
 .ob-hd__search {
   width: 300px;
   display: flex; align-items: center; gap: 9px;
@@ -62,7 +62,7 @@
   border-radius: var(--ob-radius-sm);
   padding: 8px 12px;
   color: var(--ob-subtle);
-  font-size: 13px;
+  font-size: var(--ob-text-control);
   cursor: text;
   transition: border-color 140ms ease-out;
 }
@@ -75,15 +75,29 @@
   border-radius: var(--ob-radius-sm);
   padding: 4px 11px 4px 6px;
 }
-.ob-hd__buffer-count { font-size: 12px; font-weight: 600; color: var(--ob-text); line-height: 1.1; }
-.ob-hd__buffer-sub { font-size: 10px; color: var(--ob-subtle); line-height: 1.1; }
+.ob-hd__buffer-count { font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); line-height: var(--ob-leading-none); }
+.ob-hd__buffer-sub { font-size: var(--ob-text-meta); color: var(--ob-subtle); line-height: var(--ob-leading-none); }
 .ob-hd__avatar {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 30px; height: 30px; border-radius: 50%;
   background: var(--ob-accent); color: var(--ob-accent-ink);
   display: flex; align-items: center; justify-content: center;
-  font-size: 12px; font-weight: 700;
+  font-size: var(--ob-text-card); font-weight: var(--ob-weight-mono);
   flex-shrink: 0;
 }
+
+/* ── Navbar: un'unica altezza per tutto ciò che ci sta dentro ──────────────────
+   La fascia è 56, i suoi elementi stavano a quattro misure diverse: logo 28,
+   tab ~32 (altezza implicita, da padding + riga di testo), "Ask Gimmick" 26
+   (`.ob-btn--sm`), pulsanti-icona 34, avatar 32.
+   Il valore comune è 30, lo stesso di OGNI controllo di barra dell'app —
+   toolbar del canvas, chip, tab dell'inspector, segmentati delle sidebar.
+   I due primitivi condivisi (`.ob-btn`, `.ob-iconbtn`) sono ridimensionati SOLO
+   qui dentro: sono usati in decine di punti e cambiarli alla radice sarebbe
+   tutt'altro intervento. Il padding verticale va azzerato dove c'era, altrimenti
+   con `border-box` stringe la scatola del contenuto invece di sommarsi. */
+.ob-hd .ob-tab { height: 30px; padding: 0 13px; }
+.ob-hd .ob-btn { height: 30px; padding: 0 12px; }
+.ob-hd .ob-iconbtn { width: 30px; height: 30px; }
 
 /* ── ViewTabs (navbar) ── */
 .ob-tabs {
@@ -101,8 +115,8 @@
   display: inline-flex; align-items: center; gap: 8px;
   padding: 8px 13px;
   border-radius: var(--ob-radius-sm);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-body);
   color: var(--ob-muted);
   background: transparent;
   border: none;
@@ -111,7 +125,7 @@
   transition: background-color 140ms ease-out, color 140ms ease-out;
 }
 .ob-tab:hover:not(.ob-tab--active) { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
-.ob-tab--active { color: var(--ob-accent); background: var(--ob-accent-soft); font-weight: 600; }
+.ob-tab--active { color: var(--ob-accent); background: var(--ob-accent-soft); font-weight: var(--ob-weight-emphasis); }
 .ob-tab__icon { color: var(--ob-subtle); display: inline-flex; }
 .ob-tab--active .ob-tab__icon { color: var(--ob-accent); }
 
@@ -143,10 +157,10 @@
 :root .ob-sb { background: #faf9fb; }
 [data-theme='dark'] .ob-sb { background: var(--ob-surface-2); }
 .ob-sb__head { display: flex; align-items: center; gap: 8px; padding: 2px 6px 12px; }
-.ob-sb__head-label { font-size: 10px; font-weight: 700; letter-spacing: 0.16em; color: var(--ob-subtle); flex: 1; }
+.ob-sb__head-label { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); flex: 1; }
 .ob-sb__count {
   font-family: var(--ob-font-mono);
-  font-size: 11px; font-weight: 600;
+  font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis);
   color: var(--ob-muted);
   background: var(--ob-surface);
   padding: 2px 8px; border-radius: var(--ob-radius-sm);
@@ -164,13 +178,13 @@
 /* Ricerca tag: input con icona a sinistra e clear a destra. */
 .ob-sb__search { position: relative; display: flex; align-items: center; margin-bottom: 8px; }
 .ob-sb__search-icon { position: absolute; left: 9px; color: var(--ob-subtle); pointer-events: none; }
-.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-sm) var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: 12.5px; outline: none; transition: border-color 0.12s ease; }
+.ob-sb__search-input { width: 100%; height: 30px; padding: 0 26px 0 30px; border-radius: var(--ob-radius-sm); border: 1px solid var(--ob-line-2); background: var(--ob-surface); color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-control); outline: none; transition: border-color 0.12s ease; }
 .ob-sb__search-input::placeholder { color: var(--ob-subtle); }
 .ob-sb__search-input:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
-.ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--ob-radius-sm); background: transparent; color: var(--ob-subtle); font-size: 15px; line-height: 1; cursor: pointer; }
+.ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--ob-radius-sm); background: transparent; color: var(--ob-subtle); font-size: var(--ob-text-title); line-height: var(--ob-leading-none); cursor: pointer; }
 .ob-sb__search-clear:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
 /* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
-.ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: 12.5px; font-weight: 500; color: var(--ob-subtle); }
+.ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-subtle); }
 .ob-sb__expand:hover { color: var(--ob-text); }
 .ob-sb-group { margin-bottom: 1px; }
 .ob-sb-group__head {
@@ -187,7 +201,7 @@
 .ob-sb-group__chev { color: var(--ob-subtle); display: inline-flex; transition: transform 140ms ease-out; }
 .ob-sb-group__chev--open { transform: rotate(90deg); }
 .ob-sb-group__glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
-.ob-sb-group__name { font-size: 12.5px; font-weight: 600; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-sb-group__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-group__kids { margin-left: 14px; padding-left: 12px; border-left: 1px solid var(--ob-line); }
 /* Riga tag: contenitore (nome cliccabile + azioni pin/canvas su hover). */
 .ob-sb-child {
@@ -198,8 +212,8 @@
 .ob-sb-child:hover:not(.ob-sb-child--active) { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
 .ob-sb-child--active { background: var(--ob-accent-soft); }
 .ob-sb-child__main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 6px 0; background: transparent; border: none; cursor: pointer; text-align: left; }
-.ob-sb-child__name { font-size: 12.5px; font-weight: 500; color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: 600; }
+.ob-sb-child__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: var(--ob-weight-emphasis); }
 .ob-sb-child__actions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; }
 .ob-sb-child__act {
   width: 24px; height: 24px; border-radius: var(--ob-radius-sm); flex-shrink: 0;
@@ -229,7 +243,7 @@
   gap: 0;
   padding: 0;
   border: none;
-  border-radius: var(--ob-radius-sm) var(--ob-radius-sm);
+  border-radius: var(--ob-radius-sm);
   /* Nessun track: l'unica cosa che si vede è la pill del tab attivo. A sinistra
      era già così di fatto (il track aveva lo stesso fondo della sidebar); qui,
      dove la barra ha un fondo diverso, il track andava tolto esplicitamente. */
@@ -242,12 +256,12 @@
   height: 30px;
   padding: 0 5px;
   border: none;
-  border-radius: var(--ob-radius-sm) var(--ob-radius-sm);
+  border-radius: var(--ob-radius-sm);
   background: transparent;
   color: var(--ob-muted);
   font-family: var(--ob-font-sans);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -274,30 +288,41 @@
   background: var(--ob-head);
   border-bottom: 1px solid var(--ob-line-2);
 }
-.ob-view__title { font-size: 11px; color: var(--ob-subtle); }
+.ob-view__title { font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-view__body { flex: 1; min-height: 0; }
 
 /* ── Inspector ── */
+/* È la STESSA sidebar destra di `TileSidebar`: l'Inspector si vede quando non
+   c'è un tile selezionato, TileSidebar quando c'è. Divergevano su quattro
+   misure, e passando dall'una all'altra il pannello saltava:
+     · larghezza 300 contro 280;
+     · barra di testa senza altezza dichiarata (padding 11 + contenuto da 32)
+       ≈ 54, contro i 48 di ogni altra barra della fascia — le hairline delle
+       tre colonne non si allineavano;
+     · fondo --ob-head invece di --ob-surface (`theme.bg2`);
+     · pulsante di chiusura 32×32 col bordo, invece di 30×30 senza.
+   Qui si allinea a TileSidebar, che è la forma vista più spesso. */
 .ob-insp {
-  width: 300px;
+  width: 280px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
-  background: var(--ob-head);
+  background: var(--ob-surface);
   border-left: 1px solid var(--ob-line);
 }
 .ob-insp__top {
-  display: flex; align-items: center; gap: 8px;
-  padding: 11px 12px;
+  height: var(--ob-toolbar-height);
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 8px;
   border-bottom: 1px solid var(--ob-line);
   flex-shrink: 0;
 }
 .ob-insp__panel-toggle {
-  width: 32px; height: 32px; border-radius: var(--ob-radius-sm);
+  width: 30px; height: 30px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   color: var(--ob-muted);
-  border: 1px solid var(--ob-line);
+  border: none;
   background: transparent;
   cursor: pointer;
   flex-shrink: 0;
@@ -305,7 +330,7 @@
 }
 .ob-insp__panel-toggle:hover { background: var(--ob-surface-2); color: var(--ob-text); }
 .ob-insp__body { flex: 1; min-height: 0; padding: 16px 14px 24px; overflow-y: auto; }
-.ob-insp__eyebrow { font-size: 10px; font-weight: 700; letter-spacing: 0.13em; color: var(--ob-subtle); margin: 0 0 7px; }
+.ob-insp__eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); margin: 0 0 7px; }
 .ob-insp__section { margin-top: 18px; }
 .ob-insp__divider { height: 1px; background: var(--ob-line); margin: 20px 0 0; }
 
@@ -317,7 +342,7 @@
   border-radius: var(--ob-radius-sm);
   padding: 9px 11px;
 }
-.ob-insp-field__value { font-size: 13px; color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-insp-field__value { font-size: var(--ob-text-control); color: var(--ob-text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-insp-field__value--muted { color: var(--ob-subtle); }
 .ob-insp-field__icon { color: var(--ob-subtle); display: inline-flex; flex-shrink: 0; }
 .ob-insp-field__chev { color: var(--ob-subtle); display: inline-flex; flex-shrink: 0; }
@@ -329,7 +354,7 @@
   border: 1px solid var(--ob-line);
   border-radius: var(--ob-radius-sm);
   padding: 9px 11px;
-  font-size: 13px; font-weight: 500;
+  font-size: var(--ob-text-control); font-weight: var(--ob-weight-body);
   color: var(--ob-accent);
 }
 
@@ -337,4 +362,4 @@
 .ob-insp-caps { display: flex; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: var(--ob-radius-sm); overflow: hidden; }
 .ob-insp-cap { flex: 1; padding: 10px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-left: 1px solid var(--ob-line); }
 .ob-insp-cap:first-child { border-left: none; }
-.ob-insp-cap__label { font-size: 9px; font-weight: 600; color: var(--ob-subtle); }
+.ob-insp-cap__label { font-size: var(--ob-text-micro); font-weight: var(--ob-weight-emphasis); color: var(--ob-subtle); }

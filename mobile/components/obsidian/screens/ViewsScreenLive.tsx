@@ -6,12 +6,13 @@
  * Chrono / Settings tabs still render their static mock for now.
  */
 import React from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi } from '@/lib/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi, type PaginatedResponse } from '@/lib/api';
 import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
 import { getSignedUrls } from '@/lib/storage';
 import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
-import type { FlowHubFilter } from '@/types';
+import type { FlowHubFilter, Tile } from '@/types';
+import { toast } from '@/store';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
 import { ObsidianViewsScreen } from './ViewsScreen';
@@ -22,6 +23,20 @@ const MONTHS_SHORT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 's
 
 export interface ObsidianViewsScreenLiveProps {
   initial?: MobileViewId;
+  /**
+   * Vista CONTROLLATA dall'esterno.
+   *
+   * Serve nei tab, dove ogni rotta ospita una vista sola e le schermate già
+   * visitate restano MONTATE in sottofondo. Con la sola forma interna
+   * succedeva questo: da Tiles si toccava Chrono, l'istanza di /history
+   * impostava il proprio stato su 'chrono' e poi navigava — restando montata
+   * con la vista sbagliata. Tornando su Tiles quella stessa istanza aveva
+   * `active === 'chrono'`, quindi la query dei tile era DISABILITATA: la lista
+   * mostrava quello che aveva in cache e non si aggiornava più.
+   *
+   * Passandola, l'istanza di una rotta è sempre la propria vista.
+   */
+  active?: MobileViewId;
   /** Opens the login screen from the Settings tab. */
   onSignIn?: () => void;
   /** TopNav home button → the Capture screen. */
@@ -35,13 +50,16 @@ export interface ObsidianViewsScreenLiveProps {
   onAsk?: () => void;
 }
 
-export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
+export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp, onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
   const queryClient = useQueryClient();
-  const [active, setActive] = React.useState<MobileViewId>(initial);
+  const [activeState, setActiveState] = React.useState<MobileViewId>(initial);
+  const active = activeProp ?? activeState;
   const handleActive = React.useCallback((id: MobileViewId) => {
-    setActive(id);
+    // Controllata dall'esterno: lo stato interno NON si tocca, o l'istanza
+    // resterebbe montata con la vista di qualcun altro (vedi `active` nei props).
+    if (activeProp === undefined) setActiveState(id);
     onActiveChange?.(id);
-  }, [onActiveChange]);
+  }, [activeProp, onActiveChange]);
   const [flowFilter, setFlowFilter] = React.useState<FlowHubFilter>('wait');
   const [dayOffset, setDayOffset] = React.useState(0);
 
@@ -60,6 +78,54 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
     queryKey: ['tiles', { page: 1, limit: 100 }],
     queryFn: () => tilesApi.list({ page: 1, limit: 100 }),
     enabled: active === 'tiles',
+  });
+
+  // Eliminazione dalla lista (scorri-per-eliminare). Il backend cancella a
+  // cascata: sparks e file nello storage se ne vanno col tile.
+  // Si invalida `tiles` senza il pezzo di paginazione, così qualunque pagina in
+  // cache si rilegge — e `calendar-events`, perché un tile con data sparirebbe
+  // dalla lista ma resterebbe nel calendario fino al riavvio.
+  const deleteTile = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await tilesApi.delete(id);
+      // `apiRequest` NON lancia: su errore torna `{ success: false, error }`.
+      // Senza questo controllo un'eliminazione fallita era indistinguibile da
+      // una riuscita — si invalidava, la lista si rileggeva identica, il tile
+      // restava lì e nessuno diceva perché. Premi e non succede niente.
+      if (!res.success) throw new Error(res.error || 'Eliminazione non riuscita');
+      return res;
+    },
+    // Il tile sparisce SUBITO, senza aspettare il server. L'attesa non era la
+    // rete soltanto: il backend cancella anche i file nello storage e gli spark
+    // uno per uno, quindi la risposta arriva con calma, e la lista si rileggeva
+    // solo dopo. La card restava lì mezzo secondo buono dopo il tocco.
+    onMutate: async (id: string) => {
+      // Prima si fermano le letture in volo: una già partita tornerebbe DOPO la
+      // rimozione ottimistica e riscriverebbe la cache col tile ancora dentro —
+      // lo si vedrebbe riapparire.
+      await queryClient.cancelQueries({ queryKey: ['tiles'] });
+      // Si salvano TUTTE le pagine in cache, non solo quella a video: il
+      // ripristino in caso di errore deve rimettere le cose com'erano.
+      const previous = queryClient.getQueriesData<PaginatedResponse<Tile>>({ queryKey: ['tiles'] });
+      queryClient.setQueriesData<PaginatedResponse<Tile>>({ queryKey: ['tiles'] }, (old) =>
+        old ? { ...old, data: old.data.filter((t) => t.id !== id) } : old,
+      );
+      return { previous };
+    },
+    // Il server ha rifiutato: si rimette esattamente quello che c'era e si dice
+    // perché. Senza il ripristino il tile resterebbe sparito dalla lista pur
+    // essendo ancora sul server.
+    onError: (e, _id, ctx) => {
+      ctx?.previous.forEach(([key, data]) => queryClient.setQueryData(key, data));
+      toast.error(e instanceof Error ? e.message : 'Eliminazione non riuscita');
+    },
+    // In entrambi i casi si torna a chiedere al server: dopo un successo per
+    // allinearsi davvero, dopo un errore perché la cache ripristinata potrebbe
+    // essere vecchia.
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tiles'] });
+      queryClient.invalidateQueries({ queryKey: ['calendar-events'] });
+    },
   });
 
   // Status e tipi vivono in tabelle separate: la card del tile ne mostra il
@@ -230,7 +296,7 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
   // si riusa finché la lista non cambia; `staleTime` sta sotto l'ora di validità
   // della firma, altrimenti si mostrerebbero URL scaduti.
   const previewPaths = React.useMemo(() => {
-    const paths = baseTiles.map((t) => t.previewPath).filter((p): p is string => !!p);
+    const paths = baseTiles.flatMap((t) => t.previewPaths ?? []);
     return [...new Set(paths)].sort();
   }, [baseTiles]);
   const previewUrls = useQuery({
@@ -243,7 +309,14 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
   const tiles = React.useMemo(() => {
     const urls = previewUrls.data;
     if (!urls?.size) return baseTiles;
-    return baseTiles.map((t) => (t.previewPath ? { ...t, previewUri: urls.get(t.previewPath) } : t));
+    return baseTiles.map((t) => {
+      if (!t.previewPaths?.length) return t;
+      // I percorsi non firmati si scartano: la card mostra quelli riusciti
+      // invece di un riquadro rotto. Il contatore non cambia — le foto nel tile
+      // restano quelle, a prescindere da quante siamo riusciti a firmare.
+      const uris = t.previewPaths.map((p) => urls.get(p)).filter((u): u is string => !!u);
+      return { ...t, previewUris: uris };
+    });
   }, [baseTiles, previewUrls.data]);
   const flows = React.useMemo(
     () => (flowsQuery.data?.data ?? []).map(flowHubItemToVM),
@@ -268,6 +341,11 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', onOpenTile, onOpenF
       aiTileIds={aiTileIds}
       tilesLoading={tilesQuery.isLoading}
       onOpenTile={onOpenTile}
+      // Nessun dialogo di conferma: l'avviso è già il gesto. Scoprire il
+      // pannello rosso è un movimento deliberato, e il cestino non si può
+      // premere finché non è scoperto — chiedere "sei sicuro?" dopo due atti
+      // volontari aggiunge un tocco senza aggiungere una decisione.
+      onDeleteTile={(id) => deleteTile.mutate(id)}
       flows={flows}
       flowsLoading={flowsQuery.isLoading}
       flowFilter={flowFilter}
