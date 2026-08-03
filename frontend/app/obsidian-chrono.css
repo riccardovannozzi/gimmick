@@ -107,7 +107,7 @@
 /* tile card */
 /* Stile allineato ai tile del canvas: striscia STATUS a sinistra + contenuto
    (titolo, badge azione in basso-sx, badge tipo in basso-dx). Base solida
-   (surface) + velatura del colore (14%), bordo tinto (22%), raggio 8px. */
+   (surface) + velatura del colore (14%), bordo tinto (22%), raggio `--ob-radius-md`. */
 /* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80). flex-shrink 0:
    nella colonna il tile non si comprime. */
 .ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: var(--ob-radius-md); padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
@@ -249,7 +249,8 @@
 /* Sfondo OPACO (mix con la surface, non transparent) così gli eventi affiancati
    in caso di sovrapposizione non si vedono in trasparenza l'uno sull'altro. */
 /* Stessa ricetta dei tile di CANVAS/KANBAN/colonne: base `--ob-tile-bg`, velatura
-   del colore al 14%, bordo tinto al 22%, raggio 5. Il blocco è sempre una riga
+   del colore al 14%, bordo tinto al 22%, raggio `--ob-radius-md` — lo STESSO
+   delle card di Notes/Todo e di Kanban. Il blocco è sempre una riga
    (strip status + corpo); è il CORPO a cambiare direzione fra tall e tiny. */
 .ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: var(--ob-radius-md); overflow: hidden; display: flex; flex-direction: row; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
 /* Senza colorazione: fondo unico dei tile e bordo neutro. */

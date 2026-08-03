@@ -5,21 +5,38 @@
  * GimmickMobileAuth.dc.html. Reuses the mobile shell + tokens.
  */
 import React from 'react';
-import { View, Text, Pressable, TextInput } from 'react-native';
+import { View, Text, Pressable, TextInput, Image } from 'react-native';
 import {
   IconMail, IconLock, IconEye, IconBrandGoogle, IconBrandApple, IconArrowRight,
   IconMicrophone, IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
-import type { ObsidianColors } from '@/constants/obsidian';
+import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 
-function GimmickMark({ c, size }: { c: ObsidianColors; size: number }) {
+/**
+ * Il marchio è il robot, non un quadrato d'accento col buco in mezzo: quello era
+ * il segnaposto del mockup, e questa è la prima schermata che si vede dell'app.
+ *
+ * `adaptive-icon` e non `icon`, come in AppHeader e Drawer: sono lo stesso
+ * robot, ma `icon.png` porta lo sfondo bianco opaco (è la piastrella del
+ * launcher) e su fondo scuro diventerebbe un quadrato bianco.
+ *
+ * `size` è il peso VISIVO voluto, non il riquadro: l'asset ha un margine interno
+ * generoso e il robot disegnato ne occupa circa tre quarti, quindi il riquadro
+ * si dichiara più grande perché il robot appaia grande `size`.
+ */
+const MARK_INK = 0.73;
+function GimmickMark({ size }: { size: number }) {
+  const box = Math.round(size / MARK_INK);
   return (
-    <View style={{ width: size, height: size, borderRadius: size * 0.3, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center' }}>
-      <View style={{ width: size * 0.3, height: size * 0.3, borderRadius: size * 0.1, backgroundColor: c.accentInk }} />
-    </View>
+    <Image
+      source={require('../../../assets/adaptive-icon.png')}
+      style={{ width: box, height: box }}
+      resizeMode="contain"
+      accessibilityIgnoresInvertColors
+    />
   );
 }
 
@@ -33,7 +50,7 @@ function LoginField({ c, Icon, placeholder, secure, eye, value, onChangeText, ke
   keyboardType?: 'email-address' | 'default'; autoCapitalize?: 'none' | 'sentences'; loading?: boolean;
 }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 14 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: OB_BTN_H }}>
       <Icon size={17} color={c.subtle} strokeWidth={1.8} />
       <TextInput
         placeholder={placeholder}
@@ -54,7 +71,7 @@ function LoginField({ c, Icon, placeholder, secure, eye, value, onChangeText, ke
 
 function LoginSocial({ c, Icon, label }: { c: ObsidianColors; Icon: typeof IconBrandGoogle; label: string }) {
   return (
-    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, height: 46, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface }}>
+    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface }}>
       <Icon size={18} color={c.text} strokeWidth={1.8} />
       <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>{label}</Text>
     </View>
@@ -81,9 +98,9 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
   return (
     <View style={{ flex: 1, paddingHorizontal: 24, justifyContent: 'center' }}>
       <View style={{ alignItems: 'center', marginBottom: 30 }}>
-        <GimmickMark c={c} size={56} />
+        <GimmickMark size={56} />
         <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.7, color: c.text, marginTop: 18 }}>Bentornato</Text>
-        <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi spark</Text>
+        <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi tiles</Text>
       </View>
       <View style={{ gap: 11 }}>
         <LoginField c={c} loading={loading} Icon={IconMail} placeholder="ruslan@gimmick.app" value={email} onChangeText={onEmail} keyboardType="email-address" autoCapitalize="none" />
@@ -96,7 +113,7 @@ function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRe
           quindi il rettangolo (sfondo/altezza/raggio) sparirebbe: lo spostiamo
           sulla View, che lo rende sempre. */}
       <Pressable onPress={primary} disabled={loading} android_ripple={{ color: 'rgba(0,0,0,0.18)' }}>
-        <View style={{ height: 50, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', opacity: loading ? 0.6 : 1 }}>
+        <View style={{ minHeight: OB_BTN_H, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', opacity: loading ? 0.6 : 1 }}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
         </View>
       </Pressable>
@@ -152,7 +169,7 @@ function Onboarding({ c, onNext }: { c: ObsidianColors; onNext: () => void }) {
         <View style={{ flexDirection: 'row', gap: 6, justifyContent: 'center' }}>
           {[0, 1, 2].map((i) => <View key={i} style={{ width: i === 1 ? 22 : 7, height: 7, borderRadius: 4, backgroundColor: i === 1 ? c.accent : c.line2 }} />)}
         </View>
-        <Pressable onPress={onNext} style={({ pressed }) => ({ height: 50, borderRadius: 13, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, opacity: pressed ? 0.9 : 1 })}>
+        <Pressable onPress={onNext} style={({ pressed }) => ({ minHeight: OB_BTN_H, borderRadius: 13, backgroundColor: c.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 22, opacity: pressed ? 0.9 : 1 })}>
           <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>Continua</Text>
           <IconArrowRight size={16} color={c.accentInk} strokeWidth={1.8} />
         </Pressable>
@@ -167,7 +184,7 @@ function FirstCapture({ c, onNext }: { c: ObsidianColors; onNext: () => void }) 
   return (
     <View style={{ flex: 1, paddingHorizontal: 24 }}>
       <View style={{ paddingTop: 20, flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-        <GimmickMark c={c} size={28} />
+        <GimmickMark size={28} />
         <Text style={{ fontSize: 16, fontWeight: '600', color: c.text }}>Gimmick</Text>
       </View>
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
