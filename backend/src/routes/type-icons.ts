@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { assertTileOwned } from '../utils/ownership.js';
 
 export const typeIconsRouter = Router();
 typeIconsRouter.use(authenticate);
@@ -126,6 +127,17 @@ typeIconsRouter.get('/assignments', async (req: AuthenticatedRequest, res: Respo
 typeIconsRouter.put('/assign', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tile_id, type_icon_id } = req.body;
+
+    // `tile_id` arriva dal body e non era verificato: si poteva scrivere una
+    // riga in `tile_type_icons` riferita al tile di un altro utente. Oggi non
+    // affiora da nessuna parte (le letture filtrano per user_id), ma è lo
+    // stesso schema che in `sparks.ts` era sfruttabile — bastava un join per
+    // tile_id da qualche parte perché lo diventasse anche qui.
+    if (!tile_id) {
+      res.status(400).json({ success: false, error: 'tile_id is required' });
+      return;
+    }
+    await assertTileOwned(req.user!.id, tile_id as string);
 
     if (!type_icon_id) {
       await supabaseAdmin

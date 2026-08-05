@@ -5,16 +5,15 @@
  * send loop); otherwise the static QA demo thread.
  */
 import React from 'react';
-import { useRouter } from 'expo-router';
 import { ObsidianAskScreen, ObsidianAskScreenLive } from '@/components/obsidian';
 import { isObsidianShellEnabled } from '@/lib/feature-flags';
 
+// Niente `onBack`: la schermata non ha più una barra in cima dove metterlo. Si
+// esce col tasto indietro di sistema o con lo swipe dal bordo, che la Stack di
+// expo-router gestisce da sé.
 export default function ObsidianAskRoute() {
-  const router = useRouter();
-  const onBack = () => { if (router.canGoBack()) router.back(); };
-
   if (isObsidianShellEnabled()) {
-    return <ObsidianAskScreenLive onBack={onBack} />;
+    return <ObsidianAskScreenLive />;
   }
-  return <ObsidianAskScreen onBack={onBack} />;
+  return <ObsidianAskScreen />;
 }

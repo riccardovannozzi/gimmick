@@ -21,8 +21,6 @@ export type { ChronoViewProps } from './chrono';
 
 export { PanopticonView } from './panopticon';
 
-export { FlowsView } from './flows';
-export type { FlowsViewProps } from './flows';
 
 export { SettingsView } from './settings';
 

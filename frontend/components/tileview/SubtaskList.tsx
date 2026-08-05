@@ -13,7 +13,21 @@ import {
   IconCheck,
   IconGripVertical,
 } from '@tabler/icons-react';
-
+/**
+ * Una riga = UN CAMPO. Vale per ogni tile, flow compresi.
+ *
+ * I passi di un flow hanno avuto per un momento tre controlli in più — contatto,
+ * data, stato — ereditati dal tab Flow. Sono stati tolti: una voce di checklist
+ * con tre chip sotto non è più una voce di checklist. Ciò che quei campi
+ * dicevano è stato ripiegato nel testo al momento della migrazione
+ * ("Attesa risposta — Alessandro Bisdomini · 03/06/26"), che è anche l'unico
+ * modo perché due attese sulla stessa cosa ma su persone diverse restino due
+ * righe distinguibili.
+ *
+ * Le colonne `contact_id` / `occurred_at` / `state` esistono ancora sul dato e
+ * conservano il valore originale: se un giorno servisse una resa strutturata,
+ * la sorgente non è stata buttata.
+ */
 interface SubtaskListProps {
   tileId: string;
 }
@@ -41,7 +55,7 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, updates }: { id: string; updates: { content?: string; is_done?: boolean } }) =>
+    mutationFn: ({ id, updates }: { id: string; updates: Partial<Pick<Subtask, 'content' | 'is_done' | 'contact_id' | 'occurred_at' | 'state'>> }) =>
       subtasksApi.update(id, updates),
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey });
@@ -267,7 +281,11 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             flex: 1,
             minWidth: 0,
             background: 'transparent',
-            color: subtask.is_done ? theme.ink3 : theme.ink,
+            // Un passo annullato si legge come uno fatto — barrato e spento —
+            // perché in entrambi i casi non c'è più niente da farci. Il perché
+            // lo dice il chip. Un passo BLOCCATO invece resta a piena voce: è
+            // fermo, non chiuso, ed è quello che devi ancora sbloccare.
+            color: subtask.is_done || subtask.state === 'cancelled' ? theme.ink3 : theme.ink,
             fontFamily: 'var(--ob-font-sans)',
             fontSize: OB_TEXT.card,
             lineHeight: OB_LEADING.tight,
@@ -275,7 +293,7 @@ function SubtaskRow({ subtask, isDragging, isDropTarget, onToggle, onChange, onD
             outline: 'none',
             border: 'none',
             overflow: 'hidden',
-            textDecoration: subtask.is_done ? 'line-through' : 'none',
+            textDecoration: subtask.is_done || subtask.state === 'cancelled' ? 'line-through' : 'none',
           }}
         />
       </div>

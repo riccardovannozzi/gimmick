@@ -21,7 +21,7 @@ import { expandWithLLM } from './llm-expansion.js';
 
 // ─── Types ────────────────────────────────────────────────────────────────
 
-type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'flow';
 
 export type FindParams = {
   query: string;

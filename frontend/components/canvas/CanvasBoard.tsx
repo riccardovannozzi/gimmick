@@ -157,12 +157,6 @@ interface CanvasBoardProps {
   onSelectionChange?: (ids: string[], screenBbox: { x: number; y: number; w: number; h: number } | null) => void;
   fitTrigger: number;
   zoom100Trigger?: number;
-  /** Set of tile ids that own at least one Flow node — used to render a
-   *  "FLOW" badge in the tile's top-right corner. */
-  tilesWithFlows?: Set<string>;
-  /** Called when the user clicks the FLOW badge on a tile — opens the Flow
-   *  modal. Click on the badge does NOT also select the tile. */
-  onFlowBadgeClick?: (tileId: string) => void;
   /** Optional ref the parent passes in; CanvasBoard sets `.current` to a
    *  function that converts viewport (clientX/Y) coords to canvas-local
    *  coords using the live zoom/pan transform. Useful for drops from outside
@@ -201,7 +195,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
   fitTrigger, zoom100Trigger,
-  tilesWithFlows, onFlowBadgeClick,
   screenToLocalRef,
   isOverStaging, onTilesRemovedFromCanvas,
   onTileDragMove, onTileDragEnd,
@@ -273,7 +266,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onAddTextBoxRef = useRef(onAddTextBox); onAddTextBoxRef.current = onAddTextBox;
   const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
   const onSelectionChangeRef = useRef(onSelectionChange); onSelectionChangeRef.current = onSelectionChange;
-  const onFlowBadgeClickRef = useRef(onFlowBadgeClick); onFlowBadgeClickRef.current = onFlowBadgeClick;
   const isOverStagingRef = useRef(isOverStaging); isOverStagingRef.current = isOverStaging;
   const onTilesRemovedFromCanvasRef = useRef(onTilesRemovedFromCanvas); onTilesRemovedFromCanvasRef.current = onTilesRemovedFromCanvas;
   const onTileDragMoveRef = useRef(onTileDragMove); onTileDragMoveRef.current = onTileDragMove;
@@ -1020,8 +1012,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     drawEdges();
 
     // ── Nodes ──
+    // In SVG non esiste z-index: a sovrapporsi vince chi è disegnato DOPO.
+    // Finora l'ordine era quello in cui `buildNodes()` restituiva le tile, cioè
+    // arbitrario: due tile accostate si coprivano a caso, e a ogni ridisegno
+    // poteva cambiare chi stava sopra. Ordinando per Y la regola diventa
+    // deterministica e coincide con l'intuizione fisica — chi sta più in basso è
+    // più vicino a chi guarda, quindi passa sopra. Conta soprattutto per ciò che
+    // sborda dal rettangolo (i badge d'angolo del sistema visivo).
+    // Copia ordinata, non `nodes.sort()`: l'array originale è usato altrove per
+    // ricerche e per il salvataggio delle posizioni, e non va riordinato sotto
+    // i piedi di chi lo tiene per riferimento.
+    const stacked = [...nodes].sort((a, b) => a.y - b.y);
     const nodesG = board.append('g');
-    const nodeGrps = nodesG.selectAll('g').data(nodes, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
+    const nodeGrps = nodesG.selectAll('g').data(stacked, (d: any) => d.id).enter().append('g').attr('class', 'tile-node').attr('transform', (d) => `translate(${d.x},${d.y})`);
 
     // Click / context on tiles — agganciati SUBITO (prima del disegno di badge/
     // velatura). Così, anche se un passo di disegno fallisce, le tile restano
@@ -1230,46 +1233,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       container.innerHTML = html;
       (fo.node() as SVGForeignObjectElement)?.appendChild(container);
     });
-    // FLOW badge — clickable chip pinned to the top-right of the tile,
-    // sticking out past the tile boundary so it reads as an external
-    // "handle". Click opens the Flow modal for this tile (without selecting
-    // the tile itself, hence the pointerdown stopPropagation).
-    nodeGrps.each(function (d) {
-      if (!tilesWithFlows?.has(d.id)) return;
-      const g = d3.select(this);
-      const w = 34;
-      const h = 15;
-      // Anchor: chip's right edge flush with the tile's right edge; vertically
-      // it still floats above the tile so it reads as an external handle.
-      const x = TILE_W - w - 8;
-      const y = -h / 2 - 1;
-      const badge = g.append('g').attr('class', 'flow-badge').style('cursor', 'pointer');
-      badge.append('rect')
-        .attr('x', x).attr('y', y)
-        .attr('width', w).attr('height', h).attr('rx', 7)
-        .attr('fill', theme.accent)
-        .attr('stroke', 'none').attr('stroke-width', SW);
-      badge.append('text')
-        .attr('x', x + w / 2).attr('y', y + h / 2 + 3)
-        .attr('text-anchor', 'middle')
-        .attr('font-family', labelFont)
-        .attr('font-size', OB_TEXT.eyebrow).attr('font-weight', OB_WEIGHT.mono)
-        .attr('fill', theme.onAccent)
-        .style('letter-spacing', '0.08em')
-        .style('text-transform', 'uppercase')
-        .style('pointer-events', 'none')
-        .text('FLOW');
-      // Capture interaction at pointerdown to win the race with the tile's
-      // own drag/select handlers, and on click to fire the modal-open hook.
-      badge.on('pointerdown', (event: PointerEvent) => {
-        event.stopPropagation();
-      });
-      badge.on('click', (event: PointerEvent) => {
-        event.stopPropagation();
-        onFlowBadgeClickRef.current?.(d.id);
-      });
-    });
-
     // Badge TIPO + STATUS in basso a destra — stesso componente/logica delle
     // altre viste (TileMeta): chip colorato del tipo + swatch dello status.
     // Lo status 'active' (default/prevalente) non viene mai mostrato.
@@ -1870,7 +1833,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     tbG.raise();
     tempLine.raise();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, tilesWithFlows, theme, viewKey]);
+  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, theme, viewKey]);
 
   useEffect(() => { render(); }, [render]);
 

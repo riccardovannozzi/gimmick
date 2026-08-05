@@ -33,13 +33,13 @@ import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
 import { tagsToSidebarGroups } from '@/lib/theme/tags-to-groups';
 import type { Tag } from '@/types';
 import { OB_LEADING, OB_TEXT } from '@/lib/theme/ob-typography';
+import { ContactsModal } from '@/components/contacts/ContactsModal';
 
 /** Mappa vista → rotta. Single source of truth per la navigazione dello shell. */
 const VIEW_TO_PATH: Record<ViewId, string> = {
   sparks: '/sparks',
   tiles: '/tiles',
   tags: '/tags',
-  flows: '/flows',
   chrono: '/calendar',
   canvas: '/canvas',
   kanban: '/kanban',
@@ -146,6 +146,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
 
   // Filtro Sidebar (Tutti / Pinned).
   const [tagFilter, setTagFilter] = React.useState('all');
+  const [contactsOpen, setContactsOpen] = React.useState(false);
 
   // Pin/unpin di un tag: aggiornamento ottimistico della cache ['tags'].
   const handleTogglePin = React.useCallback((tagId: string, pinned: boolean) => {
@@ -194,6 +195,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       header={{
         userInitials,
         onHoverView: handleHoverView,
+        onContacts: () => setContactsOpen(true),
         onAsk: () => setChatOpen(true),
         onBell: () => router.push('/tiles'),
         onSettings: () => router.push('/settings'),
@@ -235,6 +237,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       }
     >
       {children}
+      <ContactsModal open={contactsOpen} onClose={() => setContactsOpen(false)} />
     </AppShell>
   );
 }

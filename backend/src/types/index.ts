@@ -7,8 +7,10 @@ export interface AuthenticatedRequest extends Request {
   accessToken?: string;
 }
 
-// Action type for GTD classification
-export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+// Action type for GTD classification.
+// `flow` = tile-processo: la sua sostanza sono i passi (tile_subtasks), non una
+// data. Non è schedulabile: sta nella terza colonna di CHRONO, non nella griglia.
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'flow';
 
 // Spark types (formerly MemoType)
 export type SparkType =

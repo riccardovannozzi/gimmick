@@ -416,3 +416,170 @@
 .ob-tablerow--interactive { cursor: pointer; }
 .ob-tablerow--interactive:hover td { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
 .ob-tablerow--active td { background: var(--ob-accent-soft); }
+
+/* ─── SISTEMA VISIVO DEI TILE — canali indipendenti ─────────────────────────
+   Vedi lib/tile-visual.ts per la mappa tipo → canali. Qui c'è solo la forma.
+
+   I colori dell'ACTION arrivano dal tile come `--ac` (impostazioni utente, mai
+   hardcoded). I colori dello STEPPER sono invece semantici e fissi: vivono nei
+   token `--ob-step-*` di obsidian.css, con le controparti per il tema scuro.
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* BADGE — pillola ancorata SOPRA il bordo superiore, quindi fuori dal
+   rettangolo. Il contrasto fra la pillola tonda e gli spigoli vivi del tile è
+   voluto: è ciò che la fa staccare invece di leggerla come parte del bordo.
+   ⚠️ Il contenitore del tile deve essere `overflow: visible`, altrimenti viene
+   tagliata. */
+.ob-tbadge {
+  position: absolute; z-index: 2;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 1.2px solid var(--ac, var(--ob-line-2));
+  border-radius: 999px;
+  background: var(--ob-surface-2);
+  color: var(--ac, var(--ob-muted));
+  pointer-events: none;
+}
+/* Il LATO viene dalla specifica del tipo. Tutti i badge stanno oggi a destra:
+   allineati sullo stesso spigolo diventano una colonna di segnali invece di due
+   punti che ballano da lati opposti. Il caso `left` resta esprimibile. */
+.ob-tbadge--left { left: 10px; }
+.ob-tbadge--right { right: 10px; }
+/* Con la strip presente un badge a SINISTRA le finirebbe sopra e slitta oltre.
+   A destra non c'è niente da scavalcare. */
+.ob-tbadge--left.ob-tbadge--shifted { left: 26px; }
+/* Parola (FLOW). Sotto queste misure il bordo diventa più spesso del contenuto
+   e la pillola si legge come un pallino. */
+.ob-tbadge--word {
+  top: -7px;
+  padding: 0 6px;
+  font-size: var(--ob-text-eyebrow); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.4px; line-height: 1.7;
+}
+/* Icona: box fisso. */
+.ob-tbadge--icon { top: -8px; width: 17px; height: 17px; }
+
+/* STRIP + STEPPER — tela neutra sul lato interno sinistro. Il fondo chiaro
+   serve a far leggere i segmenti a piena saturazione senza competere col
+   colore dell'action, che vela il resto della card. */
+.ob-tstrip {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 20px;
+  border-radius: 3px 0 0 3px;
+  background: var(--ob-surface-2);
+  border-right: 0.5px solid var(--ob-line);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 4px;
+}
+.ob-tstep { width: 10px; height: 3px; border-radius: 1px; flex-shrink: 0; }
+.ob-tstep--done { background: var(--ob-step-done); }
+.ob-tstep--pending { background: var(--ob-step-pending); }
+.ob-tstep--cancelled { background: var(--ob-step-cancelled); }
+/* Il segmento bloccato è deliberatamente più grande: sporge dalla colonna e
+   aggiunge una ridondanza di FORMA a quella di colore, così resta leggibile
+   anche con un daltonismo rosso-verde. */
+.ob-tstep--blocked { width: 12px; height: 5px; background: var(--ob-step-blocked); }
+/* Segmento riassuntivo oltre il quinto: due trattini corti, non un colore in
+   più — dice "ce ne sono altri", non uno stato. */
+.ob-tstep--more {
+  width: 10px; height: 3px; border-radius: 1px; background: none;
+  border-top: 1px solid var(--ob-step-pending);
+  border-bottom: 1px solid var(--ob-step-pending);
+}
+
+/* STATUS testuale — footer sinistro. Tace quando lo stato è `active`. */
+.ob-tstatus {
+  position: absolute; left: 10px; bottom: 9px;
+  font-size: var(--ob-text-meta); font-weight: var(--ob-weight-body); line-height: var(--ob-leading-none);
+  opacity: 0.55; color: var(--tx, var(--ob-text));
+  white-space: nowrap; pointer-events: none;
+}
+.ob-tstatus--shifted { left: 28px; }
+
+/* ─── IL TILE ───────────────────────────────────────────────────────────────
+   150×80, la misura unica di tutte le superfici (canvas TILE_W/TILE_H, colonne
+   di Chrono, corsie del Kanban, staging).
+
+   ⚠️ NIENTE `overflow: hidden`. È deliberato: i badge sbordano dal rettangolo
+   per costruzione. Il contenimento è ottenuto dando a ogni figlio che tocca il
+   bordo il proprio raggio (la strip ce l'ha), non ritagliando il contenitore.
+   Il troncamento del titolo è affidato a `-webkit-line-clamp` sul titolo, non
+   al contenitore.
+   ────────────────────────────────────────────────────────────────────────── */
+.ob-tile {
+  position: relative;
+  width: 150px; height: 80px; flex-shrink: 0;
+  border-radius: var(--ob-radius-sm);
+  /* Velatura del colore dell'action sul fondo unico dei tile — la STESSA
+     ricetta di canvas, chrono, kanban e staging (14% del colore su
+     --ob-tile-bg). Senza, il tile e' una scatola piatta e non appartiene alla
+     famiglia. `--ac` assente (tipo senza colore) => fondo pieno, nessuna
+     velatura: e' la variante che le viste chiamano `--plain`. */
+  background: color-mix(in srgb, var(--ac, var(--ob-tile-bg)) 14%, var(--ob-tile-bg));
+  /* Hairline strutturale: definisce il rettangolo, non porta significato.
+     Con box-sizing border-box l'ingombro resta 150×80 anche quando il bordo
+     action lo ingrossa a 1.5px. */
+  border: 0.5px solid var(--ob-line);
+  color: var(--ob-text);
+  /* Il font va DICHIARATO qui, non ereditato.
+     Nell'app arriva da `html[data-ob='on'] body`, una regola che dipende da un
+     attributo impostato da un effect del provider: prima che quello giri, e
+     ovunque il tile venga montato fuori da un contenitore di vista (anteprime,
+     portali, foreignObject dell'SVG del canvas), il tile eredita quello che
+     capita. Le viste lo dichiarano tutte sul proprio contenitore
+     (.ob-chrono, .ob-canvas, .ob-ask); un componente condiviso deve bastare
+     a se stesso. */
+  font-family: var(--ob-font-sans);
+}
+/* Bordo action — l'unico canale del perimetro. Sostituisce la hairline. */
+.ob-tile[data-border='solid'] { border: 1.5px solid var(--ac, var(--ob-line-2)); }
+.ob-tile[data-border='dashed'] { border: 1.5px dashed var(--ac, var(--ob-line-2)); }
+
+.ob-tile--clickable { cursor: pointer; }
+/* SELEZIONE — un anello su pseudo-elemento, non un `box-shadow: inset`.
+   L'ombra interna si dipinge sotto i figli, quindi la strip — che è un figlio in
+   posizione assoluta col proprio fondo — le passava sopra e mangiava i primi
+   20px dell'anello sul lato sinistro. Un `::after` è invece l'ultimo figlio
+   generato: a parità di livello vince sui fratelli posizionati prima, e l'anello
+   si chiude tutto intorno, strip compresa.
+   `inset: 0` cade sul bordo interno esattamente dove cadeva l'ombra, quindi la
+   posizione non cambia: cambia solo l'ordine di disegno. */
+.ob-tile--active::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 2px var(--ob-accent);
+  pointer-events: none;
+}
+/* `cancelled` attenua l'intero tile; `done` barra il solo titolo. */
+.ob-tile--cancelled { opacity: 0.5; }
+.ob-tile--done .ob-tile__title { text-decoration: line-through; }
+
+/* Corpo: il titolo in alto, spazio riservato in basso per la riga del footer
+   (status a sinistra, metadato a destra), che è posizionata in assoluto. */
+.ob-tile__body { height: 100%; padding: 10px 10px 26px; box-sizing: border-box; }
+.ob-tile--stripped .ob-tile__body { padding-left: 28px; }
+
+.ob-tile__title {
+  font-size: var(--ob-text-card);
+  font-weight: var(--ob-weight-emphasis);
+  line-height: var(--ob-leading-tight);
+  letter-spacing: -0.01em;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word;
+}
+
+/* Metadato — footer destro. Cede il passo allo status: se non entra in almeno
+   sei caratteri non viene renderizzato affatto (decisione presa nel componente,
+   dove le misure sono note), altrimenti tronca con ellissi. */
+.ob-tile__meta {
+  position: absolute; right: 10px; bottom: 9px; max-width: 96px;
+  font-size: var(--ob-text-meta); line-height: var(--ob-leading-none);
+  opacity: 0.6;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+/* Variante B (swatch dello status nella strip + chip del tipo nel footer
+   sinistro) SCARTATA: si è scelto il sistema puro a cinque canali. Lo status
+   resta una parola, l'icona del tipo non compare sulla card. Le regole sono
+   state rimosse invece di lasciate spente — una regola morta è peggio di una
+   assente, perché la prossima persona non sa se serve. */

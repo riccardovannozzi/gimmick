@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Tag, Tile } from '../types/index.js';
 import { updateTagWeights, getTagGraph, getRelatedTags } from '../services/tagGraph.js';
+import { assertTagOwned, assertTilesOwned, assertTileOwned } from '../utils/ownership.js';
 
 export const tagsRouter = Router();
 
@@ -367,6 +368,13 @@ tagsRouter.post('/:id/tiles', async (req: AuthenticatedRequest, res: Response, n
       return res.status(400).json({ success: false, error: 'tile_ids array required' });
     }
 
+    // `tagId` e i `tile_ids` arrivano interamente dal client: senza queste due
+    // verifiche si poteva collegare un tag qualsiasi a tile di altri utenti.
+    // `tile_tags` non ha una colonna user_id, quindi il vincolo di proprietà
+    // può stare solo qui.
+    await assertTagOwned(req.user!.id, tagId as string);
+    await assertTilesOwned(req.user!.id, tile_ids);
+
     const rows = tile_ids.map((tile_id) => ({ tag_id: tagId, tile_id }));
 
     const { error } = await supabaseAdmin
@@ -396,6 +404,13 @@ tagsRouter.delete('/:id/tiles/:tileId', async (req: AuthenticatedRequest, res: R
   try {
     const tagId = req.params.id as string;
     const tileId = req.params.tileId as string;
+
+    // Entrambi gli id vengono dalla rotta. Senza queste verifiche bastavano due
+    // UUID per staccare un tag dal tile di un altro utente — e il ramo "tile
+    // rimasto orfano" qui sotto gli avrebbe pure attaccato il GIMMICK root del
+    // chiamante.
+    await assertTagOwned(req.user!.id, tagId);
+    await assertTileOwned(req.user!.id, tileId);
 
     const { error } = await supabaseAdmin
       .from('tile_tags')
@@ -445,6 +460,10 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
   try {
     const { id: tagId } = req.params;
 
+    // Senza questa verifica l'endpoint restituiva i tile di CHIUNQUE: bastava
+    // l'UUID di un tag altrui per leggerne titoli, descrizioni, date e subtask.
+    await assertTagOwned(req.user!.id, tagId as string);
+
     const { data, error } = await supabaseAdmin
       .from('tile_tags')
       .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order))')
@@ -460,6 +479,10 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
     const tiles = rows
       .map((row) => row.tiles)
       .filter((t): t is TileWithSubtasks => Boolean(t))
+      // Cintura oltre alle bretelle: il tag è già stato verificato come proprio,
+      // ma un'associazione a un tile altrui potrebbe essere stata creata dal
+      // POST prima che fosse corretto. Le righe residue non devono affiorare.
+      .filter((t) => t.user_id === req.user!.id)
       .map((tile) => {
         const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
         const subtasks = subtasksRaw

@@ -14,7 +14,7 @@ import {
   Icon, type ViewId, type SidebarGroup,
 } from '@/components/shell';
 import { Button, SegmentedControl } from '@/components/primitives';
-import { TilesView, SparksView, CanvasView, KanbanView, ChronoView, PanopticonView, FlowsView } from '@/components/views';
+import { TilesView, SparksView, CanvasView, KanbanView, ChronoView, PanopticonView } from '@/components/views';
 import type { ObsidianMode } from '@/lib/theme/obsidian';
 
 const GROUPS: SidebarGroup[] = [
@@ -151,10 +151,6 @@ function ShellDemo({ mode }: { mode: ObsidianMode }) {
       ) : view === 'panopticon' ? (
         <ViewContainer hideToolbar>
           <PanopticonView />
-        </ViewContainer>
-      ) : view === 'flows' ? (
-        <ViewContainer hideToolbar>
-          <FlowsView />
         </ViewContainer>
       ) : (
         <ViewContainer

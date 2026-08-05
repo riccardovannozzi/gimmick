@@ -39,6 +39,15 @@ export const OB_HEADER_BTN = 48;
 const HEADER_BTN_GAP = 8;
 
 /**
+ * Lato dei glifi dentro i quadrati della navbar. Uguale a `CAP_GLYPH` dei tondi
+ * della barra di cattura (CaptureScreen.tsx): le due file di pulsanti convivono
+ * sulla home, una sopra l'altra, e glifi di misura diversa le facevano leggere
+ * come due sistemi distinti. Il quadrato resta 48 (tocco) e il tondo 52: a
+ * cambiare è solo il disegno, non il bersaglio.
+ */
+const HEADER_GLYPH = 25;
+
+/**
  * Pulsante-marchio a sinistra: etichetta della finestra + freccetta, apre il
  * Drawer. `brand` aggiunge il robot davanti (solo in home).
  *
@@ -115,12 +124,13 @@ export function HeaderActions({ active, onNavigateView, onAsk, onHome }: {
           android_ripple={{ color: c.line, borderless: true }}
           style={[sqBtn, { backgroundColor: c.surface2 }]}
         >
-          {/* 26 e non 19 come i glifi accanto: l'asset ha un margine interno
+          {/* 34 e non 25 come i glifi accanto: l'asset ha un margine interno
               generoso, quindi il robot disegnato occupa meno del riquadro che
-              dichiara. A 19 risulterebbe più piccolo dei vicini, non uguale. */}
+              dichiara. A 25 risulterebbe più piccolo dei vicini, non uguale.
+              Il rapporto è lo stesso di prima (era 26 quando i glifi erano 19). */}
           <Image
             source={require('../../assets/adaptive-icon.png')}
-            style={{ width: 26, height: 26 }}
+            style={{ width: 34, height: 34 }}
             resizeMode="contain"
             accessibilityIgnoresInvertColors
           />
@@ -138,7 +148,7 @@ export function HeaderActions({ active, onNavigateView, onAsk, onHome }: {
             android_ripple={{ color: c.line, borderless: true }}
             style={[sqBtn, { backgroundColor: c.surface2 }]}
           >
-            <v.Icon size={19} color={on ? c.accent : c.text} strokeWidth={1.9} />
+            <v.Icon size={HEADER_GLYPH} color={on ? c.accent : c.text} strokeWidth={1.8} />
           </Pressable>
         );
       })}
@@ -149,7 +159,7 @@ export function HeaderActions({ active, onNavigateView, onAsk, onHome }: {
         android_ripple={{ color: c.accent + '40', borderless: true }}
         style={[sqBtn, { backgroundColor: c.accent + '2E' }]}
       >
-        <IconSparkles size={19} color={c.accent} strokeWidth={1.9} />
+        <IconSparkles size={HEADER_GLYPH} color={c.accent} strokeWidth={1.8} />
       </Pressable>
     </View>
   );

@@ -8,7 +8,7 @@ import { upsertTileEmbedding } from '../services/indexing.js';
 import { getActiveStatusId } from '../services/statuses.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
 
-const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event'] as const;
+const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event', 'flow'] as const;
 
 export const tilesRouter = Router();
 
@@ -36,6 +36,11 @@ const updateTileSchema = z.object({
 const querySchema = z.object({
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(20),
+  // Filtro per tipo, opzionale. Serve alle viste a colonne: senza di esso una
+  // colonna riceve le N tile più recenti di OGNI tipo e poi ne scarta la maggior
+  // parte lato client, quindi con 585 tile di cui 393 eventi le colonne senza
+  // data restano quasi vuote. Con il filtro il tetto di 100 vale per tipo.
+  action_type: z.enum(ACTION_TYPES).optional(),
 });
 
 /**
@@ -47,21 +52,31 @@ tilesRouter.get(
   validate(querySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { page, limit } = req.query as unknown as {
+      const { page, limit, action_type } = req.query as unknown as {
         page: number;
         limit: number;
+        action_type?: string;
       };
       const offset = (page - 1) * limit;
 
       // Get tiles with sparks, tags, and subtasks (for checklist bar)
-      const { data, error, count } = await supabaseAdmin
+      let query = supabaseAdmin
         .from('tiles')
         // `thumbnail_path` e `mime_type` servono all'anteprima della card nella
         // lista Tiles del mobile: la miniatura è l'UNICA immagine che la lista
         // scarica (mai il file pieno), il mime distingue gli allegati che SONO
         // immagini.
-        .select('*, sparks(id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(is_done, sort_order)', { count: 'exact' })
-        .eq('user_id', req.user!.id)
+        // `user_id` sui figli non serve alla UI: serve a poterli filtrare qui
+        // sotto. I join seguono la sola FK tile_id, quindi una riga figlia di un
+        // altro utente attaccata a un tile mio comparirebbe in questa lista.
+        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(user_id, is_done, sort_order)', { count: 'exact' })
+        .eq('user_id', req.user!.id);
+
+      if (action_type) {
+        query = query.eq('action_type', action_type);
+      }
+
+      const { data, error, count } = await query
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -80,6 +95,7 @@ tilesRouter.get(
       // Row shapes for this query's Supabase joins
       type SparkPreview = {
         id: string;
+        user_id: string;
         type: string;
         content: string | null;
         storage_path: string | null;
@@ -89,7 +105,7 @@ tilesRouter.get(
       };
       type TileTag = { id: string; name: string; tag_type?: string };
       type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string } | null };
-      type SubtaskRow = { is_done: boolean | null; sort_order: number | null };
+      type SubtaskRow = { user_id: string; is_done: boolean | null; sort_order: number | null };
       type TileListRow = Tile & {
         sparks?: SparkPreview[];
         tile_tags?: TileTagJoin[];
@@ -116,7 +132,8 @@ tilesRouter.get(
 
       // Transform data to include spark_count, sparks preview, tags, and subtasks
       const tilesWithCount = listRows.map((tile) => {
-        const sparks = Array.isArray(tile.sparks) ? tile.sparks : [];
+        const sparks = (Array.isArray(tile.sparks) ? tile.sparks : [])
+          .filter((s) => s.user_id === req.user!.id);
         const tags: TileTag[] = (tile.tile_tags || [])
           .map((tt) => tt.tags)
           .filter((t): t is { id: string; name: string; tag_type: string } => Boolean(t));
@@ -125,7 +142,8 @@ tilesRouter.get(
           tags.push({ id: rootTag.id, name: rootTag.name });
         }
         // Compact subtasks payload: sorted by sort_order, only is_done kept
-        const subtasksRaw = Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [];
+        const subtasksRaw = (Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [])
+          .filter((s) => s.user_id === req.user!.id);
         const subtasks = subtasksRaw
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -256,10 +274,14 @@ tilesRouter.get('/:id', async (req: AuthenticatedRequest, res: Response, next) =
     }
 
     // Get all sparks for this tile
+    // Il filtro su user_id è ridondante — la proprietà del tile è appena stata
+    // verificata — ma non lo era finché POST /api/sparks accettava un tile_id
+    // altrui: gli spark iniettati da altri affioravano proprio da qui.
     const { data: sparks, error: sparksError } = await supabaseAdmin
       .from('sparks')
       .select('*')
       .eq('tile_id', id)
+      .eq('user_id', req.user!.id)
       .order('created_at', { ascending: true });
 
     if (sparksError) {

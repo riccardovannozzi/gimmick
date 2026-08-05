@@ -1,13 +1,27 @@
 /**
- * Gimmick · Obsidian — NavPill (home indicator strip).
+ * Gimmick · Obsidian — NavPill (striscia inferiore).
  *
- * The bottom home-indicator pill, respecting the bottom safe-area inset.
- * Reference: the mobile DCs' `navPill` (128×4 rounded bar).
+ * Tiene libera la fascia in fondo allo schermo, così il contenuto non finisce
+ * sotto la gesture bar di Android e i tocchi non se li prende il sistema.
+ *
+ * NON disegna più la barretta 128×4: veniva dai mockup HTML del design system,
+ * che simulavano l'home indicator del telefono per far sembrare la pagina un
+ * dispositivo. Su un telefono vero quell'indicatore lo disegna già il sistema
+ * operativo, quindi era il nostro disegno sopra il suo — decorazione, non un
+ * comando. Il nome resta per non toccare le nove schermate che lo usano.
  */
 import React from 'react';
 import { View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useObsidian } from '@/lib/obsidian';
+
+/**
+ * Altezza della fascia. Fissa, com'era prima: il valore comprende già la
+ * gesture bar sui telefoni correnti. (L'inset di sistema NON viene sommato —
+ * con un `height` esplicito il padding sta dentro l'altezza, quindi la striscia
+ * misurava 40 anche prima. Cambiarlo ora sposterebbe il fondo di nove
+ * schermate, che è un'altra decisione.)
+ */
+const STRIP_H = 40;
 
 interface ObsidianNavPillProps {
   /** Fondo della striscia. Default: canvas. Le schermate a fondo nero (home,
@@ -17,27 +31,5 @@ interface ObsidianNavPillProps {
 
 export function ObsidianNavPill({ background }: ObsidianNavPillProps = {}) {
   const c = useObsidian();
-  const insets = useSafeAreaInsets();
-  return (
-    <View
-      style={{
-        // Inset di sistema PIENO + margine extra, così sopra i pulsanti/gesture
-        // bar di Android resta sempre spazio (prima sottraeva 8 e li toccava).
-        height: 40,
-        paddingBottom: (insets.bottom || 0) + 12,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: background ?? c.canvas,
-      }}
-    >
-      <View
-        style={{
-          width: 128,
-          height: 4,
-          borderRadius: 2,
-          backgroundColor: c.dark ? 'rgba(255,255,255,0.4)' : 'rgba(24,20,38,0.32)',
-        }}
-      />
-    </View>
-  );
+  return <View style={{ height: STRIP_H, backgroundColor: background ?? c.canvas }} />;
 }

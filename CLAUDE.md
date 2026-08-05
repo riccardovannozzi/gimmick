@@ -409,7 +409,7 @@ sparks/{user_id}/files/{filename}
 - `POST /reindex-all` - Ri-indicizza pending/failed
 
 ### Tiles (`/api/tiles`)
-- `GET /` - Lista con spark count e tags associati
+- `GET /` - Lista con spark count e tags associati. Filtro opzionale `action_type` (il limite di 100 vale per tipo)
 - `GET /graph` - Dati per grafo (tiles + sparks + tags)
 - `GET /:id` - Dettaglio con sparks
 - `POST /` - Crea (auto-tag GIMMICK)

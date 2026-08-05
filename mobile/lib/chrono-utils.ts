@@ -53,6 +53,21 @@ export function addDays(d: Date, n: number): Date {
   return x;
 }
 
+/**
+ * Add `n` months (can be negative), CLAMPING the day to the last of the target
+ * month. `setMonth` da solo trabocca: al 31 gennaio + 1 mese risponderebbe il
+ * 3 marzo, e sfogliando i mesi avanti e indietro si salterebbe febbraio.
+ */
+export function addMonths(d: Date, n: number): Date {
+  const x = new Date(d);
+  const day = x.getDate();
+  x.setDate(1);
+  x.setMonth(x.getMonth() + n);
+  const lastDay = new Date(x.getFullYear(), x.getMonth() + 1, 0).getDate();
+  x.setDate(Math.min(day, lastDay));
+  return x;
+}
+
 /** Same calendar day (year + month + date), ignoring time. */
 export function isSameDay(a: Date, b: Date): boolean {
   return (

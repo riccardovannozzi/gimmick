@@ -42,6 +42,25 @@ function generateFileName(originalName: string): string {
 }
 
 /**
+ * Sanifica il segmento `folder` del path di storage.
+ *
+ * Il nome della cartella arriva dal client (`req.body.folder`), mentre tutto il
+ * resto del path è generato qui: il prefisso è `${req.user!.id}/`, ed è l'unica
+ * cosa che tiene separati i file di un utente da quelli di un altro. Una
+ * stringa come `../<altro_id>/foto` uscirebbe da quel prefisso.
+ *
+ * Non normalizzo il percorso: RIDUCO L'ALFABETO. Restano lettere, cifre,
+ * trattino e underscore; cadono barre, punti e tutto il resto, quindi `../`
+ * non è nemmeno esprimibile. È un filtro che non ha casi limite da indovinare,
+ * a differenza di una risoluzione di path — e i nomi che il client manda
+ * davvero ('files', 'photos', 'videos', 'audio') lo attraversano intatti.
+ */
+function safeFolder(raw: unknown): string {
+  const cleaned = typeof raw === 'string' ? raw.replace(/[^a-zA-Z0-9_-]/g, '') : '';
+  return cleaned.slice(0, 40) || 'files';
+}
+
+/**
  * POST /api/upload/file
  * Upload a single file
  */
@@ -51,7 +70,7 @@ uploadRouter.post(
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const file = req.file;
-      const folder = (req.body.folder as string) || 'files';
+      const folder = safeFolder(req.body.folder);
       const bucket = resolveBucket(req.body.bucket);
 
       if (!file) {
@@ -104,7 +123,7 @@ uploadRouter.post(
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
       const files = req.files as Express.Multer.File[];
-      const folder = (req.body.folder as string) || 'files';
+      const folder = safeFolder(req.body.folder);
       const bucket = resolveBucket(req.body.bucket);
 
       if (!files || files.length === 0) {

@@ -4,8 +4,8 @@
  * Gimmick · Obsidian — Chrono view collegata ai dati reali (Fase 5).
  *
  * Collega la `ChronoView`:
- *   - colonne NOTES/TODO ← `tilesApi.list` splittato per action_type
- *     ('none' → Notes, 'anytime' → Todo)
+ *   - colonne NOTES/TODO/FLOW ← `tilesApi.list` splittato per action_type
+ *     ('none' → Notes, 'anytime' → Todo, 'flow' → Flow)
  *   - griglia settimanale ← `calendarApi.events(range)` (Tile schedulati):
  *     timed nel time-grid, all-day/deadline nella lane "tutto il dì"
  *   - navigazione settimana (prec/oggi/succ), click card/evento → Inspector
@@ -31,17 +31,17 @@ import {
   type MonthEvent,
   type ChronoColorMode,
   type ChronoCalView,
+  type ColumnActionType,
 } from '@/components/views/chrono';
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
+import type { TileStatus } from '@/lib/tile-visual';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
-import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { useStatuses } from '@/store/statuses-store';
 import { statusMeta } from '@/lib/status-meta';
 import type { Status, Tile } from '@/types';
@@ -101,22 +101,33 @@ function deriveTitle(t: Tile): string {
   return 'Senza titolo';
 }
 
+/** Conferme delle due azioni di colonna, una riga per colonna. */
+const COLUMN_TOAST: Record<ColumnActionType, { moved: string; created: string }> = {
+  none:    { moved: 'Spostato in Notes', created: 'Nota creata' },
+  anytime: { moved: 'Spostato in Todo',  created: 'Task creato' },
+  flow:    { moved: 'Spostato in Flow',  created: 'Flow creato' },
+};
+
 function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: string) => { icon: string; color?: string } | null): ColTile {
   const ti = iconOf(t.id);
   const isTodo = t.action_type === 'anytime';
+  const isFlow = t.action_type === 'flow';
   const sp = t.sparks?.[0];
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
   return {
     id: t.id,
     title: deriveTitle(t),
-    actionLabel: isTodo ? 'To do' : 'Notes',
-    actionColor: isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
+    actionLabel: isFlow ? 'Flow' : isTodo ? 'To do' : 'Notes',
+    actionColor: isFlow ? 'var(--ob-accent)' : isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
     action: t.action_type,
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),
+    // Nome grezzo dello status: al sistema visivo serve la chiave, non
+    // l'etichetta tradotta che `cardStatus` produce per lo swatch.
+    statusName: (t.status_id ? statusById.get(t.status_id)?.name : undefined) as TileStatus | undefined,
     type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
     sparkCount: (t.sparks ?? []).length,
   };
@@ -172,8 +183,6 @@ export function ChronoLive() {
   const clearSelection = useTileSelectionStore((s) => s.clear);
   const clipboardId = useTileClipboardStore((s) => s.tileId);
   const copyTile = useTileClipboardStore((s) => s.copy);
-  const openFlow = useFlowOpenStore((s) => s.open);
-  const tilesWithFlows = useTilesWithFlows();
   const { statuses } = useStatuses();
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const [menu, setMenu] = useState<ChronoMenu | null>(null);
@@ -252,12 +261,26 @@ export function ChronoLive() {
     },
     staleTime: 2 * 60 * 1000,
   });
+  // Le tre colonne, in una sola chiave di cache.
+  //
+  // Prima era una richiesta sola senza filtro, e il tetto di 100 righe era
+  // spartito fra TUTTI i tipi in ordine di creazione: con 393 eventi su 585
+  // tile, la finestra si riempiva di roba che nelle colonne non compare mai e
+  // che quindi veniva scartata lato client. Misurato sui dati reali: dei 28 tile
+  // che ospitano beat — i candidati flow — ZERO cadevano dentro la finestra.
+  //
+  // Tre richieste filtrate per tipo, quindi, ognuna col suo tetto di 100.
+  // Restano UNA queryKey e UN array: gli aggiornamenti ottimistici e la ricerca
+  // del sorgente per Incolla continuano a lavorare su `['tiles-calendar']` come
+  // prima, senza sapere che sotto sono tre chiamate.
   const { data: allTilesData, isLoading } = useQuery({
     queryKey: ['tiles-calendar'],
     queryFn: async () => {
-      const res = await tilesApi.list({ limit: 100 });
-      if (!res.success) throw new Error('Errore caricamento tiles');
-      return res;
+      const parts = await Promise.all(
+        (['none', 'anytime', 'flow'] as const).map((action_type) => tilesApi.list({ limit: 100, action_type })),
+      );
+      if (parts.some((r) => !r.success)) throw new Error('Errore caricamento tiles');
+      return { success: true as const, data: parts.flatMap((r) => r.data ?? []) };
     },
     staleTime: 60_000,
   });
@@ -272,6 +295,10 @@ export function ChronoLive() {
   );
   const todos = useMemo(
     () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
+    [allTiles, colorOf, statusById, getIconForTile],
+  );
+  const flows = useMemo(
+    () => allTiles.filter((t) => t.action_type === 'flow').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
     [allTiles, colorOf, statusById, getIconForTile],
   );
 
@@ -375,9 +402,9 @@ export function ChronoLive() {
       .catch(() => toast.error('Errore schedulazione'));
   }, [fracToISO, queryClient]);
 
-  // Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo:
+  // Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo/Flow:
   // imposta action_type e deschedula (azzera evento/orari).
-  const handleMoveToColumn = useCallback((tileId: string, actionType: 'none' | 'anytime') => {
+  const handleMoveToColumn = useCallback((tileId: string, actionType: ColumnActionType) => {
     // Optimistic: sposta il tile nella colonna giusta e toglilo dalla griglia.
     queryClient.setQueryData(['tiles-calendar'], (old: { data?: Tile[] } | undefined) => {
       if (!old?.data) return old;
@@ -393,7 +420,7 @@ export function ChronoLive() {
         toast.error('Errore spostamento');
         invalidateTileCaches(queryClient);
       });
-    toast.success(actionType === 'none' ? 'Spostato in Notes' : 'Spostato in Todo');
+    toast.success(COLUMN_TOAST[actionType].moved);
   }, [queryClient, range]);
 
   // ─── Menu contestuale (tasto destro): Copia · Incolla · Apri flow · Elimina ──
@@ -461,13 +488,6 @@ export function ChronoLive() {
     }
   }, [clipboardId, menu, allTiles, events, tagsData, fracToISO, queryClient, selectTile]);
 
-  const handleOpenFlow = useCallback(() => {
-    if (!menu) return;
-    const id = menu.tileId;
-    setMenu(null);
-    openFlow(id);
-  }, [menu, openFlow]);
-
   const handleDelete = useCallback(async () => {
     if (!menu) return;
     const id = menu.tileId;
@@ -531,9 +551,9 @@ export function ChronoLive() {
     }
   }, [queryClient, tagsData, selectTile, fracToISO]);
 
-  // Doppio click su area vuota di Notes/Todo: crea la tile con l'action_type
-  // della colonna ('none' = Notes, 'anytime' = Todo). Non schedula: resta in colonna.
-  const handleCreateColumnTile = useCallback(async (actionType: 'none' | 'anytime') => {
+  // Doppio click su area vuota di Notes/Todo/Flow: crea la tile con l'action_type
+  // della colonna. Non schedula: resta in colonna.
+  const handleCreateColumnTile = useCallback(async (actionType: ColumnActionType) => {
     try {
       const res = await tilesApi.create({ title: 'New tile' });
       if (!res.success || !res.data) { toast.error('Errore creazione tile'); return; }
@@ -543,7 +563,7 @@ export function ChronoLive() {
       if (rootTag) await tagsApi.tagTiles(rootTag.id, [newId]);
       invalidateTileCaches(queryClient, ['tags']);
       selectTile(newId);
-      toast.success(actionType === 'none' ? 'Nota creata' : 'Task creato');
+      toast.success(COLUMN_TOAST[actionType].created);
     } catch {
       toast.error('Errore creazione tile');
     }
@@ -680,6 +700,7 @@ export function ChronoLive() {
       <ChronoView
         notes={notes}
         todos={todos}
+        flows={flows}
         calendar={calendar}
         selectedId={selectedTileId ?? undefined}
         onCardClick={(id) => selectTile(id)}
@@ -712,11 +733,6 @@ export function ChronoLive() {
             <button type="button" className="ob-ctx__item" onClick={handlePaste} disabled={!clipboardId}>
               <Icon name="paste" size={14} /> Incolla
             </button>
-            {tilesWithFlows.has(menu.tileId) && (
-              <button type="button" className="ob-ctx__item" onClick={handleOpenFlow}>
-                <Icon name="flow" size={14} /> Apri flow
-              </button>
-            )}
             <div className="ob-ctx__sep" />
             <button type="button" className="ob-ctx__item ob-ctx__item--danger" onClick={handleDelete}>
               <Icon name="trash" size={14} /> Elimina

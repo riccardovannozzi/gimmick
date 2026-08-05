@@ -17,14 +17,27 @@
 import * as React from 'react';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
+import { Tile } from '@/components/tiles/Tile';
+import { tileVisualKey, type StepState, type TileStatus } from '@/lib/tile-visual';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
-import { IconArrowUp, IconBolt, IconClock } from '@tabler/icons-react';
 import type { StatusShape, ActionType } from '@/types';
 
 /** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
 export type ChronoColorMode = 'tag' | 'type' | 'status';
+
+/**
+ * Gli action_type che hanno una COLONNA propria, cioè i tile senza collocazione
+ * nella griglia. Gli altri tre (`deadline`, `event`, e `allday` che ne è la
+ * variante) stanno nel calendario, dove li porta una data: non hanno colonna
+ * perché hanno un giorno.
+ *
+ * Questo tipo è il vincolo che tiene insieme le tre cose che devono restare
+ * d'accordo: dove si può trascinare un tile, cosa crea il doppio click su una
+ * colonna vuota, e quali colonne esistono.
+ */
+export type ColumnActionType = 'none' | 'anytime' | 'flow';
 
 // ─── Tokens for semantic event kinds ──────────────────────────────────────────
 type EventKind = 'timed' | 'allday' | 'deadline' | 'anytime';
@@ -59,68 +72,46 @@ export interface ColTile {
   checklist?: boolean[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
+  /** Nome grezzo dello status (`active`, `done`, `paused`…). Distinto da
+   *  `status`, che porta l'etichetta già tradotta e la forma dello swatch:
+   *  al sistema visivo serve la chiave, non la resa. */
+  statusName?: TileStatus;
   /** Colore (hex) del tag/tipo/status quando la colorazione è attiva; usato come
    *  --card-c per una VELATURA di sfondo (via CSS), non come colore pieno. */
   bg?: string;
 }
 
-// Icona del badge azione (basso-sinistra), come il tile del canvas. 'none' → nessun
-// badge (colonna Notes); 'anytime' (Todo) → freccia su.
-const ACTION_ICON: Partial<Record<ActionType, React.ComponentType<{ size?: number; color?: string }>>> = {
-  anytime: IconArrowUp,
-  deadline: IconBolt,
-  event: IconClock,
-};
-
+/**
+ * Card delle colonne Notes/Todo — ora è il `Tile` del sistema visivo.
+ *
+ * Il wrapper esiste per due cose che il Tile non fa apposta, per restare
+ * presentazionale: il trascinamento verso la griglia del calendario, e la
+ * GRONDA di 9px. La gronda sta sulla cella e non sul tile — un margine sul tile
+ * ne sposterebbe l'allineamento; un padding sulla cella lascia il rettangolo
+ * intatto a 150×80 e riserva sopra lo spazio in cui i badge sbordano.
+ */
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
-  // Colore della tile: quello della modalità di colorazione attiva (`bg`) o,
-  // nei mock, l'ambra delle deadline. Se non è impostato NIENTE la tile non ha
-  // velatura: resta il fondo unico `--ob-tile-bg` (variante `--plain`), non un
-  // viola d'accento di ripiego.
-  const cardC = t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined);
   const canDrag = !!schedulable && !!t.id;
-  const ActIcon = t.action ? ACTION_ICON[t.action] : undefined;
+  // `is_completed` e lo status `done` sono tenuti allineati dal database
+  // (migration 015), quindi qui valgono come la stessa cosa.
+  const status: TileStatus = t.done ? 'done' : (t.statusName ?? 'active');
+  const steps = t.checklist?.map((d): StepState => (d ? 'done' : 'pending'));
   return (
     <div
-      className={cn('ob-chrono__card', !cardC && 'ob-chrono__card--plain', active && 'ob-chrono__card--active', onClick && 'ob-chrono__card--clickable', canDrag && 'ob-chrono__card--draggable', t.done && 'ob-chrono__card--done')}
-      style={{ ['--card-c' as string]: cardC ?? 'var(--ob-tile-bg)' }}
-      onClick={onClick}
-      onContextMenu={onContextMenu}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
+      className="ob-chrono__cell"
       draggable={canDrag}
       onDragStart={canDrag ? (e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('application/x-chrono-tile', t.id!); } : undefined}
     >
-      {/* Striscia STATUS a sinistra: presente SOLO se la tile ha uno status.
-          Senza status la strip sparisce e il corpo occupa tutta la larghezza. */}
-      {t.status && (
-        <div className="ob-chrono__card-strip" title={t.status.label}>
-          <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />
-        </div>
-      )}
-      <div className="ob-chrono__card-main">
-        <div className="ob-chrono__card-title">{t.title}</div>
-        {/* Gruppo in basso (checklist + piede) ancorato al fondo, come il canvas. */}
-        <div className="ob-chrono__card-bottom">
-          {t.checklist && (
-            <div className="ob-chrono__card-bars">
-              {t.checklist.map((d, i) => <div key={i} className={cn('ob-chrono__card-bar', d && 'ob-chrono__card-bar--on')} />)}
-            </div>
-          )}
-          <div className="ob-chrono__card-foot">
-            {/* Azione (icona in quadrato) a sinistra, TIPO a destra — come il canvas.
-                Lo STATUS vive nella striscia sinistra. */}
-            {ActIcon && (
-              <span className="ob-chrono__card-actbadge" title={t.actionLabel}>
-                <ActIcon size={11} color="var(--ob-text)" />
-              </span>
-            )}
-            <div style={{ flex: 1 }} />
-            <TileMeta type={t.type} />
-          </div>
-        </div>
-      </div>
+      <Tile
+        title={t.title}
+        visualKey={tileVisualKey({ action_type: t.action })}
+        status={status}
+        steps={steps}
+        accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        active={active}
+        onClick={onClick}
+        onContextMenu={onContextMenu}
+      />
     </div>
   );
 }
@@ -134,11 +125,11 @@ function Column({
   icon: ShellIconName; iconColor: string; label: string; tiles: ColTile[]; empty: string;
   onCardClick?: (id: string) => void; selectedId?: string; schedulable?: boolean;
   onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
-  /** action_type assegnato a un tile droppato qui ('none' = Notes, 'anytime' = Todo). */
-  dropActionType?: 'none' | 'anytime';
-  onDropTile?: (tileId: string, actionType: 'none' | 'anytime') => void;
+  /** action_type assegnato a un tile droppato qui ('none' = Notes, 'anytime' = Todo, 'flow' = Flow). */
+  dropActionType?: ColumnActionType;
+  onDropTile?: (tileId: string, actionType: ColumnActionType) => void;
   /** Doppio click su area vuota della colonna → crea una tile con questo action_type. */
-  onCreateTile?: (actionType: 'none' | 'anytime') => void;
+  onCreateTile?: (actionType: ColumnActionType) => void;
 }) {
   const [sort, setSort] = React.useState(0); // 0 manuale · 1 A→Z · 2 recenti
   const [searchOpen, setSearchOpen] = React.useState(false);
@@ -239,7 +230,7 @@ function Column({
         className="ob-chrono__colbody ob-scroll-quiet"
         onDoubleClick={canCreate ? (e) => {
           // Solo doppio click su area vuota (non su una card) → crea.
-          if ((e.target as HTMLElement).closest('.ob-chrono__card')) return;
+          if ((e.target as HTMLElement).closest('.ob-tile')) return;
           onCreateTile!(dropActionType!);
         } : undefined}
         title={canCreate ? 'Doppio click per creare una tile' : undefined}
@@ -766,24 +757,33 @@ const TODOS: ColTile[] = [
   { title: 'Preparare brief Teleport per Marco', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'text', checklist: [true, false, false, false] },
   { title: 'Lista materiali cucina Ortano', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', amber: true, checklist: [false, false] },
 ];
+// I flow di esempio hanno tutti una checklist: senza passi un flow è un tile
+// come gli altri, ed è proprio la strip a raccontarlo.
+const FLOWS: ColTile[] = [
+  { title: 'Voltura contatore acqua', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, true, true, false] },
+  { title: 'Preventivo APE albergo', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false] },
+  { title: 'Concessione demaniale spiaggia', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false, false] },
+];
 
 export interface ChronoViewProps {
   notes?: ColTile[];
   todos?: ColTile[];
+  /** Tile-processo (`action_type = 'flow'`) — terza colonna, mai in griglia. */
+  flows?: ColTile[];
   calendar?: ChronoCalendar;
   selectedId?: string;
   onCardClick?: (id: string) => void;
   /** Tasto destro su una card delle colonne Notes/Todo → menu contestuale. */
   onCardContextMenu?: (e: React.MouseEvent, id: string) => void;
-  /** Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo →
+  /** Drop di un tile (dalla griglia o da un'altra colonna) su Notes/Todo/Flow →
    *  aggiorna action_type e deschedula. */
-  onMoveToColumn?: (tileId: string, actionType: 'none' | 'anytime') => void;
+  onMoveToColumn?: (tileId: string, actionType: ColumnActionType) => void;
   /** Toggle: arma/disarma la modalità "posiziona tile" sul calendario. */
   onAddTile?: () => void;
   /** Modalità "posiziona tile" attiva: il pulsante +Tile resta evidenziato. */
   addArmed?: boolean;
-  /** Doppio click su area vuota di Notes/Todo → crea una tile con quell'action_type. */
-  onCreateColumnTile?: (actionType: 'none' | 'anytime') => void;
+  /** Doppio click su area vuota di Notes/Todo/Flow → crea una tile con quell'action_type. */
+  onCreateColumnTile?: (actionType: ColumnActionType) => void;
   /** Modalità colorazione tile attiva ('tag' | 'type'); se assente, il controllo è nascosto. */
   colorMode?: ChronoColorMode;
   /** Imposta la modalità colorazione (segmented By Tag / By Type). */
@@ -791,7 +791,7 @@ export interface ChronoViewProps {
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onSetColorMode,
+  notes = NOTES, todos = TODOS, flows = FLOWS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onSetColorMode,
 }: ChronoViewProps) {
   return (
     <div className="ob-chrono">
@@ -824,6 +824,12 @@ export function ChronoView({
       <div className="ob-chrono__body">
         <Column icon="note" iconColor="var(--ob-muted)" label="NOTES" tiles={notes} empty="Nessun appunto" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="none" onDropTile={onMoveToColumn} onCreateTile={onCreateColumnTile} />
         <Column icon="todo" iconColor="var(--ob-subtle)" label="TODO" tiles={todos} empty="Nessun task" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="anytime" onDropTile={onMoveToColumn} onCreateTile={onCreateColumnTile} />
+        {/* FLOW — `schedulable` resta acceso come nelle altre due: un flow si può
+            trascinare in griglia, e lì diventa un evento (come farebbe una nota).
+            Spegnerlo lo renderebbe non trascinabile del tutto, quindi neppure
+            riportabile in NOTES: il trascinamento è uno solo per entrambe le
+            direzioni. La conversione è reversibile trascinandolo indietro qui. */}
+        <Column icon="flow" iconColor="var(--ob-accent)" label="FLOW" tiles={flows} empty="Nessun flow" onCardClick={onCardClick} selectedId={selectedId} schedulable={!!calendar.onScheduleTile} onCardContextMenu={onCardContextMenu} dropActionType="flow" onDropTile={onMoveToColumn} onCreateTile={onCreateColumnTile} />
         <Calendar cal={calendar} />
       </div>
     </div>

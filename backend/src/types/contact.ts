@@ -1,7 +1,7 @@
 /**
  * Contatti — tipi condivisi.
  *
- * Mirror di `backend/src/types/contact.ts`. Il repo non ha un pacchetto TS in
+ * Mirror di `frontend/types/contact.ts`. Il repo non ha un pacchetto TS in
  * comune, quindi la duplicazione è la scelta pragmatica: se cambi un campo qui,
  * cambialo anche là.
  *
@@ -24,9 +24,9 @@ export interface Contact {
   color: string | null;
   avatar_url: string | null;
   archived_at: string | null;
-  /** True for the per-user "self" contact, seeded at signup. UI treats it as
-   *  the default node assignment ("ball is on me") and pins it at the top of
-   *  contact pickers. Exactly one per user (partial unique index). */
+  /** True per il contatto "io" di ciascun utente, creato al signup. È il
+   *  soggetto predefinito di un passo ("la palla è mia") e va in cima ai
+   *  selettori. Esattamente uno per utente (indice unico parziale). */
   is_self: boolean;
   created_at: string;
   updated_at: string;

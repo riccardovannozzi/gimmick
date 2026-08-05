@@ -39,7 +39,9 @@ export interface BufferItem {
 /**
  * Action type for GTD classification
  */
-export type ActionType = 'none' | 'anytime' | 'deadline' | 'event';
+// `flow` = tile-processo (passi invece di data). Il mobile non lo assegna: lo
+// riceve dal backend e deve saperlo mostrare senza cadere sul fallback 'none'.
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'flow';
 
 /**
  * Tile - Group of related sparks

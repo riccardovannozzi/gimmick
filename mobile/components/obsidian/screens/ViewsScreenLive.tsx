@@ -9,6 +9,8 @@ import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi, type PaginatedResponse } from '@/lib/api';
 import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { startOfDay, startOfWeek, startOfMonth, addDays, addMonths, isToday } from '@/lib/chrono-utils';
+import type { ObChronoRange } from './ViewsScreen';
 import { getSignedUrls } from '@/lib/storage';
 import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
 import type { FlowHubFilter, Tile } from '@/types';
@@ -61,7 +63,16 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     onActiveChange?.(id);
   }, [activeProp, onActiveChange]);
   const [flowFilter, setFlowFilter] = React.useState<FlowHubFilter>('wait');
-  const [dayOffset, setDayOffset] = React.useState(0);
+  /**
+   * Chrono: giorno di ancoraggio + ampiezza della vista (1 / 7 / M).
+   *
+   * L'ancora è una DATA e non più uno scostamento in giorni da oggi: col passo
+   * mensile "un mese avanti" non è un numero fisso di giorni, e su un offset in
+   * giorni non lo si sa scrivere. `startOfDay` perché è anche l'estremo della
+   * finestra che si chiede al backend.
+   */
+  const [chronoAnchor, setChronoAnchor] = React.useState<Date>(() => startOfDay(new Date()));
+  const [chronoRange, setChronoRange] = React.useState<ObChronoRange>('daily');
 
   // Settings tab — persisted via settingsStore (AsyncStorage).
   const haptic = useSettingsStore((s) => s.hapticFeedback);
@@ -169,38 +180,58 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     enabled: active === 'flows',
   });
 
-  // Day window [00:00, 24:00) for the selected day (today + dayOffset).
-  const day = React.useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + dayOffset);
-    return d;
-  }, [dayOffset]);
-  const dayEnd = React.useMemo(() => {
-    const d = new Date(day);
-    d.setDate(d.getDate() + 1);
-    return d;
-  }, [day]);
+  /**
+   * Finestra da chiedere al backend, secondo l'ampiezza scelta.
+   *
+   * Il mese chiede le 6 SETTIMANE della griglia, non i giorni del mese: la
+   * tabella comincia dal lunedì che precede il primo e finisce dopo l'ultimo, e
+   * chiedendo solo il mese quelle caselle di bordo risulterebbero vuote anche
+   * quando hanno eventi — sembrerebbe un dato mancante, non un altro mese.
+   */
+  const { winStart, winEnd } = React.useMemo(() => {
+    if (chronoRange === 'week') {
+      const s = startOfWeek(chronoAnchor);
+      return { winStart: s, winEnd: addDays(s, 7) };
+    }
+    if (chronoRange === 'month') {
+      const s = startOfWeek(startOfMonth(chronoAnchor));
+      return { winStart: s, winEnd: addDays(s, 42) };
+    }
+    return { winStart: chronoAnchor, winEnd: addDays(chronoAnchor, 1) };
+  }, [chronoRange, chronoAnchor]);
 
   const chronoQuery = useQuery({
-    queryKey: ['calendar-events', day.toISOString(), dayEnd.toISOString()],
-    queryFn: () => calendarApi.events(day.toISOString(), dayEnd.toISOString()),
+    queryKey: ['calendar-events', winStart.toISOString(), winEnd.toISOString()],
+    queryFn: () => calendarApi.events(winStart.toISOString(), winEnd.toISOString()),
     enabled: active === 'chrono',
   });
 
+  /** Un passo avanti/indietro vale un giorno, una settimana o un mese. */
+  const stepChrono = React.useCallback((dir: 1 | -1) => {
+    setChronoAnchor((a) => (
+      chronoRange === 'month' ? addMonths(a, dir)
+      : chronoRange === 'week' ? addDays(a, 7 * dir)
+      : addDays(a, dir)
+    ));
+  }, [chronoRange]);
+
   /**
-   * Data scelta col picker → offset in giorni rispetto a oggi.
-   *
-   * La differenza si arrotonda sui millisecondi invece di contare i giorni uno
-   * a uno: ai cambi d'ora legale un giorno dura 23 o 25 ore, ma l'errore è di
-   * un'ora su 24 e `Math.round` lo assorbe.
+   * Tocco su un giorno (intestazione della settimana o casella del mese): ci si
+   * ancora sopra E si scende alla vista giornaliera. In settimana e mese la
+   * colonna è larga ~48dp e mostra sì e no il titolo: il tocco serve ad andare a
+   * vedere, non a selezionare qualcosa che resterebbe illeggibile lì.
+   */
+  const handleChronoSelectDay = React.useCallback((d: Date) => {
+    setChronoAnchor(startOfDay(d));
+    setChronoRange('daily');
+  }, []);
+
+  /**
+   * Data scelta col picker → ci si ancora sopra, restando nell'ampiezza
+   * corrente: da "M" si scegli un giorno e si vede il SUO mese, non il giorno.
    */
   const handleChronoPick = React.useCallback((picked: Date) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const target = new Date(picked);
-    target.setHours(0, 0, 0, 0);
-    setDayOffset(Math.round((target.getTime() - today.getTime()) / 86_400_000));
+    setChronoAnchor(startOfDay(picked));
   }, []);
 
   /**
@@ -214,8 +245,8 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     if (addingRef.current) return;      // doppio tap → un solo tile
     addingRef.current = true;
     try {
-      const start = new Date(day);
-      if (dayOffset === 0) {
+      const start = new Date(chronoAnchor);
+      if (isToday(chronoAnchor)) {
         const n = new Date();
         start.setHours(Math.min(23, n.getHours() + 1), 0, 0, 0);
       } else {
@@ -236,7 +267,7 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     } finally {
       addingRef.current = false;
     }
-  }, [day, dayOffset, queryClient, onOpenTile]);
+  }, [chronoAnchor, queryClient, onOpenTile]);
 
   // A failed fetch and an empty result render identically in the list content,
   // so surface the failure explicitly. Two distinct cases: the request threw
@@ -326,7 +357,33 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     () => (chronoQuery.data?.data ?? []).map(tileToChronoEvent).filter((e): e is NonNullable<typeof e> => e !== null),
     [chronoQuery.data],
   );
-  const dayLabel = `${DAYS_SHORT[day.getDay()]} ${day.getDate()} ${MONTHS_SHORT[day.getMonth()]}`;
+  /**
+   * Etichetta premibile in cima: dice quale finestra si sta guardando.
+   *
+   * Sta in ~62dp — la riga dei sei tondi si prende tutto il resto (vedi
+   * CH_NAV_BTN in ViewsScreen), e in RN quei pulsanti non si comprimono: una
+   * scritta più lunga si troncherebbe e basta. Da qui le forme corte:
+   *   · giorno    → "Mer 5 ago"
+   *   · settimana → "3–9 ago" e, a cavallo di due mesi, "30/7–5/8": il numerico
+   *     è brutto ma sta dentro, mentre "30 lug – 5 ago" verrebbe tagliato a metà
+   *     proprio sulla seconda data, cioè sull'informazione che manca;
+   *   · mese      → "ago 2026", stesso mese abbreviato del giorno.
+   * Il dettaglio comunque non manca: settimana e mese scrivono i numeri dei
+   * giorni nelle proprie intestazioni.
+   */
+  const chronoLabel = React.useMemo(() => {
+    if (chronoRange === 'week') {
+      const s = winStart;
+      const e = addDays(winStart, 6);
+      return s.getMonth() === e.getMonth()
+        ? `${s.getDate()}–${e.getDate()} ${MONTHS_SHORT[e.getMonth()]}`
+        : `${s.getDate()}/${s.getMonth() + 1}–${e.getDate()}/${e.getMonth() + 1}`;
+    }
+    if (chronoRange === 'month') {
+      return `${MONTHS_SHORT[chronoAnchor.getMonth()]} ${chronoAnchor.getFullYear()}`;
+    }
+    return `${DAYS_SHORT[chronoAnchor.getDay()]} ${chronoAnchor.getDate()} ${MONTHS_SHORT[chronoAnchor.getMonth()]}`;
+  }, [chronoRange, chronoAnchor, winStart]);
 
   return (
     <ObsidianViewsScreen
@@ -353,12 +410,15 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
       onOpenFlow={onOpenFlow}
       chronoEvents={chronoEvents}
       chronoLoading={chronoQuery.isLoading}
-      chronoDayLabel={dayLabel}
-      chronoIsToday={dayOffset === 0}
-      chronoDate={day}
-      onChronoPrev={() => setDayOffset((o) => o - 1)}
-      onChronoNext={() => setDayOffset((o) => o + 1)}
-      onChronoToday={() => setDayOffset(0)}
+      chronoDayLabel={chronoLabel}
+      chronoIsToday={isToday(chronoAnchor)}
+      chronoDate={chronoAnchor}
+      chronoRange={chronoRange}
+      onChronoRange={setChronoRange}
+      onChronoSelectDay={handleChronoSelectDay}
+      onChronoPrev={() => stepChrono(-1)}
+      onChronoNext={() => stepChrono(1)}
+      onChronoToday={() => setChronoAnchor(startOfDay(new Date()))}
       onChronoPickDate={handleChronoPick}
       onOpenEvent={onOpenTile}
       onChronoAddTile={handleChronoAdd}

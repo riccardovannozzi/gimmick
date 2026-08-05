@@ -12,7 +12,6 @@ import './obsidian-canvas.css';
 import './obsidian-kanban.css';
 import './obsidian-chrono.css';
 import './obsidian-panopticon.css';
-import './obsidian-flows.css';
 import './obsidian-settings.css';
 import './obsidian-ask.css';
 import './obsidian-modals.css';

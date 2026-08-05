@@ -1,5 +1,5 @@
 import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
-import type { Contact, ContactKind, FlowGraph, FlowNode, FlowNodeState, FlowHubItem } from '@/types/flow';
+import type { Contact, ContactKind } from '@/types/contact';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
 
@@ -278,10 +278,14 @@ export const sparksApi = {
 
 // ============ Tiles API ============
 export const tilesApi = {
-  async list(options?: { page?: number; limit?: number }) {
+  /** `action_type` filtra lato server: il tetto di 100 vale allora PER TIPO
+   *  invece che spartito fra tutti. Con 393 eventi su 585 tile è la differenza
+   *  fra una colonna piena e una colonna vuota. */
+  async list(options?: { page?: number; limit?: number; action_type?: ActionType }) {
     const params = new URLSearchParams();
     if (options?.page) params.set('page', options.page.toString());
     if (options?.limit) params.set('limit', options.limit.toString());
+    if (options?.action_type) params.set('action_type', options.action_type);
 
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
@@ -331,7 +335,7 @@ export const subtasksApi = {
       body: JSON.stringify(data),
     });
   },
-  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number; contact_id?: string | null; occurred_at?: string | null; state?: 'blocked' | 'cancelled' | null }) {
     return apiRequest<Subtask>(`/api/subtasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -809,53 +813,7 @@ export const contactsApi = {
   async archive(id: string) {
     return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
   },
-};
-
-// ============ Flow API ============
-
-export const flowApi = {
-  async getByTile(tileId: string) {
-    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
-  },
-  async createNode(tileId: string, body: {
-    label?: string;
-    state?: FlowNodeState;
-    contact_id?: string | null;
-    occurred_at?: string | null;
-    scheduled_at?: string | null;
-    notes?: string | null;
-  }) {
-    // Server appends the new node at the end; response keeps the legacy
-    // `{ node, edge }` shape (edge: null) so older clients don't crash on
-    // missing properties during rollout.
-    return apiRequest<{ node: FlowNode; edge: null }>(
-      `/api/tiles/${tileId}/flow/nodes`,
-      { method: 'POST', body: JSON.stringify(body) },
-    );
-  },
-  async updateNode(
-    id: string,
-    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'sort_order'>>,
-  ) {
-    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  },
-  async deleteNode(id: string) {
-    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
-  },
-  /** Bulk reorder — send the full list with new sort_order values. */
-  async reorderNodes(items: { id: string; sort_order: number }[]) {
-    return apiRequest('/api/flow/nodes/reorder', {
-      method: 'PUT',
-      body: JSON.stringify({ items }),
-    });
-  },
-  async tilesWithFlows() {
-    return apiRequest<{ tile_ids: string[] }>('/api/flows/tiles');
-  },
-  async hub(filter: 'done' | 'wait' | 'undo' | 'stop') {
-    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
+  async unarchive(id: string) {
+    return apiRequest<Contact>(`/api/contacts/${id}/unarchive`, { method: 'POST' });
   },
 };

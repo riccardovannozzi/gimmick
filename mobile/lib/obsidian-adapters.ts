@@ -302,12 +302,32 @@ function agoLabel(days: number): string {
 
 // ─── Chrono (calendar daily) ──────────────────────────────────────────────────
 
-/** A timed calendar event rendered on the Chrono day grid. Hours are floats
+/**
+ * Che cosa è, per il calendario, il tile schedulato:
+ *   · `timed`    — ha un orario, sta sulla griglia oraria;
+ *   · `allDay`   — occupa la giornata, sta nella corsia in cima;
+ *   · `deadline` — scade in un momento, non dura (`action_type: 'deadline'`).
+ *
+ * Il backend restituisce tutti e tre da `/calendar/events` (li cerca con due
+ * query: gli eventi per `start_at`, le scadenze per `end_at`), quindi la
+ * distinzione va fatta qui e non a valle.
+ */
+export type ObChronoKind = 'timed' | 'allDay' | 'deadline';
+
+/** A calendar tile rendered by the Chrono screen. Hours are floats
  *  (11.5 = 11:30); the screen converts them to pixel offsets. */
 export interface ObChronoEvent {
   id: string;
   tileId: string;
   title: string;
+  kind: ObChronoKind;
+  /**
+   * Giorno a cui l'evento appartiene, a mezzanotte locale: è la chiave con cui
+   * settimana e mese lo mettono nella casella giusta. Per le scadenze è il
+   * giorno di `end_at`, per tutto il resto quello di `start_at`.
+   */
+  day: Date;
+  /** Significative solo per `timed`; per gli altri sono l'ora di riferimento. */
   startHour: number;
   endHour: number;
   timeLabel: string;
@@ -317,22 +337,48 @@ function hhmmLocal(d: Date): string {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-/** Map a scheduled (timed) tile onto a Chrono event. Returns null for tiles
- *  with no start time or marked all-day (the day grid only shows timed slots). */
+/**
+ * Map a scheduled tile onto a Chrono event.
+ *
+ * Restituisce ANCHE gli all-day e le scadenze, non più i soli slot orari: le
+ * viste settimana e mese li mostrano, e una vista mese che nasconde le scadenze
+ * mente. È la griglia giornaliera a filtrare per `kind === 'timed'`, perché lì
+ * non c'è una corsia dove metterli.
+ *
+ * LIMITE NOTO: un evento che scavalca la mezzanotte finisce in un giorno solo,
+ * quello d'inizio. Spalmarlo su più caselle vuole il calcolo delle campate su
+ * riga, che è un'altra feature.
+ */
 export function tileToChronoEvent(t: Tile): ObChronoEvent | null {
-  if (!t.start_at || t.all_day) return null;
-  const s = new Date(t.start_at);
+  const isDeadline = t.action_type === 'deadline';
+  // Le scadenze vivono su `end_at` (convenzione del backend e del web), tutto
+  // il resto su `start_at`. Il fallback incrociato copre i dati storici, dove
+  // un tile poteva avere solo l'altro estremo.
+  const ref = isDeadline ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+  if (!ref) return null;
+  const s = new Date(ref);
   if (Number.isNaN(s.getTime())) return null;
-  const e = t.end_at ? new Date(t.end_at) : new Date(s.getTime() + 60 * 60 * 1000);
+
+  const kind: ObChronoKind = isDeadline ? 'deadline' : t.all_day ? 'allDay' : 'timed';
+  const day = new Date(s);
+  day.setHours(0, 0, 0, 0);
+
+  const e = !isDeadline && t.end_at ? new Date(t.end_at) : new Date(s.getTime() + 60 * 60 * 1000);
   const startHour = s.getHours() + s.getMinutes() / 60;
   const endHour = e.getHours() + e.getMinutes() / 60;
+
   return {
     id: t.id,
     tileId: t.id,
     title: t.title?.trim() || 'Senza titolo',
+    kind,
+    day,
     startHour,
     endHour: Math.max(endHour, startHour + 0.25),
-    timeLabel: `${hhmmLocal(s)} – ${hhmmLocal(e)}`,
+    timeLabel:
+      kind === 'allDay' ? 'Tutto il giorno'
+      : kind === 'deadline' ? `Scadenza ${hhmmLocal(s)}`
+      : `${hhmmLocal(s)} – ${hhmmLocal(e)}`,
   };
 }
 

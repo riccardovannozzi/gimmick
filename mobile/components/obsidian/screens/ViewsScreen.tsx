@@ -24,6 +24,7 @@ import {
   readableOn, type TileActionKey,
 } from '@/constants/tile-colors';
 import type { ObTileVM, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
+import { startOfWeek, addDays, isSameDay, isToday, monthGridDays, fmtWeekday } from '@/lib/chrono-utils';
 import type { FlowHubFilter } from '@/types';
 import { PreviewImage } from '../PreviewImage';
 import { SwipeToDelete } from '../SwipeToDelete';
@@ -129,7 +130,7 @@ interface TileFilters {
 }
 const EMPTY_FILTERS: TileFilters = { action: [], tag: [], type: [], status: [] };
 const ACTION_FILTER_LABEL: Record<TileActionKey, string> = {
-  none: 'Nota', anytime: 'To-do', deadline: 'Scadenza', event: 'Timing', allday: 'Giornata',
+  none: 'Nota', anytime: 'To-do', deadline: 'Scadenza', event: 'Timing', allday: 'Giornata', flow: 'Flow',
 };
 const STATUS_FILTER_LABEL: Record<string, string> = {
   active: 'Attivo', done: 'Completato', paused: 'In pausa', blocked: 'Bloccato', cancelled: 'Annullato',
@@ -697,14 +698,58 @@ const chRound = (c: ObsidianColors, on?: boolean) => ({
 });
 
 /** Ampiezza della vista: giorno singolo, settimana, mese. */
-const CH_RANGES: Array<{ value: string; label: string; a11y: string }> = [
+export type ObChronoRange = 'daily' | 'week' | 'month';
+const CH_RANGES: { value: ObChronoRange; label: string; a11y: string }[] = [
   { value: 'daily', label: '1', a11y: 'Vista giornaliera' },
   { value: 'week', label: '7', a11y: 'Vista settimanale' },
   { value: 'month', label: 'M', a11y: 'Vista mensile' },
 ];
 
+// ── Settimana e mese ─────────────────────────────────────────────────────────
+/**
+ * Colonna delle ore nella vista settimanale: 30 invece dei 46 del giorno.
+ *
+ * Sette colonne devono stare in ~330dp senza scorrimento orizzontale — che qui
+ * non si può avere, perché il gesto laterale è già preso dallo sfoglia-periodo e
+ * due scorrimenti sullo stesso asse si contendono il responder. Ogni dp tolto al
+ * margine è un dp dato alle colonne, che restano sui 47: per questo l'ora si
+ * scrive "08" e non "08:00".
+ */
+const CH_W_GUTTER = 30;
+/** Corpo di un blocco-evento in settimana: 47dp di colonna non reggono di più. */
+const CH_W_FONT = 9;
+const CH_W_LINE = 11;
+/** Chip di un giorno nella griglia del mese, e quante ne stanno in una casella. */
+const CH_M_CHIPS = 2;
+
+const chDayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+/** Eventi raggruppati per giorno di appartenenza (`ObChronoEvent.day`). */
+function bucketByDay(rows: ObChronoEvent[]): Map<string, ObChronoEvent[]> {
+  const m = new Map<string, ObChronoEvent[]>();
+  for (const ev of rows) {
+    const k = chDayKey(ev.day);
+    const list = m.get(k);
+    if (list) list.push(ev);
+    else m.set(k, [ev]);
+  }
+  return m;
+}
+
+/**
+ * Fondo di un evento secondo il tipo. Il colore è l'unico modo che settimana e
+ * mese hanno di dire che cosa sia un blocco: a 47dp non c'è spazio per un glifo
+ * accanto al titolo, e il titolo stesso ci sta a metà.
+ */
+function chKindBg(c: ObsidianColors, kind: ObChronoEvent['kind']): string {
+  const a = c.dark ? '33' : '1f';
+  if (kind === 'deadline') return c.error + a;
+  if (kind === 'allDay') return c.accent + a;
+  return c.tileBg;
+}
+
 const DEMO_CHRONO: ObChronoEvent[] = [
-  { id: 'd1', tileId: 'd1', title: 'Contattare Giovanni', startHour: 11.5, endHour: 12.5, timeLabel: '11:30 – 12:30' },
+  { id: 'd1', tileId: 'd1', title: 'Contattare Giovanni', kind: 'timed', day: new Date(), startHour: 11.5, endHour: 12.5, timeLabel: '11:30 – 12:30' },
 ];
 
 type ChPlaced = { ev: ObChronoEvent; col: number; cols: number };
@@ -740,8 +785,247 @@ function placeChronoEvents(rows: ObChronoEvent[]): ChPlaced[] {
   return out;
 }
 
-function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, onNext, onToday, onPickDate, onOpenEvent, onAddTile }: {
+/**
+ * Vista SETTIMANA — sette colonne sulla stessa griglia oraria del giorno.
+ *
+ * Non c'è scorrimento orizzontale: il gesto laterale è già lo sfoglia-periodo,
+ * e due scorrimenti sullo stesso asse si litigano il responder. Le sette colonne
+ * quindi si dividono la larghezza disponibile e restano sui 47dp — abbastanza
+ * per la posizione e per un titolo mozzato, non per leggere. È il tocco
+ * sull'intestazione del giorno a portare alla vista giornaliera, che è dove si
+ * legge davvero: la settimana serve a vedere DOVE sono le cose, non cosa sono.
+ *
+ * In cima, sopra la griglia, la corsia degli eventi senza orario (tutto-il-
+ * giorno e scadenze). Non ha etichetta nel margine: a 30dp ci starebbe solo
+ * un'abbreviazione da decifrare, e comunque nessuna parola sola descrive una
+ * corsia che tiene due cose diverse. La posizione e il colore bastano.
+ */
+function ChronoWeek({ c, anchor, events, loading, scrollRef, onOpenEvent, onSelectDay }: {
+  c: ObsidianColors; anchor: Date; events: ObChronoEvent[]; loading?: boolean;
+  scrollRef: React.RefObject<ScrollView | null>;
+  onOpenEvent?: (tileId: string) => void;
+  onSelectDay?: (d: Date) => void;
+}) {
+  const days = React.useMemo(() => {
+    const s = startOfWeek(anchor);
+    return Array.from({ length: 7 }, (_, i) => addDays(s, i));
+  }, [anchor]);
+
+  // Un passaggio solo: per ogni giorno gli eventi con orario (già disposti in
+  // colonne per le sovrapposizioni) e quelli senza, che vanno nella corsia.
+  const byDay = React.useMemo(() => bucketByDay(events), [events]);
+  const lanes = React.useMemo(() => days.map((d) => {
+    const all = byDay.get(chDayKey(d)) ?? [];
+    return {
+      timed: placeChronoEvents(all.filter((e) => e.kind === 'timed')),
+      banner: all.filter((e) => e.kind !== 'timed'),
+    };
+  }), [days, byDay]);
+  const hasBanner = lanes.some((l) => l.banner.length > 0);
+
+  const now = new Date();
+  const nowHour = now.getHours() + now.getMinutes() / 60;
+  const todayCol = days.findIndex((d) => isToday(d));
+  const showNow = todayCol >= 0 && nowHour >= CH_START && nowHour <= CH_END;
+  const clampTop = (h: number) => (Math.min(Math.max(h, CH_START), CH_END) - CH_START) * CH_H + 5;
+
+  return (
+    <View style={{ flex: 1 }}>
+      {/* Intestazione dei sette giorni. Oggi ha la pastiglia piena; il giorno su
+          cui si è ancorati (quello da cui si è arrivati, o scelto col picker) è
+          appena tinto: distingue "dove sono" da "quand'è adesso". */}
+      <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.line }}>
+        <View style={{ width: CH_W_GUTTER }} />
+        {days.map((d) => {
+          const on = isToday(d);
+          const sel = !on && isSameDay(d, anchor);
+          return (
+            <Pressable
+              key={d.toISOString()}
+              onPress={onSelectDay ? () => onSelectDay(d) : undefined}
+              disabled={!onSelectDay}
+              accessibilityRole="button"
+              accessibilityLabel={`${fmtWeekday(d)} ${d.getDate()} — apri la giornata`}
+              style={{ flex: 1, alignItems: 'center', paddingVertical: 5 }}
+            >
+              <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 0.3, textTransform: 'uppercase', color: on ? c.accent : c.subtle }}>{fmtWeekday(d)}</Text>
+              <View style={{ minWidth: 20, height: 20, marginTop: 1, paddingHorizontal: 3, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.accent : sel ? c.accentSoft : 'transparent' }}>
+                <Text style={{ fontSize: 12.5, fontWeight: '700', color: on ? c.accentInk : c.text }}>{d.getDate()}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Corsia senza orario: compare solo se la settimana ne ha. */}
+      {hasBanner && (
+        <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.line, paddingVertical: 3 }}>
+          <View style={{ width: CH_W_GUTTER }} />
+          {lanes.map((l, i) => (
+            <View key={i} style={{ flex: 1, paddingHorizontal: 1, gap: 2 }}>
+              {l.banner.map((ev) => (
+                <Pressable
+                  key={ev.id}
+                  onPress={onOpenEvent ? () => onOpenEvent(ev.tileId) : undefined}
+                  disabled={!onOpenEvent}
+                  accessibilityLabel={`${ev.title}, ${ev.timeLabel}`}
+                  style={{ borderRadius: 4, backgroundColor: chKindBg(c, ev.kind), paddingHorizontal: 3, paddingVertical: 2 }}
+                >
+                  <Text numberOfLines={1} style={{ fontSize: CH_W_FONT, fontWeight: '600', color: c.text }}>{ev.title}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ))}
+        </View>
+      )}
+
+      {loading && (
+        <Text style={{ fontSize: 11, color: c.subtle, paddingHorizontal: CH_W_GUTTER, paddingVertical: 4 }}>Caricamento…</Text>
+      )}
+
+      <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 96 }}>
+        <View style={{ height: CH_HOURS.length * CH_H, paddingVertical: 4 }}>
+          {/* Righe delle ore, per tutta la larghezza: fanno anche da fondo alle
+              sette colonne, che così non devono ridisegnarle sette volte. */}
+          {CH_HOURS.map((x, i) => (
+            <View key={x} style={{ position: 'absolute', top: i * CH_H + 4, left: 0, right: 0, borderTopWidth: 1, borderTopColor: c.gridLine }}>
+              <Text style={{ position: 'absolute', top: -7, left: 3, fontSize: 9, color: c.subtle, backgroundColor: c.canvas, paddingHorizontal: 2 }}>{x < 10 ? '0' + x : x}</Text>
+            </View>
+          ))}
+
+          <View pointerEvents="box-none" style={{ position: 'absolute', top: 0, bottom: 0, left: CH_W_GUTTER, right: 0, flexDirection: 'row' }}>
+            {lanes.map((l, i) => (
+              <View key={i} pointerEvents="box-none" style={{ flex: 1, borderLeftWidth: 1, borderLeftColor: c.line2 }}>
+                {l.timed.map(({ ev, col, cols }) => {
+                  const top = clampTop(ev.startHour);
+                  const height = Math.max(clampTop(ev.endHour) - top - 2, CH_MIN_H);
+                  const lines = Math.max(1, Math.floor((height - 4) / CH_W_LINE));
+                  return (
+                    <Pressable
+                      key={ev.id}
+                      onPress={onOpenEvent ? () => onOpenEvent(ev.tileId) : undefined}
+                      disabled={!onOpenEvent}
+                      accessibilityLabel={`${ev.title}, ${ev.timeLabel}`}
+                      style={{
+                        position: 'absolute', top, height,
+                        left: `${(col / cols) * 100}%`, width: `${100 / cols}%`,
+                        paddingLeft: 1, paddingRight: cols > 1 ? 2 : 1,
+                      }}
+                    >
+                      <View style={{ flex: 1, borderRadius: 4, overflow: 'hidden', backgroundColor: chKindBg(c, ev.kind), paddingHorizontal: 3, paddingVertical: 2, justifyContent: height < CH_TINY ? 'center' : 'flex-start' }}>
+                        <Text numberOfLines={lines} style={{ fontSize: CH_W_FONT, lineHeight: CH_W_LINE, fontWeight: '600', color: c.text }}>{ev.title}</Text>
+                      </View>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+
+          {/* Linea dell'adesso: attraversa tutte le colonne (l'ora è la stessa
+              per l'intera settimana), col pallino sulla colonna di oggi. */}
+          {showNow && (
+            <View pointerEvents="none" style={{ position: 'absolute', top: (nowHour - CH_START) * CH_H + 5, left: CH_W_GUTTER, right: 0, borderTopWidth: 1.5, borderTopColor: c.accent }}>
+              <View style={{ position: 'absolute', left: `${(todayCol / 7) * 100}%`, top: -3.5, width: 7, height: 7, borderRadius: 3.5, backgroundColor: c.accent }} />
+            </View>
+          )}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * Vista MESE — la tabella 6×7 che parte dal lunedì, con le caselle che si
+ * dividono l'altezza rimasta.
+ *
+ * Nelle caselle ci sono TITOLI mozzati, non pallini: a parità di spazio "Dentis…"
+ * dice quasi sempre di che si tratta, un pallino non dice mai niente. Ne stanno
+ * due più il conto degli altri; il tocco porta alla giornata, che è dove si
+ * leggono per intero.
+ *
+ * Le sei righe ci sono sempre, anche quando il mese ne riempirebbe cinque: così
+ * l'altezza delle caselle non cambia sfogliando i mesi.
+ */
+function ChronoMonth({ c, anchor, events, loading, onSelectDay }: {
+  c: ObsidianColors; anchor: Date; events: ObChronoEvent[]; loading?: boolean;
+  onSelectDay?: (d: Date) => void;
+}) {
+  const days = React.useMemo(() => monthGridDays(anchor), [anchor]);
+  const byDay = React.useMemo(() => bucketByDay(events), [events]);
+  const rows = React.useMemo(
+    () => Array.from({ length: 6 }, (_, r) => days.slice(r * 7, r * 7 + 7)),
+    [days],
+  );
+  const month = anchor.getMonth();
+
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: c.line, paddingVertical: 5 }}>
+        {days.slice(0, 7).map((d) => (
+          <View key={d.toISOString()} style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 0.4, textTransform: 'uppercase', color: c.subtle }}>{fmtWeekday(d)}</Text>
+          </View>
+        ))}
+      </View>
+
+      {loading && (
+        <Text style={{ fontSize: 11, color: c.subtle, paddingHorizontal: 16, paddingVertical: 4 }}>Caricamento…</Text>
+      )}
+
+      <View style={{ flex: 1 }}>
+        {rows.map((row, r) => (
+          <View key={r} style={{ flex: 1, flexDirection: 'row', borderBottomWidth: r < 5 ? 1 : 0, borderBottomColor: c.line2 }}>
+            {row.map((d, i) => {
+              const list = byDay.get(chDayKey(d)) ?? [];
+              const shown = list.slice(0, CH_M_CHIPS);
+              const extra = list.length - shown.length;
+              const on = isToday(d);
+              // Fuori dal mese la casella resta leggibile ma spenta: è contesto
+              // (il 31 che appartiene alla settimana), non contenuto.
+              const outside = d.getMonth() !== month;
+              return (
+                <Pressable
+                  key={d.toISOString()}
+                  onPress={onSelectDay ? () => onSelectDay(d) : undefined}
+                  disabled={!onSelectDay}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${d.getDate()} ${fmtWeekday(d)} — ${list.length === 0 ? 'niente in programma' : `${list.length} in programma`}`}
+                  style={{
+                    flex: 1, overflow: 'hidden', paddingHorizontal: 2, paddingTop: 3,
+                    borderRightWidth: i < 6 ? 1 : 0, borderRightColor: c.line2,
+                    opacity: outside ? 0.42 : 1,
+                  }}
+                >
+                  <View style={{ minWidth: 19, height: 19, alignSelf: 'flex-start', paddingHorizontal: 3, borderRadius: 9.5, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? c.accent : 'transparent' }}>
+                    <Text style={{ fontSize: 11.5, fontWeight: on ? '700' : '500', color: on ? c.accentInk : c.text }}>{d.getDate()}</Text>
+                  </View>
+                  <View style={{ marginTop: 2, gap: 2 }}>
+                    {shown.map((ev) => (
+                      <View key={ev.id} style={{ borderRadius: 3, backgroundColor: chKindBg(c, ev.kind), paddingHorizontal: 3, paddingVertical: 1.5 }}>
+                        <Text numberOfLines={1} style={{ fontSize: 8.5, fontWeight: '600', color: c.text }}>{ev.title}</Text>
+                      </View>
+                    ))}
+                    {extra > 0 && <Text style={{ fontSize: 8.5, color: c.subtle, paddingLeft: 3 }}>+{extra}</Text>}
+                  </View>
+                </Pressable>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function ChronoContent({ c, events, loading, dayLabel, isToday: isTodayProp, date, range, onRange, onSelectDay, onPrev, onNext, onToday, onPickDate, onOpenEvent, onAddTile }: {
   c: ObsidianColors; events?: ObChronoEvent[]; loading?: boolean; dayLabel?: string; isToday?: boolean;
+  /** Ampiezza CONTROLLATA (1/7/M): decide anche la finestra che il wrapper chiede
+   *  al backend, quindi lo stato vive lì. Omessa → stato locale (mock QA). */
+  range?: ObChronoRange;
+  onRange?: (r: ObChronoRange) => void;
+  /** Tocco su un giorno in settimana/mese. */
+  onSelectDay?: (d: Date) => void;
   /** Giorno mostrato: valore iniziale del picker. */
   date?: Date;
   onPrev?: () => void; onNext?: () => void; onToday?: () => void;
@@ -750,24 +1034,42 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
   onOpenEvent?: (tileId: string) => void;
   onAddTile?: () => void;
 }) {
-  const [seg, setSeg] = React.useState('daily');
+  // Ampiezza controllata dal wrapper (decide la finestra di fetch), con stato
+  // locale di scorta per il mock.
+  const [segState, setSegState] = React.useState<ObChronoRange>('daily');
+  const seg = range ?? segState;
+  const setSeg = (r: ObChronoRange) => {
+    onRange?.(r);
+    if (range === undefined) setSegState(r);
+  };
   const [picker, setPicker] = React.useState(false);
   const live = events !== undefined;
   const rows = events ?? DEMO_CHRONO;
-  const placed = React.useMemo(() => placeChronoEvents(rows), [rows]);
+  // Giorno di riferimento per settimana e mese. Nel mock non arriva: si usa oggi.
+  const anchor = date ?? new Date();
+  // Sulla griglia del giorno vanno SOLO gli eventi con orario: non c'è una
+  // corsia per tutto-il-giorno e scadenze (in settimana e mese invece sì), e
+  // messi sulla griglia finirebbero incollati a mezzanotte come se lo fossero.
+  const timed = React.useMemo(() => rows.filter((e) => e.kind === 'timed'), [rows]);
+  const placed = React.useMemo(() => placeChronoEvents(timed), [timed]);
   // "Now" line — only meaningful on today's column and within the grid window.
   const now = new Date();
   const nowHour = now.getHours() + now.getMinutes() / 60;
-  const showNow = (live ? !!isToday : true) && nowHour >= CH_START && nowHour <= CH_END;
+  const showNow = (live ? !!isTodayProp : true) && nowHour >= CH_START && nowHour <= CH_END;
   const nowTop = (nowHour - CH_START) * CH_H + 5;
 
   const clampTop = (h: number) => (Math.min(Math.max(h, CH_START), CH_END) - CH_START) * CH_H + 5;
 
   // Posizionamento iniziale: con 24 ore aperte a mezzanotte non si vedrebbe
   // niente di utile. Si punta all'adesso quando il giorno è oggi, altrimenti al
-  // primo evento; una fascia sopra, per contesto.
+  // primo evento; una fascia sopra, per contesto. Vale anche per la settimana,
+  // che condivide la griglia oraria e quindi il ref.
   const scrollRef = React.useRef<ScrollView>(null);
-  const focusHour = (isToday ?? true) ? nowHour : (placed[0]?.ev.startHour ?? 8);
+  const firstHour = React.useMemo(
+    () => timed.reduce((m, e) => Math.min(m, e.startHour), Infinity),
+    [timed],
+  );
+  const focusHour = (isTodayProp ?? true) ? nowHour : (Number.isFinite(firstHour) ? firstHour : 8);
   React.useEffect(() => {
     const y = Math.max(0, (focusHour - CH_START - 1) * CH_H);
     // Rinviato di un tick: al primo render la ScrollView non ha ancora misurato
@@ -775,9 +1077,10 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
     const id = setTimeout(() => scrollRef.current?.scrollTo({ y, animated: false }), 0);
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dayLabel]);
+  }, [dayLabel, seg]);
 
-  // Swipe orizzontale = giorno precedente/successivo. La cattura avviene SOLO
+  // Swipe orizzontale = periodo precedente/successivo (giorno, settimana o mese
+  // secondo l'ampiezza: il passo lo decide il wrapper). La cattura avviene SOLO
   // per gesti chiaramente orizzontali (oltre 24px e almeno il doppio dello
   // scostamento verticale): sotto quella soglia il responder resta alla
   // ScrollView e lo scorrimento verticale continua a funzionare.
@@ -818,6 +1121,7 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
                 onPress={() => setSeg(r.value)}
                 accessibilityRole="button"
                 accessibilityLabel={r.a11y}
+                accessibilityHint="Cambia l'ampiezza del calendario"
                 accessibilityState={{ selected: on }}
                 hitSlop={6}
                 style={chRound(c, on)}
@@ -859,6 +1163,11 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
       )}
 
       <View style={{ flex: 1 }} {...pan.panHandlers}>
+        {seg === 'week' ? (
+          <ChronoWeek c={c} anchor={anchor} events={rows} loading={loading} scrollRef={scrollRef} onOpenEvent={onOpenEvent} onSelectDay={onSelectDay} />
+        ) : seg === 'month' ? (
+          <ChronoMonth c={c} anchor={anchor} events={rows} loading={loading} onSelectDay={onSelectDay} />
+        ) : (
         <ScrollView ref={scrollRef} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 96 }}>
           <View style={{ height: CH_HOURS.length * CH_H, paddingVertical: 4 }}>
             {CH_HOURS.map((x, i) => (
@@ -869,7 +1178,13 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
             {loading ? (
               <Text style={{ position: 'absolute', top: 8, left: CH_GUTTER + 6, fontSize: 12, color: c.subtle }}>Caricamento…</Text>
             ) : placed.length === 0 ? (
-              <Text style={{ position: 'absolute', top: 8, left: CH_GUTTER + 6, fontSize: 12, color: c.subtle }}>Nessun evento.</Text>
+              // Distinzione voluta: se il giorno ha roba senza orario (tutto-il-
+              // giorno, scadenze) la griglia è vuota ma la giornata NON lo è, e
+              // scrivere "Nessun evento" sarebbe falso. Quelle si vedono in
+              // settimana e mese, che hanno la corsia per tenerle.
+              <Text style={{ position: 'absolute', top: 8, left: CH_GUTTER + 6, fontSize: 12, color: c.subtle }}>
+                {rows.length > 0 ? 'Nessun evento con orario.' : 'Nessun evento.'}
+              </Text>
             ) : (
               // Pista degli eventi: contenitore proprio, così le colonne si
               // posizionano in percentuale sulla sua larghezza (in RN non
@@ -928,6 +1243,7 @@ function ChronoContent({ c, events, loading, dayLabel, isToday, date, onPrev, on
             )}
           </View>
         </ScrollView>
+        )}
       </View>
 
       {/* Pillola flottante di creazione, ancorata in basso al centro. */}
@@ -1077,13 +1393,23 @@ export interface ObsidianViewsScreenProps {
   flowFilter?: FlowHubFilter;
   onFlowFilter?: (f: FlowHubFilter) => void;
   onOpenFlow?: (tileId: string) => void;
-  /** Chrono tab — live day events (pre-mapped via tileToChronoEvent). */
+  /**
+   * Chrono tab — eventi della finestra mostrata (pre-mappati con
+   * `tileToChronoEvent`). Sono quelli del giorno, della settimana o delle sei
+   * settimane della griglia del mese secondo `chronoRange`: la finestra la
+   * decide il wrapper, che è chi la chiede al backend.
+   */
   chronoEvents?: ObChronoEvent[];
   chronoLoading?: boolean;
   chronoDayLabel?: string;
   chronoIsToday?: boolean;
   /** Giorno mostrato: valore iniziale del selettore di data. */
   chronoDate?: Date;
+  /** Ampiezza 1/7/M. Omessa → la schermata la gestisce da sé (mock QA). */
+  chronoRange?: ObChronoRange;
+  onChronoRange?: (r: ObChronoRange) => void;
+  /** Tocco su un giorno nella settimana o nel mese. */
+  onChronoSelectDay?: (d: Date) => void;
   onChronoPrev?: () => void;
   onChronoNext?: () => void;
   onChronoToday?: () => void;
@@ -1126,6 +1452,7 @@ export function ObsidianViewsScreen({
   onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds,
   flows, flowsLoading, flowFilter, onFlowFilter, onOpenFlow,
   chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday, chronoDate,
+  chronoRange, onChronoRange, onChronoSelectDay,
   onChronoPrev, onChronoNext, onChronoToday, onChronoPickDate, onOpenEvent, onChronoAddTile,
   haptic, onHaptic, confirmDelete, onConfirmDelete, themeMode, onThemeMode,
   errorText, account, onHome, onAsk,
@@ -1169,7 +1496,7 @@ export function ObsidianViewsScreen({
         />
       )}
       {active === 'flows' && <FlowsContent c={c} flows={flows} loading={flowsLoading} active={flowFilter} onFilter={onFlowFilter} onOpenFlow={onOpenFlow} />}
-      {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} date={chronoDate} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onPickDate={onChronoPickDate} onOpenEvent={onOpenEvent} onAddTile={onChronoAddTile} />}
+      {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} date={chronoDate} range={chronoRange} onRange={onChronoRange} onSelectDay={onChronoSelectDay} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onPickDate={onChronoPickDate} onOpenEvent={onOpenEvent} onAddTile={onChronoAddTile} />}
       {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
       <ObsidianNavPill background={shellBg} />
 

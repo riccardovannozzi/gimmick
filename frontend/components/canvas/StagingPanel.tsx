@@ -16,8 +16,6 @@ import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
-import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
-import { useFlowOpenStore } from '@/store/flow-modal-store';
 import { ActionBadge } from '@/components/actions/action-badge';
 import { TileMeta } from '@/components/tileview/TileMeta';
 import { statusMeta, statusGlyph } from '@/lib/status-meta';
@@ -143,8 +141,6 @@ export function StagingPanel({
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const { statuses } = useStatuses();
-  const tilesWithFlows = useTilesWithFlows();
-  const openFlow = useFlowOpenStore((s) => s.open);
   const getIconForTile = useCallback(
     (tileId: string) => {
       const iconId = typeTileIcons[tileId];
@@ -281,7 +277,6 @@ export function StagingPanel({
     // (`--ob-tile-border`), non la hairline generica del tema.
     const borderColor = actionKey === 'deadline' ? '#E24B4A' : (si?.color ? `${si.color}3A` : 'var(--ob-tile-border)');
     const isSelected = selectedTileId === t.id;
-    const hasFlow = tilesWithFlows.has(t.id);
     const isDone = !!t.is_completed;
     // Status: identico al canvas → vive nella COLONNA a sinistra (icona/pallino/
     // DELETE), non più nel footer. 'active' non mostra nulla.
@@ -399,45 +394,6 @@ export function StagingPanel({
             </div>
           </div>
         </div>
-        {/* FLOW badge — pixel chip floating past the tile's top-right corner */}
-        {hasFlow && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openFlow(t.id);
-            }}
-            onContextMenu={(e) => e.stopPropagation()}
-            onMouseDown={(e) => e.stopPropagation()}
-            onDragStart={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              top: -8,
-              right: 6,
-              zIndex: 20,
-              padding: '0 5px',
-              height: 16,
-              background: theme.accent,
-              color: theme.onAccent,
-              border: `${bW}px solid transparent`,
-              borderRadius: 'var(--ob-radius-sm)',
-              fontFamily: headFont,
-              fontSize: OB_TEXT.micro,
-              fontWeight: headWeight,
-              // Era `0.2`, numero nudo: React lo legge come PIXEL, quindi il
-              // tracking era di fatto assente. Allineato al glifo status di
-              // questo stesso pannello, che usa correttamente la stringa em.
-              letterSpacing: '0.15em',
-              textTransform: headTransform,
-              display: 'inline-flex',
-              alignItems: 'center',
-              cursor: 'pointer',
-            }}
-            title="Apri Flow"
-          >
-            FLOW
-          </button>
-        )}
       </div>
     );
   };

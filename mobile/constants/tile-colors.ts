@@ -11,7 +11,7 @@
  */
 
 /** Chiave d'azione della tile: 'allday' è virtuale (event + all_day). */
-export type TileActionKey = 'none' | 'anytime' | 'deadline' | 'event' | 'allday';
+export type TileActionKey = 'none' | 'anytime' | 'deadline' | 'event' | 'allday' | 'flow';
 
 export const DEFAULT_ACTION_COLORS: Record<TileActionKey, string> = {
   none: '#52525B',     // Notes — neutro
@@ -19,6 +19,7 @@ export const DEFAULT_ACTION_COLORS: Record<TileActionKey, string> = {
   deadline: '#F82B60', // Deadline
   event: '#20C933',    // Timed
   allday: '#2D7FF9',   // All day
+  flow: '#8B46FF',     // Flow — processo a passi
 };
 
 /** Colore del bordo delle scadenze — identico al canvas. */

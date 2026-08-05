@@ -11,7 +11,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-import type { ContactKind } from '../types/flow.js';
+import type { ContactKind } from '../types/contact.js';
 
 export const contactsRouter = Router();
 contactsRouter.use(authenticate);
@@ -182,6 +182,34 @@ contactsRouter.post('/:id/archive', async (req: AuthenticatedRequest, res: Respo
     const { data, error } = await supabaseAdmin
       .from('contacts')
       .update({ archived_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('user_id', req.user!.id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      res.status(404).json({ success: false, error: 'Contact not found' });
+      return;
+    }
+    res.json({ success: true, data });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /api/contacts/:id/unarchive — riporta il contatto fra gli attivi.
+ *
+ * Mancava. Senza, `/archive` non era un archivio ma un'eliminazione con un
+ * passaggio in più: la riga restava nel database e continuava a soddisfare i
+ * `contact_id` dei passi, ma dall'interfaccia non c'era modo di rivederla.
+ */
+contactsRouter.post('/:id/unarchive', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('contacts')
+      .update({ archived_at: null })
       .eq('id', id)
       .eq('user_id', req.user!.id)
       .select()

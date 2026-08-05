@@ -1,5 +1,19 @@
-// Action type for GTD classification
-export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'allday';
+/**
+ * Classificazione GTD del tile. Attenzione: questa unione mescola due piani.
+ *
+ *   MEMORIZZATI su `tiles.action_type`:  none · anytime · deadline · event · flow
+ *   DERIVATO solo a tempo di render:     allday  (= event + all_day)
+ *
+ * `allday` non esiste nel database — è una chiave grafica che il frontend usa
+ * per colori e icone; `tileVisualKey()` in `lib/tile-visual.ts` è il posto in cui
+ * viene derivata. Sta qui dentro perché `Record<ActionType, string>` alimenta la
+ * tavolozza, che di chiavi ne vuole sei.
+ *
+ * `flow` è il tile-processo: la sua sostanza sono i passi (`subtasks`), non una
+ * data. Non è schedulabile — vive nella terza colonna di CHRONO, mai nella
+ * griglia del calendario.
+ */
+export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'allday' | 'flow';
 
 // Spark types
 export type SparkType =
@@ -152,12 +166,28 @@ export interface Status {
 }
 
 // Tile subtask (checklist item)
+/**
+ * Voce di checklist di un tile — e, sui tile di tipo `flow`, un PASSO del
+ * processo. È la stessa riga: cambia la resa, non lo schema.
+ *
+ * I tre campi in fondo servono ai passi e restano nulli su una checklist
+ * ordinaria. `state` è una sovrastruttura su `is_done`, non un suo rimpiazzo:
+ * copre i due casi che un booleano non sa dire.
+ *
+ *   StepState = state ?? (is_done ? 'done' : 'pending')
+ */
 export interface Subtask {
   id: string;
   tile_id: string;
   content: string;
   is_done: boolean;
   sort_order: number;
+  /** Chi ha la palla su questo passo. */
+  contact_id?: string | null;
+  /** Quando il passo è avvenuto. Storia, non programma: non va in calendario. */
+  occurred_at?: string | null;
+  /** `null` = voce ordinaria (lo stato lo dice `is_done`). */
+  state?: 'blocked' | 'cancelled' | null;
   created_at: string;
   updated_at: string;
 }

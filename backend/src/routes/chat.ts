@@ -5,6 +5,11 @@ import OpenAI from 'openai';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
 import { chat } from '../services/ai.js';
+import {
+  fileToContentBlock,
+  UnsupportedAttachmentError,
+  MAX_ATTACHMENT_BYTES,
+} from '../utils/chat-attachment.js';
 import type { AuthenticatedRequest } from '../types/index.js';
 
 export const chatRouter = Router();
@@ -19,6 +24,14 @@ chatRouter.use(authenticate);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+// Multer per gli allegati della chat: limite più alto della voce perché qui
+// passano PDF e immagini. Resta sotto i 32MB della richiesta Claude, base64
+// compreso — il conto sta in utils/chat-attachment.
+const uploadAttachment = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_ATTACHMENT_BYTES },
 });
 
 // OpenAI client for Whisper transcription
@@ -78,6 +91,78 @@ chatRouter.post(
       res.status(500).json({
         success: false,
         error: errorMessage,
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/chat/attach — messaggio con un allegato.
+ *
+ * Rotta separata da `/` e non un ramo di quella, perché il corpo è multipart:
+ * `validate(chatSchema)` legge `req.body` come JSON e su multipart non
+ * funzionerebbe. Stessa impostazione di `/voice`, che è multipart per lo stesso
+ * motivo — e come lì, `history` viaggia come stringa JSON in un campo del form.
+ *
+ * Il file diventa un blocco di contenuto (immagine, PDF o testo estratto) e
+ * viaggia NELLA STESSA richiesta del messaggio: Claude lo legge insieme alla
+ * domanda, non dopo. Non resta salvato da nessuna parte — è allegato alla
+ * conversazione, non catturato nel Vault.
+ */
+chatRouter.post(
+  '/attach',
+  uploadAttachment.single('file'),
+  async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const file = req.file;
+      if (!file) {
+        res.status(400).json({ success: false, error: 'Nessun file allegato' });
+        return;
+      }
+
+      const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
+      if (!message) {
+        res.status(400).json({ success: false, error: 'Il messaggio è obbligatorio' });
+        return;
+      }
+
+      let history: { role: 'user' | 'assistant'; content: string }[] = [];
+      if (req.body.history) {
+        try {
+          history = JSON.parse(req.body.history);
+        } catch {
+          res.status(400).json({ success: false, error: 'Cronologia non valida' });
+          return;
+        }
+      }
+
+      const block = await fileToContentBlock(file);
+      const result = await chat(message, history, req.user!.id, req.body.model || undefined, [block]);
+
+      res.json({
+        success: true,
+        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
+      });
+    } catch (error) {
+      // Formato non allegabile o file illeggibile: è un problema della richiesta,
+      // non del server — 400 con il motivo, che il client mostra così com'è.
+      if (error instanceof UnsupportedAttachmentError) {
+        res.status(400).json({ success: false, error: error.message });
+        return;
+      }
+      // Multer supera il proprio limite prima ancora di arrivare qui.
+      if ((error as { code?: string }).code === 'LIMIT_FILE_SIZE') {
+        res.status(400).json({
+          success: false,
+          error: `File troppo grande. Il limite è ${MAX_ATTACHMENT_BYTES / 1024 / 1024}MB.`,
+        });
+        return;
+      }
+      console.error('Chat attachment error:', error);
+      const err = error as ApiError;
+      res.status(err.status === 429 ? 429 : 500).json({
+        success: false,
+        error: err.message || err.error?.message || "Invio dell'allegato non riuscito",
       });
     }
   }

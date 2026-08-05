@@ -1,10 +1,13 @@
 /**
- * React-query hook for Contacts (used by Flow nodes' inspector combobox).
+ * Contatti — lettura e scrittura via react-query.
+ *
+ * Consumato dalla modale di gestione (navbar → Contatti) e dal
+ * `ContactCombobox`. Il contatto è referenziato da `tile_subtasks.contact_id`.
  */
 'use client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { contactsApi } from '@/lib/api';
-import type { Contact, ContactKind } from '@/types/flow';
+import type { Contact, ContactKind } from '@/types/contact';
 
 type CreateContactBody = {
   name: string;
@@ -32,8 +35,6 @@ export function useContacts(opts?: { archived?: boolean }) {
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ['contacts'] });
-    // Hub rows display contact info — keep them in sync.
-    qc.invalidateQueries({ queryKey: ['flow-hub'] });
   };
 
   const create = useMutation({
@@ -57,6 +58,11 @@ export function useContacts(opts?: { archived?: boolean }) {
     onSuccess: invalidate,
   });
 
+  const unarchive = useMutation({
+    mutationFn: async (id: string) => contactsApi.unarchive(id),
+    onSuccess: invalidate,
+  });
+
   const remove = useMutation({
     mutationFn: async (id: string) => contactsApi.remove(id),
     onSuccess: invalidate,
@@ -68,6 +74,7 @@ export function useContacts(opts?: { archived?: boolean }) {
     create,
     update,
     archive,
+    unarchive,
     remove,
   };
 }

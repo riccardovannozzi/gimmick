@@ -3,16 +3,21 @@
 /**
  * Gimmick · Obsidian — View navigation bar.
  *
- * Two groups: data views (Sparks/Tiles/Tags/Flows) on the left, board/calendar
+ * Two groups: data views (Sparks/Tiles/Tags) on the left, board/calendar
  * views (Chrono/Canvas/Kanban/Panopticon) on the right. Active tab uses the
  * accent-soft pill. Reference: GimmickApp.dc.html navbar.
+ *
+ * C'era anche "Flows", una board a quattro corsie sui nodi di un modello a sé.
+ * È uscita di scena col modello: un flow è un tile con `action_type = 'flow'`,
+ * quindi si guarda dove si guardano i tile — la colonna FLOW di Chrono, il
+ * Kanban, il Canvas — senza una vista che sappia solo di lui.
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { Icon, type ShellIconName } from './icons';
 
 export type ViewId =
-  | 'sparks' | 'tiles' | 'tags' | 'flows'
+  | 'sparks' | 'tiles' | 'tags'
   | 'chrono' | 'canvas' | 'kanban' | 'panopticon';
 
 export interface ViewTab {
@@ -25,7 +30,6 @@ export const DEFAULT_LEFT_VIEWS: ViewTab[] = [
   { id: 'sparks', label: 'Sparks', icon: 'sparkles' },
   { id: 'tiles', label: 'Tiles', icon: 'tiles' },
   { id: 'tags', label: 'Tags', icon: 'tags' },
-  { id: 'flows', label: 'Flows', icon: 'flow' },
 ];
 
 export const DEFAULT_RIGHT_VIEWS: ViewTab[] = [
