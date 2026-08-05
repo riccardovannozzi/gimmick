@@ -71,6 +71,9 @@ export const GIMMICK_PALETTE: PaletteColor[] = [
  * Default colori per action_type.
  * - `none` (Notes): neutro strutturale fuori palette — non esposto nel picker.
  * - `allday`: blueBright (colore primario della palette).
+ * - `flow`: purpleBright — l'unica famiglia cromatica ancora libera fra le sei,
+ *   e quella che nella palette sta più lontana sia dal rosso della scadenza sia
+ *   dal verde dell'evento, cioè dai due tipi con cui un flow si confonderebbe.
  */
 export const DEFAULT_ACTION_COLORS: Record<ActionType, string> = {
   none:     '#52525B', // Zinc-600 (Notes — neutro, non mostrato in UI)
@@ -78,6 +81,7 @@ export const DEFAULT_ACTION_COLORS: Record<ActionType, string> = {
   deadline: '#F82B60', // redBright (Deadline)
   event:    '#20C933', // greenBright (Timed)
   allday:   '#2D7FF9', // blueBright (All Day)
+  flow:     '#8B46FF', // purpleBright (Flow)
 };
 
 export function getColorName(hex: string): string {

@@ -131,7 +131,6 @@ function Gallery({ mode }: { mode: ObsidianMode }) {
             onChange={setSeg}
             items={[
               { value: 'tiles', label: 'Tiles' },
-              { value: 'flows', label: 'Flows' },
               { value: 'chrono', label: 'Chrono' },
             ]}
           />

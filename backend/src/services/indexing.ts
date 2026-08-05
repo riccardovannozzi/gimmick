@@ -663,6 +663,11 @@ async function classifyActionType(tileId: string): Promise<void> {
 
   const content = textParts.join('\n').slice(0, 2000);
 
+  // NOTA: `flow` è deliberatamente ASSENTE da questa classificazione. È il quinto
+  // action_type, ma non è inferibile dal contenuto di un singolo spark: un flow si
+  // riconosce dal fatto che l'attività rimbalza fra soggetti nel tempo, cosa che
+  // emerge dopo, non alla cattura. In più assegnarlo toglierebbe il tile dal
+  // calendario. Resta una scelta esplicita dell'utente.
   const response = await anthropic.messages.create({
     model: CLAUDE_MODEL,
     max_tokens: 150,

@@ -12,7 +12,7 @@ import React from 'react';
 import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, Image, KeyboardAvoidingView, Platform } from 'react-native';
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconWaveSine, IconPaperclip,
-  IconSend, IconChevronDown, IconChevronUp, IconDotsVertical,
+  IconSend, IconChevronDown, IconChevronUp,
   IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot, IconEraser,
 } from '@tabler/icons-react-native';
@@ -59,7 +59,7 @@ const CAPS: Record<CapKey, { label: string; Icon: typeof IconCamera }> = {
 const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
 
 /**
- * Pulsanti tondi della barra di cattura: i 5 canali e il kebab Options.
+ * Pulsanti tondi della barra di cattura: i 5 canali e la freccetta AZIONE.
  *
  * NOTA: vale 52 come `OB_CAP_BTN` in constants/obsidian.ts, che è il token
  * delle schermate di cattura. È una duplicazione da riconciliare: qui resta una
@@ -67,27 +67,37 @@ const TOOLBAR: CapKey[] = ['photo', 'video', 'voice', 'gallery', 'file'];
  *
  * Il glifo segue la proporzione storica 23/48 ≈ 0.48.
  *
- * ATTENZIONE alla larghezza: la riga occupa `5 × CAP_BTN + KEBAB_W + 6 × gap`
- * dentro `paddingHorizontal: 12`. In RN `flexShrink` vale 0, quindi se non ci
- * sta i pulsanti NON si comprimono — il kebab esce dal bordo destro e diventa
- * irraggiungibile.
+ * ATTENZIONE alla larghezza: la riga occupa
+ * `5 × CAP_BTN + (CARET_W + 6) + 5 × gap` = 332 dentro `paddingHorizontal: 12`,
+ * cioè 356 su uno schermo da 360dp: restano 4dp. In RN `flexShrink` vale 0,
+ * quindi se non ci sta i pulsanti NON si comprimono — la freccetta esce dal
+ * bordo destro e diventa irraggiungibile.
  */
 const CAP_BTN = 52;
 const CAP_GLYPH = 25;
 
 /**
- * Kebab Options: senza fondo, solo il glifo. È un menu secondario, non un
- * canale di cattura, e togliergli la pastiglia lo separa dai cinque tondi molto
- * più di quanto facesse una forma diversa.
+ * Freccetta AZIONE: senza fondo, solo il glifo. APRE il pannello AZIONE, che si
+ * espande SOTTO la barra — quindi è un chevron rivolto in giù, non un kebab: il
+ * kebab prometteva un menu di voci, mentre qui il tocco espande sempre lo stesso
+ * pannello.
+ *
+ * È un comando a senso unico: col pannello aperto sparisce, e a richiuderlo
+ * pensa il "Close ⌃" della sua intestazione.
+ *
+ * Niente pastiglia: non è un canale di cattura, e toglierla lo separa dai cinque
+ * tondi più di qualunque differenza di forma.
  *
  * Larghezza e raggio restano perché definiscono l'area del ripple e quella
- * toccabile, non più una forma visibile. A 36 il bersaglio starebbe sotto i 48
- * di Material, quindi si compensa con `hitSlop` orizzontale.
+ * toccabile, non una forma visibile. A 36 il bersaglio starebbe sotto i 48 di
+ * Material, quindi si compensa con `hitSlop` orizzontale.
  *
- * Lo stato aperto non ha più il fondo accent: lo segnala il glifo, che passa da
- * `text` ad `accent`.
+ * Il riquadro NON si allarga a 48 per allinearsi da solo: costerebbe 12dp alla
+ * riga, che non li ha (vedi il conto in CAP_BTN). L'allineamento lo fa il
+ * `marginRight`, come sul microfono.
  */
-const KEBAB_W = 36;
+const CARET_W = 36;
+const CARET_GLYPH = 30;
 
 // Stacco dell'header dall'alto (safe-area a parte).
 const HEADER_GAP = 20;
@@ -409,14 +419,32 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
   };
 
   return (
-    <View style={{ flexGrow: 1, marginTop: 24, marginBottom: 24, backgroundColor: c.accentSoft, borderRadius: 12, padding: 14 }}>
+    // Fondo NEUTRO, non `accentSoft`: il violetto tingeva un pannello che occupa
+    // mezzo schermo, e l'accento qui dentro serve a marcare la scelta attiva —
+    // se lo sfondo è già accent, l'attivo ha meno da dire.
+    //
+    // In scuro `canvas` (#161616) è un gradino sopra la shell, che qui è nero
+    // pieno: si stacca senza bordo, e resta più scuro sia dei SelectBtn
+    // (`surface`) sia degli OptBtn (`surface2`), che così restano leggibili.
+    // NON usare `surface`: coinciderebbe col fondo dei SelectBtn e li farebbe
+    // sparire nel pannello.
+    //
+    // In chiaro resta `accentSoft`: lì "nero più chiaro del fondo" non vuol dire
+    // niente, e canvas/surface/surface2 sono tutti già usati dai figli.
+    <View style={{ flexGrow: 1, marginTop: 24, marginBottom: 24, backgroundColor: c.dark ? c.canvas : c.accentSoft, borderRadius: 12, padding: 14 }}>
       {/* Intestazione AZIONE + Chiudi (chiude il pannello). */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <Text style={{ fontSize: 10, fontWeight: '700', letterSpacing: 1.3, color: c.subtle }}>ACTIONS</Text>
-        {/* Riga di ~16dp: serve hitSlop 16 per arrivare al bersaglio da 48. */}
-        <Pressable onPress={onClose} hitSlop={16} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: c.muted }}>Close</Text>
-          <IconChevronUp size={13} color={c.muted} strokeWidth={2} />
+        {/* Da quando la freccetta della toolbar sparisce col pannello aperto,
+            questo è l'UNICO modo di richiuderlo: etichetta e glifo sono tarati
+            per essere il comando più leggibile del blocco, non una postilla.
+            Il chevron resta ~1,6× il testo, la proporzione che aveva a 13/12
+            quando erano entrambi minuti.
+            La riga misura ~24dp: con hitSlop 16 il bersaglio arriva a 56, sopra
+            i 48 di Material. */}
+        <Pressable onPress={onClose} hitSlop={16} style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <Text style={{ fontSize: 15, fontWeight: '600', color: c.muted }}>Close</Text>
+          <IconChevronUp size={24} color={c.muted} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -575,15 +603,26 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
   );
 }
 
-/** Campo tappabile (data/ora). Stesso stile del Field di TileScreen. */
+/**
+ * Campo tappabile (data/ora). Come il Field di TileScreen ma SENZA bordo: qui i
+ * campi stanno dentro il pannello AZIONE, in colonna coi SelectBtn di OPTIONS,
+ * che il bordo non ce l'hanno — a distinguerli basta il fondo `field`, più
+ * chiaro del pannello. Il contorno aggiungeva una seconda linea per riga in un
+ * blocco che ne ha già parecchie.
+ */
 function Field({ c, value, Icon, chev, placeholder, onPress, dotColor }: { c: ObsidianColors; value: string; Icon?: typeof IconClock; chev?: boolean; placeholder?: boolean; onPress?: () => void; dotColor?: string }) {
   return (
-    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 10, paddingHorizontal: 13, minHeight: OB_BTN_H }}>
-      {dotColor ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} /> : Icon ? <Icon size={15} color={placeholder ? c.subtle : c.muted} strokeWidth={1.8} /> : null}
+    <Pressable onPress={onPress} style={{ flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: c.field, borderRadius: 10, paddingHorizontal: 13, minHeight: OB_BTN_H }}>
+      {dotColor ? <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: dotColor }} /> : Icon ? <Icon size={16} color={placeholder ? c.subtle : c.muted} strokeWidth={1.8} /> : null}
       {/* Valore selezionato in colore testo, placeholder in subtle: distingue a
-          colpo d'occhio i campi già impostati da quelli vuoti. */}
-      <Text numberOfLines={1} style={{ flex: 1, fontSize: 13, color: placeholder ? c.subtle : c.text }}>{value}</Text>
-      {chev ? <IconChevronDown size={14} color={c.subtle} strokeWidth={1.8} /> : null}
+          colpo d'occhio i campi già impostati da quelli vuoti.
+          15 come gli OptBtn (Note/To-do/Due/…) e a un punto dai SelectBtn di
+          OPTIONS: i tre blocchi del pannello sono in colonna e si leggono di
+          seguito, quindi il 13 di prima faceva sembrare data e ora una didascalia
+          invece che un controllo come gli altri. Il glifo segue a 16, la stessa
+          coppia 16/15 degli OptBtn. */}
+      <Text numberOfLines={1} style={{ flex: 1, fontSize: 15, color: placeholder ? c.subtle : c.text }}>{value}</Text>
+      {chev ? <IconChevronDown size={16} color={c.subtle} strokeWidth={1.8} /> : null}
     </Pressable>
   );
 }
@@ -877,7 +916,7 @@ export function ObsidianCaptureScreen({
   );
 
   // Barra dei canali, ancorata in fondo (stile Keep). Nota vuota → i 5 canali +
-  // kebab Options; mentre scrivi (o modifichi uno spark) → gomma (svuota il
+  // freccetta AZIONE; mentre scrivi (o modifichi uno spark) → gomma (svuota il
   // campo) + Salva.
   const toolbar = (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12, paddingBottom: 8 }}>
@@ -922,17 +961,42 @@ export function ObsidianCaptureScreen({
               </Pressable>
             );
           })}
-          {/* Spinge il kebab Options a destra, in riga coi canali. */}
-          <View style={{ flex: 1 }} />
+          {/* Solo da CHIUSA: aperto il pannello, il comando di chiusura è il
+              "Close ⌃" della sua intestazione, e tenerne due che fanno la stessa
+              cosa a mezzo schermo di distanza è una scelta in più da leggere,
+              non una scorciatoia. Sparendo, lascia anche la riga dei canali
+              pulita mentre si lavora sul pannello. */}
+          {!actionOpen && (
           <Pressable
-            onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen((v) => !v); }}
-            accessibilityLabel="Opzioni"
+            onPress={() => { LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut); setActionOpen(true); }}
+            accessibilityRole="button"
+            accessibilityLabel="Apri le azioni"
+            accessibilityState={{ expanded: false }}
             android_ripple={{ color: '#ffffff22', borderless: false }}
             hitSlop={{ left: 6, right: 6 }}
-            style={{ width: KEBAB_W, height: CAP_BTN, borderRadius: '50%', alignItems: 'center', justifyContent: 'center' }}
+            // `marginLeft: 'auto'` spinge la freccetta a destra: fa il lavoro che
+            // faceva uno spacer `flex: 1`, ma senza aggiungere un settimo figlio
+            // alla riga — e quindi senza il sesto `gap`. I 6dp risparmiati sono
+            // esattamente quelli che serve spendere in `marginRight`, così la
+            // riga resta larga 332 come prima (vedi il conto in CAP_BTN: con
+            // 5×52 + 36 + 5×6 + 6 si sta dentro i 360dp, con un dp in più no).
+            //
+            // `marginRight: 6` è lo stesso trucco del microfono qui sopra e serve
+            // allo stesso scopo: allineare il GLIFO, non il bordo. Centro =
+            // 12 (padding colonna) + 6 + 18 = 36dp dal bordo schermo, cioè in asse
+            // col mic e coi pulsanti dell'header.
+            style={{ marginLeft: 'auto', marginRight: 6, width: CARET_W, height: CAP_BTN, borderRadius: '50%', alignItems: 'center', justifyContent: 'center' }}
           >
-            <IconDotsVertical size={CAP_GLYPH} color={actionOpen ? c.accent : c.text} strokeWidth={1.8} />
+            {/* Punta in GIÙ perché il pannello si espande sotto la barra. Non
+                ruota più: esiste solo nello stato chiuso, quindi lo stato aperto
+                non ha un glifo da mostrare qui.
+                30 e non CAP_GLYPH (25): il chevron disegna solo la fascia
+                centrale del suo riquadro — a parità di `size` pesa molto meno di
+                una fotocamera o di un mic, e a 25 sembrava più piccolo dei
+                vicini invece che uguale. */}
+            <IconChevronDown size={CARET_GLYPH} color={c.text} strokeWidth={1.8} />
           </Pressable>
+          )}
         </>
       )}
     </View>

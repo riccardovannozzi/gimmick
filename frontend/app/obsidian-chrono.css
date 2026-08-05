@@ -101,13 +101,22 @@
 .ob-chrono__colhead-btns { display: flex; gap: 1px; }
 .ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
 .ob-chrono__colhead-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
-.ob-chrono__colbody { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+/* `gap: 3px` — la distanza fra due tile NON è questo numero: è 3 + i 9 della
+   gronda della cella qui sotto, cioè 12px. Erano 17 e respiravano troppo per
+   una colonna larga 176. Sotto i 3 il badge del tile inferiore, che sborda di
+   8px, arriverebbe a sfiorare il bordo di quello superiore. */
+.ob-chrono__colbody { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+/* Cella della colonna: la GRONDA di 9px in cui sbordano i badge d'angolo del
+   tile. Sta qui e non come margine sul tile perché il rettangolo deve restare
+   150×80 e l'allineamento non deve spostarsi. `overflow: visible` esplicito:
+   il contenitore non deve mai ritagliare ciò che sborda. */
+.ob-chrono__cell { padding-top: 9px; flex-shrink: 0; overflow: visible; }
 .ob-chrono__empty { font-size: var(--ob-text-meta); color: var(--ob-subtle); padding: 4px; }
 
 /* tile card */
 /* Stile allineato ai tile del canvas: striscia STATUS a sinistra + contenuto
    (titolo, badge azione in basso-sx, badge tipo in basso-dx). Base solida
-   (surface) + velatura del colore (14%), bordo tinto (22%), raggio 8px. */
+   (surface) + velatura del colore (14%), bordo tinto (22%), raggio `--ob-radius-md`. */
 /* Dimensioni IDENTICHE al tile canvas (TILE_W 150 × TILE_H 80). flex-shrink 0:
    nella colonna il tile non si comprime. */
 .ob-chrono__card { position: relative; width: 150px; height: 80px; flex-shrink: 0; border-radius: var(--ob-radius-md); padding: 0; display: flex; flex-direction: row; overflow: hidden; background: color-mix(in srgb, var(--card-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--card-c) 22%, transparent); }
@@ -249,7 +258,8 @@
 /* Sfondo OPACO (mix con la surface, non transparent) così gli eventi affiancati
    in caso di sovrapposizione non si vedono in trasparenza l'uno sull'altro. */
 /* Stessa ricetta dei tile di CANVAS/KANBAN/colonne: base `--ob-tile-bg`, velatura
-   del colore al 14%, bordo tinto al 22%, raggio 5. Il blocco è sempre una riga
+   del colore al 14%, bordo tinto al 22%, raggio `--ob-radius-md` — lo STESSO
+   delle card di Notes/Todo e di Kanban. Il blocco è sempre una riga
    (strip status + corpo); è il CORPO a cambiare direzione fra tall e tiny. */
 .ob-chrono__event { position: absolute; left: 3px; right: 3px; border-radius: var(--ob-radius-md); overflow: hidden; display: flex; flex-direction: row; background: color-mix(in srgb, var(--ev-c) 14%, var(--ob-tile-bg)); border: 1px solid color-mix(in srgb, var(--ev-c) 22%, transparent); }
 /* Senza colorazione: fondo unico dei tile e bordo neutro. */

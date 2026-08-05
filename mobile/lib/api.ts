@@ -668,6 +668,45 @@ export const chatApi = {
     });
   },
 
+  /**
+   * Messaggio con un allegato: il file viaggia NELLA STESSA richiesta e Claude
+   * lo legge insieme alla domanda. Multipart come `voiceSend` — `/api/chat`
+   * accetta solo JSON, quindi l'allegato ha una rotta propria.
+   *
+   * `type` è quello che l'API si aspetta per riconoscere il formato: il backend
+   * ci decide se mandarlo come immagine, come PDF o come testo estratto.
+   */
+  async sendWithFile(
+    message: string,
+    file: { uri: string; name: string; type: string },
+    history: { role: string; content: string }[],
+    model?: string
+  ): Promise<{ success: boolean; data?: { reply: string }; error?: string }> {
+    try {
+      const formData = new FormData();
+      formData.append('file', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
+      formData.append('message', message);
+      formData.append('history', JSON.stringify(history));
+      if (model) formData.append('model', model);
+
+      const response = await authenticatedFetch('/api/chat/attach', {
+        method: 'POST',
+        body: formData,
+      });
+
+      return response.json();
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Invio allegato non riuscito',
+      };
+    }
+  },
+
   async voiceSend(
     audioUri: string,
     history: { role: string; content: string }[],

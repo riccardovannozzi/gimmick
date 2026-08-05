@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import { createHash } from 'node:crypto';
 import dotenv from 'dotenv';
 
 import { authRouter } from './routes/auth.js';
@@ -21,7 +22,6 @@ import { typeIconsRouter } from './routes/type-icons.js';
 import { subtasksRouter } from './routes/subtasks.js';
 import { kanbanRouter } from './routes/kanban.js';
 import { contactsRouter } from './routes/contacts.js';
-import { tileFlowRouter, flowRouter, flowsHubRouter } from './routes/flow.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFoundHandler } from './middleware/notFoundHandler.js';
 
@@ -65,6 +65,35 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
+/**
+ * Limite dedicato agli endpoint che spendono soldi veri a ogni chiamata: chat,
+ * trascrizione, sintesi vocale, riscrittura, reindicizzazione. Il limite
+ * generale sopra (1000 richieste / 15 min) non li protegge — è tarato sul
+ * traffico di navigazione, dove mille richieste sono normali; qui mille
+ * richieste sono mille chiamate a Claude e a OpenAI.
+ *
+ * Non è un problema di isolamento dei dati, è di bolletta: un token valido, un
+ * ciclo `for`, e il conto lo paghi tu.
+ *
+ * La chiave è il TOKEN, non l'IP. Il limitatore è montato prima di
+ * `authenticate`, quindi `req.user` non esiste ancora, ma l'header c'è: ne
+ * prendo l'impronta. Così due utenti dietro la stessa rete non si rubano il
+ * budget a vicenda, e chi non presenta un token ricade sull'IP.
+ * Conseguenza voluta: sessioni diverse dello stesso utente hanno secchielli
+ * distinti — accettabile, il limite serve a fermare gli script, non le persone.
+ */
+const aiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 120, // ~8 al minuto sostenuti: abbondante per una persona, letale per un ciclo
+  message: { error: 'Too many AI requests, please slow down.' },
+  keyGenerator: (req) => {
+    const auth = req.headers.authorization;
+    return auth
+      ? `t:${createHash('sha256').update(auth).digest('base64url').slice(0, 24)}`
+      : `ip:${req.ip ?? 'unknown'}`;
+  },
+});
+
 // Logging
 app.use(morgan('dev'));
 
@@ -79,11 +108,15 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/auth', authRouter);
+// Le due rotte di reindicizzazione rilanciano l'intera pipeline AI su ogni
+// spark: stesso costo per chiamata degli endpoint di chat, stesso limitatore.
+app.use('/api/sparks/reindex-all', aiLimiter);
+app.use('/api/sparks/:id/reindex', aiLimiter);
 app.use('/api/sparks', sparksRouter);
 app.use('/api/tiles', tilesRouter);
 app.use('/api/upload', uploadRouter);
-app.use('/api/chat', chatRouter);
-app.use('/api/ai', aiRouter);
+app.use('/api/chat', aiLimiter, chatRouter);
+app.use('/api/ai', aiLimiter, aiRouter);
 app.use('/api/tags', tagsRouter);
 app.use('/api/calendar', calendarRouter);
 app.use('/api/settings', settingsRouter);
@@ -94,12 +127,6 @@ app.use('/api/type-icons', typeIconsRouter);
 app.use('/api/subtasks', subtasksRouter);
 app.use('/api/kanban', kanbanRouter);
 app.use('/api/contacts', contactsRouter);
-// Mount the tile-scoped flow router BEFORE /api/tiles is also used to avoid
-// any accidental shadowing; both can coexist because tilesRouter has no
-// `/:id/flow` sub-route. mergeParams gives us req.params.tileId.
-app.use('/api/tiles/:tileId/flow', tileFlowRouter);
-app.use('/api/flow', flowRouter);
-app.use('/api/flows', flowsHubRouter);
 
 // Error handling
 app.use(notFoundHandler);

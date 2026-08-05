@@ -9,6 +9,7 @@ export const ACTION_COLORS: Record<ActionType, string> = {
   anytime: '#666666',  // grayBright (To Do)
   deadline: '#F82B60', // redBright (Deadline)
   event: '#20C933',    // greenBright (Timed)
+  flow: '#8B46FF',     // purpleBright (Flow)
   // 'allday' isn't in ActionType but the web treats event+all_day separately.
 };
 

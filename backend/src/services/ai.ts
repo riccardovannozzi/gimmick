@@ -86,7 +86,7 @@ NON usare i tool deprecati search_sparks/search_tiles/semantic_search: usa SEMPR
           properties: {
             action_type: {
               type: 'array',
-              items: { type: 'string', enum: ['none', 'anytime', 'deadline', 'event'] },
+              items: { type: 'string', enum: ['none', 'anytime', 'deadline', 'event', 'flow'] },
             },
             is_cta: { type: 'boolean', description: 'Filtra solo Tile call-to-action' },
             is_completed: { type: 'boolean' },
@@ -235,7 +235,7 @@ NON usare i tool deprecati search_sparks/search_tiles/semantic_search: usa SEMPR
         },
         action_type: {
           type: 'string',
-          enum: ['none', 'anytime', 'deadline', 'event'],
+          enum: ['none', 'anytime', 'deadline', 'event', 'flow'],
           description: 'Filter by tile action_type',
         },
         date_from: {
@@ -262,7 +262,7 @@ NON usare i tool deprecati search_sparks/search_tiles/semantic_search: usa SEMPR
       properties: {
         action_type: {
           type: 'string',
-          enum: ['none', 'anytime', 'deadline', 'event'],
+          enum: ['none', 'anytime', 'deadline', 'event', 'flow'],
           description: 'Filter by action_type',
         },
         date_from: {
@@ -326,6 +326,27 @@ NON usare i tool deprecati search_sparks/search_tiles/semantic_search: usa SEMPR
 ];
 
 // Date helpers
+/**
+ * Racchiude un valore fra virgolette per i filtri PostgREST.
+ *
+ * Dentro `or(...)` la virgola, le parentesi e il punto sono SINTASSI, non testo:
+ * un valore che li contiene aggiunge condizioni proprie al gruppo. E questi
+ * valori arrivano dal messaggio dell'utente, passando per il tool use di Claude
+ * — `query`, `date_from`, `date_to` sono tutti stringhe che l'utente detta.
+ *
+ * Il rimedio previsto dal protocollo è la virgoletta doppia, con backslash e
+ * virgolette a loro volta protette. I caratteri jolly di ILIKE (`%`, `_`)
+ * restano attivi apposta: servono alla ricerca.
+ *
+ * Nota su cosa NON era in gioco: `.eq('user_id', …)` è sempre stato un
+ * parametro separato, in AND con l'intero gruppo `or`, quindi da qui non si
+ * arrivava ai dati di un altro utente. Bastava però spostare quell'`eq` dentro
+ * l'`or` in un refactor futuro perché lo diventasse.
+ */
+function pgQuote(value: string): string {
+  return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
+}
+
 function normalizeDateFrom(d: string): string {
   return d.includes('T') ? d : `${d}T00:00:00`;
 }
@@ -393,7 +414,8 @@ async function searchSparks(input: Record<string, unknown>, userId: string): Pro
 
   if (input.type) query = query.eq('type', input.type as SparkType);
   if (input.query) {
-    query = query.or(`content.ilike.%${input.query}%,file_name.ilike.%${input.query}%`);
+    const like = pgQuote(`%${String(input.query)}%`);
+    query = query.or(`content.ilike.${like},file_name.ilike.${like}`);
   }
   if (input.date_from) query = query.gte('created_at', normalizeDateFrom(input.date_from as string));
   if (input.date_to) query = query.lte('created_at', normalizeDateTo(input.date_to as string));
@@ -563,15 +585,15 @@ async function searchTiles(input: Record<string, unknown>, userId: string): Prom
     .from('tiles')
     .select('id, title, description, action_type, start_at, end_at, created_at')
     .eq('user_id', userId)
-    .or(`title.ilike.%${query}%,description.ilike.%${query}%`);
+    .or(`title.ilike.${pgQuote(`%${query}%`)},description.ilike.${pgQuote(`%${query}%`)}`);
 
   if (input.action_type) q = q.eq('action_type', input.action_type as string);
   if (input.date_from) {
-    const from = normalizeDateFrom(input.date_from as string);
+    const from = pgQuote(normalizeDateFrom(input.date_from as string));
     q = q.or(`start_at.gte.${from},end_at.gte.${from}`);
   }
   if (input.date_to) {
-    const to = normalizeDateTo(input.date_to as string);
+    const to = pgQuote(normalizeDateTo(input.date_to as string));
     q = q.or(`start_at.lte.${to},end_at.lte.${to}`);
   }
 
@@ -584,11 +606,11 @@ async function countTiles(input: Record<string, unknown>, userId: string): Promi
   let q = supabaseAdmin.from('tiles').select('*', { count: 'exact', head: true }).eq('user_id', userId);
   if (input.action_type) q = q.eq('action_type', input.action_type as string);
   if (input.date_from) {
-    const from = normalizeDateFrom(input.date_from as string);
+    const from = pgQuote(normalizeDateFrom(input.date_from as string));
     q = q.or(`start_at.gte.${from},end_at.gte.${from}`);
   }
   if (input.date_to) {
-    const to = normalizeDateTo(input.date_to as string);
+    const to = pgQuote(normalizeDateTo(input.date_to as string));
     q = q.or(`start_at.lte.${to},end_at.lte.${to}`);
   }
   const { count, error } = await q;
@@ -741,7 +763,13 @@ export async function chat(
   message: string,
   history: { role: 'user' | 'assistant'; content: string }[],
   userId: string,
-  model: string = 'claude-haiku-4-5-20251001'
+  model: string = 'claude-haiku-4-5-20251001',
+  /**
+   * Allegati del turno corrente (immagine, PDF o testo estratto), già convertiti
+   * in blocchi da `utils/chat-attachment`. Vuoto → il turno è la sola stringa,
+   * esattamente come prima.
+   */
+  attachments: Anthropic.ContentBlockParam[] = []
 ): Promise<ChatResult> {
   const collectedSparkIds: Set<string> = new Set();
   const collectedTileIds: Set<string> = new Set();
@@ -751,7 +779,11 @@ export async function chat(
       role: h.role as 'user' | 'assistant',
       content: h.content,
     })),
-    { role: 'user', content: message },
+    // Gli allegati vanno PRIMA del testo: è l'ordine raccomandato dall'API, e
+    // ha senso anche a leggerlo — la domanda arriva dopo ciò a cui si riferisce.
+    attachments.length > 0
+      ? { role: 'user' as const, content: [...attachments, { type: 'text' as const, text: message }] }
+      : { role: 'user' as const, content: message },
   ];
 
   const now = new Date();

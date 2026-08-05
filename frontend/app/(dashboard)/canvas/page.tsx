@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconRoute, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
@@ -17,11 +17,8 @@ import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
-import { useTilesWithFlows } from '@/lib/hooks/useTilesWithFlows';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
-import { useFlowOpenStore } from '@/store/flow-modal-store';
-import { useFlowOpenRequest } from '@/lib/hooks/useFlowOpenRequest';
 import type { Tag, Tile } from '@/types';
 import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -33,11 +30,9 @@ export default function CanvasPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tagId = searchParams.get('tag');
-  // Deep-link params (typically arriving from /flows FlowHub): tile picks a
-  // specific tile to focus, flow opens FlowTrack with that node pre-selected.
-  // They're consumed once and stripped from the URL to keep history clean.
+  // Deep-link: `?tile=` mette a fuoco un tile specifico. Consumato una volta e
+  // tolto dall'URL, per non sporcare la cronologia.
   const tileParam = searchParams.get('tile');
-  const flowParam = searchParams.get('flow');
   const queryClient = useQueryClient();
 
   const [textMode, setTextMode] = useState(false);
@@ -58,13 +53,6 @@ export default function CanvasPage() {
   // Edge selezionato con click singolo → EdgeSidebar (proprietà del collegamento).
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [selectedFlowNodeId, setSelectedFlowNodeId] = useState<string | null>(null);
-  const openFlow = useFlowOpenStore((s) => s.open);
-  // Subscribes to the global FLOW-badge signal: when any badge anywhere
-  // (canvas, calendar, kanban, hub) calls `openFlow(tileId)`, this hook
-  // selects the tile, opens the sidebar, and bumps `forceFlowTab` so the
-  // sidebar's active tab jumps to Flow.
-  const forceFlowTab = useFlowOpenRequest(setSelectedTileId, setSidebarOpen);
   const [fitTrigger, setFitTrigger] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -122,8 +110,7 @@ export default function CanvasPage() {
         const preferred = lastTag ? nonRoot.find((t) => t.id === lastTag) : undefined;
         const candidate = preferred ?? nonRoot[0] ?? tileTags[0];
         if (candidate) {
-          const flowQs = flowParam ? `&flow=${flowParam}` : '';
-          router.replace(`/canvas?tag=${candidate.id}&tile=${tileParam}${flowQs}`);
+          router.replace(`/canvas?tag=${candidate.id}&tile=${tileParam}`);
         } else {
           // Tile has no tag besides GIMMICK root — nothing to anchor canvas on.
           router.replace('/tiles');
@@ -133,7 +120,7 @@ export default function CanvasPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [tileParam, tagId, flowParam, router]);
+  }, [tileParam, tagId, router]);
 
   // Fetch tiles for tag
   const { data: tilesData } = useQuery({
@@ -144,16 +131,12 @@ export default function CanvasPage() {
   });
   const allTagTiles: Tile[] = useMemo(() => tilesData?.data || [], [tilesData]);
   // Set of tile ids that own at least one Flow node — drives the FLOW badge.
-  const tilesWithFlows = useTilesWithFlows();
   // Associazioni tile→type-icon: servono per copiare il TIPO in fase di incolla.
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   const assignTypeIcon = useTypeIcons((s) => s.assignIcon);
 
-  // Deep-link applier — once tag is resolved AND the tile exists in the loaded
-  // set, select it. When ?flow= is also present (arriving from the FlowHub),
-  // pre-select that flow node in the sidebar; `TileSidebar.flowNodeId`'s
-  // existing auto-switch effect then jumps to the Flow tab. A plain ?tile=
-  // just selects the tile and leaves the sidebar on its default tab.
+  // Applica il deep-link: quando il tag è risolto E il tile esiste fra quelli
+  // caricati, lo seleziona e apre la sidebar sul suo tab predefinito.
   useEffect(() => {
     if (!tileParam) return;
     if (!tagId) return;
@@ -162,11 +145,8 @@ export default function CanvasPage() {
     if (!t) return;
     setSelectedTileId(tileParam);
     setSidebarOpen(true);
-    if (flowParam) {
-      setSelectedFlowNodeId(flowParam);
-    }
     router.replace(`/canvas?tag=${tagId}`);
-  }, [tileParam, flowParam, tagId, allTagTiles, router]);
+  }, [tileParam, tagId, allTagTiles, router]);
 
   // Fetch layout
   const { data: layoutData } = useQuery({
@@ -1090,10 +1070,6 @@ export default function CanvasPage() {
               onSelectionChange={handleSelectionChange}
               fitTrigger={fitTrigger}
               zoom100Trigger={zoom100Trigger}
-              tilesWithFlows={tilesWithFlows}
-              onFlowBadgeClick={(id) => {
-                openFlow(id);
-              }}
               screenToLocalRef={canvasScreenToLocalRef}
               isOverStaging={(clientX, clientY) => {
                 const el = stagingPanelRef.current;
@@ -1184,9 +1160,6 @@ export default function CanvasPage() {
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               invalidateKeys={['canvas-tiles', 'canvas-layout', 'canvas-edges', 'tags']}
-              flowNodeId={selectedFlowNodeId}
-              onSelectFlowNode={setSelectedFlowNodeId}
-              forceFlowTab={forceFlowTab}
             />
           )}
 
@@ -1361,18 +1334,6 @@ export default function CanvasPage() {
                     <button onClick={handleCopyTile} style={menuItem}>
                       <IconCopy size={14} />
                       Copia
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (!tileCtx) return;
-                        const id = tileCtx.tileId;
-                        setTileCtx(null);
-                        openFlow(id);
-                      }}
-                      style={menuItem}
-                    >
-                      <IconRoute size={14} />
-                      Apri Flow
                     </button>
                     <button
                       onClick={() => {

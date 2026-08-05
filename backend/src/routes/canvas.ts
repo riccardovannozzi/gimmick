@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { assertTagOwned, assertTilesOwned } from '../utils/ownership.js';
 
 export const canvasRouter = Router();
 canvasRouter.use(authenticate);
@@ -39,6 +40,13 @@ canvasRouter.put('/layout/:tagId', async (req: AuthenticatedRequest, res: Respon
       res.status(400).json({ success: false, error: 'positions must be an array' });
       return;
     }
+
+    // `tagId` viene dalla rotta e i `tile_id` dal body: nessuno dei due era
+    // verificato. Le righe si scrivevano con lo user_id giusto ma potevano
+    // riferirsi al tag e ai tile di un altro — spazzatura invisibile nel suo
+    // canvas, e il presupposto sbagliato per qualunque join futuro.
+    await assertTagOwned(req.user!.id, tagId as string);
+    await assertTilesOwned(req.user!.id, positions.map((p: { tile_id: string }) => p.tile_id));
 
     const rows = positions.map((p: { tile_id: string; x: number; y: number }) => ({
       user_id: req.user!.id,
@@ -111,6 +119,12 @@ canvasRouter.post('/edges/:tagId', async (req: AuthenticatedRequest, res: Respon
   try {
     const { tagId } = req.params;
     const { source_id, target_id, source_port, target_port } = req.body;
+
+    // `source_id`/`target_id` sono TEXT generici (possono essere tile, gruppi o
+    // box), quindi non c'è un tipo solo su cui verificarli: il vincolo che si
+    // può imporre qui è la proprietà del TAG, cioè della lavagna su cui si
+    // scrive. Senza, chiunque poteva aggiungere archi al canvas di un altro tag.
+    await assertTagOwned(req.user!.id, tagId as string);
 
     const { data, error } = await supabaseAdmin
       .from('canvas_edges')
@@ -208,6 +222,11 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
       return;
     }
 
+    // Verifica prima della DELETE qui sotto, non dopo: questa rotta sostituisce
+    // in blocco i gruppi del tag, quindi senza controllo un tagId altrui
+    // significava cancellare i gruppi di quel canvas.
+    await assertTagOwned(req.user!.id, tagId as string);
+
     await supabaseAdmin
       .from('canvas_groups')
       .delete()
@@ -266,6 +285,7 @@ canvasRouter.post('/boxes/:tagId', async (req: AuthenticatedRequest, res: Respon
     if (type !== 'text' && type !== 'image') {
       return res.status(400).json({ success: false, error: 'type must be text or image' });
     }
+    await assertTagOwned(req.user!.id, tagId as string);
     const { data, error } = await supabaseAdmin
       .from('canvas_boxes')
       .insert({

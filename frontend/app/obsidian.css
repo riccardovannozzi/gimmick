@@ -65,6 +65,16 @@
 
   /* Elevation — a single faint card shadow in light. */
   --ob-shadow-card: 0 1px 3px rgba(24, 20, 38, 0.05);
+
+  /* Stepper dei Tile — SEMANTICI, non seguono il colore dell'action.
+     Il rosso è riservato a `blocked`: un passo non ancora fatto è `pending`,
+     neutro. Regola che ne discende: se c'è del rosso, qualcosa si è fermato.
+     Il verde è più scuro di --ob-success perché qui è una barretta di 3px su
+     fondo chiaro, non testo: serve massa, non leggibilità tipografica. */
+  --ob-step-done: #639922;
+  --ob-step-pending: rgba(0, 0, 0, 0.18);
+  --ob-step-blocked: #E24B4A; /* = --ob-danger, ripetuto perché in dark diverge */
+  --ob-step-cancelled: rgba(0, 0, 0, 0.1);
 }
 
 [data-theme='dark'] {
@@ -113,6 +123,14 @@
 
   /* Elevation — no hard shadows in dark. */
   --ob-shadow-card: none;
+
+  /* Stepper — controparti scure. Verde e rosso schiariti per reggere sul fondo
+     scuro della strip; il neutro passa al bianco trasparente.
+     ⚠️ `cancelled` in dark è derivato: la specifica dava solo il valore chiaro. */
+  --ob-step-done: #97C459;
+  --ob-step-pending: rgba(255, 255, 255, 0.22);
+  --ob-step-blocked: #F09595;
+  --ob-step-cancelled: rgba(255, 255, 255, 0.1);
 }
 
 /* ── Theme-independent tokens (typography, radii, spacing) ── */

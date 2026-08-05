@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { IconPlus, IconX } from '@tabler/icons-react';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { usePixelTheme } from '@/components/pixel';
-import type { Contact } from '@/types/flow';
+import type { Contact } from '@/types/contact';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 interface Props {

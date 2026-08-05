@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { sparksApi, tilesApi, tagsApi, kanbanApi, flowApi, canvasApi } from '@/lib/api';
+import { sparksApi, tilesApi, tagsApi, kanbanApi, canvasApi } from '@/lib/api';
 import type { ViewId } from '@/components/shell';
 
 /**
@@ -69,19 +69,6 @@ export function prefetchView(qc: QueryClient, view: ViewId): void {
     case 'chrono':
       prefetchTileList(qc, 'tiles-calendar');
       prefetchTags(qc);
-      break;
-    case 'flows':
-      for (const filter of ['wait', 'undo', 'done', 'stop'] as const) {
-        qc.prefetchQuery({
-          queryKey: ['flow-hub', filter],
-          queryFn: async () => {
-            const res = await flowApi.hub(filter);
-            if (!res.success) throw new Error('Errore caricamento FlowHub');
-            return res.data ?? [];
-          },
-          staleTime: PREFETCH_STALE,
-        });
-      }
       break;
     case 'panopticon':
       qc.prefetchQuery({ queryKey: ['graph-data'], queryFn: () => tilesApi.graph(), staleTime: PREFETCH_STALE });

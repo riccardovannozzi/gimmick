@@ -7,6 +7,7 @@ import { NotFoundError } from '../middleware/errorHandler.js';
 import type { AuthenticatedRequest, Spark, SparkType } from '../types/index.js';
 import { processNewSpark, generateEmbedding } from '../services/indexing.js';
 import { getActiveStatusId } from '../services/statuses.js';
+import { assertTileOwned, assertTilesOwned } from '../utils/ownership.js';
 
 export const sparksRouter = Router();
 
@@ -292,6 +293,15 @@ sparksRouter.post(
     try {
       let tileId = req.body.tile_id;
 
+      // Il tile_id fornito dal client va verificato. Il controllo mancava del
+      // tutto: il ramo qui sotto copre solo il caso in cui il tile NON venga
+      // passato, e chi ne passava uno altrui otteneva due cose insieme — lo
+      // spark visibile nel tile della vittima, e `processNewSpark` che ne
+      // riscriveva titolo, action_type e date a partire dal testo iniettato.
+      if (tileId) {
+        await assertTileOwned(req.user!.id, tileId as string);
+      }
+
       // Auto-create tile if none provided
       if (!tileId) {
         const activeId = await getActiveStatusId(req.user!.id);
@@ -353,6 +363,18 @@ sparksRouter.post(
         });
         return;
       }
+
+      // Vanno verificati TUTTI i tile_id che arrivano dal client: quello a
+      // livello di richiesta e quelli dei singoli item, che hanno la precedenza
+      // (vedi `parsed.tile_id || batchTileId` più sotto) e sfuggivano a
+      // qualsiasi controllo. La verifica precede la creazione automatica del
+      // tile, altrimenti una richiesta respinta lascerebbe dietro di sé un tile
+      // vuoto e orfano.
+      const providedTileIds = [
+        tile_id,
+        ...items.map((item: unknown) => (item as { tile_id?: string } | null)?.tile_id),
+      ].filter((id): id is string => typeof id === 'string' && id.length > 0);
+      await assertTilesOwned(req.user!.id, providedTileIds);
 
       let batchTileId = tile_id;
       if (!batchTileId) {

@@ -28,6 +28,13 @@ export interface HeaderProps {
   leftViews?: ViewTab[];
   rightViews?: ViewTab[];
   userInitials?: string;
+  /**
+   * Apre la rubrica. È un PULSANTE, non un tab: le linguette navigano fra
+   * viste e restano accese, questo apre una modale e torna spento subito.
+   * Sta in coda al gruppo di sinistra — cioè dopo Tags — perché i contatti
+   * sono un'anagrafe come i tag, non una board.
+   */
+  onContacts?: () => void;
   onAsk?: () => void;
   onBell?: () => void;
   onSettings?: () => void;
@@ -42,6 +49,7 @@ export function Header({
   leftViews = DEFAULT_LEFT_VIEWS,
   rightViews = DEFAULT_RIGHT_VIEWS,
   userInitials = 'RI',
+  onContacts,
   onAsk,
   onBell,
   onSettings,
@@ -73,7 +81,15 @@ export function Header({
         <span className="ob-hd__logo-name">{appName}</span>
       </div>
 
-      <div className="ob-tabs__group">{leftViews.map(renderTab)}</div>
+      <div className="ob-tabs__group">
+        {leftViews.map(renderTab)}
+        {onContacts && (
+          <button type="button" className="ob-tab" onClick={onContacts} title="Gestisci i contatti">
+            <span className="ob-tab__icon"><Icon name="person" size={16} /></span>
+            Contatti
+          </button>
+        )}
+      </div>
       <div className="ob-hd__spacer" />
       <div className="ob-tabs__group">{rightViews.map(renderTab)}</div>
 

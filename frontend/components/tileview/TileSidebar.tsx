@@ -20,8 +20,6 @@ import { readableOn } from '@/lib/palette';
 import { TimePicker } from '@/components/ui/time-picker';
 import { DatePicker } from '@/components/ui/date-picker';
 import { SubtaskList } from '@/components/tileview/SubtaskList';
-import { FlowCardList } from '@/components/flow/FlowCardList';
-import { useFlow } from '@/lib/hooks/useFlow';
 import { MarkdownPreview } from '@/components/markdown/markdown-preview';
 import { MarkdownEditorModal } from '@/components/markdown/markdown-editor-modal';
 import { CameraCapture, type CaptureMode, type CapturedMedia } from '@/components/capture/CameraCapture';
@@ -1107,46 +1105,16 @@ function SparkEditor({
   );
 }
 
-/**
- * Body of the "Flow" tab. Linear card list — one card per node, drag to
- * reorder, inline-editable status/contatto/data chips.
- *
- * (Previously this was a DAG inspector with a vertical track + per-node
- * inspector — replaced by FlowCardList after migration 030 linearised the
- * data model.)
- */
-function FlowTab({ tileId }: { tileId: string }) {
-  return (
-    <div className="px-3 pb-4 pt-3 overflow-y-auto h-full">
-      <FlowCardList tileId={tileId} />
-    </div>
-  );
-}
-
 export function TileSidebar({
   tileId,
   open,
   onToggle,
   invalidateKeys = ['tiles-calendar'],
-  flowNodeId,
-  onSelectFlowNode,
-  forceFlowTab,
 }: {
   tileId: string | null;
   open: boolean;
   onToggle: () => void;
   invalidateKeys?: string[];
-  /** Optional external selection (e.g. from canvas) that overrides the tab's
-   *  default node pick (focus node → first node). The Flow tab itself is now
-   *  always visible — this prop only steers WHICH node is loaded inside it. */
-  flowNodeId?: string | null;
-  /** Called when the inspector wants to deselect or jump to another node. */
-  onSelectFlowNode?: (id: string | null) => void;
-  /** Counter incremented whenever an outside trigger (e.g. a FLOW badge in
-   *  canvas/calendar/kanban) wants the sidebar to switch to the Flow tab
-   *  without specifying a particular node. Any change > 0 jumps the active
-   *  tab — useful because clicking the same badge twice still has to react. */
-  forceFlowTab?: number;
 }) {
   const theme = usePixelTheme();
   const queryClient = useQueryClient();
@@ -1176,21 +1144,9 @@ export function TileSidebar({
   const tile = data?.data;
   const sparks: Spark[] = (tile as Tile & { sparks?: Spark[] })?.sparks || [];
 
-  const [activeTab, setActiveTab] = useState<'edit' | 'list' | 'flow'>('edit');
+  // Due tab, non più tre: i passi di un flow SONO la List.
+  const [activeTab, setActiveTab] = useState<'edit' | 'list'>('edit');
 
-  // Auto-jump to the Flow tab when an external caller (canvas, etc.) selects
-  // a flow node. We deliberately do NOT switch away when flowNodeId clears —
-  // the Flow tab is permanent now and falls back to the tile's focus node.
-  useEffect(() => {
-    if (flowNodeId) setActiveTab('flow');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flowNodeId]);
-
-  // External `forceFlowTab` pulse — bumped by `useFlowOpenRequest` whenever a
-  // FLOW badge anywhere in the app wants the sidebar to open at the Flow tab.
-  useEffect(() => {
-    if (forceFlowTab && forceFlowTab > 0) setActiveTab('flow');
-  }, [forceFlowTab]);
   const [editTitle, setEditTitle] = useState('');
   const titleDirty = useRef(false);
 
@@ -1442,24 +1398,20 @@ export function TileSidebar({
               <div className="ob-insp-tabs">
                 <button className={cn('ob-insp-tab', activeTab === 'edit' && 'ob-insp-tab--active')} onClick={() => setActiveTab('edit')}><IconEdit size={14} />Edit</button>
                 <button className={cn('ob-insp-tab', activeTab === 'list' && 'ob-insp-tab--active')} onClick={() => setActiveTab('list')}><IconList size={14} />List</button>
-                <button className={cn('ob-insp-tab', activeTab === 'flow' && 'ob-insp-tab--active')} onClick={() => setActiveTab('flow')}><IconShare2 size={14} />Flow</button>
               </div>
             )}
           </div>
         )}
-        <div
-          className={cn('flex-1 overflow-hidden flex flex-col', activeTab !== 'flow' && 'overflow-y-auto')}
-          style={activeTab !== 'flow' ? { padding: '12px' } : undefined}
-        >
+        <div className="flex-1 overflow-hidden flex flex-col overflow-y-auto" style={{ padding: '12px' }}>
           {!tileId ? (
             <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Seleziona un tile</p>
           ) : isLoading ? (
             <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Caricamento...</p>
           ) : !tile ? (
             <p style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, color: theme.ink3, marginTop: 16 }}>Tile non trovato</p>
-          ) : activeTab === 'flow' ? (
-            <FlowTab tileId={tileId} />
           ) : activeTab === 'list' ? (
+            // Una sola forma di lista per ogni tipo di tile, flow compresi:
+            // una riga, un campo. Vedi la nota in cima a SubtaskList.
             <SubtaskList tileId={tileId} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1519,19 +1471,25 @@ export function TileSidebar({
                     deadline: IconBolt,
                     event:    IconClock,
                     allday:   IconCalendar,
+                    flow:     IconShare2,
                   };
+                  // Le due righe non sono un riempimento: sono le due famiglie.
+                  // Riga 1 = i tre tipi SENZA tempo, che in CHRONO hanno una
+                  // colonna. Riga 2 = i tre CON tempo, che stanno nella griglia.
+                  // Cambiare riga a un tile è esattamente ciò che lo sposta.
                   const allOpts = [
                     { value: 'none', label: 'NOTES' },
                     { value: 'anytime', label: 'TO DO' },
+                    { value: 'flow', label: 'FLOW' },
                     { value: 'deadline', label: 'DUE' },
                     { value: 'event', label: 'ALL DAY', extra: { all_day: true } },
                     { value: 'event', label: 'TIMED', extra: { all_day: false } },
                   ] as const;
-                  const row1 = allOpts.slice(0, 2);
-                  const row2 = allOpts.slice(2);
+                  const row1 = allOpts.slice(0, 3);
+                  const row2 = allOpts.slice(3);
                   // Etichette native Obsidian (immagine di design).
                   const OB_LABEL: Record<string, string> = {
-                    'NOTES': 'Note', 'TO DO': 'To-do', 'DUE': 'Due', 'ALL DAY': 'Daily', 'TIMED': 'Timing',
+                    'NOTES': 'Note', 'TO DO': 'To-do', 'FLOW': 'Flow', 'DUE': 'Due', 'ALL DAY': 'Daily', 'TIMED': 'Timing',
                   };
                   const renderBtn = (opt: typeof allOpts[number]) => {
                     const isActive = opt.value === 'event'
@@ -1588,7 +1546,7 @@ export function TileSidebar({
                     );
                   };
                   return (
-                    // Unico container (tutti i 5 bottoni appartengono ad AZIONE):
+                    // Unico container (tutti i 6 bottoni appartengono ad AZIONE):
                     // surface + padding, come segmented control. Niente cornice.
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-md)', padding: 6 }}>
                       <div style={{ display: 'flex', gap: 6 }}>{row1.map(renderBtn)}</div>
@@ -1745,8 +1703,8 @@ export function TileSidebar({
                 </div>
                 {/* Box di cattura: stesso fondo dell'input del titolo (bg1), due
                     righe di testo e in fondo la riga dei canali. I pulsanti sono
-                    tondi come nella home dell'app mobile (cerchio #3a3a3a, glifo
-                    chiaro, nessun bordo — vedi CaptureScreen.tsx `toolbar`).
+                    tondi come nella home dell'app mobile (glifo su disco pieno,
+                    nessun bordo — vedi CaptureScreen.tsx `toolbar`).
                     Nella sidebar da 280 sei cerchi da 48 non ci starebbero in
                     riga: `flex: 0 1 48px` li tiene a 48 quando c'è spazio e li
                     stringe quanto basta, mentre `aspect-ratio` li mantiene
@@ -1841,7 +1799,21 @@ export function TileSidebar({
                           display: 'inline-flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          background: '#3a3a3a',
+                          // Il disco deve staccarsi dal fondo del box (bg1) in
+                          // ENTRAMBI i temi: al buio schiarendo, in chiaro
+                          // scurendo. `borderStrong` (n.faint) è l'unico neutro
+                          // della scala che va nella direzione giusta da solo
+                          // (#4a4a4a scuro / #c4c1cd chiaro), e sotto `ink`
+                          // tiene il glifo leggibile in tutti e due i casi.
+                          // Era fissato a #3a3a3a: in tema chiaro restava un
+                          // dischetto nero in mezzo a superfici bianche.
+                          // In chiaro `borderStrong` pieno pesa ancora troppo
+                          // (il glifo è quasi nero, quindi il contrasto avanza):
+                          // lo si stempera verso la superficie. Al buio no — lì
+                          // schiarire allontana dal fondo, non avvicina.
+                          background: theme.mode === 'light'
+                            ? `color-mix(in srgb, ${theme.borderStrong} 68%, ${theme.surface})`
+                            : theme.borderStrong,
                           border: 'none',
                           cursor: 'pointer',
                         }}

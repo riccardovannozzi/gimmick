@@ -2,6 +2,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
+import { assertTileOwned } from '../utils/ownership.js';
 
 export const subtasksRouter = Router();
 subtasksRouter.use(authenticate);
@@ -19,7 +20,7 @@ subtasksRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) =
     }
     const { data, error } = await supabaseAdmin
       .from('tile_subtasks')
-      .select('id, tile_id, content, is_done, sort_order, created_at, updated_at')
+      .select('id, tile_id, content, is_done, sort_order, contact_id, occurred_at, state, created_at, updated_at')
       .eq('user_id', req.user!.id)
       .eq('tile_id', tileId)
       .order('sort_order', { ascending: true });
@@ -40,6 +41,12 @@ subtasksRouter.post('/', async (req: AuthenticatedRequest, res: Response, next) 
       res.status(400).json({ success: false, error: 'tile_id is required' });
       return;
     }
+
+    // Il tile_id arriva dal body. La query qui sotto filtra sì per user_id, ma
+    // serve solo a calcolare il sort_order: su un tile altrui non trova nulla e
+    // riparte da zero, non blocca l'inserimento. Il subtask finiva così nella
+    // checklist del tile della vittima, falsandone il completamento.
+    await assertTileOwned(req.user!.id, tile_id as string);
 
     const { data: existing } = await supabaseAdmin
       .from('tile_subtasks')
@@ -78,6 +85,19 @@ subtasksRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, ne
     if (req.body.content !== undefined) updates.content = req.body.content;
     if (req.body.is_done !== undefined) updates.is_done = !!req.body.is_done;
     if (req.body.sort_order !== undefined) updates.sort_order = req.body.sort_order;
+    // Campi dei passi di un flow. `null` è un valore legittimo — significa
+    // "togli il contatto / la data / lo stato eccezionale" — quindi il controllo
+    // è su `undefined`, non sulla verità del valore.
+    if (req.body.contact_id !== undefined) updates.contact_id = req.body.contact_id || null;
+    if (req.body.occurred_at !== undefined) updates.occurred_at = req.body.occurred_at || null;
+    if (req.body.state !== undefined) {
+      const s = req.body.state;
+      if (s !== null && s !== 'blocked' && s !== 'cancelled') {
+        res.status(400).json({ success: false, error: "state must be null, 'blocked' or 'cancelled'" });
+        return;
+      }
+      updates.state = s;
+    }
 
     const { data, error } = await supabaseAdmin
       .from('tile_subtasks')
