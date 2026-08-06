@@ -6,26 +6,26 @@
  * flow / event colors come from the canonical scale.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, Modal, TextInput, PanResponder } from 'react-native';
+import { View, Text, Pressable, ScrollView, Modal, TextInput, PanResponder, StyleSheet } from 'react-native';
+// I glifi dei BADGE AZIONE non stanno qui: li nomina `TILE_VISUAL` e li risolve
+// `resolveGlyph` dal namespace qui sotto, come già fanno i tipi e gli stati.
+// Importarli anche per nome avrebbe creato un secondo elenco da tenere allineato
+// a mano con la mappa.
 import {
-  IconBolt, IconTag, IconCategory, IconCircleCheck, IconChevronDown, IconTrash,
-  IconHourglass, IconArrowBackUp, IconCheck, IconX, IconUser,
-  IconChevronLeft, IconChevronRight, IconClock, IconAlertCircle,
+  IconTag, IconTrash,
+  IconCheck, IconX, IconUser,
+  IconChevronLeft, IconChevronRight, IconAlertCircle,
   IconDeviceMobileVibration, IconBell, IconWorld, IconSparkles,
-  IconArrowUp, IconCalendar, IconPlayerPause, IconLock,
   IconFilter, IconArrowsSort, IconSearch, IconPaperclip, IconPlus,
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
-import {
-  DEFAULT_ACTION_COLORS, STATUS_HEX, STATUS_HEX_FALLBACK,
-  readableOn, type TileActionKey,
-} from '@/constants/tile-colors';
-import type { ObTileVM, ObFlowVM, ObChronoEvent } from '@/lib/obsidian-adapters';
+import { DEFAULT_ACTION_COLORS, STATUS_HEX, STATUS_HEX_FALLBACK, type TileActionKey } from '@/constants/tile-colors';
+import { TILE_VISUAL, TILE_STATUS_LABEL, STEPPER_MAX_SEGMENTS, type StepState, type TileStatus } from '@/lib/tile-visual';
+import type { ObTileVM, ObChronoEvent } from '@/lib/obsidian-adapters';
 import { startOfWeek, addDays, isSameDay, isToday, monthGridDays, fmtWeekday } from '@/lib/chrono-utils';
-import type { FlowHubFilter } from '@/types';
 import { PreviewImage } from '../PreviewImage';
 import { SwipeToDelete } from '../SwipeToDelete';
 import { ObsidianStatusBar } from '../StatusBar';
@@ -76,39 +76,16 @@ function Segmented<T extends string>({ c, value, onChange, items }: { c: Obsidia
 // sotto alimenta la preview QA.
 type Tile = ObTileVM;
 const TILES_MOCK: Tile[] = [
-  { id: 'm1', title: 'Contattare Giovanni domattina', actionType: 'event', allDay: false, date: '27/06/26', time: '11:30 - 12:30', completed: false, statusName: 'active', tags: [] },
-  { id: 'm2', title: 'Marco al tramonto mediterraneo', actionType: 'none', allDay: false, completed: false, tags: [] },
-  { id: 'm3', title: 'Audio e incontro con Marco', actionType: 'event', allDay: false, date: '26/06/26', time: '17:00 - 18:00', completed: false, statusName: 'paused', tags: [] },
-  { id: 'm4', title: 'Appuntamento con Marco Guerrieri', actionType: 'anytime', allDay: false, completed: true, statusName: 'done', tags: [] },
-  { id: 'm5', title: 'GDS/bisdomini', actionType: 'deadline', allDay: false, date: '26/06/26', completed: false, statusName: 'blocked', tags: [] },
+  { id: 'm1', title: 'Contattare Giovanni domattina', visualKey: 'event', date: '27/06/26', time: '11:30 - 12:30', completed: false, statusName: 'active', tags: [] },
+  { id: 'm2', title: 'Marco al tramonto mediterraneo', visualKey: 'none', completed: false, tags: [] },
+  { id: 'm3', title: 'Audio e incontro con Marco', visualKey: 'event', date: '26/06/26', time: '17:00 - 18:00', completed: false, statusName: 'paused', tags: [] },
+  { id: 'm4', title: 'Appuntamento con Marco Guerrieri', visualKey: 'anytime', completed: true, statusName: 'done', tags: [], steps: ['done', 'done', 'pending'] },
+  { id: 'm5', title: 'GDS/bisdomini', visualKey: 'deadline', date: '26/06/26', completed: false, statusName: 'blocked', tags: [] },
 ];
 
-/** Glifo del badge azione — stessi ruoli del canvas. La chiave 'none' (nota)
- *  non ha badge. Il COLORE arriva dai colori azione dell'utente, non dai token. */
-const ACTION_ICON: Partial<Record<TileActionKey, typeof IconClock>> = {
-  anytime: IconArrowUp,
-  deadline: IconBolt,
-  allday: IconCalendar,
-  event: IconClock,
-};
-/** Chiave d'azione del canvas: allday è event + all_day. */
-function actionKey(t: Tile): TileActionKey {
-  if (t.actionType === 'event') return t.allDay ? 'allday' : 'event';
-  return t.actionType;
-}
-
-/** Rappresentazione dello status nella colonna sinistra — mirror di
- *  `frontend/lib/status-meta.statusGlyph`. 'active' non si mostra: è il default. */
-type StatusGlyph = { kind: 'none' } | { kind: 'dot' } | { kind: 'icon'; Icon: typeof IconClock } | { kind: 'text'; text: string };
-function statusGlyph(name?: string): StatusGlyph {
-  switch (name) {
-    case 'done': return { kind: 'dot' };
-    case 'paused': return { kind: 'icon', Icon: IconPlayerPause };
-    case 'blocked': return { kind: 'icon', Icon: IconLock };
-    case 'cancelled': return { kind: 'text', text: 'DELETE' };
-    default: return { kind: 'none' };
-  }
-}
+// Lo status non è più un glifo in corsia: è una parola nel footer sinistro.
+// La mappa delle etichette sta in `lib/tile-visual` (TILE_STATUS_LABEL), col
+// perché del cambio.
 
 // ── Barra strumenti della lista: Filtra · Ordina · Ricerca ────────────────────
 /** Criteri d'ordinamento della lista. Il default è l'ordine d'inserimento. */
@@ -185,20 +162,118 @@ function ToggleChip({ c, label, on, color, onPress }: { c: ObsidianColors; label
  *  spazio c'è, qui la riga deve restare compatta. */
 const PREVIEW_H = 60;
 
+/**
+ * Colore di un segmento della scaletta. Sta qui e non in `lib/tile-visual`
+ * perché dipende dal tema: sul web sono classi CSS, che il tema riscrive da sé.
+ *
+ * Il rosso è riservato a `blocked` — un passo non ancora fatto è neutro, non
+ * allarmante. Un passo annullato si spegne invece di colorarsi: non c'è più
+ * niente da farci.
+ *
+ * ⚠️ `pending` è `faint`, NON `line2` come sul web, e la differenza non è di
+ * gusto — è di superficie. Conti in tema scuro:
+ *
+ *   corsia    #1e1e1e + bianco 5%    ≈ #2a2a2a
+ *   line2     bianco 13% su quel fondo ≈ #414141   → 23 livelli di stacco
+ *   faint     #565656                              → 44 livelli
+ *
+ * Sul web `line2` regge perché la strip è larga 16px e alta 80: la superficie
+ * compensa il poco contrasto. Qui un segmento è grande come un chicco di riso,
+ * e a 23 livelli spariva — con la conseguenza che una checklist tutta da fare
+ * (cioè quella appena creata) non mostrava assolutamente niente.
+ */
+function stepColor(c: ObsidianColors, s: StepState): string {
+  switch (s) {
+    case 'done': return c.success;
+    case 'blocked': return c.error;
+    // Il più spento della scala: un passo annullato deve leggersi come assente,
+    // ed è l'unico caso in cui la quasi-invisibilità è il messaggio.
+    case 'cancelled': return c.line2;
+    default: return c.faint;
+  }
+}
+
+/**
+ * La scaletta dei passi: un segmento per passo, dall'alto verso il basso.
+ *
+ * Segmenti ad altezza FISSA, non stirati sull'altezza della card. Sul web il
+ * rettangolo è 150×80 e i segmenti possono spartirsene l'altezza; qui la card
+ * cresce col contenuto — con tre anteprime da 60dp una scaletta elastica
+ * diventerebbe una colonna di barroni alti un centimetro.
+ *
+ * Oltre il quinto la colonna diventa illeggibile: si mostrano i primi quattro
+ * più un segmento riassuntivo, e il conteggio completo vive nel metadato del
+ * footer.
+ */
+function TileStepper({ c, steps }: { c: ObsidianColors; steps: StepState[] }) {
+  const overflow = steps.length > STEPPER_MAX_SEGMENTS;
+  const shown = overflow ? steps.slice(0, STEPPER_MAX_SEGMENTS - 1) : steps;
+  return (
+    <View style={{ alignItems: 'center', gap: 3 }}>
+      {shown.map((s, i) => (
+        <View
+          key={i}
+          style={{
+            // Il segmento BLOCCATO è deliberatamente più grande: sporge dalla
+            // colonna e aggiunge una ridondanza di FORMA a quella di colore,
+            // così resta leggibile anche con un daltonismo rosso-verde. È la
+            // stessa eccezione del web (`.ob-tstep--blocked`).
+            width: s === 'blocked' ? 16 : 12,
+            height: s === 'blocked' ? 6 : 4,
+            borderRadius: 1.5,
+            backgroundColor: stepColor(c, s),
+          }}
+        />
+      ))}
+      {overflow ? (
+        // Il segmento riassuntivo non è uno stato: due trattini, non un colore
+        // in più — dice "ce ne sono altri", non come stanno.
+        <View style={{ width: 12, height: 4, borderTopWidth: 1, borderBottomWidth: 1, borderColor: c.faint }} />
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * La card della lista, con i CANALI nelle posizioni del sistema visivo del web
+ * (`frontend/components/tiles/Tile.tsx` + `app/obsidian-primitives.css`):
+ *
+ *   badge     pillola sullo spigolo superiore destro, che SBORDA dal bordo
+ *   strip     corsia interna sinistra, coi soli passi
+ *   status    parola nel footer a sinistra
+ *   metadato  footer a destra
+ *
+ * Prima il mobile li aveva sistemati altrove — badge e data in basso a
+ * sinistra, status come glifo dentro la corsia — e le due superfici si
+ * leggevano come due prodotti diversi.
+ *
+ * ⚠️ NIENTE `overflow: 'hidden'`. Il badge sborda per costruzione: ritagliare
+ * il contenitore lo decapiterebbe. Il contenimento si ottiene dando il proprio
+ * raggio a ogni figlio che tocca il bordo — il velo del tipo e la strip ce
+ * l'hanno.
+ */
 function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
-  const action = actionKey(t);
-  // Fondo della card: il token standard della scala Obsidian — `surface`,
-  // #1e1e1e in scuro e #ffffff in chiaro. Come la tile del canvas web.
-  const cardBg = c.surface;
-  const glyph = statusGlyph(t.statusName);
-  // Striscia STATUS: presente SOLO se c'è un glifo da mostrare, come su canvas,
-  // chrono e kanban del web. Senza status la corsia non si disegna affatto e il
-  // contenuto parte da sinistra, invece di lasciare una fascia vuota.
-  const hasStrip = glyph.kind !== 'none';
-  const stCol = (t.statusName ? STATUS_HEX[t.statusName] : undefined) ?? STATUS_HEX_FALLBACK;
-  const ActionIcon = ACTION_ICON[action];
+  const action = t.visualKey;
+  const spec = TILE_VISUAL[action];
+  // La corsia ospita SOLO i passi. Lo status se n'è andato nel footer: erano due
+  // significati nello stesso spazio, e su un tile che aveva sia stato sia
+  // checklist si contendevano la corsia.
+  const steps = spec.stepper ? (t.steps ?? []) : [];
+  const hasStrip = steps.length > 0;
+  const BadgeIcon = resolveGlyph(spec.badge);
   const actionColor = actionColors[action] ?? DEFAULT_ACTION_COLORS[action];
-  const TypeIcon = resolveGlyph(t.typeIcon);
+  const status = (t.statusName ?? 'active') as TileStatus;
+  const statusLabel = TILE_STATUS_LABEL[status] ?? null;
+  // `is_completed` e lo status `done` sono tenuti allineati dal database
+  // (migration 015), quindi qui valgono come la stessa cosa.
+  const done = status === 'done' || t.completed;
+  // Il metadato è UNO: data oppure avanzamento. L'orario è la seconda riga di
+  // una data, non un metadato a sé.
+  const metaMain = spec.meta === 'progress' ? t.progress : t.date;
+  const metaSub = spec.meta === 'time' ? t.time : undefined;
+  const hasFooter = !!statusLabel || !!metaMain;
+  const R = 13;
+
   // Lo stile della card è un OGGETTO, non una funzione. Con la forma funzione
   // `style={({ pressed }) => (...)}` restava senza fondo e senza bordo: si
   // vedeva la pagina attraverso, e l'unica cosa visibile era il velo del tipo
@@ -209,36 +284,57 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
       onPress={onPress ? () => onPress(t.id) : undefined}
       disabled={!onPress}
       android_ripple={{ color: c.accent + '22' }}
-      // Nessun contorno: la card si stacca dal nero della pagina per il solo
-      // fondo `surface`, come i tile del web dopo la stessa pulizia.
-      style={{ borderRadius: 13, overflow: 'hidden', backgroundColor: cardBg }}
+      style={{
+        borderRadius: R,
+        backgroundColor: c.surface,
+        // `cancelled` attenua l'INTERO tile, `done` barra il solo titolo:
+        // stessa regola del web.
+        opacity: status === 'cancelled' ? 0.5 : 1,
+      }}
     >
-      {/* Velatura del colore del tipo sopra la surface (canvas: colore + '24'). */}
+      {/* Velatura del colore del tipo sopra la surface (canvas: colore + '24').
+          Porta il proprio raggio: senza `overflow: hidden` sul padre, un velo
+          rettangolare sbordava dagli angoli tondi. */}
       {t.typeColor ? (
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: t.typeColor + '24' }} />
+        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: R, backgroundColor: t.typeColor + '24' }} />
+      ) : null}
+
+      {/* BADGE — ancorato SOPRA il bordo superiore, quindi fuori dal rettangolo.
+          Il contrasto fra la pillola tonda e gli angoli morbidi della card è
+          voluto: è ciò che la fa staccare invece di leggerla come decorazione.
+          Sborda di 9 dentro il varco di 10 fra una card e l'altra. */}
+      {BadgeIcon ? (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute', top: -9, right: 12, zIndex: 2,
+            width: 20, height: 20, borderRadius: 10,
+            borderWidth: 1.2, borderColor: actionColor,
+            backgroundColor: c.surface2,
+            alignItems: 'center', justifyContent: 'center',
+          }}
+        >
+          <BadgeIcon size={12} color={actionColor} strokeWidth={2} />
+        </View>
       ) : null}
 
       <View style={{ flexDirection: 'row' }}>
-        {/* Colonna STATUS a sinistra — solo quando c'è un glifo da mostrare.
-            NON è il colore della pagina. Sul canvas web la traccia è `bg1`, cioè
-            proprio la pagina, e lì funziona perché pagina (#161616) e card
-            (#1e1e1e) distano un passo: si legge come una scanalatura. Sul mobile
-            la pagina è nero pieno, quindi lo stesso valore ritaglia una feritoia
-            nel fianco sinistro. Qui è una velatura CHIARA sopra il corpo della
-            card: resta una corsia distinta e la card resta un blocco unico. */}
-        {hasStrip && (
-          <View style={{ width: 22, backgroundColor: c.dark ? 'rgba(255,255,255,0.05)' : c.canvas, alignItems: 'center', justifyContent: 'center' }}>
-            {glyph.kind === 'dot' ? (
-              <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: stCol }} />
-            ) : glyph.kind === 'icon' ? (
-              <glyph.Icon size={13} color={stCol} strokeWidth={1.9} />
-            ) : glyph.kind === 'text' ? (
-              <Text style={{ fontSize: 9, fontWeight: '700', letterSpacing: 1.5, color: stCol, transform: [{ rotate: '-90deg' }], width: 60, textAlign: 'center' }}>
-                {glyph.text}
-              </Text>
-            ) : null}
+        {/* STRIP — tela neutra sul lato interno sinistro. Il fondo più chiaro
+            serve a far leggere i segmenti a piena saturazione senza competere
+            col velo di colore che copre il resto della card. */}
+        {hasStrip ? (
+          <View
+            style={{
+              width: 20,
+              borderTopLeftRadius: R, borderBottomLeftRadius: R,
+              backgroundColor: c.surface2,
+              borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: c.line,
+              alignItems: 'center', justifyContent: 'center', paddingVertical: 10,
+            }}
+          >
+            <TileStepper c={c} steps={steps} />
           </View>
-        )}
+        ) : null}
 
         <View style={{ flex: 1, paddingHorizontal: 13, paddingVertical: 12 }}>
           {/* Titolo — due righe, barrato e attenuato quando completato. */}
@@ -246,8 +342,8 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
             numberOfLines={2}
             style={{
               fontSize: 15, lineHeight: 20, fontWeight: '500', color: c.text,
-              textDecorationLine: t.completed ? 'line-through' : 'none',
-              opacity: t.completed ? 0.65 : 1,
+              textDecorationLine: done ? 'line-through' : 'none',
+              opacity: done ? 0.65 : 1,
             }}
           >
             {t.title}
@@ -277,25 +373,28 @@ function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile;
             </View>
           ) : null}
 
-          {/* Footer — badge azione · data/ora · badge tipo. Assente se il tile
-              non ha nessuno dei tre (nota senza tipo). */}
-          {(ActionIcon || t.date || TypeIcon) ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9, marginTop: 10 }}>
-              {ActionIcon ? (
-                <View style={{ width: 20, height: 20, borderRadius: 6, backgroundColor: actionColor, alignItems: 'center', justifyContent: 'center' }}>
-                  <ActionIcon size={12} color={readableOn(actionColor)} strokeWidth={2} />
-                </View>
-              ) : null}
-              {t.date ? (
-                <View>
-                  <Text style={{ fontSize: 11.5, color: c.text }}>{t.date}</Text>
-                  {t.time ? <Text style={{ fontSize: 10.5, color: c.muted }}>{t.time}</Text> : null}
-                </View>
+          {/* Footer — status a sinistra, metadato a destra. Nessun badge qui
+              dentro: l'azione la dice la pillola sullo spigolo, e l'icona del
+              TIPO non compare più sulla card. Il tipo resta leggibile dalla
+              velatura del suo colore, che è il canale che gli appartiene: due
+              segnali per lo stesso dato erano uno di troppo, ed è la stessa
+              variante che il web ha scartato.
+              La riga esiste solo se ha qualcosa da dire. */}
+          {hasFooter ? (
+            <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 10 }}>
+              {statusLabel ? (
+                <Text style={{ fontSize: 11, color: c.text, opacity: 0.55 }}>{statusLabel}</Text>
               ) : null}
               <View style={{ flex: 1 }} />
-              {TypeIcon ? (
-                <View style={{ width: 22, height: 22, borderRadius: 6, backgroundColor: (t.typeColor ?? c.muted) + (c.dark ? '33' : '22'), alignItems: 'center', justifyContent: 'center' }}>
-                  <TypeIcon size={13} color={t.typeColor ?? c.muted} strokeWidth={1.8} />
+              {metaMain ? (
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={{ fontSize: 11, color: c.text, opacity: 0.6 }}>{metaMain}</Text>
+                  {/* L'orario è la seconda riga della data, non un metadato a
+                      sé. Sul web sta su una riga sola perché lì il giorno lo dà
+                      la colonna del calendario; in una lista cronologica per
+                      inserimento servono entrambi, e impilarli è l'unico modo
+                      di non far crescere il footer in larghezza. */}
+                  {metaSub ? <Text style={{ fontSize: 10.5, color: c.text, opacity: 0.45 }}>{metaSub}</Text> : null}
                 </View>
               ) : null}
             </View>
@@ -348,7 +447,7 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onDeleteTil
     const types = new Map<string, string>();
     const statuses = new Set<string>();
     for (const t of data) {
-      actions.add(actionKey(t));
+      actions.add(t.visualKey);
       t.tags.forEach((tg) => tags.set(tg.id, tg.name));
       if (t.typeId) types.set(t.typeId, t.typeName ?? 'Tipo');
       if (t.statusName) statuses.add(t.statusName);
@@ -367,7 +466,7 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onDeleteTil
     const out = data.filter((t) => {
       if (aiSet && !aiSet.has(t.id)) return false;
       if (q && !normSearch(t.title).includes(q) && !t.tags.some((tg) => normSearch(tg.name).includes(q))) return false;
-      if (filters.action.length && !filters.action.includes(actionKey(t))) return false;
+      if (filters.action.length && !filters.action.includes(t.visualKey)) return false;
       if (filters.status.length && !(t.statusName && filters.status.includes(t.statusName))) return false;
       if (filters.type.length && !(t.typeId && filters.type.includes(t.typeId))) return false;
       if (filters.tag.length && !t.tags.some((tg) => filters.tag.includes(tg.id))) return false;
@@ -459,7 +558,10 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onDeleteTil
         </View>
       ) : null}
 
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16, gap: 10 }}>
+      {/* `paddingTop` 12 e non 4: il badge della PRIMA card sborda di 9 sopra il
+          suo bordo, e con 4 di respiro veniva decapitato dal margine della
+          lista. Per le altre card il varco lo dà il `gap`. */}
+      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 10 }}>
         {loading ? (
           <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Caricamento…</Text>
         ) : visible.length === 0 ? (
@@ -573,79 +675,53 @@ function TilesContent({ c, tiles, actionColors, loading, onOpenTile, onDeleteTil
 }
 
 // ─── FLOWS ────────────────────────────────────────────────────────────────────
-// View-model rendered here; live data arrives via `flowHubItemToVM`.
-type Flow = ObFlowVM;
-const FLOWS: Flow[] = [
-  { id: 'f1', tileId: 't1', tag: 'RUSLAN_VIA SARDEGNA', title: 'Ruslan/inviare messaggio', state: 'Aggiornare docume…', who: 'IO', ago: '5g fa', date: '22 Giu 2026' },
-  { id: 'f2', tileId: 't2', tag: 'OM_PADEL', title: 'OM/Richiesta preventivo', state: 'Attesa preventivo', who: 'L. Anichini', ago: '5g fa', date: '22 Giu 2026' },
-  { id: 'f3', tileId: 't3', tag: 'GDS_VARIE', title: 'GDS/Area matrimoni', state: 'Attesa firme', who: 'N. Mainetti', ago: '5g fa', date: '22 Giu 2026' },
-  { id: 'f4', tileId: 't4', tag: 'CONSORZIO BONIFICA', title: 'Richiesta informazioni', state: '(senza etichetta)', who: 'Consorzio', ago: '12g fa', date: '15 Giu 2026' },
-  { id: 'f5', tileId: 't5', tag: 'GDS_PULIZIA', title: 'GDS/Pulizia pannelli', state: 'Attendo feed', who: 'L. Alessi', ago: '23g fa', date: '04 Giu 2026' },
+/**
+ * I flow sono TILE, non righe di un'altra tabella.
+ *
+ * Questa vista mostrava l'inbox cross-tile dei nodi di `flow_nodes`, filtrata
+ * per stato (done / wait / undo / stop). Quel modello non esiste più: un flow è
+ * un tile con `action_type = 'flow'` e i suoi passi sono la checklist del tile.
+ * Il backend ha smesso di esporre `/api/flows/hub`, quindi la vecchia lista
+ * mostrava solo un errore di rete.
+ *
+ * Adesso è l'elenco dei tile di quel tipo, reso con la STESSA card della lista
+ * Tiles — la controparte mobile della terza colonna di CHRONO sul web.
+ *
+ * ⚠️ I quattro filtri sono spariti con la loro sorgente: `done`/`wait`/`undo`/
+ * `stop` erano valori di `flow_nodes.state`, e non c'è un campo che li
+ * sostituisca uno a uno. Rifarli sulle informazioni che ESISTONO (status del
+ * tile, avanzamento dei passi) è una scelta di merito, non una traduzione
+ * meccanica: finché non è presa, l'elenco è nudo invece di inventare filtri.
+ */
+// I flow di esempio hanno tutti dei passi: senza, un flow è un tile come gli
+// altri, ed è proprio la scaletta a raccontarlo.
+const FLOWS_MOCK: Tile[] = [
+  { id: 'fm1', title: 'Voltura contatore acqua', visualKey: 'flow', completed: false, statusName: 'active', tags: [], steps: ['done', 'done', 'done', 'pending'], progress: '3 di 4' },
+  { id: 'fm2', title: 'Preventivo APE albergo', visualKey: 'flow', completed: false, tags: [], steps: ['done', 'pending'], progress: '1 di 2' },
+  { id: 'fm3', title: 'Concessione demaniale spiaggia', visualKey: 'flow', completed: false, statusName: 'blocked', tags: [], steps: ['done', 'blocked', 'pending'], progress: '1 di 3' },
 ];
 
-const FLOW_FILTER_META: Record<FlowHubFilter, { label: string; color: (c: ObsidianColors) => string; Icon: typeof IconCheck }> = {
-  done: { label: 'Done', color: (c) => c.timed, Icon: IconCheck },
-  wait: { label: 'Wait', color: (c) => c.amber, Icon: IconHourglass },
-  undo: { label: 'Undo', color: (c) => c.accent, Icon: IconArrowBackUp },
-  stop: { label: 'Stop', color: (c) => c.deadline, Icon: IconX },
-};
-const FLOW_FILTER_ORDER: FlowHubFilter[] = ['done', 'wait', 'undo', 'stop'];
-
-function FlowsContent({ c, flows, loading, active = 'wait', onFilter, onOpenFlow }: {
-  c: ObsidianColors; flows?: Flow[]; loading?: boolean; active?: FlowHubFilter;
-  onFilter?: (f: FlowHubFilter) => void; onOpenFlow?: (tileId: string) => void;
+function FlowsContent({ c, flows, actionColors, loading, onOpenTile }: {
+  c: ObsidianColors; flows?: Tile[]; actionColors?: Record<TileActionKey, string>;
+  loading?: boolean; onOpenTile?: (id: string) => void;
 }) {
-  const data = flows ?? FLOWS;
-  const activeMeta = FLOW_FILTER_META[active];
-  const ActiveIcon = activeMeta.Icon;
-  const activeColor = activeMeta.color(c);
+  const data = flows ?? FLOWS_MOCK;
+  const colors = actionColors ?? DEFAULT_ACTION_COLORS;
   return (
-    <View style={{ flex: 1 }}>
-      <View style={{ flexDirection: 'row', gap: 7, paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
-        {FLOW_FILTER_ORDER.map((id) => {
-          const m = FLOW_FILTER_META[id];
-          const col = m.color(c);
-          const on = id === active;
-          const Icon = m.Icon;
-          return (
-            <Pressable key={id} onPress={onFilter ? () => onFilter(id) : undefined} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 8, borderRadius: 9, backgroundColor: on ? col : col + (c.dark ? '22' : '16'), borderWidth: 1, borderColor: on ? 'transparent' : col + (c.dark ? '40' : '33') }}>
-              <Icon size={13} color={on ? '#fff' : col} strokeWidth={1.8} />
-              <Text style={{ fontSize: 12, fontWeight: '600', color: on ? '#fff' : col }}>{m.label}</Text>
-            </Pressable>
-          );
-        })}
-      </View>
-      <ScrollView contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: 16, gap: 10 }}>
-        {loading ? (
-          <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Caricamento…</Text>
-        ) : data.length === 0 ? (
-          <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Nessun flow in questo stato.</Text>
-        ) : data.map((fl) => (
-          <Pressable key={fl.id} onPress={onOpenFlow ? () => onOpenFlow(fl.tileId) : undefined} disabled={!onOpenFlow} style={({ pressed }) => ({ backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, borderRadius: 13, padding: 12, opacity: pressed ? 0.7 : 1 })}>
-            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 10, fontWeight: '600', color: c.accent, marginBottom: 5, letterSpacing: 0.4 }}>{fl.tag}</Text>
-                <Text numberOfLines={1} style={{ fontSize: 14, fontWeight: '600', color: c.text }}>{fl.title}</Text>
-              </View>
-              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: activeColor + (c.dark ? '2e' : '1c'), alignItems: 'center', justifyContent: 'center' }}>
-                <ActiveIcon size={14} color={activeColor} strokeWidth={1.8} />
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 10 }}>
-              <Text style={{ fontSize: 12, color: c.muted }}>{fl.state}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.surface2, borderWidth: 1, borderColor: c.line, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <IconUser size={11} color={c.subtle} strokeWidth={1.8} />
-                <Text style={{ fontSize: 11, fontWeight: '600', color: c.muted }}>{fl.who}</Text>
-              </View>
-            </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: c.line, paddingTop: 9 }}>
-              <Text style={{ fontSize: 11, color: c.subtle, flex: 1 }}>{fl.ago}</Text>
-              <Text style={{ fontSize: 11, color: c.subtle }}>{fl.date}</Text>
-            </View>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </View>
+    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 16, gap: 10 }}>
+      {loading ? (
+        <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center', paddingVertical: 40 }}>Caricamento…</Text>
+      ) : data.length === 0 ? (
+        <View style={{ paddingVertical: 40, gap: 6 }}>
+          <Text style={{ fontSize: 13, color: c.subtle, textAlign: 'center' }}>Nessun flow.</Text>
+          <Text style={{ fontSize: 12, lineHeight: 17, color: c.subtle, textAlign: 'center', opacity: 0.8 }}>
+            Un flow è un tile con azione Flow: i suoi passi sono la sua lista.
+          </Text>
+        </View>
+      ) : data.map((t) => (
+        <TileCard key={t.id} c={c} t={t} actionColors={colors} onPress={onOpenTile} />
+      ))}
+    </ScrollView>
   );
 }
 
@@ -1387,12 +1463,10 @@ export interface ObsidianViewsScreenProps {
   onOpenTile?: (id: string) => void;
   /** Elimina un tile (scorri-per-eliminare). Omesso → il gesto non c'è. */
   onDeleteTile?: (id: string) => void;
-  /** Flows tab — live rows (pre-mapped via flowHubItemToVM). Omit for the mock. */
-  flows?: ObFlowVM[];
+  /** Flows tab — i tile con `action_type = 'flow'`, mappati come quelli della
+   *  lista Tiles. Omesso → mock. Si aprono con `onOpenTile`: sono tile. */
+  flows?: ObTileVM[];
   flowsLoading?: boolean;
-  flowFilter?: FlowHubFilter;
-  onFlowFilter?: (f: FlowHubFilter) => void;
-  onOpenFlow?: (tileId: string) => void;
   /**
    * Chrono tab — eventi della finestra mostrata (pre-mappati con
    * `tileToChronoEvent`). Sono quelli del giorno, della settimana o delle sei
@@ -1450,7 +1524,7 @@ export function ObsidianViewsScreen({
   initial = 'tiles', active: activeProp, onActiveChange,
   tiles, actionColors, tilesLoading, onOpenTile, onDeleteTile,
   onAiSearch, onClearAiSearch, aiQuery, aiSearching, aiTileIds,
-  flows, flowsLoading, flowFilter, onFlowFilter, onOpenFlow,
+  flows, flowsLoading,
   chronoEvents, chronoLoading, chronoDayLabel, chronoIsToday, chronoDate,
   chronoRange, onChronoRange, onChronoSelectDay,
   onChronoPrev, onChronoNext, onChronoToday, onChronoPickDate, onOpenEvent, onChronoAddTile,
@@ -1495,7 +1569,7 @@ export function ObsidianViewsScreen({
           aiTileIds={aiTileIds}
         />
       )}
-      {active === 'flows' && <FlowsContent c={c} flows={flows} loading={flowsLoading} active={flowFilter} onFilter={onFlowFilter} onOpenFlow={onOpenFlow} />}
+      {active === 'flows' && <FlowsContent c={c} flows={flows} actionColors={actionColors} loading={flowsLoading} onOpenTile={onOpenTile} />}
       {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} date={chronoDate} range={chronoRange} onRange={onChronoRange} onSelectDay={onChronoSelectDay} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onPickDate={onChronoPickDate} onOpenEvent={onOpenEvent} onAddTile={onChronoAddTile} />}
       {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
       <ObsidianNavPill background={shellBg} />

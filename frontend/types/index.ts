@@ -203,6 +203,22 @@ export interface KanbanFilter {
   value: string;
 }
 
+/**
+ * Corsia orizzontale. Gemella della colonna su un secondo asse: una cella della
+ * board e' l'incrocio dei due, e ci finiscono i tile che soddisfano ENTRAMBI i
+ * gruppi di filtri. Niente `width`, `bg_color` o `sort_by`: la larghezza di una
+ * corsia non ha senso e l'ordinamento dentro la cella resta quello della colonna.
+ */
+export interface KanbanLane {
+  id: string;
+  user_id: string;
+  title: string;
+  sort_order: number;
+  filters: KanbanFilter[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface KanbanColumn {
   id: string;
   user_id: string;

@@ -8,9 +8,10 @@
  */
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tilesApi, typeIconsApi, statusesApi } from '@/lib/api';
+import { tilesApi, typeIconsApi, statusesApi, subtasksApi } from '@/lib/api';
 import { STATUS_HEX, STATUS_HEX_FALLBACK } from '@/constants/tile-colors';
 import { getSignedUrls } from '@/lib/storage';
+import type { Subtask } from '@/types';
 import { ObsidianTileScreen, sparkMediaPath, type CaptureKey } from './TileScreen';
 
 export interface ObsidianTileScreenLiveProps {
@@ -63,6 +64,80 @@ export function ObsidianTileScreenLive({ tileId, onBack, onCapture }: ObsidianTi
     },
   });
 
+  // ─── LIST del tile (e passi, sui flow) ─────────────────────────────────────
+  //
+  // Vive in una tabella a parte con un endpoint suo, quindi non arriva col tile:
+  // è una seconda lettura, non un campo di `tilesApi.get`.
+  const subtasksKey = React.useMemo(() => ['subtasks', tileId], [tileId]);
+  const subtasksQuery = useQuery({
+    queryKey: subtasksKey,
+    queryFn: () => subtasksApi.list(tileId),
+    enabled: !!tileId,
+  });
+  // `useMemo` e non `?? []` nudo: l'array di ripiego sarebbe nuovo a ogni
+  // render, e `moveSubtask` — che ci si appoggia — cambierebbe identità di
+  // continuo, rifacendo il render di tutta la lista a ogni battuta nel titolo.
+  const subtasks: Subtask[] = React.useMemo(() => subtasksQuery.data?.data ?? [], [subtasksQuery.data]);
+
+  /**
+   * Ogni scrittura invalida anche `tiles`: la scaletta sulla card della lista
+   * si disegna dai subtask che il tile porta con sé, quindi senza questa riga
+   * si spunta una voce, si torna indietro e il segmento è ancora grigio.
+   */
+  const invalidate = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: subtasksKey });
+    queryClient.invalidateQueries({ queryKey: ['tiles'] });
+  }, [queryClient, subtasksKey]);
+
+  const addSubtask = useMutation({
+    mutationFn: () => subtasksApi.create({ tile_id: tileId, content: '' }),
+    onSuccess: invalidate,
+  });
+
+  // Aggiornamento OTTIMISTICO: la spunta deve rispondere al dito, non alla
+  // rete. Senza, fra il tocco e il ridisegno passava tutto il giro completo.
+  const updateSubtask = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof subtasksApi.update>[1] }) =>
+      subtasksApi.update(id, updates),
+    onMutate: async ({ id, updates }) => {
+      await queryClient.cancelQueries({ queryKey: subtasksKey });
+      const prev = queryClient.getQueryData<{ data?: Subtask[] }>(subtasksKey);
+      queryClient.setQueryData<{ data?: Subtask[] }>(subtasksKey, (old) =>
+        old?.data ? { ...old, data: old.data.map((s) => (s.id === id ? { ...s, ...updates } : s)) } : old,
+      );
+      return { prev };
+    },
+    onError: (_e, _v, ctx) => { if (ctx?.prev) queryClient.setQueryData(subtasksKey, ctx.prev); },
+    onSettled: invalidate,
+  });
+
+  const deleteSubtask = useMutation({
+    mutationFn: (id: string) => subtasksApi.delete(id),
+    onSuccess: invalidate,
+  });
+
+  const reorderSubtasks = useMutation({
+    mutationFn: (items: { id: string; sort_order: number }[]) => subtasksApi.reorder(items),
+    onSuccess: invalidate,
+  });
+
+  /**
+   * Sposta una voce di una posizione e riscrive TUTTI i `sort_order`.
+   *
+   * La cache si aggiorna subito con l'ordine nuovo: aspettare la risposta
+   * avrebbe fatto rimbalzare la riga indietro per un istante prima di
+   * riassestarsi al posto giusto.
+   */
+  const moveSubtask = React.useCallback((from: number, to: number) => {
+    if (from === to || from < 0 || to < 0 || from >= subtasks.length || to >= subtasks.length) return;
+    const next = [...subtasks];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    const items = next.map((s, i) => ({ id: s.id, sort_order: i }));
+    queryClient.setQueryData(subtasksKey, { success: true, data: next.map((s, i) => ({ ...s, sort_order: i })) });
+    reorderSubtasks.mutate(items);
+  }, [subtasks, queryClient, subtasksKey, reorderSubtasks]);
+
   // Anteprime degli sparks. Il bucket è privato, quindi ogni media va firmato:
   // si firmano TUTTI in una richiesta sola invece di una per scheda. La chiave
   // della query è l'elenco dei percorsi, così il risultato si riusa finché gli
@@ -99,6 +174,13 @@ export function ObsidianTileScreenLive({ tileId, onBack, onCapture }: ObsidianTi
         name: s.name,
         color: STATUS_HEX[s.name] ?? STATUS_HEX_FALLBACK,
       }))}
+      subtasks={subtasks}
+      subtasksLoading={subtasksQuery.isLoading}
+      onToggleSubtask={(id, isDone) => updateSubtask.mutate({ id, updates: { is_done: isDone } })}
+      onChangeSubtask={(id, content) => updateSubtask.mutate({ id, updates: { content } })}
+      onAddSubtask={() => addSubtask.mutate()}
+      onDeleteSubtask={(id) => deleteSubtask.mutate(id)}
+      onMoveSubtask={moveSubtask}
     />
   );
 }

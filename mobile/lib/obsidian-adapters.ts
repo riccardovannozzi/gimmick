@@ -7,7 +7,8 @@
  * fed by the *-live routes) and keeps the conversion testable in isolation.
  */
 import { formatFileSize, formatDuration } from '@/utils/formatters';
-import type { Spark, Tile, BufferItem, FlowHubItem } from '@/types';
+import { TILE_VISUAL, subtaskToStep, tileVisualKey, type StepState, type TileVisualKey } from '@/lib/tile-visual';
+import type { Spark, Tile, BufferItem } from '@/types';
 
 // ─── Sparks ────────────────────────────────────────────────────────────────
 
@@ -81,13 +82,24 @@ export function sparkToVM(s: Spark): ObSparkVM {
 export interface ObTileVM {
   id: string;
   title: string;
-  /** Azione GTD del tile; 'event' + allDay = giornata intera. */
-  actionType: NonNullable<Tile['action_type']>;
-  allDay: boolean;
+  /**
+   * Chiave del canale visivo, GIÀ RISOLTA con `tileVisualKey()`: la card non
+   * ridecide che cosa sia un tile, disegna quello che la chiave dice. È qui che
+   * `event + all_day` è già diventato `allday`, quindi il VM non porta più
+   * l'azione grezza né il flag — non servivano a nessun altro.
+   */
+  visualKey: TileVisualKey;
   /** Riga data del footer, formato canvas "gg/mm/aa". Assente = tile senza data. */
   date?: string;
   /** Riga orario del footer, "10:15" o "10:15 - 11:15". Solo eventi con ora. */
   time?: string;
+  /**
+   * Passi della checklist, in ordine, già tradotti in stati di segmento.
+   * Vuoto o assente = nessuna scaletta, e la corsia non si disegna per questo.
+   */
+  steps?: StepState[];
+  /** Avanzamento già formattato ("2 di 4"). Solo sui tipi che lo prevedono. */
+  progress?: string;
   /** Titolo barrato + attenuato, come sul canvas. */
   completed: boolean;
   /** Nome dello status di sistema (active/done/paused/blocked/cancelled). */
@@ -166,8 +178,6 @@ export interface TileVMContext {
   typeByTile?: Map<string, { id: string; name?: string; icon?: string; color?: string }>;
 }
 
-const MONTHS_SHORT_IT = ['Gen', 'Feb', 'Mar', 'Apr', 'Mag', 'Giu', 'Lug', 'Ago', 'Set', 'Ott', 'Nov', 'Dic'];
-
 const pad2 = (n: number) => String(n).padStart(2, '0');
 /** "gg/mm/aa" — stesso formato del footer della tile canvas. */
 function canvasDate(iso: string): string | undefined {
@@ -201,17 +211,35 @@ function tileWhen(t: Tile): { date?: string; time?: string } {
   return { date: canvasDate(t.start_at), time: start ? (end ? `${start} - ${end}` : start) : undefined };
 }
 
+/**
+ * Passi e avanzamento del tile.
+ *
+ * L'avanzamento si scrive SOLO sui tipi che lo prevedono (`meta: 'progress'`,
+ * oggi il solo flow): su un evento il footer ha già una data da mostrare in
+ * quello slot, e due metadati nello stesso posto non ci stanno. I passi invece
+ * si producono sempre — la corsia li disegna su qualunque tipo, se ci sono.
+ */
+function tileSteps(t: Tile, key: TileVisualKey): Pick<ObTileVM, 'steps' | 'progress'> {
+  const rows = t.subtasks ?? [];
+  if (!rows.length) return {};
+  const steps = rows.map(subtaskToStep);
+  if (TILE_VISUAL[key].meta !== 'progress') return { steps };
+  const done = steps.filter((s) => s === 'done').length;
+  return { steps, progress: `${done} di ${steps.length}` };
+}
+
 /** Map an API Tile onto the Tiles view-model. */
 export function tileToVM(t: Tile, ctx: TileVMContext = {}): ObTileVM {
   const type = ctx.typeByTile?.get(t.id);
   const whenIso = t.action_type === 'deadline' ? t.end_at : t.start_at;
   const whenTs = whenIso ? new Date(whenIso).getTime() : undefined;
+  const visualKey = tileVisualKey(t);
   return {
     id: t.id,
     title: t.title?.trim() || 'Senza titolo',
-    actionType: t.action_type ?? 'none',
-    allDay: !!t.all_day,
+    visualKey,
     ...tileWhen(t),
+    ...tileSteps(t, visualKey),
     completed: !!t.is_completed,
     statusName: t.status_id ? ctx.statusNameById?.get(t.status_id) : undefined,
     typeIcon: type?.icon,
@@ -270,34 +298,6 @@ export function bufferItemToVM(b: BufferItem): ObBufferVM {
     preview: kind === 'text' ? preview : undefined,
     dim: b.size ? formatFileSize(b.size) : undefined,
   };
-}
-
-// ─── Flows (FlowHub) ──────────────────────────────────────────────────────────
-
-/** View-model rendered by the Flows tab of ObsidianViewsScreen. */
-export interface ObFlowVM {
-  id: string;
-  tileId: string;
-  tag: string;
-  title: string;
-  state: string;
-  who: string;
-  ago: string;
-  date: string;
-}
-
-/** "DD Mmm YYYY" short Italian date. */
-function shortDate(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getDate()} ${MONTHS_SHORT_IT[d.getMonth()]} ${d.getFullYear()}`;
-}
-
-/** Relative "oggi / ieri / Ng fa" from a day count. */
-function agoLabel(days: number): string {
-  if (days <= 0) return 'oggi';
-  if (days === 1) return 'ieri';
-  return `${days}g fa`;
 }
 
 // ─── Chrono (calendar daily) ──────────────────────────────────────────────────
@@ -382,17 +382,5 @@ export function tileToChronoEvent(t: Tile): ObChronoEvent | null {
   };
 }
 
-/** Map a FlowHub row onto the Flows view-model. */
-export function flowHubItemToVM(it: FlowHubItem): ObFlowVM {
-  const who = it.contact ? (it.contact.is_self ? 'IO' : it.contact.name) : 'IO';
-  return {
-    id: it.id,
-    tileId: it.tile.id,
-    tag: it.tile.tag?.name || '(senza etichetta)',
-    title: it.tile.title || 'Senza titolo',
-    state: it.label?.trim() || '(senza etichetta)',
-    who,
-    ago: agoLabel(it.days_since_activity),
-    date: shortDate(it.last_activity_at || it.scheduled_at || it.occurred_at || it.created_at),
-  };
-}
+// I flow non hanno più un adattatore proprio: sono tile, e passano da
+// `tileToVM` / `tilesByInsertion` come tutti gli altri.

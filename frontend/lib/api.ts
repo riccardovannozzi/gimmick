@@ -1,4 +1,4 @@
-import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
+import type { Spark, Tile, Tag, TagGraph, TagNode, ApiResponse, PaginatedResponse, AuthTokens, User, ActionType, TagTypeEntity, Status, Subtask, KanbanColumn, KanbanLane, KanbanFilter, KanbanSortBy, KanbanSortDir } from '@/types';
 import type { Contact, ContactKind } from '@/types/contact';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
@@ -791,6 +791,27 @@ export const kanbanApi = {
       method: 'PUT',
       body: JSON.stringify({ items }),
     });
+  },
+
+  // ── Corsie orizzontali — gemelle delle colonne sul secondo asse ──
+  async listLanes() {
+    return apiRequest<KanbanLane[]>('/api/kanban/lanes');
+  },
+
+  async createLane(data: { title: string; filters?: KanbanFilter[]; sort_order?: number }) {
+    return apiRequest<KanbanLane>('/api/kanban/lanes', { method: 'POST', body: JSON.stringify(data) });
+  },
+
+  async updateLane(id: string, updates: { title?: string; filters?: KanbanFilter[]; sort_order?: number }) {
+    return apiRequest<KanbanLane>(`/api/kanban/lanes/${id}`, { method: 'PATCH', body: JSON.stringify(updates) });
+  },
+
+  async deleteLane(id: string) {
+    return apiRequest(`/api/kanban/lanes/${id}`, { method: 'DELETE' });
+  },
+
+  async reorderLanes(items: { id: string; sort_order: number }[]) {
+    return apiRequest('/api/kanban/lanes/reorder', { method: 'PUT', body: JSON.stringify({ items }) });
   },
 };
 

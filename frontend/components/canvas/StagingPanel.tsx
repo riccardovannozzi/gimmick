@@ -8,25 +8,17 @@ import {
   IconArrowNarrowUp,
   IconArrowNarrowDown,
   IconChevronDown,
-  IconLock,
-  IconPlayerPause,
 } from '@tabler/icons-react';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { usePixelTheme } from '@/components/pixel';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
-import { ActionBadge } from '@/components/actions/action-badge';
-import { TileMeta } from '@/components/tileview/TileMeta';
-import { statusMeta, statusGlyph } from '@/lib/status-meta';
+// `Tile` è già il tipo di dominio: la card si chiama `TileComponent`.
+import { Tile as TileComponent } from '@/components/tiles/Tile';
+import { tileVisualKey, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { Tile } from '@/types';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
-
-// Icone usate dalla colonna status (config `statusGlyph`, kind 'icon').
-const STATUS_ICONS: Record<string, React.ComponentType<{ size?: number; color?: string }>> = {
-  IconLock,
-  IconPlayerPause,
-};
 
 interface Props {
   tiles: Tile[];
@@ -41,7 +33,12 @@ interface Props {
 }
 
 const TILE_W = 150;
-const TILE_H = 80;
+
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 /** Padding orizzontale (per lato) del corpo scrollabile che contiene i tile. */
 const BODY_PAD = 8;
 /** Spessore della scrollbar del corpo — deve combaciare con `.ob-staging__body`
@@ -56,7 +53,6 @@ const STAGING_SCROLLBAR_W = 6;
  * separatore sia del valore ripristinato da localStorage.
  */
 export const STAGING_MIN_W = TILE_W + BODY_PAD * 2 + STAGING_SCROLLBAR_W + 1;
-const FALLBACK_COLOR = '#94A3B8';
 
 type SortDir = 'asc' | 'desc';
 type GroupBy = 'none' | 'action' | 'date' | 'tag' | 'type' | 'status';
@@ -135,8 +131,6 @@ export function StagingPanel({
   const bodyFont = 'var(--ob-font-sans)';
   const headTransform: 'none' | 'uppercase' = 'none';
   const headWeight = OB_WEIGHT.emphasis;
-  // Raggio dei tile dello staging: sono card → md.
-  const radius = 'var(--ob-radius-md)';
   const actionColors = useActionColors();
   const typeIcons = useTypeIcons((s) => s.icons);
   const typeTileIcons = useTypeIcons((s) => s.tileIcons);
@@ -261,139 +255,76 @@ export function StagingPanel({
       : theme.bg1;
   const panelBorderColor = (isDropTargetHover || isCanvasDragActive) ? theme.accent : theme.border;
 
+  /**
+   * La card dello STAGING è il `Tile` del sistema visivo, lo stesso di Chrono e
+   * del canvas. Prima era una terza copia scritta a mano con la sua colonna
+   * status, la sua barra checklist e il suo footer: tre resi della stessa cosa
+   * che divergevano a ogni ritocco.
+   *
+   * Il contenitore resta qui perché fa due cose che il Tile non fa apposta, per
+   * restare presentazionale: il trascinamento verso la board, e la GRONDA di
+   * 9px in cui sborda il badge d'angolo. La gronda sta sul contenitore e non
+   * come margine sul tile — un margine ne sposterebbe l'allineamento, un
+   * padding lascia il rettangolo intatto a 150×80.
+   */
   const renderTile = (t: Tile) => {
     const si = getIconForTile(t.id);
-    const actionKey: string =
-      t.all_day && t.action_type === 'event' ? 'allday' : (t.action_type || 'none');
-    const actionColor: string =
-      actionKey === 'none'
-        ? theme.ink2
-        : ((actionColors as Record<string, string>)[actionKey] as string)
-          || FALLBACK_COLOR;
-    // Velatura (come Kanban/Chrono/Canvas): base surface + tinta del tipo molto
-    // attenuata, così testo e badge restano leggibili.
-    const tint = si?.color ? `${si.color}24` : 'transparent';
-    // Senza colore del tipo il contorno è quello standard dei tile
-    // (`--ob-tile-border`), non la hairline generica del tema.
-    const borderColor = actionKey === 'deadline' ? '#E24B4A' : (si?.color ? `${si.color}3A` : 'var(--ob-tile-border)');
-    const isSelected = selectedTileId === t.id;
-    const isDone = !!t.is_completed;
-    // Status: identico al canvas → vive nella COLONNA a sinistra (icona/pallino/
-    // DELETE), non più nel footer. 'active' non mostra nulla.
+    const key = tileVisualKey({ action_type: t.action_type, all_day: t.all_day });
+    // `is_completed` e lo status `done` sono tenuti allineati dal database
+    // (migration 015): qui valgono come la stessa cosa.
     const statusName = t.status_id ? statuses.find((s) => s.id === t.status_id)?.name : undefined;
-    const sMeta = statusName ? statusMeta(statusName) : null;
-    const statusCol = (() => {
-      const glyph = statusGlyph(statusName);
-      if (glyph.kind === 'none' || !sMeta) return null;
-      if (glyph.kind === 'dot') return <span style={{ width: 8, height: 8, borderRadius: '50%', background: sMeta.hex }} />;
-      if (glyph.kind === 'text') return (
-        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.micro, fontWeight: OB_WEIGHT.mono, letterSpacing: '0.15em', color: sMeta.hex }}>{glyph.text}</span>
-      );
-      const Icon = STATUS_ICONS[glyph.icon];
-      return Icon ? <Icon size={12} color={sMeta.hex} /> : null;
-    })();
-    // Data/ora nel footer (come canvas): solo per deadline/event/allday con date.
-    const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    const fmtTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
-    let dateLine = '', timeLine = '';
-    if ((actionKey === 'deadline' || actionKey === 'event' || actionKey === 'allday') && (t.start_at || t.end_at)) {
-      if (actionKey === 'deadline' && t.end_at) dateLine = fmtDate(t.end_at);
-      else if (t.all_day && t.start_at) dateLine = fmtDate(t.start_at);
-      else if (t.start_at) { dateLine = fmtDate(t.start_at); timeLine = fmtTime(t.start_at); if (t.end_at) timeLine += ` - ${fmtTime(t.end_at)}`; }
+    const status: TileStatus = t.is_completed ? 'done' : ((statusName as TileStatus) ?? 'active');
+    // Stessa regola del canvas: tinge il colore del TIPO, con ricaduta sul
+    // colore dell'AZIONE quando il tipo manca — così una scadenza senza tipo
+    // resta rossa invece di ridursi a una hairline. Entrambi dalle impostazioni.
+    const accent = si?.color || (actionColors as Record<string, string>)[key] || undefined;
+    const subs = t.subtasks ?? [];
+    const steps: StepState[] | undefined = subs.length
+      ? subs.map((s): StepState => (s.is_done ? 'done' : 'pending'))
+      : undefined;
+
+    const metaKind = TILE_VISUAL[key].meta;
+    let meta: string | undefined;
+    if (metaKind === 'progress') {
+      if (subs.length) meta = `${subs.filter((s) => s.is_done).length} di ${subs.length}`;
+    } else if (metaKind !== 'none') {
+      // `deadline` vive su end_at, gli eventi su start_at — la stessa regola
+      // che il resto dell'app applica in `eventRefIso`.
+      const iso = key === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+      if (iso) {
+        meta = metaKind === 'time'
+          ? (t.start_at && t.end_at ? `${fmtTime(t.start_at)}–${fmtTime(t.end_at)}` : fmtTime(iso))
+          : fmtDate(iso);
+      }
     }
-    const subs = t.subtasks || [];
+
     return (
       <div
         key={t.id}
-        style={{ position: 'relative', flexShrink: 0, width: TILE_W, breakInside: 'avoid', marginBottom: 6 }}
+        draggable
+        data-tile-id={t.id}
+        onDragStart={(e) => onDragStart(e, t.id)}
+        style={{
+          flexShrink: 0,
+          width: TILE_W,
+          breakInside: 'avoid',
+          paddingTop: 9,
+          marginBottom: 3,
+          cursor: 'grab',
+          overflow: 'visible',
+        }}
+        title={t.title || 'Senza titolo'}
       >
-        <div
-          draggable
-          data-tile-id={t.id}
-          onDragStart={(e) => onDragStart(e, t.id)}
-          onClick={() => onTileClick?.(t.id)}
-          style={{
-            flexShrink: 0,
-            overflow: 'hidden',
-            cursor: 'grab',
-            // Fondo unico dei tile (token `--ob-tile-bg`), identico a canvas,
-            // chrono e kanban: è ciò che si vede quando non c'è colorazione.
-            background: 'var(--ob-tile-bg)',
-            width: TILE_W,
-            height: TILE_H,
-            borderRadius: radius,
-            border: actionKey === 'deadline' ? `${bW}px dashed #E24B4A` : `${bW}px solid ${borderColor}`,
-            boxShadow: isSelected ? `0 0 0 2px ${theme.accent}` : 'none',
-          }}
+        <TileComponent
           title={t.title || 'Senza titolo'}
-        >
-          {/* Tinta del tipo sopra la base surface. */}
-          {tint !== 'transparent' && (
-            <div style={{ position: 'absolute', inset: 0, background: tint, pointerEvents: 'none' }} />
-          )}
-          <div style={{ position: 'relative', height: '100%', display: 'flex' }}>
-            {/* Colonna STATUS (come canvas/chrono/kanban): presente SOLO se la
-                tile ha uno status con glifo. Senza status la colonna sparisce e
-                il contenuto occupa tutta la larghezza (margine 10, come il
-                CONTENT_X_NOSTAT del canvas). */}
-            {statusCol && (
-              <div style={{ width: 16, flexShrink: 0, background: theme.bg1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {statusCol}
-              </div>
-            )}
-            {/* Contenuto */}
-            <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', padding: statusCol ? '6px 6px 6px 8px' : '6px 6px 6px 10px' }}>
-              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-                <p
-                  style={{
-                    // Stessa tipografia del titolo tile di canvas/kanban/chrono
-                    // (.ob-*__card-title): 12/400/16/-0.01em su --ob-text.
-                    // Il colore passava da `readableOn`, che è la funzione giusta
-                    // per il testo su fondo COLORATO — ma qui il fondo è neutro e
-                    // il token esiste: `readableOn` restituiva #FFFFFF, mentre
-                    // --ob-text in dark è #dcdcdc. Il tile identico due colonne
-                    // più in là usava il token.
-                    fontFamily: bodyFont,
-                    fontSize: OB_TEXT.card,
-                    fontWeight: OB_WEIGHT.emphasis,
-                    lineHeight: OB_LEADING.tight,
-                    letterSpacing: '-0.01em',
-                    color: theme.ink,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    wordBreak: 'break-word',
-                    margin: 0,
-                    ...(isDone ? { textDecoration: 'line-through', opacity: 0.65 } : null),
-                  }}
-                >
-                  {t.title || 'Senza titolo'}
-                </p>
-              </div>
-              {/* Barra checklist (LIST) */}
-              {subs.length > 0 && (
-                <div style={{ display: 'flex', gap: 2, marginBottom: 4 }}>
-                  {subs.map((s, i) => (
-                    <span key={i} style={{ flex: subs.length <= 10 ? '0 0 8px' : '1 1 0', height: 4, borderRadius: 1, background: s.is_done ? '#20C933' : '#F82B60' }} />
-                  ))}
-                </div>
-              )}
-              {/* Footer: azione + data + tipo */}
-              <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'flex-end', gap: 6, position: 'relative', zIndex: 10 }}>
-                <ActionBadge actionKey={actionKey} size={14} color={actionColor} keepSpace />
-                {(dateLine || timeLine) && (
-                  <div style={{ display: 'flex', flexDirection: 'column', lineHeight: OB_LEADING.none, minWidth: 0 }}>
-                    {dateLine && <span style={{ fontSize: OB_TEXT.micro, color: theme.ink, whiteSpace: 'nowrap' }}>{dateLine}</span>}
-                    {timeLine && <span style={{ fontSize: OB_TEXT.eyebrow, color: theme.ink2, whiteSpace: 'nowrap' }}>{timeLine}</span>}
-                  </div>
-                )}
-                <div style={{ marginLeft: 'auto' }} />
-                <TileMeta type={si ? { icon: si.icon, color: si.color ?? '#5C5868' } : undefined} />
-              </div>
-            </div>
-          </div>
-        </div>
+          visualKey={key}
+          status={status}
+          steps={steps}
+          meta={meta}
+          accent={accent}
+          active={selectedTileId === t.id}
+          onClick={onTileClick ? () => onTileClick(t.id) : undefined}
+        />
       </div>
     );
   };

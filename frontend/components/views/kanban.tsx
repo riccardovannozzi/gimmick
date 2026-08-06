@@ -3,246 +3,249 @@
 /**
  * Gimmick · Obsidian — Kanban view.
  *
- * "Snappy sposta i tile da una colonna all'altra": status lanes holding
- * date-grouped tile cards. The date group header is a Pill (option 01 of
- * GimmickKanbanDates). Reference: GimmickKanban.dc.html. Tile fill = Tint;
- * cap/tag and lane colors from the canonical tokens. Self-contained — drop into
- * the shell's ViewContainer with `hideToolbar`.
+ * "Snappy sposta i tile da una colonna all'altra": colonne definite dall'utente
+ * coi propri filtri, ognuna con la sua lista ordinata di card.
+ *
+ * Le card erano raggruppate per giorno, con una pillola di intestazione per
+ * data. Il raggruppamento e' stato tolto quando la card ha cominciato a portare
+ * la propria data nel footer: l'intestazione diceva la stessa cosa a due
+ * centimetri di distanza, e spezzava la colonna in blocchi per un'informazione
+ * che ogni tile porta gia' con se'.
+ *
+ * Autonomo — si monta nel ViewContainer dello shell con `hideToolbar`.
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { IconGripVertical, IconDots } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
-import { Icon, type ShellIconName } from '@/components/shell';
-import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
-import { StatusSwatch } from '@/components/statuses/status-swatch';
-import type { StatusShape } from '@/types';
+import { Icon } from '@/components/shell';
+import { Tile } from '@/components/tiles/Tile';
+import type { StepState, TileStatus, TileVisualKey } from '@/lib/tile-visual';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
-type CapKind = 'photo' | 'file' | 'voice' | 'doc' | 'text';
-const CAP_COLOR: Record<CapKind, string> = {
-  photo: 'var(--ob-type-photo)',
-  file: 'var(--ob-type-file)',
-  voice: 'var(--ob-type-voice)',
-  doc: 'var(--ob-type-text)',
-  text: 'var(--ob-type-text)',
-};
-function CapGlyph({ kind }: { kind: CapKind }) {
-  const name: ShellIconName = kind === 'doc' ? 'file' : kind;
-  return <Icon name={name} size={11} />;
-}
-/** Cap-chip mostrate nel piede; le eccedenti diventano un contatore "+N". */
-const CAPS_MAX = 2;
 
 export interface CardData {
   /** Presente quando la vista è collegata ai dati reali. */
   id?: string;
   title: string;
+  /** Portato ma NON reso sulla card: il sistema visivo non ha un canale per il
+   *  tag. Resta qui perché è l'unico segnale che le lane non danno già (non
+   *  sono raggruppate per tag) e serve a chi volesse rimetterlo sotto la card. */
   tag: string;
+  /** Ripiego d'accento per le scadenze quando `accent` non arriva. */
   amber?: boolean;
-  caps?: CapKind[];
   checklist?: boolean[];
-  /** Tile completato (is_completed) → pallino verde in alto a destra. */
+  /** Tile completato (is_completed) → si legge come status `done`. */
   done?: boolean;
-  /** Status del tile → swatch (forma) nella meta-row. */
-  status?: { label: string; color: string; shape: StatusShape };
-  /** Type-icon del tile → chip colorato nella meta-row. */
-  type?: TileMetaType;
-  /** Numero di sparks del tile → contatore in basso a destra. */
-  sparkCount?: number;
-}
-export interface DateGroup {
-  date?: string;
-  long?: string;
-  today?: boolean;
-  noDate?: boolean;
-  drop?: boolean;
-  tiles: CardData[];
+  /** Chiave grafica risolta con `tileVisualKey()`: bordo, badge e metadato. */
+  visualKey?: TileVisualKey;
+  /** Nome grezzo dello status (`active`, `paused`…) — non l'etichetta tradotta. */
+  statusName?: TileStatus;
+  /** Metadato del footer destro, già formattato (data, orario, progressione). */
+  meta?: string;
+  /** Colore che tinge fondo, bordo e badge. Dalle impostazioni, mai un hex qui. */
+  accent?: string;
 }
 export interface Lane {
   /** Id colonna reale (target del drag-drop). */
   id?: string;
   label: string;
   color: string;
-  square?: boolean; // square status dot (deadline)
-  groups: DateGroup[];
+  /**
+   * I tile della colonna, gia' ordinati. Erano raggruppati per giorno, con una
+   * pillola di intestazione per data: quell'intestazione e' diventata ridondante
+   * quando la card ha cominciato a portare la propria data nel footer, e diceva
+   * due volte la stessa cosa a due centimetri di distanza.
+   */
+  tiles: CardData[];
 }
 
 const LANES: Lane[] = [
   {
-    label: 'NOTE', color: 'var(--ob-muted)', groups: [
-      { date: '27/06/26', today: true, tiles: [{ title: 'Appuntamento con Marco Guerrieri', tag: 'OM', caps: ['voice'] }] },
-      { date: '29/06/26', long: 'Lun 29 giu', tiles: [{ title: 'Moodboard cucina Ortano — riferimenti materiali', tag: 'GDS', caps: ['photo', 'doc'] }] },
+    label: 'NOTE', color: 'var(--ob-muted)', tiles: [
+      { title: 'Appuntamento con Marco Guerrieri', tag: 'OM' },
+      { title: 'Moodboard cucina Ortano — riferimenti materiali', tag: 'GDS' },
     ],
   },
   {
-    label: 'DA FARE', color: 'var(--ob-muted)', groups: [
-      { date: '27/06/26', today: true, drop: true, tiles: [
-        { title: 'Revoca certificato digitale Aruba', tag: 'OM', amber: true, caps: ['file'], checklist: [true, true, false] },
-        { title: 'Preparare brief Teleport per Marco', tag: 'GDS', caps: ['text'], checklist: [true, false, false, false] },
-      ] },
-      { noDate: true, tiles: [{ title: 'Lista materiali cucina', tag: 'OM', amber: true, checklist: [false, false] }] },
+    label: 'DA FARE', color: 'var(--ob-muted)', tiles: [
+      { title: 'Revoca certificato digitale Aruba', tag: 'OM', amber: true, checklist: [true, true, false] },
+      { title: 'Preparare brief Teleport per Marco', tag: 'GDS', checklist: [true, false, false, false] },
+      { title: 'Lista materiali cucina', tag: 'OM', amber: true, checklist: [false, false] },
     ],
   },
   {
-    label: 'PROGRAMMATI', color: 'var(--ob-success)', groups: [
-      { date: '27/06/26', today: true, tiles: [{ title: 'Audio e incontro con Marco', tag: 'OM', caps: ['voice'] }] },
-      { date: '28/06/26', long: 'Dom 28 giu', tiles: [{ title: 'GDS/bisdomini — sopralluogo', tag: 'GDS', amber: true, caps: ['photo'] }] },
+    label: 'PROGRAMMATI', color: 'var(--ob-success)', tiles: [
+      { title: 'Audio e incontro con Marco', tag: 'OM' },
+      { title: 'GDS/bisdomini — sopralluogo', tag: 'GDS', amber: true },
     ],
   },
   {
-    label: 'SCADENZE', color: 'var(--ob-error)', square: true, groups: [
-      { date: '30/06/26', long: 'Mar 30 giu', tiles: [{ title: 'Aruba — rinnovo certificato', tag: 'OM', amber: true, caps: ['file'] }] },
-      { noDate: true, tiles: [{ title: 'Rinnovo polizza Unipol casa', tag: 'OM', amber: true, caps: ['file'] }] },
+    label: 'SCADENZE', color: 'var(--ob-error)', tiles: [
+      { title: 'Aruba — rinnovo certificato', tag: 'OM', amber: true },
+      { title: 'Rinnovo polizza Unipol casa', tag: 'OM', amber: true },
     ],
   },
   {
-    label: 'FATTI', color: 'var(--ob-success)', groups: [
-      { date: '26/06/26', long: 'Ven 26 giu', tiles: [
-        { title: 'Itinerario Lisbona confermato', tag: 'Viaggio', caps: ['file', 'photo'], checklist: [true, true, true] },
-        { title: 'Demo prodotto v2 rivista', tag: 'GDS', caps: ['doc'] },
-      ] },
+    label: 'FATTI', color: 'var(--ob-success)', tiles: [
+      { title: 'Itinerario Lisbona confermato', tag: 'Viaggio', checklist: [true, true, true] },
+      { title: 'Demo prodotto v2 rivista', tag: 'GDS' },
     ],
   },
-  { label: 'FAMIGLIA', color: 'var(--ob-warning)', groups: [] },
+  { label: 'FAMIGLIA', color: 'var(--ob-warning)', tiles: [] },
 ];
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
+
+/**
+ * La card della lane è il `Tile` del sistema visivo, come in Chrono, nel canvas
+ * e nello staging. Misura già 150×80 come il Tile, quindi l'ingombro nella lane
+ * non cambia: cambia cosa la card dice.
+ *
+ * ⚠️ Quattro segnali che la card del Kanban aveva e che il Tile NON ha:
+ * le cap-chip dei tipi di spark, il chip del type-icon, l'etichetta del TAG e il
+ * contatore degli spark. Non hanno un canale nel sistema — i cinque canali sono
+ * bordo, badge, strip, status e metadato, e sono pieni. Restano tutti leggibili
+ * aprendo il tile; il tag in più è l'unico che qui portava informazione che le
+ * colonne non danno già, perché le lane del Kanban non sono per tag.
+ *
+ * Il contenitore resta per il TRASCINAMENTO fra lane, che il Tile non fa apposta
+ * per restare presentazionale, e per la gronda in cui sborda il badge d'angolo.
+ */
 function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; active?: boolean }) {
-  // Solo le deadline hanno una colorazione propria (ambra). Tutte le altre tile
-  // non hanno NIENTE impostato → fondo unico `--ob-tile-bg`, niente velatura
-  // d'accento di ripiego (variante `--plain`).
-  const cardC = t.amber ? 'var(--ob-warning)' : undefined;
-  const done = t.checklist?.filter(Boolean).length ?? 0;
   const draggable = !!t.id;
-  const caps = t.caps ?? [];
-  const capsShown = caps.slice(0, CAPS_MAX);
-  const capsExtra = caps.length - capsShown.length;
+  const steps: StepState[] | undefined = t.checklist?.length
+    ? t.checklist.map((d): StepState => (d ? 'done' : 'pending'))
+    : undefined;
+  // `is_completed` e lo status `done` sono tenuti allineati dal database
+  // (migration 015): qui valgono come la stessa cosa.
+  const status: TileStatus = t.done ? 'done' : (t.statusName ?? 'active');
   return (
     <div
-      className={cn('ob-kanban__card', !cardC && 'ob-kanban__card--plain', active && 'ob-kanban__card--active', onClick && 'ob-kanban__card--clickable', draggable && 'ob-kanban__card--draggable', t.done && 'ob-kanban__card--done')}
-      style={{ ['--card-c' as string]: cardC ?? 'var(--ob-tile-bg)' }}
+      className="ob-kanban__cell"
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
-      onClick={onClick}
-      role={onClick ? 'button' : undefined}
-      tabIndex={onClick ? 0 : undefined}
-      onKeyDown={
-        onClick
-          ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }
-          : undefined
-      }
     >
-      {/* Striscia STATUS a sinistra: presente SOLO se la tile ha uno status
-          (stesso ragionamento di CHRONO/CANVAS). Senza status la strip sparisce
-          e il corpo occupa tutta la larghezza. */}
-      {t.status && (
-        <div className="ob-kanban__card-strip" title={t.status.label}>
-          <StatusSwatch shape={t.status.shape} color={t.status.color} size={10} />
-        </div>
-      )}
-      <div className="ob-kanban__card-body">
-        <div className="ob-kanban__card-title">{t.title}</div>
-
-        {/* Gruppo in basso (checklist + piede) ancorato al fondo, come il canvas. */}
-        <div className="ob-kanban__card-bottom">
-          {t.checklist && (
-            <div className="ob-kanban__checklist">
-              <div className="ob-kanban__bars">
-                {t.checklist.map((d, i) => <div key={i} className={cn('ob-kanban__bar', d && 'ob-kanban__bar--on')} />)}
-              </div>
-              <span className="ob-kanban__checklist-count">{done}/{t.checklist.length}</span>
-            </div>
-          )}
-
-          <div className="ob-kanban__card-foot">
-            {capsShown.map((c, i) => (
-              <span key={i} className="ob-kanban__cap" style={{ ['--cap-c' as string]: CAP_COLOR[c] }}>
-                <CapGlyph kind={c} />
-              </span>
-            ))}
-            {capsExtra > 0 && (
-              <span className="ob-kanban__cap ob-kanban__cap--more" title={caps.join(', ')}>+{capsExtra}</span>
-            )}
-            {/* Lo STATUS vive nella striscia sinistra → nel footer solo il TIPO. */}
-            <TileMeta type={t.type} compact />
-            <span className="ob-kanban__card-tag" title={t.tag}>
-              <span className="ob-kanban__card-tag-icon"><Icon name="tags" size={11} /></span>
-              <span className="ob-kanban__card-tag-label">{t.tag}</span>
-            </span>
-            {!!t.sparkCount && (
-              <span className="ob-tile-sparkn" title={`${t.sparkCount} spark`}>{t.sparkCount}</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <Tile
+        title={t.title}
+        visualKey={t.visualKey ?? 'none'}
+        status={status}
+        steps={steps}
+        meta={t.meta}
+        accent={t.accent ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        active={active}
+        onClick={onClick}
+      />
     </div>
   );
 }
 
-function DatePill({ g }: { g: DateGroup }) {
-  const label = g.noDate ? 'Senza data' : g.today ? 'Oggi' : g.long ?? g.date;
-  return (
-    <div className={cn('ob-kanban__datepill', g.today && 'ob-kanban__datepill--today')}>
-      <span className="ob-kanban__datepill-dot" />
-      <span className="ob-kanban__datepill-label">{label}</span>
-      {!g.noDate && <span className="ob-kanban__datepill-date">{g.date}</span>}
-    </div>
-  );
-}
+/** Tipo MIME del trascinamento di una COLONNA. Distinto da quello dei tile,
+ *  perche' la lane e' bersaglio di entrambi e deve sapere cosa sta ricevendo. */
+const COL_MIME = 'text/x-kanban-col';
 
 function LaneCol({
-  lane, onCardClick, selectedId, onMoveTile,
+  lane, onCardClick, selectedId, onMoveTile, onLaneMenu, onReorder,
 }: {
   lane: Lane;
   onCardClick?: (id: string) => void;
   selectedId?: string;
   onMoveTile?: (tileId: string, targetColId: string) => void;
+  /** Apre il menu della colonna nel punto cliccato. */
+  onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
+  /** Sposta la colonna trascinata prima di quella su cui viene rilasciata. */
+  onReorder?: (fromId: string, toId: string) => void;
 }) {
-  const count = lane.groups.reduce((n, g) => n + g.tiles.length, 0);
+  const count = lane.tiles.length;
   const [dragOver, setDragOver] = React.useState(false);
+  const [colOver, setColOver] = React.useState(false);
+  // Il trascinamento della colonna parte SOLO dalla maniglia: `draggable` si
+  // arma al mousedown sul grip e si disarma alla fine. Senza, l'intera testata
+  // sarebbe trascinabile e il click sui pulsanti diventerebbe un trascinamento
+  // mancato.
+  const [gripArmed, setGripArmed] = React.useState(false);
+  // La colonna compressa resta visibile come binario verticale: sparisce il
+  // corpo, non la colonna — altrimenti non si saprebbe come riaprirla.
+  const [collapsed, setCollapsed] = React.useState(false);
   const canDrop = !!onMoveTile && !!lane.id;
+  const canReorder = !!onReorder && !!lane.id;
   return (
     <div
-      className={cn('ob-kanban__lane', dragOver && 'ob-kanban__lane--dropover')}
+      className={cn(
+        'ob-kanban__lane',
+        collapsed && 'ob-kanban__lane--collapsed',
+        dragOver && 'ob-kanban__lane--dropover',
+        colOver && 'ob-kanban__lane--colover',
+      )}
       style={{ ['--lane-c' as string]: lane.color }}
-      onDragOver={canDrop ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setDragOver(true); } : undefined}
-      onDragLeave={canDrop ? () => setDragOver(false) : undefined}
-      onDrop={
-        canDrop
-          ? (e) => {
-              e.preventDefault();
-              setDragOver(false);
-              const id = e.dataTransfer.getData('text/x-tile');
-              if (id) onMoveTile!(id, lane.id!);
-            }
-          : undefined
-      }
+      onDragOver={(e) => {
+        const isCol = e.dataTransfer.types.includes(COL_MIME);
+        if (isCol ? !canReorder : !canDrop) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (isCol) setColOver(true); else setDragOver(true);
+      }}
+      onDragLeave={(e) => {
+        // Solo quando si esce davvero dalla colonna: entrando in un figlio
+        // parte comunque un dragleave, e l'evidenziazione sfarfallerebbe.
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDragOver(false); setColOver(false);
+      }}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragOver(false); setColOver(false);
+        const from = e.dataTransfer.getData(COL_MIME);
+        if (from) { if (canReorder && from !== lane.id) onReorder!(from, lane.id!); return; }
+        const id = e.dataTransfer.getData('text/x-tile');
+        if (id && canDrop) onMoveTile!(id, lane.id!);
+      }}
     >
-      <div className="ob-kanban__lane-head">
-        <span className="ob-kanban__lane-grip"><IconGripVertical size={11} stroke={1.6} /></span>
-        <span className={cn('ob-kanban__lane-dot', lane.square && 'ob-kanban__lane-dot--sq')} />
+      <div
+        className="ob-kanban__lane-head"
+        draggable={canReorder && gripArmed}
+        onDragStart={(e) => {
+          e.dataTransfer.setData(COL_MIME, lane.id!);
+          e.dataTransfer.effectAllowed = 'move';
+        }}
+        onDragEnd={() => setGripArmed(false)}
+      >
+        <span
+          className="ob-kanban__lane-grip"
+          onMouseDown={() => canReorder && setGripArmed(true)}
+          onMouseUp={() => setGripArmed(false)}
+          title={canReorder ? 'Trascina per spostare la colonna' : undefined}
+          style={canReorder ? { cursor: 'grab' } : undefined}
+        ><IconGripVertical size={11} stroke={1.6} /></span>
         <span className="ob-kanban__lane-label" title={lane.label}>{lane.label}</span>
         <span className="ob-kanban__lane-count">{count}</span>
         <div style={{ flex: 1 }} />
-        <button type="button" className="ob-kanban__lane-btn" aria-label="Comprimi"><Icon name="chevR" size={12} /></button>
-        <button type="button" className="ob-kanban__lane-btn" aria-label="Altro"><IconDots size={12} stroke={1.6} /></button>
+        <button
+          type="button"
+          className="ob-kanban__lane-btn"
+          aria-label={collapsed ? 'Espandi' : 'Comprimi'}
+          title={collapsed ? 'Espandi la colonna' : 'Comprimi la colonna'}
+          aria-expanded={!collapsed}
+          onClick={() => setCollapsed((c) => !c)}
+        ><Icon name={collapsed ? 'chevL' : 'chevR'} size={12} /></button>
+        {onLaneMenu && lane.id && (
+          <button
+            type="button"
+            className="ob-kanban__lane-btn"
+            aria-label="Altro"
+            title="Rinomina, sposta o elimina la colonna"
+            onClick={(e) => onLaneMenu(e, lane.id!)}
+          ><IconDots size={12} stroke={1.6} /></button>
+        )}
       </div>
-      <div className="ob-kanban__lane-body ob-scroll">
+      <div className="ob-kanban__lane-body ob-scroll" hidden={collapsed}>
         {count ? (
-          lane.groups.map((g, gi) => (
-            <div key={gi} className="ob-kanban__group">
-              <DatePill g={g} />
-              {g.tiles.map((t, ti) => (
-                <TileCard
-                  key={t.id ?? ti}
-                  t={t}
-                  active={!!t.id && t.id === selectedId}
-                  onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
-                />
-              ))}
-              {g.drop && <div className="ob-kanban__drop">Rilascia qui</div>}
-            </div>
+          lane.tiles.map((t, ti) => (
+            <TileCard
+              key={t.id ?? ti}
+              t={t}
+              active={!!t.id && t.id === selectedId}
+              onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
+            />
           ))
         ) : (
           <div className="ob-kanban__lane-empty">NESSUN TILE</div>
@@ -259,58 +262,115 @@ export interface KanbanViewProps {
   onAddTile?: () => void;
   /** Drag di un tile su una colonna → applica i filtri colonna come update. */
   onMoveTile?: (tileId: string, targetColId: string) => void;
+  /** SOLO i tag pinnati, nell'ordine in cui l'utente li ha messi. La barra non
+   *  e' un elenco di tag: e' la scorciatoia alle poche cose che tieni sott'occhio,
+   *  esattamente come la tab-strip del canvas. Vuoto = nessuna linguetta. */
+  tagPills?: { id: string; label: string; color?: string }[];
+  /** Tag attivo ('all' = nessun filtro). */
+  activeTag?: string;
+  onTagChange?: (id: string) => void;
+  onAddColumn?: () => void;
+  onAddLane?: () => void;
+  /**
+   * Le corsie orizzontali. Ognuna diventa una FASCIA che contiene la stessa
+   * fila di colonne, con dentro solo i tile della corsia. Vuoto = board a una
+   * dimensione, cioe' esattamente com'era prima che le corsie esistessero.
+   */
+  bands?: { id: string; label: string; lanes: Lane[] }[];
+  onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
+  /** Riordino delle colonne per trascinamento della maniglia. */
+  onReorder?: (fromId: string, toId: string) => void;
 }
 
-export function KanbanView({ lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile }: KanbanViewProps) {
-  const [tag, setTag] = React.useState('all');
-
+export function KanbanView({
+  lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile,
+  tagPills, activeTag = 'all', onTagChange,
+  onAddColumn, onAddLane, onLaneMenu, onReorder, bands,
+}: KanbanViewProps) {
   return (
     <div className="ob-kanban">
       {/* Toolbar — prima riga della vista (niente header con titolo/mascotte). */}
       <div className="ob-kanban__toolbar">
-        <button type="button" className="ob-kanban__ctrl">
-          <span className="ob-kanban__ctrl-muted">Raggruppa:</span>
-          Stato
-          <span className="ob-kanban__ctrl-icon"><Icon name="chevD" size={12} /></span>
-        </button>
-        <div className="ob-kanban__div" />
-        {[
-          { id: 'all', label: 'Tutti i tag' },
-          { id: 'OM', label: 'OM' },
-          { id: 'GDS', label: 'GDS' },
-        ].map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={cn('ob-kanban__pill', tag === p.id && 'ob-kanban__pill--active')}
-            onClick={() => setTag(p.id)}
-          >
-            <span className="ob-kanban__pill-dot" />
-            {p.label}
-          </button>
-        ))}
+        {!!tagPills?.length && (
+          <>
+            <div className="ob-kanban__div" />
+            <div className="ob-kanban__tag-tabs">
+              {tagPills.map((p) => {
+                const isActive = activeTag === p.id;
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={cn('ob-kanban__tag-tab', isActive && 'ob-kanban__tag-tab--active')}
+                    // Ricliccare la linguetta attiva toglie il filtro. Senza,
+                    // servirebbe una linguetta "Tutti" — che pero' non e' un tag
+                    // pinnato e non ha titolo per stare in questa striscia.
+                    onClick={() => onTagChange?.(isActive ? 'all' : p.id)}
+                    aria-pressed={isActive}
+                    title={isActive ? `Mostra tutti i tag (togli il filtro "${p.label}")` : `Mostra solo "${p.label}"`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
         <div className="ob-kanban__spacer" />
-        <button type="button" className="ob-kanban__ctrl">
-          <span className="ob-kanban__ctrl-icon"><Icon name="calendar" size={13} /></span>Oggi
-        </button>
-        <button type="button" className="ob-kanban__ctrl">
+        <button type="button" className="ob-kanban__ctrl" onClick={onAddColumn} disabled={!onAddColumn} title="Colonne verticali della board">
           <span className="ob-kanban__ctrl-icon"><Icon name="kanban" size={13} /></span>Colonna
+        </button>
+        <button type="button" className="ob-kanban__ctrl" onClick={onAddLane} disabled={!onAddLane} title="Corsie orizzontali della board">
+          <span className="ob-kanban__ctrl-icon"><Icon name="list" size={13} /></span>Corsia
         </button>
         <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>Tile</Button>
       </div>
 
       {/* Board */}
-      <div className="ob-kanban__board ob-scroll">
-        {lanes.map((l) => (
-          <LaneCol
-            key={l.id ?? l.label}
-            lane={l}
-            onCardClick={onCardClick}
-            selectedId={selectedId}
-            onMoveTile={onMoveTile}
-          />
-        ))}
-      </div>
+      {bands?.length ? (
+        // Con le corsie la board scorre in VERTICALE fra le fasce, e ogni fascia
+        // scorre per conto suo in orizzontale. Le colonne restano allineate fra
+        // una fascia e l'altra perche' hanno tutte la stessa base flex.
+        <div className="ob-kanban__bands ob-scroll">
+          {bands.map((b) => (
+            <section key={b.id} className="ob-kanban__band">
+              <header className="ob-kanban__band-head">
+                <span className="ob-kanban__band-label" title={b.label}>{b.label}</span>
+                <span className="ob-kanban__band-count">
+                  {b.lanes.reduce((n, l) => n + l.tiles.length, 0)}
+                </span>
+              </header>
+              <div className="ob-kanban__board">
+                {b.lanes.map((l) => (
+                  <LaneCol
+                    key={l.id ?? l.label}
+                    lane={l}
+                    onCardClick={onCardClick}
+                    selectedId={selectedId}
+                    onMoveTile={onMoveTile}
+                    onLaneMenu={onLaneMenu}
+                    onReorder={onReorder}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      ) : (
+        <div className="ob-kanban__board ob-scroll">
+          {lanes.map((l) => (
+            <LaneCol
+              key={l.id ?? l.label}
+              lane={l}
+              onCardClick={onCardClick}
+              selectedId={selectedId}
+              onMoveTile={onMoveTile}
+              onLaneMenu={onLaneMenu}
+              onReorder={onReorder}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

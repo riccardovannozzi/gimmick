@@ -2,18 +2,18 @@
  * Gimmick · Obsidian — Views screen wired to live data.
  *
  * Owns the active tab + per-tab data fetching so queries stay gated to the
- * visible tab. Tiles (tilesApi) and Flows (flowApi.hub, filter-aware) are live;
- * Chrono / Settings tabs still render their static mock for now.
+ * visible tab. Tiles, Flows e Chrono leggono dati veri; il tab Settings è
+ * cablato sullo store delle impostazioni.
  */
 import React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { tilesApi, flowApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi, type PaginatedResponse } from '@/lib/api';
-import { tilesByInsertion, flowHubItemToVM, tileToChronoEvent } from '@/lib/obsidian-adapters';
+import { tilesApi, calendarApi, statusesApi, typeIconsApi, settingsApi, sparksApi, type PaginatedResponse } from '@/lib/api';
+import { tilesByInsertion, tileToChronoEvent } from '@/lib/obsidian-adapters';
 import { startOfDay, startOfWeek, startOfMonth, addDays, addMonths, isToday } from '@/lib/chrono-utils';
 import type { ObChronoRange } from './ViewsScreen';
 import { getSignedUrls } from '@/lib/storage';
 import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
-import type { FlowHubFilter, Tile } from '@/types';
+import type { Tile } from '@/types';
 import { toast } from '@/store';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useAuthStore } from '@/store/authStore';
@@ -43,8 +43,8 @@ export interface ObsidianViewsScreenLiveProps {
   onSignIn?: () => void;
   /** TopNav home button → the Capture screen. */
   onHome?: () => void;
+  /** Apre il dettaglio di un tile. Vale anche per i flow: sono tile. */
   onOpenTile?: (id: string) => void;
-  onOpenFlow?: (tileId: string) => void;
   /** Fired after the internal switch, so a host route can keep the router in
    *  sync with the visible tab (see app/(tabs)/*). */
   onActiveChange?: (id: MobileViewId) => void;
@@ -52,7 +52,7 @@ export interface ObsidianViewsScreenLiveProps {
   onAsk?: () => void;
 }
 
-export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp, onOpenTile, onOpenFlow, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
+export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp, onOpenTile, onActiveChange, onSignIn, onHome, onAsk }: ObsidianViewsScreenLiveProps) {
   const queryClient = useQueryClient();
   const [activeState, setActiveState] = React.useState<MobileViewId>(initial);
   const active = activeProp ?? activeState;
@@ -62,7 +62,6 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     if (activeProp === undefined) setActiveState(id);
     onActiveChange?.(id);
   }, [activeProp, onActiveChange]);
-  const [flowFilter, setFlowFilter] = React.useState<FlowHubFilter>('wait');
   /**
    * Chrono: giorno di ancoraggio + ampiezza della vista (1 / 7 / M).
    *
@@ -84,6 +83,15 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
 
   const authUser = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
+
+  /**
+   * Tiles e Flows disegnano la STESSA card, quindi hanno bisogno delle stesse
+   * anagrafiche (status, tipi, colori azione) e delle stesse anteprime firmate.
+   * Gating comune invece di `active === 'tiles'` sparso: legandole al solo tab
+   * Tiles, la lista dei flow sarebbe rimasta senza glifo di status, senza
+   * colore d'azione e senza miniature.
+   */
+  const wantsTileMeta = active === 'tiles' || active === 'flows';
 
   const tilesQuery = useQuery({
     queryKey: ['tiles', { page: 1, limit: 100 }],
@@ -141,23 +149,23 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
 
   // Status e tipi vivono in tabelle separate: la card del tile ne mostra il
   // glifo/colore, quindi servono le due anagrafiche + l'assegnazione per tile.
-  // Cambiano di rado → staleTime lungo, e comunque solo con il tab Tiles attivo.
+  // Cambiano di rado → staleTime lungo.
   const statusesQuery = useQuery({
     queryKey: ['statuses'],
     queryFn: () => statusesApi.list(),
-    enabled: active === 'tiles',
+    enabled: wantsTileMeta,
     staleTime: 5 * 60 * 1000,
   });
   const typeIconsQuery = useQuery({
     queryKey: ['type-icons'],
     queryFn: () => typeIconsApi.list(),
-    enabled: active === 'tiles',
+    enabled: wantsTileMeta,
     staleTime: 5 * 60 * 1000,
   });
   const typeAssignQuery = useQuery({
     queryKey: ['type-icons', 'assignments'],
     queryFn: () => typeIconsApi.getAssignments(),
-    enabled: active === 'tiles',
+    enabled: wantsTileMeta,
     staleTime: 5 * 60 * 1000,
   });
   // Colori dei badge azione: stessa impostazione utente che colora il canvas
@@ -166,7 +174,7 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
   const actionColorsQuery = useQuery({
     queryKey: ['settings', 'action_colors'],
     queryFn: () => settingsApi.get<Partial<Record<TileActionKey, string>>>('action_colors'),
-    enabled: active === 'tiles',
+    enabled: wantsTileMeta,
     staleTime: 5 * 60 * 1000,
   });
   const actionColors = React.useMemo(
@@ -174,9 +182,18 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     [actionColorsQuery.data],
   );
 
+  /**
+   * I flow sono TILE: si chiedono a `/api/tiles` filtrando per action_type, non
+   * più a `/api/flows/hub` (rotta ritirata col modello a nodi).
+   *
+   * Il filtro è lato SERVER e non lato client: senza, il tetto di 100 è
+   * spartito fra tutti i tipi in ordine di creazione, e con gli eventi che sono
+   * la maggioranza dei tile la colonna dei flow risulterebbe quasi vuota pur
+   * avendone. Stessa scelta del web (chrono-live.tsx).
+   */
   const flowsQuery = useQuery({
-    queryKey: ['flow-hub', flowFilter],
-    queryFn: () => flowApi.hub(flowFilter),
+    queryKey: ['tiles', { page: 1, limit: 100, action_type: 'flow' }],
+    queryFn: () => tilesApi.list({ page: 1, limit: 100, action_type: 'flow' }),
     enabled: active === 'flows',
   });
 
@@ -320,27 +337,35 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
     () => tilesByInsertion(tilesQuery.data?.data ?? [], { statusNameById, typeByTile }),
     [tilesQuery.data, statusNameById, typeByTile],
   );
+  const baseFlows = React.useMemo(
+    () => tilesByInsertion(flowsQuery.data?.data ?? [], { statusNameById, typeByTile }),
+    [flowsQuery.data, statusNameById, typeByTile],
+  );
 
   // Anteprime della lista. Il bucket è privato, quindi ogni immagine va firmata:
   // si firmano TUTTE in una richiesta sola (`createSignedUrls`) invece di una
   // per card. La chiave della query è l'elenco dei percorsi, così il risultato
   // si riusa finché la lista non cambia; `staleTime` sta sotto l'ora di validità
   // della firma, altrimenti si mostrerebbero URL scaduti.
+  // Tiles e Flows firmano INSIEME: solo un tab per volta è attivo, quindi
+  // l'elenco è di fatto quello della lista a video, e le due liste condividono
+  // la cache quando uno stesso tile compare in entrambe.
   const previewPaths = React.useMemo(() => {
-    const paths = baseTiles.flatMap((t) => t.previewPaths ?? []);
+    const paths = [...baseTiles, ...baseFlows].flatMap((t) => t.previewPaths ?? []);
     return [...new Set(paths)].sort();
-  }, [baseTiles]);
+  }, [baseTiles, baseFlows]);
   const previewUrls = useQuery({
     queryKey: ['tile-preview-urls', previewPaths],
     queryFn: () => getSignedUrls(previewPaths),
-    enabled: active === 'tiles' && previewPaths.length > 0,
+    enabled: wantsTileMeta && previewPaths.length > 0,
     staleTime: 50 * 60 * 1000,
     gcTime: 60 * 60 * 1000,
   });
-  const tiles = React.useMemo(() => {
+  /** Attacca gli URL firmati ai percorsi della card. */
+  const withPreviews = React.useCallback((list: typeof baseTiles) => {
     const urls = previewUrls.data;
-    if (!urls?.size) return baseTiles;
-    return baseTiles.map((t) => {
+    if (!urls?.size) return list;
+    return list.map((t) => {
       if (!t.previewPaths?.length) return t;
       // I percorsi non firmati si scartano: la card mostra quelli riusciti
       // invece di un riquadro rotto. Il contatore non cambia — le foto nel tile
@@ -348,11 +373,9 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
       const uris = t.previewPaths.map((p) => urls.get(p)).filter((u): u is string => !!u);
       return { ...t, previewUris: uris };
     });
-  }, [baseTiles, previewUrls.data]);
-  const flows = React.useMemo(
-    () => (flowsQuery.data?.data ?? []).map(flowHubItemToVM),
-    [flowsQuery.data],
-  );
+  }, [previewUrls.data]);
+  const tiles = React.useMemo(() => withPreviews(baseTiles), [baseTiles, withPreviews]);
+  const flows = React.useMemo(() => withPreviews(baseFlows), [baseFlows, withPreviews]);
   const chronoEvents = React.useMemo(
     () => (chronoQuery.data?.data ?? []).map(tileToChronoEvent).filter((e): e is NonNullable<typeof e> => e !== null),
     [chronoQuery.data],
@@ -405,9 +428,6 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
       onDeleteTile={(id) => deleteTile.mutate(id)}
       flows={flows}
       flowsLoading={flowsQuery.isLoading}
-      flowFilter={flowFilter}
-      onFlowFilter={setFlowFilter}
-      onOpenFlow={onOpenFlow}
       chronoEvents={chronoEvents}
       chronoLoading={chronoQuery.isLoading}
       chronoDayLabel={chronoLabel}

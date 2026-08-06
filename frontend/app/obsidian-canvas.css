@@ -152,3 +152,24 @@
 [data-theme='dark'] .ob-canvas__board-inner { --ob-edge: rgba(255, 255, 255, 0.32); }
 .ob-canvas__edges { position: absolute; top: 0; left: 0; overflow: visible; z-index: 1; pointer-events: none; }
 .ob-canvas__node { position: absolute; z-index: 2; }
+
+/* ── LIVELLO DI DETTAGLIO DEL TILE SUL CANVAS ─────────────────────────────────
+   Il canvas è l'unica vista con uno zoom, quindi l'unica in cui il tile può
+   diventare una scheggia: il rettangolo resta 150×80 nello spazio della board
+   ma sullo schermo si rimpicciolisce. Sotto `TILE_LOD_MIN_SCALE` (0.6) il
+   segmento dello stepper — alto 3px — scende sotto i 2px reali e il bordo del
+   badge sotto il pixel fisico: a quel punto non sono più simboli attenuati, sono
+   sporcizia. Si spengono, e restano i canali che in miniatura reggono: fondo,
+   colore e bordo.
+
+   La classe la mette e la toglie il gestore dello zoom (`applyLod`), che non
+   ridisegna niente — a 60fps ricostruire la grafica di ogni tile non sarebbe
+   sostenibile. */
+.ob-canvas-svg--lod .ob-tbadge,
+.ob-canvas-svg--lod .ob-tstrip { display: none; }
+/* Senza la strip il corpo riprende il padding pieno, altrimenti il titolo
+   resterebbe rientrato di 28px per una colonna che non c'è più. */
+.ob-canvas-svg--lod .ob-tile--stripped .ob-tile__body { padding-left: 10px; }
+/* Anche le etichette del footer sono sotto i 6px reali: illeggibili. */
+.ob-canvas-svg--lod .ob-tstatus,
+.ob-canvas-svg--lod .ob-tile__meta { display: none; }

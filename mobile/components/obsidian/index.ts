@@ -11,6 +11,8 @@ export { ObsidianTopNav } from './TopNav';
 export type { MobileViewId } from './TopNav';
 export { ObsidianAppHeader } from './AppHeader';
 export { ObsidianDrawer } from './Drawer';
+export { ObsidianSubtaskList } from './SubtaskList';
+export type { ObsidianSubtaskListProps } from './SubtaskList';
 
 export { ObsidianCaptureScreen } from './screens/CaptureScreen';
 export type { ObsidianCaptureScreenProps } from './screens/CaptureScreen';

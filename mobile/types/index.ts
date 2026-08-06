@@ -39,8 +39,8 @@ export interface BufferItem {
 /**
  * Action type for GTD classification
  */
-// `flow` = tile-processo (passi invece di data). Il mobile non lo assegna: lo
-// riceve dal backend e deve saperlo mostrare senza cadere sul fallback 'none'.
+// `flow` = tile-processo: la sua sostanza sono i PASSI (`subtasks`), non una
+// data. Non è schedulabile — un flow non entra mai nel calendario.
 export type ActionType = 'none' | 'anytime' | 'deadline' | 'event' | 'flow';
 
 /**
@@ -67,6 +67,16 @@ export interface Tile {
   spark_count?: number;
   sparks?: Spark[];
   tags?: { id: string; name: string; tag_type?: string; is_root?: boolean }[];
+  /**
+   * Checklist del tile in forma compatta, già ordinata per `sort_order`, come
+   * la manda `GET /api/tiles`: della riga sopravvive il solo `is_done`, che è
+   * quanto basta a disegnare lo stepper sulla card.
+   *
+   * ⚠️ Il campo `state` dei subtask (`blocked` / `cancelled`) NON viaggia in
+   * questo payload — né qui né sul web. Finché non ci sarà, il segmento rosso
+   * dello stepper non ha sorgente e i passi si leggono in due soli stati.
+   */
+  subtasks?: { is_done: boolean }[];
 }
 
 /**
@@ -90,10 +100,10 @@ export interface Spark {
   updated_at: string;
 }
 
-// ─── Flow types (DAG of micro-actions inside a Tile) ────────────────────────
-// Mirrors backend/src/types/flow.ts and frontend/types/flow.ts. Keep in sync.
-
-export type FlowNodeState = 'active' | 'done' | 'wait' | 'undo' | 'stop';
+// ─── Contatti ────────────────────────────────────────────────────────────────
+// Sopravvivono al ritiro di `flow_nodes`: un contatto è l'anagrafica di una
+// persona, non un pezzo del vecchio grafo. Oggi lo usa il picker dei contatti;
+// sul dato è anche il SOGGETTO di un passo (`tile_subtasks.contact_id`).
 
 export type ContactKind = 'person' | 'company' | 'professional' | 'institution' | 'other';
 
@@ -108,73 +118,22 @@ export interface Contact {
   color: string | null;
   avatar_url: string | null;
   archived_at: string | null;
-  /** True for the per-user "self" contact, seeded at signup. UI treats it as
-   *  the default node assignment ("ball is on me") and pins it at the top of
-   *  contact pickers. Exactly one per user (partial unique index). */
+  /** True for the per-user "self" contact, seeded at signup. Pinned at the top
+   *  of contact pickers. Exactly one per user (partial unique index). */
   is_self: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface FlowNode {
-  id: string;
-  user_id: string;
-  tile_id: string;
-  label: string;
-  /** Lifecycle decorator. 'active' = no decorator drawn on the node body. */
-  state: FlowNodeState;
-  /** Drives node shape: square when null OR points to the user's self contact
-   *  ("ball is on me"), circle otherwise ("ball is on someone else"). */
-  contact_id: string | null;
-  occurred_at: string | null;
-  scheduled_at: string | null;
-  notes: string | null;
-  /** Position in the tile's linear flow list (0 = first card). Replaced the
-   *  previous DAG model in migration 030. */
-  sort_order: number;
-  /** Legacy DAG layout coords — kept for read-back compatibility, ignored
-   *  by the new card-list UI. */
-  x: number | null;
-  y: number | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/** @deprecated DAG model retired in migration 030. Kept for type-compat. */
-export interface FlowEdge {
-  id: string;
-  user_id: string;
-  tile_id: string;
-  parent_id: string;
-  child_id: string;
-  created_at: string;
-}
-
-/** Flow data for a tile — an ordered list of nodes. */
-export interface FlowGraph {
-  nodes: FlowNode[];
-}
-
 /**
- * Cross-tile FlowHub row — each entry is a "ball in play" node enriched with
- * its parent tile + primary tag + contact, plus derived activity stats. Built
- * server-side by /api/flows/hub.
- */
-export interface FlowHubItem extends FlowNode {
-  tile: { id: string; title: string; tag: { name: string } | null };
-  contact: { id: string; name: string; color: string | null; is_self: boolean } | null;
-  last_activity_at: string;
-  is_leaf: boolean;
-  is_open: boolean;
-  days_since_activity: number;
-}
-
-/** Filter keyword for the Hub query. Matches backend GET /api/flows/hub?filter=…
- *  Maps 1:1 to the flow node's `state` lifecycle decorator. */
-export type FlowHubFilter = 'done' | 'wait' | 'undo' | 'stop';
-
-/**
- * Subtask - Checklist item belonging to a tile (List view in sidebar).
+ * Voce di checklist di un tile — e, sui tile di tipo `flow`, un PASSO del
+ * processo. È la stessa riga: cambia la resa, non lo schema.
+ *
+ * I tre campi in fondo (migration 037/038) servono ai passi e restano nulli su
+ * una checklist ordinaria. `state` è una SOVRASTRUTTURA su `is_done`, non un
+ * suo rimpiazzo: copre i due casi che un booleano non sa dire.
+ *
+ *   StepState = state ?? (is_done ? 'done' : 'pending')
  */
 export interface Subtask {
   id: string;
@@ -182,6 +141,12 @@ export interface Subtask {
   content: string;
   is_done: boolean;
   sort_order: number;
+  /** Chi ha la palla su questo passo. */
+  contact_id?: string | null;
+  /** Quando il passo è avvenuto. Storia, non programma: non va in calendario. */
+  occurred_at?: string | null;
+  /** `null` = voce ordinaria (lo stato lo dice `is_done`). */
+  state?: 'blocked' | 'cancelled' | null;
   created_at: string;
   updated_at: string;
 }

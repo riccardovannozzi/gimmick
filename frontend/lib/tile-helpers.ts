@@ -18,12 +18,21 @@ export function isLightColor(hex: string): boolean {
 }
 
 export function formatDay(dateStr: string): string {
+  return `${formatDayNumeric(dateStr)} ${formatWeekday(dateStr)}`;
+}
+
+/** Solo la data: `09/07/26`. */
+export function formatDayNumeric(dateStr: string): string {
   const d = new Date(dateStr);
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yy = String(d.getFullYear()).slice(-2);
-  const weekday = d.toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '').toUpperCase();
-  return `${dd}/${mm}/${yy} ${weekday}`;
+  return `${dd}/${mm}/${yy}`;
+}
+
+/** Solo il giorno della settimana abbreviato, maiuscolo: `GIO`. */
+export function formatWeekday(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('it-IT', { weekday: 'short' }).replace('.', '').toUpperCase();
 }
 
 export function isSunday(dateStr: string): boolean {

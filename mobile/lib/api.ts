@@ -2,16 +2,12 @@ import type {
   Spark,
   SparkType,
   BufferItem,
+  ActionType,
   Tile,
   Tag,
   Subtask,
   Contact,
   ContactKind,
-  FlowGraph,
-  FlowNode,
-  FlowNodeState,
-  FlowHubItem,
-  FlowHubFilter,
 } from '@/types';
 import Constants from 'expo-constants';
 import { useConnectivityStore } from '@/store/connectivityStore';
@@ -370,10 +366,18 @@ export const sparksApi = {
 // ============ Tiles API ============
 
 export const tilesApi = {
-  async list(options?: { page?: number; limit?: number }) {
+  /**
+   * `action_type` filtra lato server. Senza filtro il tetto di 100 è spartito
+   * fra TUTTI i tipi in ordine di creazione: con la grande maggioranza dei tile
+   * che sono eventi, una lista di soli flow risulterebbe quasi vuota pur
+   * avendone. Col filtro il tetto vale per tipo. Stessa scelta del web
+   * (frontend/components/views/chrono-live.tsx).
+   */
+  async list(options?: { page?: number; limit?: number; action_type?: ActionType }) {
     const params = new URLSearchParams();
     if (options?.page) params.set('page', options.page.toString());
     if (options?.limit) params.set('limit', options.limit.toString());
+    if (options?.action_type) params.set('action_type', options.action_type);
 
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
@@ -576,56 +580,13 @@ export const contactsApi = {
   },
 };
 
-// ============ Flow API ============
-
-export const flowApi = {
-  async getByTile(tileId: string) {
-    return apiRequest<FlowGraph>(`/api/tiles/${tileId}/flow`);
-  },
-  async createNode(
-    tileId: string,
-    body: {
-      label?: string;
-      state?: FlowNodeState;
-      contact_id?: string | null;
-      occurred_at?: string | null;
-      scheduled_at?: string | null;
-      notes?: string | null;
-    },
-  ) {
-    // Server appends at the end (sort_order = max+1). Response shape keeps
-    // the legacy { node, edge } for mid-rollout client compatibility.
-    return apiRequest<{ node: FlowNode; edge: null }>(
-      `/api/tiles/${tileId}/flow/nodes`,
-      { method: 'POST', body: JSON.stringify(body) },
-    );
-  },
-  async updateNode(
-    id: string,
-    updates: Partial<Pick<FlowNode, 'label' | 'state' | 'contact_id' | 'occurred_at' | 'scheduled_at' | 'notes' | 'sort_order'>>,
-  ) {
-    return apiRequest<FlowNode>(`/api/flow/nodes/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(updates),
-    });
-  },
-  async deleteNode(id: string) {
-    return apiRequest(`/api/flow/nodes/${id}`, { method: 'DELETE' });
-  },
-  /** Bulk reorder — send the full list with new sort_order values. */
-  async reorderNodes(items: { id: string; sort_order: number }[]) {
-    return apiRequest('/api/flow/nodes/reorder', {
-      method: 'PUT',
-      body: JSON.stringify({ items }),
-    });
-  },
-  /** Cross-tile inbox of pending flow nodes. Mounted at /api/flows. */
-  async hub(filter: FlowHubFilter) {
-    return apiRequest<FlowHubItem[]>(`/api/flows/hub?filter=${encodeURIComponent(filter)}`);
-  },
-};
-
 // ============ Subtasks API ============
+//
+// I PASSI DI UN FLOW PASSANO DA QUI. Un flow non ha più un'API sua: è un tile
+// con `action_type = 'flow'`, e i suoi passi sono le voci di questa checklist —
+// la stessa che ogni tile ha già. `flowApi` (`/api/tiles/:id/flow`,
+// `/api/flow/nodes/*`, `/api/flows/hub`) è stato eliminato perché il backend
+// non espone più quelle rotte: chiamarle tornava 404.
 
 export const subtasksApi = {
   async list(tileId: string) {
@@ -637,7 +598,23 @@ export const subtasksApi = {
       body: JSON.stringify(data),
     });
   },
-  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number }) {
+  /**
+   * `contact_id` / `occurred_at` / `state` sono i campi dei passi di un flow
+   * (migration 037/038). `null` è un valore legittimo — significa "togli il
+   * contatto / la data / lo stato eccezionale" — quindi il tipo li ammette
+   * esplicitamente invece di limitarsi a renderli opzionali.
+   */
+  async update(
+    id: string,
+    updates: {
+      content?: string;
+      is_done?: boolean;
+      sort_order?: number;
+      contact_id?: string | null;
+      occurred_at?: string | null;
+      state?: 'blocked' | 'cancelled' | null;
+    },
+  ) {
     return apiRequest<Subtask>(`/api/subtasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -1002,12 +979,18 @@ export async function uploadBufferItems(
   if (targetTileId && tileOptions) {
     const updates: Parameters<typeof tilesApi.update>[1] = {};
     if (tileOptions.action_type) updates.action_type = tileOptions.action_type;
+    // I due rami sono "con tempo" e "tutto il resto", e l'ELSE è quello senza
+    // condizione: prima erano due elenchi di tipi, e un tipo nuovo — `flow` —
+    // sarebbe caduto fuori da entrambi, lasciando date ed `is_event` a quello
+    // che erano invece di azzerarli. Scritto così, un settimo tipo eredita da
+    // sé il comportamento giusto: senza tempo finché qualcuno non lo aggiunge
+    // qui sopra di proposito.
     if (tileOptions.action_type === 'event' || tileOptions.action_type === 'deadline') {
       updates.is_event = tileOptions.action_type === 'event';
       updates.all_day = !!tileOptions.all_day;
       updates.start_at = tileOptions.start_at ?? null;
       updates.end_at = tileOptions.end_at ?? null;
-    } else if (tileOptions.action_type === 'none' || tileOptions.action_type === 'anytime') {
+    } else if (tileOptions.action_type) {
       updates.is_event = false;
       updates.all_day = false;
       updates.start_at = null;

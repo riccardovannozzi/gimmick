@@ -180,3 +180,133 @@ kanbanRouter.put(
     }
   }
 );
+
+
+// ─── CORSIE ORIZZONTALI ──────────────────────────────────────────────────────
+//
+// Stessa forma delle colonne su un secondo asse: una cella della board e'
+// l'incrocio fra una colonna e una corsia, e ci finiscono i tile che soddisfano
+// entrambi i gruppi di filtri. Le rotte sono deliberatamente gemelle di quelle
+// qui sopra — `width`, `bg_color` e l'ordinamento per data non ci sono, perche'
+// su una corsia non hanno significato: l'ordinamento dentro la cella resta
+// quello della colonna.
+
+const createLaneSchema = z.object({
+  title: z.string().min(1).default('Nuova corsia'),
+  filters: z.array(filterRuleSchema).default([]),
+  sort_order: z.number().int().optional(),
+});
+
+const updateLaneSchema = z.object({
+  title: z.string().min(1).optional(),
+  filters: z.array(filterRuleSchema).optional(),
+  sort_order: z.number().int().optional(),
+});
+
+kanbanRouter.get('/lanes', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('kanban_lanes')
+      .select('*')
+      .eq('user_id', req.user!.id)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error) {
+    next(error);
+  }
+});
+
+kanbanRouter.post(
+  '/lanes',
+  validate(createLaneSchema),
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    try {
+      const { title, filters, sort_order } = req.body;
+
+      let order = sort_order;
+      if (order === undefined) {
+        const { data: existing } = await supabaseAdmin
+          .from('kanban_lanes')
+          .select('sort_order')
+          .eq('user_id', req.user!.id)
+          .order('sort_order', { ascending: false })
+          .limit(1);
+        order = (existing?.[0]?.sort_order ?? -1) + 1;
+      }
+
+      const { data, error } = await supabaseAdmin
+        .from('kanban_lanes')
+        .insert({ user_id: req.user!.id, title, filters, sort_order: order })
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+kanbanRouter.patch(
+  '/lanes/:id',
+  validate(updateLaneSchema),
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    try {
+      const { id } = req.params;
+      const updates: Record<string, unknown> = { ...req.body };
+      updates.updated_at = new Date().toISOString();
+
+      const { data, error } = await supabaseAdmin
+        .from('kanban_lanes')
+        .update(updates)
+        .eq('id', id)
+        .eq('user_id', req.user!.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+kanbanRouter.delete('/lanes/:id', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('kanban_lanes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', req.user!.id);
+
+    if (error) throw error;
+    res.json({ success: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+kanbanRouter.put(
+  '/lanes/reorder',
+  validate(reorderSchema),
+  async (req: AuthenticatedRequest, res: Response, next) => {
+    try {
+      const { items } = req.body;
+      for (const item of items) {
+        await supabaseAdmin
+          .from('kanban_lanes')
+          .update({ sort_order: item.sort_order, updated_at: new Date().toISOString() })
+          .eq('id', item.id)
+          .eq('user_id', req.user!.id);
+      }
+      res.json({ success: true });
+    } catch (error) {
+      next(error);
+    }
+  }
+);

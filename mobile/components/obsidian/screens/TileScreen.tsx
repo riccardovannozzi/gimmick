@@ -12,17 +12,19 @@ import * as TablerIcons from '@tabler/icons-react-native';
 import {
   IconArrowLeft, IconTrash, IconDots, IconClock, IconAlertCircle, IconCalendarEvent,
   IconNote, IconCheckbox, IconCalendar, IconTag, IconPhone, IconCircleCheck,
-  IconPlayerPlay, IconChevronDown, IconCheck,
+  IconPlayerPlay, IconChevronDown, IconCheck, IconRoute,
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
-import type { Tile, Spark } from '@/types';
+import { tileVisualKey, type TileVisualKey } from '@/lib/tile-visual';
+import type { Tile, Spark, Subtask } from '@/types';
 import { formatDuration } from '@/utils/formatters';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { PreviewImage } from '../PreviewImage';
 import { SparkViewer } from '../SparkViewer';
+import { ObsidianSubtaskList } from '../SubtaskList';
 
 /**
  * Corpo del testo della schermata, in un punto solo.
@@ -134,16 +136,31 @@ function PickerSheet({ c, open, title, options, selectedId, emptyLabel, onPick, 
 }
 
 /**
- * Le CINQUE azioni del tile, in un gruppo solo — come la sidebar web.
+ * Le SEI azioni del tile, in un gruppo solo — come la sidebar web.
  *
  * Prima il mobile le spezzava in due controlli separati (un segmented
  * Scadenza/Giornata/A orario + una coppia Note/To-do), che raccontava una
- * gerarchia inesistente: sono cinque valori dello stesso campo, mutuamente
- * esclusivi. `Daily` e `Timing` sono entrambe `event` e si distinguono per
- * `all_day`, per questo la chiave non basta come identificatore.
+ * gerarchia inesistente: sono valori dello stesso campo, mutuamente esclusivi.
+ * `Daily` e `Timing` sono entrambe `event` e si distinguono per `all_day`, per
+ * questo la chiave non basta come identificatore.
+ *
+ * ─── Perché due righe da tre, e non due più quattro ──────────────────────────
+ *
+ * Le righe sono le due FAMIGLIE, non un riempimento:
+ *
+ *   riga 1   Note · To-do · Flow      i tipi SENZA tempo
+ *   riga 2   Due · Daily · Timing     i tipi CON tempo, quelli che vanno in calendario
+ *
+ * Cambiare riga a un tile è esattamente ciò che lo sposta fra le due sedi.
+ * Stessa disposizione della sidebar web, dove la spezzatura 2+3 di prima
+ * lasciava Flow orfano di una casa.
+ *
+ * Le chiavi coincidono con quelle del sistema visivo (`TileVisualKey`), così
+ * `tileVisualKey()` è l'unico posto dove è scritta la regola dell'all-day: la
+ * vecchia `activeActionKey` la ricopiava con un vocabolario suo ('timed').
  */
 type ActionOpt = {
-  key: string;
+  key: TileVisualKey;
   label: string;
   Icon: typeof IconClock;
   patch: { action_type: string; is_event: boolean; all_day: boolean };
@@ -151,9 +168,12 @@ type ActionOpt = {
 const ACTIONS: ActionOpt[] = [
   { key: 'none', label: 'Note', Icon: IconNote, patch: { action_type: 'none', is_event: false, all_day: false } },
   { key: 'anytime', label: 'To-do', Icon: IconCheckbox, patch: { action_type: 'anytime', is_event: false, all_day: false } },
+  // Un flow non è schedulabile: il patch azzera evento e giornata intera come
+  // gli altri due senza tempo. La sua sostanza sono i passi, non una data.
+  { key: 'flow', label: 'Flow', Icon: IconRoute, patch: { action_type: 'flow', is_event: false, all_day: false } },
   { key: 'deadline', label: 'Due', Icon: IconAlertCircle, patch: { action_type: 'deadline', is_event: false, all_day: false } },
   { key: 'allday', label: 'Daily', Icon: IconCalendarEvent, patch: { action_type: 'event', is_event: true, all_day: true } },
-  { key: 'timed', label: 'Timing', Icon: IconClock, patch: { action_type: 'event', is_event: true, all_day: false } },
+  { key: 'event', label: 'Timing', Icon: IconClock, patch: { action_type: 'event', is_event: true, all_day: false } },
 ];
 
 const pad2 = (n: number) => String(n).padStart(2, '0');
@@ -182,12 +202,6 @@ function combine(day: Date, time: Date): Date {
   return out;
 }
 
-/** Chiave dell'azione attiva a partire dal tile. */
-function activeActionKey(t?: Tile): string {
-  if (!t) return 'none';
-  if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
-  return t.action_type ?? 'none';
-}
 
 /**
  * Canali del composer, nell'ordine della sidebar web: foto · immagine · video ·
@@ -354,11 +368,23 @@ export interface ObsidianTileScreenProps {
    * richiesta sola — vedi `sparkMediaPath`.
    */
   mediaUrls?: Map<string, string>;
+  /**
+   * LIST del tile — e, sui flow, i PASSI del processo: è la stessa lista.
+   * Voci già ordinate per `sort_order`; i callback sono assenti nel mockup QA.
+   */
+  subtasks?: Subtask[];
+  subtasksLoading?: boolean;
+  onToggleSubtask?: (id: string, isDone: boolean) => void;
+  onChangeSubtask?: (id: string, content: string) => void;
+  onAddSubtask?: () => void;
+  onDeleteSubtask?: (id: string) => void;
+  onMoveSubtask?: (from: number, to: number) => void;
 }
 
 export function ObsidianTileScreen({
   onBack, tile, loading, onPatch, types = [], typeId, onSelectType, statuses = [],
   onCapture, mediaUrls,
+  subtasks = [], subtasksLoading, onToggleSubtask, onChangeSubtask, onAddSubtask, onDeleteSubtask, onMoveSubtask,
 }: ObsidianTileScreenProps) {
   const c = useObsidian();
   const live = !!tile;
@@ -389,9 +415,18 @@ export function ObsidianTileScreen({
     if (next !== (s ?? '').trim()) p?.({ title: next });
   }, []);
 
-  const activeAction = activeActionKey(tile);
-  const isTimed = activeAction === 'timed';
-  const hasWhen = activeAction !== 'none' && activeAction !== 'anytime';
+  const activeAction = tile ? tileVisualKey(tile) : 'none';
+  const isTimed = activeAction === 'event';
+  /**
+   * DATA E ORARIO esiste solo per i tipi CON tempo.
+   *
+   * La condizione è per INCLUSIONE e non per esclusione ("tutto tranne note e
+   * to-do"): scritta per esclusione, il flow — che è arrivato dopo — sarebbe
+   * caduto dalla parte sbagliata, e il dettaglio avrebbe chiesto una data per
+   * un tile che in calendario non ci va mai. Aggiungere un sesto tipo non deve
+   * poter accendere un campo di nascosto.
+   */
+  const hasWhen = activeAction === 'deadline' || activeAction === 'allday' || activeAction === 'event';
 
   // Data e orari veri, presi dal tile. Prima erano tre stringhe scritte a mano.
   const start = parseIso(tile?.start_at);
@@ -426,6 +461,10 @@ export function ObsidianTileScreen({
     }
     setPicking(null);
   };
+
+  // `null` = niente contatore: una lista vuota non annuncia "0/0", dice solo
+  // LIST e lascia parlare il pulsante che ci sta sotto.
+  const subtasksDone = subtasks.length ? subtasks.filter((s) => s.is_done).length : null;
 
   const typeName = types.find((t) => t.id === typeId)?.name;
   const typeMeta = types.find((t) => t.id === typeId);
@@ -464,11 +503,12 @@ export function ObsidianTileScreen({
           />
         </Section>
 
-        {/* AZIONE — i cinque valori in un contenitore unico, 2 + 3 su due righe.
+        {/* AZIONE — i sei valori in un contenitore unico, 3 + 3 su due righe:
+            senza tempo sopra, con tempo sotto (vedi la nota su ACTIONS).
             Ogni bottone scrive subito: niente barra Salva, come il web. */}
         <Section c={c} eyebrow="AZIONE">
           <View style={{ gap: 6, backgroundColor: c.canvas, borderRadius: 10, padding: 6 }}>
-            {[ACTIONS.slice(0, 2), ACTIONS.slice(2)].map((row, ri) => (
+            {[ACTIONS.slice(0, 3), ACTIONS.slice(3)].map((row, ri) => (
               <View key={ri} style={{ flexDirection: 'row', gap: 6 }}>
                 {row.map((a) => {
                   const on = a.key === activeAction;
@@ -552,6 +592,24 @@ export function ObsidianTileScreen({
             iconColor={statusMeta?.color ?? c.muted}
             chev
             onPress={onPatch ? () => setSheet('status') : undefined}
+          />
+        </Section>
+
+        {/* LIST — la checklist del tile, e sui flow i PASSI del processo.
+            Compare su OGNI tipo, come sul web: una checklist sta bene su una
+            nota quanto su un to-do, e riservarla ai flow avrebbe lasciato gli
+            altri tipi senza un posto dove elencare le cose da fare.
+            Il contatore nell'occhiello è la stessa informazione della scaletta
+            sulla card, scritta invece che disegnata. */}
+        <Section c={c} eyebrow={subtasksDone !== null ? `LIST · ${subtasksDone}/${subtasks.length}` : 'LIST'}>
+          <ObsidianSubtaskList
+            items={subtasks}
+            loading={subtasksLoading}
+            onToggle={onToggleSubtask}
+            onChangeText={onChangeSubtask}
+            onAdd={onAddSubtask}
+            onDelete={onDeleteSubtask}
+            onMove={onMoveSubtask}
           />
         </Section>
 

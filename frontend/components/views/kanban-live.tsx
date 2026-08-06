@@ -15,79 +15,67 @@
  * NON sono portati qui — restano nella pagina arcade. La toolbar (raggruppa/tag
  * pills/oggi/colonna) è decorativa in questa fase.
  */
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KanbanView, type Lane, type CardData } from '@/components/views/kanban';
+import { AxisModal } from '@/components/kanban/AxisModal';
 import { kanbanApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
-import { tileMatchesFilters, sortTiles, tileDateField } from '@/lib/kanban-helpers';
-import { getDayKey, formatDay } from '@/lib/tile-helpers';
+import { tileMatchesFilters, sortTiles } from '@/lib/kanban-helpers';
 import { useStatuses } from '@/store/statuses-store';
-import { statusMeta } from '@/lib/status-meta';
-import type { Tile, Tag, KanbanColumn, Status } from '@/types';
+import { tileVisualKey, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
+import type { Tile, Tag, KanbanColumn, KanbanLane, KanbanFilter, Status } from '@/types';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
-/** Status del tile reso come swatch (forma) nella meta-row della card.
- *  'active' è lo stato di default/prevalente → non si segnala. */
-function cardStatus(t: Tile, statusById: Map<string, Status>) {
-  const st = t.status_id ? statusById.get(t.status_id) : undefined;
-  if (!st || st.name === 'active') return undefined;
-  const meta = statusMeta(st.name);
-  return { label: meta.label, color: meta.color, shape: st.shape };
-}
-
-const CAP_FROM: Record<string, 'photo' | 'file' | 'voice' | 'doc' | 'text'> = {
-  photo: 'photo',
-  image: 'photo',
-  video: 'photo',
-  audio_recording: 'voice',
-  file: 'file',
-  text: 'text',
+const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+const fmtTime = (iso: string) => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
+
+/** Metadato del footer destro: quello che il tipo prevede, già formattato. */
+function cardMeta(t: Tile, key: TileVisualKey): string | undefined {
+  const kind = TILE_VISUAL[key].meta;
+  if (kind === 'none') return undefined;
+  if (kind === 'progress') {
+    const subs = t.subtasks ?? [];
+    return subs.length ? `${subs.filter((s) => s.is_done).length} di ${subs.length}` : undefined;
+  }
+  // `deadline` vive su end_at, gli eventi su start_at — come `eventRefIso`.
+  const iso = key === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+  if (!iso) return undefined;
+  if (kind === 'time') {
+    return t.start_at && t.end_at ? `${fmtTime(t.start_at)}–${fmtTime(t.end_at)}` : fmtTime(iso);
+  }
+  return fmtDate(iso);
+}
 
 type IconOf = (tileId: string) => { icon: string; color?: string } | null;
 
 function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): CardData {
   const tileTag = (t.tags ?? []).find((tg) => tg.id !== rootTagId) ?? t.tags?.[0];
-  const caps = Array.from(new Set((t.sparks ?? []).map((s) => CAP_FROM[s.type] ?? 'file')));
   const checklist = (t.subtasks ?? []).map((s) => s.is_done);
   const ti = iconOf(t.id);
+  const key = tileVisualKey({ action_type: t.action_type, all_day: t.all_day });
+  const st = t.status_id ? statusById.get(t.status_id) : undefined;
   return {
     id: t.id,
     title: t.title || 'Senza titolo',
     tag: tileTag?.name ?? 'Gimmick',
-    amber: t.action_type === 'deadline',
-    caps: caps.length ? caps : undefined,
     checklist: checklist.length ? checklist : undefined,
     done: !!t.is_completed,
-    status: cardStatus(t, statusById),
-    type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
-    sparkCount: (t.sparks ?? []).length,
+    visualKey: key,
+    statusName: st?.name as TileStatus | undefined,
+    meta: cardMeta(t, key),
+    // Stessa regola di canvas e staging: tinge il colore del TIPO, con ricaduta
+    // sull'AZIONE quando il tipo manca — così una scadenza senza tipo resta
+    // rossa invece di ridursi a una hairline.
+    accent: ti?.color || undefined,
   };
-}
-
-function groupByDay(tiles: Tile[], sortBy: KanbanColumn['sort_by'], rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): Lane['groups'] {
-  const todayKey = getDayKey(new Date().toISOString());
-  const groups: Lane['groups'] = [];
-  let lastKey: string | null | undefined = undefined;
-  for (const t of tiles) {
-    const iso = tileDateField(t, sortBy ?? null);
-    const key = iso ? getDayKey(iso) : null;
-    if (key !== lastKey) {
-      groups.push({
-        noDate: key === null,
-        today: key !== null && key === todayKey,
-        date: iso ? formatDay(iso) : undefined,
-        tiles: [],
-      });
-      lastKey = key;
-    }
-    groups[groups.length - 1].tiles.push(toCard(t, rootTagId, statusById, iconOf));
-  }
-  return groups;
 }
 
 export function KanbanLive() {
@@ -99,6 +87,7 @@ export function KanbanLive() {
   const selectTile = useTileSelectionStore((s) => s.select);
 
   const { data: columnsData } = useQuery({ queryKey: ['kanban-columns'], queryFn: () => kanbanApi.listColumns() });
+  const { data: lanesData } = useQuery({ queryKey: ['kanban-lanes'], queryFn: () => kanbanApi.listLanes() });
   const { data: tilesData, isLoading } = useQuery({
     queryKey: ['tiles-kanban'],
     queryFn: async () => {
@@ -110,25 +99,145 @@ export function KanbanLive() {
   const { data: tagsData } = useQuery({ queryKey: ['tags'], queryFn: () => tagsApi.list() });
 
   const columns = useMemo<KanbanColumn[]>(() => columnsData?.data ?? [], [columnsData]);
+  const laneRows = useMemo<KanbanLane[]>(() => lanesData?.data ?? [], [lanesData]);
   const allTiles = useMemo<Tile[]>(() => tilesData?.data ?? [], [tilesData]);
   const tags = useMemo<Tag[]>(() => tagsData?.data ?? [], [tagsData]);
   const rootTagId = useMemo(() => tags.find((t) => t.is_root)?.id, [tags]);
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
 
+  // ── Comandi della toolbar ──────────────────────────────────────────────────
+  const [activeTag, setActiveTag] = useState('all');
+  const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; laneId: string } | null>(null);
+  const [axisOpen, setAxisOpen] = useState<'column' | 'lane' | null>(null);
+  /**
+   * Le linguette: SOLO i tag pinnati, come nella topbar del canvas.
+   *
+   * Prima erano i sei tag piu' usati, il che riempiva la barra di roba che non
+   * avevi scelto tu — e con un tag molto usato ma irrilevante finiva in vista
+   * per sempre. Il pin e' una decisione esplicita: se non ne hai pinnato
+   * nessuno la striscia non compare, e va bene cosi'.
+   */
+  const tagPills = useMemo(
+    () => tags
+      .filter((t) => t.is_pinned && !t.is_root)
+      .map((t) => ({ id: t.id, label: t.name })),
+    [tags],
+  );
+
+  // Il filtro per tag si applica PRIMA dei filtri di colonna: restringe l'insieme
+  // su cui la board lavora, non compete con le regole che hai dato alle colonne.
+  const visibleTiles = useMemo(
+    () => (activeTag === 'all' ? allTiles : allTiles.filter((t) => (t.tags ?? []).some((tg) => tg.id === activeTag))),
+    [allTiles, activeTag],
+  );
+
   const lanes = useMemo<Lane[]>(
     () =>
       columns.map((col) => {
-        const matched = allTiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
+        const matched = visibleTiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
         const sorted = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
         return {
           id: col.id,
           label: col.title,
           color: col.bg_color || 'var(--ob-muted)',
-          groups: groupByDay(sorted, col.sort_by, rootTagId, statusById, getIconForTile),
+          tiles: sorted.map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
         };
       }),
-    [columns, allTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
+    [columns, visibleTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
   );
+
+  /**
+   * Le fasce: una per corsia, ciascuna con la stessa fila di colonne ma vista
+   * attraverso i filtri della corsia. La cella e' l'intersezione dei due assi.
+   * Senza corsie l'array e' vuoto e la vista resta quella piatta di prima.
+   */
+  const bands = useMemo(
+    () => laneRows.map((row) => ({
+      id: row.id,
+      label: row.title,
+      lanes: columns.map((col) => {
+        const matched = visibleTiles.filter(
+          (t) => tileMatchesFilters(t, col.filters, typeTileIcons) && tileMatchesFilters(t, row.filters, typeTileIcons),
+        );
+        const sorted = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
+        return {
+          id: col.id,
+          label: col.title,
+          color: col.bg_color || 'var(--ob-muted)',
+          tiles: sorted.map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
+        };
+      }),
+    })),
+    [laneRows, columns, visibleTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
+  );
+
+  const columnMutation = useMutation({
+    mutationFn: (fn: () => Promise<unknown>) => fn(),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['kanban-columns'] }),
+    onError: () => toast.error('Errore sulla colonna'),
+  });
+
+  /**
+   * Crea in blocco. Le chiamate partono in SEQUENZA e non in parallelo: il
+   * `sort_order` di ciascuna dipende da quante ce ne sono gia', e mandandole
+   * insieme si accavallerebbero sullo stesso numero.
+   */
+  const deleteColumn = useCallback((id: string) => {
+    const col = columns.find((c) => c.id === id);
+    // Elimina la COLONNA, non i tile: vale la pena dirlo, perche' una board e'
+    // fatta di tile e la domanda che uno si fa e' proprio quella.
+    if (!window.confirm(`Eliminare la colonna "${col?.title ?? ''}"? I tile restano al loro posto.`)) return;
+    columnMutation.mutate(() => kanbanApi.deleteColumn(id));
+  }, [columns, columnMutation]);
+
+  const createAxis = useCallback(async (items: { title: string; filters: KanbanFilter[] }[]) => {
+    const isCol = axisOpen !== 'lane';
+    let order = (isCol ? columns : laneRows).length;
+    for (const c of items) {
+      const res = isCol
+        ? await kanbanApi.createColumn({ title: c.title, filters: c.filters, sort_order: order++ })
+        : await kanbanApi.createLane({ title: c.title, filters: c.filters, sort_order: order++ });
+      if (!res.success) { toast.error(`Errore su "${c.title}"`); break; }
+    }
+    queryClient.invalidateQueries({ queryKey: [isCol ? 'kanban-columns' : 'kanban-lanes'] });
+  }, [axisOpen, columns, laneRows, queryClient]);
+
+  const deleteAxis = useCallback((id: string) => {
+    const isCol = axisOpen !== 'lane';
+    if (isCol) { deleteColumn(id); return; }
+    const row = laneRows.find((l) => l.id === id);
+    if (!window.confirm(`Eliminare la corsia "${row?.title ?? ''}"? I tile restano al loro posto.`)) return;
+    kanbanApi.deleteLane(id)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['kanban-lanes'] }))
+      .catch(() => toast.error('Errore sulla corsia'));
+  }, [axisOpen, laneRows, queryClient, deleteColumn]);
+
+  const renameColumn = useCallback((id: string) => {
+    const col = columns.find((c) => c.id === id);
+    const title = window.prompt('Nuovo nome della colonna', col?.title ?? '');
+    if (!title?.trim() || title.trim() === col?.title) return;
+    columnMutation.mutate(() => kanbanApi.updateColumn(id, { title: title.trim() }));
+  }, [columns, columnMutation]);
+
+  /** Trascinamento: la colonna presa si inserisce al posto di quella lasciata. */
+  const reorderColumn = useCallback((fromId: string, toId: string) => {
+    const from = columns.findIndex((c) => c.id === fromId);
+    const to = columns.findIndex((c) => c.id === toId);
+    if (from < 0 || to < 0 || from === to) return;
+    const next = [...columns];
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    columnMutation.mutate(() => kanbanApi.reorderColumns(next.map((c, k) => ({ id: c.id, sort_order: k }))));
+  }, [columns, columnMutation]);
+
+  const moveColumn = useCallback((id: string, delta: -1 | 1) => {
+    const i = columns.findIndex((c) => c.id === id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= columns.length) return;
+    const next = [...columns];
+    [next[i], next[j]] = [next[j], next[i]];
+    columnMutation.mutate(() => kanbanApi.reorderColumns(next.map((c, k) => ({ id: c.id, sort_order: k }))));
+  }, [columns, columnMutation]);
 
   const tileMutation = useMutation({
     mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
@@ -215,12 +324,59 @@ export function KanbanLive() {
   }
 
   return (
-    <KanbanView
-      lanes={lanes}
-      selectedId={selectedTileId ?? undefined}
-      onCardClick={(id) => selectTile(id)}
-      onAddTile={handleAddTile}
-      onMoveTile={handleMoveTile}
-    />
+    <>
+      <KanbanView
+        lanes={lanes}
+        selectedId={selectedTileId ?? undefined}
+        onCardClick={(id) => selectTile(id)}
+        onAddTile={handleAddTile}
+        onMoveTile={handleMoveTile}
+        tagPills={tagPills}
+        activeTag={activeTag}
+        onTagChange={setActiveTag}
+        onAddColumn={() => setAxisOpen('column')}
+        onAddLane={() => setAxisOpen('lane')}
+        bands={bands}
+        onReorder={reorderColumn}
+        onLaneMenu={(e, laneId) => {
+          e.stopPropagation();
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+          setLaneMenu({ x: r.left, y: r.bottom + 4, laneId });
+        }}
+      />
+      <AxisModal
+        open={axisOpen !== null}
+        onClose={() => setAxisOpen(null)}
+        axis={axisOpen ?? 'column'}
+        entries={axisOpen === 'lane' ? laneRows : columns}
+        otherEntries={axisOpen === 'lane' ? columns : laneRows}
+        tags={tags}
+        onCreate={createAxis}
+        onDelete={deleteAxis}
+      />
+      {laneMenu && createPortal(
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 9998 }} onMouseDown={() => setLaneMenu(null)} />
+          <div className="ob-ctx" style={{ left: laneMenu.x, top: laneMenu.y }}>
+            <button type="button" className="ob-ctx__item" onClick={() => { renameColumn(laneMenu.laneId); setLaneMenu(null); }}>Rinomina</button>
+            <button
+              type="button"
+              className="ob-ctx__item"
+              disabled={columns.findIndex((c) => c.id === laneMenu.laneId) <= 0}
+              onClick={() => { moveColumn(laneMenu.laneId, -1); setLaneMenu(null); }}
+            >Sposta a sinistra</button>
+            <button
+              type="button"
+              className="ob-ctx__item"
+              disabled={columns.findIndex((c) => c.id === laneMenu.laneId) >= columns.length - 1}
+              onClick={() => { moveColumn(laneMenu.laneId, 1); setLaneMenu(null); }}
+            >Sposta a destra</button>
+            <div className="ob-ctx__sep" />
+            <button type="button" className="ob-ctx__item ob-ctx__item--danger" onClick={() => { deleteColumn(laneMenu.laneId); setLaneMenu(null); }}>Elimina colonna</button>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
   );
 }
