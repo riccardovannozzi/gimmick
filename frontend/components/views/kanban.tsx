@@ -144,29 +144,79 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
  *  perche' la lane e' bersaglio di entrambi e deve sapere cosa sta ricevendo. */
 const COL_MIME = 'text/x-kanban-col';
 
-function LaneCol({
-  lane, onCardClick, selectedId, onMoveTile, onLaneMenu, onReorder,
+/**
+ * Testata di una colonna. Estratta perché con le corsie va disegnata UNA VOLTA
+ * SOLA in cima alla griglia, non ripetuta in ogni fascia: ripetendola, cinque
+ * corsie moltiplicavano per cinque le stesse cinque intestazioni, e la board
+ * diventava un elenco di titoli con qualche tile in mezzo.
+ */
+function LaneHead({
+  lane, collapsed, onToggleCollapse, onLaneMenu, onReorder,
+}: {
+  lane: Pick<Lane, 'id' | 'label'> & { count: number };
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
+  onReorder?: (fromId: string, toId: string) => void;
+}) {
+  const [gripArmed, setGripArmed] = React.useState(false);
+  const canReorder = !!onReorder && !!lane.id;
+  return (
+    <div
+      className="ob-kanban__lane-head"
+      draggable={canReorder && gripArmed}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(COL_MIME, lane.id!);
+        e.dataTransfer.effectAllowed = 'move';
+      }}
+      onDragEnd={() => setGripArmed(false)}
+    >
+      <span
+        className="ob-kanban__lane-grip"
+        onMouseDown={() => canReorder && setGripArmed(true)}
+        onMouseUp={() => setGripArmed(false)}
+        title={canReorder ? 'Trascina per spostare la colonna' : undefined}
+        style={canReorder ? { cursor: 'grab' } : undefined}
+      ><IconGripVertical size={11} stroke={1.6} /></span>
+      <span className="ob-kanban__lane-label" title={lane.label}>{lane.label}</span>
+      <span className="ob-kanban__lane-count">{lane.count}</span>
+      <div style={{ flex: 1 }} />
+      <button
+        type="button"
+        className="ob-kanban__lane-btn"
+        aria-label={collapsed ? 'Espandi' : 'Comprimi'}
+        title={collapsed ? 'Espandi la colonna' : 'Comprimi la colonna'}
+        aria-expanded={!collapsed}
+        onClick={onToggleCollapse}
+      ><Icon name={collapsed ? 'chevL' : 'chevR'} size={12} /></button>
+      {onLaneMenu && lane.id && (
+        <button
+          type="button"
+          className="ob-kanban__lane-btn"
+          aria-label="Altro"
+          title="Rinomina, sposta o elimina la colonna"
+          onClick={(e) => onLaneMenu(e, lane.id!)}
+        ><IconDots size={12} stroke={1.6} /></button>
+      )}
+    </div>
+  );
+}
+
+/** Il corpo di una colonna: le card, e il bersaglio del drop di un tile. */
+function LaneBody({
+  lane, onCardClick, selectedId, onMoveTile, onReorder, collapsed, head,
 }: {
   lane: Lane;
   onCardClick?: (id: string) => void;
   selectedId?: string;
   onMoveTile?: (tileId: string, targetColId: string) => void;
-  /** Apre il menu della colonna nel punto cliccato. */
-  onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
-  /** Sposta la colonna trascinata prima di quella su cui viene rilasciata. */
   onReorder?: (fromId: string, toId: string) => void;
+  collapsed: boolean;
+  /** La testata, quando la colonna la porta con sé (board senza corsie). */
+  head?: React.ReactNode;
 }) {
-  const count = lane.tiles.length;
   const [dragOver, setDragOver] = React.useState(false);
   const [colOver, setColOver] = React.useState(false);
-  // Il trascinamento della colonna parte SOLO dalla maniglia: `draggable` si
-  // arma al mousedown sul grip e si disarma alla fine. Senza, l'intera testata
-  // sarebbe trascinabile e il click sui pulsanti diventerebbe un trascinamento
-  // mancato.
-  const [gripArmed, setGripArmed] = React.useState(false);
-  // La colonna compressa resta visibile come binario verticale: sparisce il
-  // corpo, non la colonna — altrimenti non si saprebbe come riaprirla.
-  const [collapsed, setCollapsed] = React.useState(false);
   const canDrop = !!onMoveTile && !!lane.id;
   const canReorder = !!onReorder && !!lane.id;
   return (
@@ -200,58 +250,56 @@ function LaneCol({
         if (id && canDrop) onMoveTile!(id, lane.id!);
       }}
     >
-      <div
-        className="ob-kanban__lane-head"
-        draggable={canReorder && gripArmed}
-        onDragStart={(e) => {
-          e.dataTransfer.setData(COL_MIME, lane.id!);
-          e.dataTransfer.effectAllowed = 'move';
-        }}
-        onDragEnd={() => setGripArmed(false)}
-      >
-        <span
-          className="ob-kanban__lane-grip"
-          onMouseDown={() => canReorder && setGripArmed(true)}
-          onMouseUp={() => setGripArmed(false)}
-          title={canReorder ? 'Trascina per spostare la colonna' : undefined}
-          style={canReorder ? { cursor: 'grab' } : undefined}
-        ><IconGripVertical size={11} stroke={1.6} /></span>
-        <span className="ob-kanban__lane-label" title={lane.label}>{lane.label}</span>
-        <span className="ob-kanban__lane-count">{count}</span>
-        <div style={{ flex: 1 }} />
-        <button
-          type="button"
-          className="ob-kanban__lane-btn"
-          aria-label={collapsed ? 'Espandi' : 'Comprimi'}
-          title={collapsed ? 'Espandi la colonna' : 'Comprimi la colonna'}
-          aria-expanded={!collapsed}
-          onClick={() => setCollapsed((c) => !c)}
-        ><Icon name={collapsed ? 'chevL' : 'chevR'} size={12} /></button>
-        {onLaneMenu && lane.id && (
-          <button
-            type="button"
-            className="ob-kanban__lane-btn"
-            aria-label="Altro"
-            title="Rinomina, sposta o elimina la colonna"
-            onClick={(e) => onLaneMenu(e, lane.id!)}
-          ><IconDots size={12} stroke={1.6} /></button>
-        )}
-      </div>
+      {head}
       <div className="ob-kanban__lane-body ob-scroll" hidden={collapsed}>
-        {count ? (
-          lane.tiles.map((t, ti) => (
-            <TileCard
-              key={t.id ?? ti}
-              t={t}
-              active={!!t.id && t.id === selectedId}
-              onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
-            />
-          ))
-        ) : (
-          <div className="ob-kanban__lane-empty">NESSUN TILE</div>
-        )}
+        {/* Una cella vuota resta vuota: niente scritta. Con una griglia le celle
+            vuote sono la maggioranza, e ripetere "nessun tile" in ognuna riempie
+            la board di rumore per dire una cosa che si vede da sola. Lo spazio
+            resta comunque aperto (min-height sulla colonna) perche' e' li' che
+            si rilascia un tile. */}
+        {lane.tiles.map((t, ti) => (
+          <TileCard
+            key={t.id ?? ti}
+            t={t}
+            active={!!t.id && t.id === selectedId}
+            onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
+          />
+        ))}
       </div>
     </div>
+  );
+}
+
+function LaneCol({
+  lane, onCardClick, selectedId, onMoveTile, onLaneMenu, onReorder,
+}: {
+  lane: Lane;
+  onCardClick?: (id: string) => void;
+  selectedId?: string;
+  onMoveTile?: (tileId: string, targetColId: string) => void;
+  onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
+  onReorder?: (fromId: string, toId: string) => void;
+}) {
+  // Senza corsie la colonna e' una sola cella, e la testata sta con lei.
+  const [collapsed, setCollapsed] = React.useState(false);
+  return (
+    <LaneBody
+      lane={lane}
+      onCardClick={onCardClick}
+      selectedId={selectedId}
+      onMoveTile={onMoveTile}
+      onReorder={onReorder}
+      collapsed={collapsed}
+      head={
+        <LaneHead
+          lane={{ id: lane.id, label: lane.label, count: lane.tiles.length }}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((c) => !c)}
+          onLaneMenu={onLaneMenu}
+          onReorder={onReorder}
+        />
+      }
+    />
   );
 }
 
@@ -277,6 +325,10 @@ export interface KanbanViewProps {
    * dimensione, cioe' esattamente com'era prima che le corsie esistessero.
    */
   bands?: { id: string; label: string; lanes: Lane[] }[];
+  /** Quale asse e' in modalita' DATA: solo quello scorre all'infinito. */
+  dateAxis?: { column: boolean; lane: boolean };
+  /** Allarga la finestra dei giorni quando lo scorrimento tocca un bordo. */
+  onGrowDates?: (which: 'column' | 'lane', side: 'start' | 'end') => void;
   onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
   /** Riordino delle colonne per trascinamento della maniglia. */
   onReorder?: (fromId: string, toId: string) => void;
@@ -285,8 +337,48 @@ export interface KanbanViewProps {
 export function KanbanView({
   lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile,
   tagPills, activeTag = 'all', onTagChange,
-  onAddColumn, onAddLane, onLaneMenu, onReorder, bands,
+  onAddColumn, onAddLane, onLaneMenu, onReorder, bands, dateAxis, onGrowDates,
 }: KanbanViewProps) {
+  /**
+   * Scorrimento infinito dell'asse DATA.
+   *
+   * A 120px dal bordo si chiede un altro tratto di giorni. La soglia non e' zero
+   * apposta: allargando esattamente al bordo la board si fermerebbe un istante a
+   * ogni giro, mentre cosi' i giorni nuovi sono gia' li' quando ci arrivi.
+   *
+   * ⚠️ Allargando all'INIZIO il contenuto cresce a sinistra e il browser tiene
+   * fermo `scrollLeft`: la vista slitterebbe indietro di sette colonne. Si
+   * compensa spostando lo scorrimento della stessa quantita' — la mano resta
+   * dov'era e i giorni nuovi entrano da fuori.
+   */
+  // Con le corsie il collasso di una colonna vale per TUTTE le fasce: la testata
+  // e' una sola, e comanda l'intera colonna.
+  const [collapsedCols, setCollapsedCols] = React.useState<Set<string>>(new Set());
+  const toggleCol = (key: string) => setCollapsedCols((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
+  const EDGE = 120;
+  const onEdgeScroll = (which: 'column' | 'lane') => (e: React.UIEvent<HTMLDivElement>) => {
+    if (!onGrowDates) return;
+    const el = e.currentTarget;
+    const horizontal = which === 'column';
+    const pos = horizontal ? el.scrollLeft : el.scrollTop;
+    const size = horizontal ? el.clientWidth : el.clientHeight;
+    const total = horizontal ? el.scrollWidth : el.scrollHeight;
+    if (pos < EDGE) {
+      const before = total;
+      onGrowDates(which, 'start');
+      requestAnimationFrame(() => {
+        const grown = (horizontal ? el.scrollWidth : el.scrollHeight) - before;
+        if (grown > 0) { if (horizontal) el.scrollLeft += grown; else el.scrollTop += grown; }
+      });
+    } else if (pos + size > total - EDGE) {
+      onGrowDates(which, 'end');
+    }
+  };
   return (
     <div className="ob-kanban">
       {/* Toolbar — prima riga della vista (niente header con titolo/mascotte). */}
@@ -328,36 +420,61 @@ export function KanbanView({
 
       {/* Board */}
       {bands?.length ? (
-        // Con le corsie la board scorre in VERTICALE fra le fasce, e ogni fascia
-        // scorre per conto suo in orizzontale. Le colonne restano allineate fra
-        // una fascia e l'altra perche' hanno tutte la stessa base flex.
-        <div className="ob-kanban__bands ob-scroll">
+        // Griglia: UN solo contenitore che scorre nei due sensi. La riga delle
+        // intestazioni e' `sticky` in alto, la colonna dei nomi `sticky` a
+        // sinistra: restano ferme mentre il resto scorre, e l'incrocio delle due
+        // resta fermo in entrambi i sensi. Con scroller separati per fascia le
+        // colonne si sarebbero disallineate al primo scorrimento.
+        <div
+          className="ob-kanban__grid ob-scroll"
+          onScroll={(e) => {
+            if (dateAxis?.column) onEdgeScroll('column')(e);
+            if (dateAxis?.lane) onEdgeScroll('lane')(e);
+          }}
+        >
+          <div className="ob-kanban__grid-head">
+            <div className="ob-kanban__band-rail ob-kanban__grid-corner" />
+            {(bands[0]?.lanes ?? []).map((l) => (
+              <LaneHead
+                key={l.id ?? l.label}
+                lane={{
+                  id: l.id,
+                  label: l.label,
+                  // Il conteggio in testata e' quello della COLONNA INTERA, non
+                  // di una fascia: la testata sta sopra tutte.
+                  count: bands.reduce((n, b) => n + (b.lanes.find((x) => x.id === l.id)?.tiles.length ?? 0), 0),
+                }}
+                collapsed={collapsedCols.has(l.id ?? l.label)}
+                onToggleCollapse={() => toggleCol(l.id ?? l.label)}
+                onLaneMenu={onLaneMenu}
+                onReorder={onReorder}
+              />
+            ))}
+          </div>
           {bands.map((b) => (
             <section key={b.id} className="ob-kanban__band">
-              <header className="ob-kanban__band-head">
+              <div className="ob-kanban__band-rail">
                 <span className="ob-kanban__band-label" title={b.label}>{b.label}</span>
                 <span className="ob-kanban__band-count">
                   {b.lanes.reduce((n, l) => n + l.tiles.length, 0)}
                 </span>
-              </header>
-              <div className="ob-kanban__board">
-                {b.lanes.map((l) => (
-                  <LaneCol
-                    key={l.id ?? l.label}
-                    lane={l}
-                    onCardClick={onCardClick}
-                    selectedId={selectedId}
-                    onMoveTile={onMoveTile}
-                    onLaneMenu={onLaneMenu}
-                    onReorder={onReorder}
-                  />
-                ))}
               </div>
+              {b.lanes.map((l) => (
+                <LaneBody
+                  key={l.id ?? l.label}
+                  lane={l}
+                  onCardClick={onCardClick}
+                  selectedId={selectedId}
+                  onMoveTile={onMoveTile}
+                  onReorder={onReorder}
+                  collapsed={collapsedCols.has(l.id ?? l.label)}
+                />
+              ))}
             </section>
           ))}
         </div>
       ) : (
-        <div className="ob-kanban__board ob-scroll">
+        <div className="ob-kanban__board ob-scroll" onScroll={dateAxis?.column ? onEdgeScroll('column') : undefined}>
           {lanes.map((l) => (
             <LaneCol
               key={l.id ?? l.label}

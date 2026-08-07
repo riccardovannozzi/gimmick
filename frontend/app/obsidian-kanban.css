@@ -95,7 +95,7 @@
    Bordo solo a DESTRA: accostate, un bordo per lato diventerebbe una doppia
    riga fra una colonna e l'altra. Niente raggio, per lo stesso motivo. */
 .ob-kanban__lane {
-  flex: 1 1 168px; min-width: 168px;
+  flex: 1 1 166px; min-width: 166px;
   display: flex; flex-direction: column;
   background: #f4f3f6;
   border: none;
@@ -139,10 +139,25 @@
 /* Barra di scorrimento nascosta (la rotella funziona lo stesso) e nessun
    `scrollbar-gutter`: riservava lo spazio di una barra che ora non si disegna
    mai, spostando i tile fuori centro di qualche pixel. */
+/* I tile si dispongono a GRIGLIA dentro la cella, non in colonna singola.
+   A meta' scala il tile e' largo 75, quindi due ci stanno affiancati in 153
+   (75+3+75) e la colonna si calibra su quello:
+
+     166 = 153 di due tile + 6+6 di padding + 1 di bordo
+
+   Era 168, cioe' un tile da 150 piu' aria: la stessa larghezza ora mostra il
+   doppio dei tile per riga. E siccome le colonne sono `flex: 1`, quando c'e'
+   spazio si allargano e il numero per riga sale da solo — a 244px ne entrano
+   tre, senza che nessuno debba deciderlo.
+
+   `align-content: flex-start` tiene le righe attaccate in alto: senza, in una
+   cella alta le righe di tile si spalmerebbero verticalmente. */
 .ob-kanban__lane-body {
   flex: 1; overflow-y: auto; overflow-x: hidden;
-  padding: 6px 8px 12px;
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 6px 6px 10px;
+  display: flex; flex-flow: row wrap;
+  align-items: flex-start; align-content: flex-start; justify-content: center;
+  gap: 3px;
   scrollbar-width: none;
 }
 .ob-kanban__lane-body::-webkit-scrollbar { display: none; }
@@ -152,8 +167,24 @@
    l'allineamento nella lane non deve spostarsi. La distanza fra due card è
    quindi 3 (gap del gruppo) + 9 = 12px, la stessa delle colonne di CHRONO.
    `overflow: visible` esplicito: il contenitore non deve mai ritagliare. */
-.ob-kanban__cell { padding-top: 9px; flex-shrink: 0; overflow: visible; }
-.ob-kanban__lane-empty { flex: 1; display: flex; align-items: center; justify-content: center; padding: 34px 0; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-faint); }
+/* ── META' SCALA, SOLO NEL KANBAN ─────────────────────────────────────────────
+   Il tile e' 150×80 in tutte le viste. Qui pero' la board e' una griglia, e a
+   grandezza naturale le poche celle piene occupavano piu' spazio di tutte le
+   vuote messe insieme: si vedeva un tile per schermata invece della forma della
+   board.
+
+   `zoom` e non `transform: scale()`: lo zoom entra nel CALCOLO DEL LAYOUT, quindi
+   la cella misura davvero 75×40 e colonne e righe si stringono di conseguenza.
+   Con `transform` il tile si sarebbe rimpicciolito lasciando in piedi la sua
+   scatola da 150×80, e la griglia sarebbe rimasta larga uguale con un tile
+   piccolo in mezzo al vuoto — l'opposto di quel che serve.
+
+   Il ridimensionamento sta sulla CELLA, che e' una classe del solo Kanban: il
+   `Tile` non sa di essere rimpicciolito e Chrono, canvas e staging non cambiano.
+
+   ⚠️ A meta' scala il titolo cade a 6px: si legge la forma e il colore, non il
+   testo. E' il compromesso che hai scelto — la lettura torna aprendo il tile. */
+.ob-kanban__cell { zoom: 0.5; padding-top: 9px; flex-shrink: 0; overflow: visible; }
 
 /* ── Date pill ── */
 .ob-kanban__datepill { display: flex; align-items: center; gap: 8px; padding: 3px 2px 1px; }
@@ -254,36 +285,90 @@
 
    Lo scorrimento si sdoppia: verticale fra le fasce, orizzontale dentro ognuna.
    Entrambi senza barra visibile, come il resto della vista. */
-.ob-kanban__bands {
-  flex: 1; min-height: 0; overflow-y: auto;
+/* La GRIGLIA: un solo contenitore che scorre nei due sensi. Le fasce non hanno
+   piu' uno scroller per una — con scroller separati le colonne si sarebbero
+   disallineate al primo scorrimento orizzontale. */
+.ob-kanban__grid {
+  flex: 1; min-height: 0; overflow: auto;
   display: flex; flex-direction: column;
   background: var(--ob-canvas);
   scrollbar-width: none;
 }
-.ob-kanban__bands::-webkit-scrollbar { display: none; }
-.ob-kanban__band { display: flex; flex-direction: column; min-height: 0; }
-.ob-kanban__band + .ob-kanban__band { border-top: 1px solid var(--ob-line); }
-/* Testata della fascia: appiccicata in alto mentre la fascia scorre, così sai
-   sempre in quale corsia stai guardando. */
-.ob-kanban__band-head {
-  position: sticky; top: 0; z-index: 3;
-  height: 30px; flex-shrink: 0;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 12px;
+.ob-kanban__grid::-webkit-scrollbar { display: none; }
+/* Riga delle intestazioni: una sola, in cima a tutta la griglia, ferma mentre il
+   resto scorre. Prima era ripetuta in ogni fascia — con cinque corsie erano
+   cinque copie delle stesse cinque intestazioni. */
+.ob-kanban__grid-head {
+  position: sticky; top: 0; z-index: 5;
+  display: flex; align-items: stretch;
+  width: max-content; min-width: 100%;
   background: var(--ob-surface);
-  border-bottom: 1px solid var(--ob-line);
+  border-bottom: 2px solid var(--ob-line-2);
 }
-/* Stessa tipografia delle intestazioni di colonna: il campo di testo della
-   sidebar. Sono due testate della stessa board, non devono parlare due lingue. */
+/* L'incrocio fra la riga fissa e la colonna fissa: deve restare fermo in
+   ENTRAMBI i sensi, quindi z-index piu' alto di tutti e due. */
+.ob-kanban__grid-corner { z-index: 6; border-bottom: none; }
+.ob-kanban__grid-head .ob-kanban__lane-head { border-right: 1px solid var(--ob-line); }
+.ob-kanban__grid-head .ob-kanban__lane-head:last-child { border-right: none; }
+/* Le testate nella riga fissa condividono la geometria delle colonne, altrimenti
+   non ci starebbero sopra. */
+.ob-kanban__grid-head > .ob-kanban__lane-head { flex: 1 1 168px; min-width: 168px; }
+/* `flex: none` non e' cosmetico: senza, la fascia veniva SCHIACCIATA.
+   `.ob-kanban__grid` e' un flex in colonna, e i suoi figli hanno per default
+   `flex-shrink: 1` — quando le fasce insieme superavano l'altezza della vista, il
+   browser le comprimeva tutte invece di lasciar scorrere il contenitore. Il
+   corpo della colonna, che dentro una fascia ha `overflow: visible` per poter
+   crescere, non veniva ritagliato: i tile uscivano dalla loro fascia e finivano
+   disegnati sopra quella sotto. */
+/* La fascia e' una RIGA della griglia: nome a sinistra, poi le celle. */
+.ob-kanban__band { display: flex; flex-direction: row; align-items: stretch; flex: none; width: max-content; min-width: 100%; }
+/* Riga di delimitazione fra una corsia e l'altra. Più marcata della hairline che
+   separa le colonne (`--ob-line-2` contro `--ob-line`): sono due tagli di peso
+   diverso, e la griglia si legge solo se si vede quale dei due comanda. */
+.ob-kanban__band + .ob-kanban__band { border-top: 2px solid var(--ob-line-2); }
+
+/* Prima colonna della fascia: il NOME della corsia.
+   `position: sticky; left: 0` la tiene ferma mentre le altre colonne scorrono —
+   è l'etichetta di riga di una griglia, e un'etichetta di riga che scorre via
+   smette di dire in quale riga sei. Il fondo è opaco apposta: le card le passano
+   sotto. */
+.ob-kanban__band-rail {
+  position: sticky; left: 0; z-index: 4;
+  align-self: stretch;
+  /* 132: quanto basta a un nome orizzontale di due parole senza troncarlo al
+     primo sguardo. Era 44 col titolo ruotato — leggibile ma da inclinare la
+     testa, e su un'etichetta di riga che leggi di continuo non vale il risparmio. */
+  flex: 0 0 132px; width: 132px;
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 12px 10px;
+  background: var(--ob-surface);
+  border-right: 1px solid var(--ob-line-2);
+}
+/* Orizzontale, su due righe al massimo: oltre, il nome finisce in ellissi e il
+   titolo intero resta nel tooltip. */
 .ob-kanban__band-label {
+  flex: 1; min-width: 0;
   font-family: var(--ob-font-sans); font-size: var(--ob-text-control);
   font-weight: var(--ob-weight-body); line-height: var(--ob-leading-text);
   color: var(--ob-text);
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  overflow: hidden; word-break: break-word;
 }
 .ob-kanban__band-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
-/* Dentro una fascia la board non prende tutta l'altezza: si adatta al contenuto
-   e non scende sotto due card, altrimenti una corsia vuota collasserebbe a zero
-   e non si potrebbe rilasciarci sopra un tile. */
-.ob-kanban__band .ob-kanban__board { flex: none; min-height: 190px; }
-.ob-kanban__band .ob-kanban__lane-body { overflow-y: visible; }
+/* L'altezza della fascia SEGUE i tile: `flex: none` toglie la distribuzione in
+   parti uguali e `overflow: visible` sul corpo lascia crescere la colonna, così
+   la fascia è alta quanto la sua colonna più piena. Prima il pavimento era 190px
+   e una corsia con un tile solo occupava lo spazio di tre.
+
+   Un pavimento serve ancora, ma basso: 108 = testata 40 + gronda 9 + tile 80
+   meno la sovrapposizione del padding. Sotto, una corsia vuota si schiaccerebbe
+   sulla sola testata e non ci si potrebbe rilasciare sopra un tile. */
+/* Nella griglia le celle non hanno testata: quella e' in cima, una sola. Il
+   corpo cresce col contenuto e la riga e' alta quanto la sua cella piu' piena.
+   Il pavimento tiene una corsia vuota abbastanza aperta da poterci rilasciare
+   sopra un tile. */
+/* Pavimento della riga: 64 = un tile a meta' scala (40) piu' la gronda e il
+   respiro sopra e sotto. Era 100, calibrato su un tile intero, e ora avrebbe
+   tenuto aperte le righe vuote piu' di quelle piene. */
+.ob-kanban__band .ob-kanban__lane { overflow: visible; min-height: 64px; }
+.ob-kanban__band .ob-kanban__lane-body { overflow-y: visible; flex: 1; }

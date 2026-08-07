@@ -21,7 +21,21 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KanbanView, type Lane, type CardData } from '@/components/views/kanban';
 import { AxisModal } from '@/components/kanban/AxisModal';
-import { kanbanApi, tilesApi, tagsApi } from '@/lib/api';
+import {
+  axisItems, DEFAULT_DATE_WINDOW, DATE_WINDOW_STEP,
+  type AxisItem, type AxisMode, type DateWindow,
+} from '@/lib/kanban-axis';
+
+/** Chiave in `user_settings` che ricorda la configurazione dei due assi. */
+const AXES_KEY = 'kanban_axes';
+
+/** Modalita' dei due assi + le voci spente, per asse e per modalita'. */
+type AxesSetting = {
+  column?: AxisMode;
+  lane?: AxisMode;
+  hidden?: Partial<Record<'column' | 'lane', Partial<Record<AxisMode, string[]>>>>;
+};
+import { kanbanApi, tilesApi, tagsApi, settingsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -109,6 +123,73 @@ export function KanbanLive() {
   const [activeTag, setActiveTag] = useState('all');
   const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; laneId: string } | null>(null);
   const [axisOpen, setAxisOpen] = useState<'column' | 'lane' | null>(null);
+
+  /**
+   * La MODALITA' dei due assi vive nelle impostazioni utente, non in una
+   * tabella: e' una scelta di vista, non un dato. Cambiarla non crea ne'
+   * distrugge righe, e le voci personalizzate restano dove sono.
+   *
+   * Default: colonne personalizzate (cioe' quello che c'era gia' in tabella) e
+   * nessuna corsia — la board che avevi prima, invariata.
+   */
+  const { data: axesData } = useQuery({
+    queryKey: ['settings', AXES_KEY],
+    queryFn: () => settingsApi.get<AxesSetting>(AXES_KEY),
+    staleTime: 5 * 60 * 1000,
+  });
+  const axes: AxesSetting = useMemo(() => axesData?.data ?? {}, [axesData]);
+  const colMode: AxisMode = axes.column ?? 'custom';
+  const laneMode: AxisMode = axes.lane ?? 'none';
+
+  /**
+   * Le voci spente sono ricordate PER ASSE E PER MODALITA': spegnere due status
+   * e poi passare a Tipo non deve portarsi dietro quelle scelte, e tornando a
+   * Status le si ritrova come le si era lasciate.
+   */
+  const hiddenOf = useCallback(
+    (which: 'column' | 'lane', m: AxisMode) => new Set(axes.hidden?.[which]?.[m] ?? []),
+    [axes],
+  );
+  const colHidden = useMemo(() => hiddenOf('column', colMode), [hiddenOf, colMode]);
+  const laneHidden = useMemo(() => hiddenOf('lane', laneMode), [hiddenOf, laneMode]);
+
+  const saveAxes = useCallback((next: AxesSetting) => {
+    queryClient.setQueryData(['settings', AXES_KEY], { success: true, data: next });
+    settingsApi.set(AXES_KEY, next)
+      .then(() => queryClient.invalidateQueries({ queryKey: ['settings', AXES_KEY] }))
+      .catch(() => toast.error('Errore salvataggio vista'));
+  }, [queryClient]);
+
+  const setAxisMode = useCallback((which: 'column' | 'lane', m: AxisMode) => {
+    saveAxes({ ...axes, [which]: m });
+  }, [axes, saveAxes]);
+
+  const toggleHidden = useCallback((which: 'column' | 'lane', m: AxisMode, id: string) => {
+    const cur = new Set(axes.hidden?.[which]?.[m] ?? []);
+    if (cur.has(id)) cur.delete(id); else cur.add(id);
+    saveAxes({
+      ...axes,
+      hidden: { ...axes.hidden, [which]: { ...axes.hidden?.[which], [m]: [...cur] } },
+    });
+  }, [axes, saveAxes]);
+
+  const showAll = useCallback((which: 'column' | 'lane', m: AxisMode) => {
+    saveAxes({
+      ...axes,
+      hidden: { ...axes.hidden, [which]: { ...axes.hidden?.[which], [m]: [] } },
+    });
+  }, [axes, saveAxes]);
+
+  // Finestra dei giorni, una per asse: i giorni non finiscono, quindi l'asse ne
+  // mostra un tratto che si allarga quando arrivi al bordo.
+  const [colDays, setColDays] = useState<DateWindow>(DEFAULT_DATE_WINDOW);
+  const [laneDays, setLaneDays] = useState<DateWindow>(DEFAULT_DATE_WINDOW);
+  const growDays = useCallback((which: 'column' | 'lane', side: 'start' | 'end') => {
+    const set = which === 'column' ? setColDays : setLaneDays;
+    set((w) => (side === 'start'
+      ? { offset: w.offset - DATE_WINDOW_STEP, count: w.count + DATE_WINDOW_STEP }
+      : { offset: w.offset, count: w.count + DATE_WINDOW_STEP }));
+  }, []);
   /**
    * Le linguette: SOLO i tag pinnati, come nella topbar del canvas.
    *
@@ -131,44 +212,75 @@ export function KanbanLive() {
     [allTiles, activeTag],
   );
 
-  const lanes = useMemo<Lane[]>(
-    () =>
-      columns.map((col) => {
-        const matched = visibleTiles.filter((t) => tileMatchesFilters(t, col.filters, typeTileIcons));
-        const sorted = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
-        return {
-          id: col.id,
-          label: col.title,
-          color: col.bg_color || 'var(--ob-muted)',
-          tiles: sorted.map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
-        };
-      }),
-    [columns, visibleTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
+  const iconList = useTypeIcons((s) => s.icons);
+
+  /** Le voci dell'asse COLONNE, derivate dalla modalita' scelta. */
+  const colAll = useMemo(
+    () => axisItems(colMode, {
+      statuses,
+      icons: iconList,
+      tags,
+      custom: columns.map((c) => ({ id: c.id, title: c.title, filters: c.filters })),
+      dateWindow: colDays,
+    }),
+    [colMode, statuses, iconList, tags, columns, colDays],
   );
+  const colItems = useMemo(() => colAll.filter((i) => !colHidden.has(i.id)), [colAll, colHidden]);
+
+  /** Le voci dell'asse CORSIE. `none` = nessuna fascia, board a una dimensione. */
+  const laneAll = useMemo(
+    () => axisItems(laneMode, {
+      statuses,
+      icons: iconList,
+      tags,
+      custom: laneRows.map((c) => ({ id: c.id, title: c.title, filters: c.filters })),
+      dateWindow: laneDays,
+    }),
+    [laneMode, statuses, iconList, tags, laneRows, laneDays],
+  );
+  const laneItems = useMemo(() => laneAll.filter((i) => !laneHidden.has(i.id)), [laneAll, laneHidden]);
+
+  /**
+   * L'ordinamento dentro una cella. In modalita' `custom` lo porta la colonna
+   * (`sort_by`/`sort_dir`); nelle modalita' derivate non c'e' una riga da cui
+   * leggerlo, e resta l'ordine naturale della lista.
+   */
+  const sortOf = useCallback((itemId: string) => {
+    const col = columns.find((c) => c.id === itemId);
+    return { by: col?.sort_by ?? null, dir: col?.sort_dir ?? ('asc' as const) };
+  }, [columns]);
+
+  const buildLane = useCallback(
+    (item: AxisItem, extra?: KanbanFilter[]): Lane => {
+      const matched = visibleTiles.filter(
+        (t) => tileMatchesFilters(t, item.filters, typeTileIcons)
+          && (!extra || tileMatchesFilters(t, extra, typeTileIcons)),
+      );
+      const { by, dir } = sortOf(item.id);
+      return {
+        id: item.id,
+        label: item.title,
+        color: 'var(--ob-muted)',
+        tiles: sortTiles(matched, by, dir).map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
+      };
+    },
+    [visibleTiles, typeTileIcons, sortOf, rootTagId, statusById, getIconForTile],
+  );
+
+  const lanes = useMemo<Lane[]>(() => colItems.map((c) => buildLane(c)), [colItems, buildLane]);
 
   /**
    * Le fasce: una per corsia, ciascuna con la stessa fila di colonne ma vista
    * attraverso i filtri della corsia. La cella e' l'intersezione dei due assi.
-   * Senza corsie l'array e' vuoto e la vista resta quella piatta di prima.
+   * Con `laneMode = 'none'` l'array e' vuoto e la board resta a una dimensione.
    */
   const bands = useMemo(
-    () => laneRows.map((row) => ({
+    () => laneItems.map((row) => ({
       id: row.id,
       label: row.title,
-      lanes: columns.map((col) => {
-        const matched = visibleTiles.filter(
-          (t) => tileMatchesFilters(t, col.filters, typeTileIcons) && tileMatchesFilters(t, row.filters, typeTileIcons),
-        );
-        const sorted = sortTiles(matched, col.sort_by ?? null, col.sort_dir ?? 'asc');
-        return {
-          id: col.id,
-          label: col.title,
-          color: col.bg_color || 'var(--ob-muted)',
-          tiles: sorted.map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
-        };
-      }),
+      lanes: colItems.map((col) => buildLane(col, row.filters)),
     })),
-    [laneRows, columns, visibleTiles, typeTileIcons, rootTagId, statusById, getIconForTile],
+    [laneItems, colItems, buildLane],
   );
 
   const columnMutation = useMutation({
@@ -337,6 +449,8 @@ export function KanbanLive() {
         onAddColumn={() => setAxisOpen('column')}
         onAddLane={() => setAxisOpen('lane')}
         bands={bands}
+        dateAxis={{ column: colMode === 'date', lane: laneMode === 'date' }}
+        onGrowDates={growDays}
         onReorder={reorderColumn}
         onLaneMenu={(e, laneId) => {
           e.stopPropagation();
@@ -348,8 +462,14 @@ export function KanbanLive() {
         open={axisOpen !== null}
         onClose={() => setAxisOpen(null)}
         axis={axisOpen ?? 'column'}
+        mode={axisOpen === 'lane' ? laneMode : colMode}
+        otherMode={axisOpen === 'lane' ? colMode : laneMode}
+        onModeChange={(m) => setAxisMode(axisOpen ?? 'column', m)}
         entries={axisOpen === 'lane' ? laneRows : columns}
-        otherEntries={axisOpen === 'lane' ? columns : laneRows}
+        items={axisOpen === 'lane' ? laneAll : colAll}
+        hidden={axisOpen === 'lane' ? laneHidden : colHidden}
+        onToggleHidden={(id) => toggleHidden(axisOpen ?? 'column', axisOpen === 'lane' ? laneMode : colMode, id)}
+        onShowAll={() => showAll(axisOpen ?? 'column', axisOpen === 'lane' ? laneMode : colMode)}
         tags={tags}
         onCreate={createAxis}
         onDelete={deleteAxis}
