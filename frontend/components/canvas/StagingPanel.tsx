@@ -16,6 +16,7 @@ import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 // `Tile` è già il tipo di dominio: la card si chiama `TileComponent`.
 import { Tile as TileComponent } from '@/components/tiles/Tile';
+import { TILE_W } from '@/lib/tile-visual';
 import { tileVisualKey, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { Tile } from '@/types';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
@@ -32,7 +33,9 @@ interface Props {
   onToggle?: () => void;
 }
 
-const TILE_W = 150;
+/** L'ingombro reale di un tile: 120, non il 150 su cui è disegnato. Arriva dal
+ *  sistema visivo perché la colonna deve essere larga quanto il tile è, non
+ *  quanto sarebbe se non fosse scalato. */
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
 const fmtTime = (iso: string) => {
@@ -46,11 +49,11 @@ const BODY_PAD = 8;
 const STAGING_SCROLLBAR_W = 6;
 /**
  * Larghezza minima del pannello: esattamente UNA colonna di tile, stessa regola
- * delle colonne NOTES/TODO di CHRONO (`.ob-chrono__col`: 170 = 150 di tile +
- * 9+9 di padding + 1 di bordo) e delle lane del KANBAN, che come qui includono
- * anche il gutter della scrollbar. 150 + 8+8 + 6 + 1 = 173. Sotto questa soglia
- * il tile da 150 verrebbe tagliato, quindi è il limite sia del resize col
- * separatore sia del valore ripristinato da localStorage.
+ * delle colonne NOTES/TODO/FLOW di CHRONO (`.ob-chrono__col`) e delle lane del
+ * KANBAN, che come qui includono anche il gutter della scrollbar.
+ * 120 + 8+8 + 6 + 1 = 143. Sotto questa soglia il tile verrebbe tagliato, quindi
+ * è il limite sia del resize col separatore sia del valore ripristinato da
+ * localStorage.
  */
 export const STAGING_MIN_W = TILE_W + BODY_PAD * 2 + STAGING_SCROLLBAR_W + 1;
 

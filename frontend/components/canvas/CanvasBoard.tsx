@@ -14,7 +14,7 @@ import { usePixelTheme } from '@/components/pixel';
 // `Tile` è già il tipo di dominio importato qui sopra: la card si chiama
 // `TileCard` per non coprirlo.
 import { Tile as TileCard } from '@/components/tiles/Tile';
-import { tileVisualKey, TILE_VISUAL, TILE_LOD_MIN_SCALE, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { tileVisualKey, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
 import { TextEditor } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
@@ -42,16 +42,21 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
   } catch { /* quota/privacy mode: la vista semplicemente non si ricorda */ }
 }
 
-const TILE_W = 150;
-const TILE_H = 80;
+/**
+ * ⚠️ `TILE_W`/`TILE_H` arrivano ora da lib/tile-visual (120×64) e NON sono più
+ * dichiarati qui a 150×80. È l'ingombro che il tile occupa davvero: il
+ * rettangolo di presa, l'anello di selezione e gli agganci degli edge devono
+ * combaciare col disegno, e il disegno è scalato da `--ob-tile-zoom`.
+ * Le posizioni salvate non cambiano: i tile restano dove sono, più piccoli.
+ */
 /**
  * Gronda del riquadro che ospita la card.
  *
  * Il badge d'angolo sborda di 8px sopra il bordo superiore, per costruzione. Un
  * `<foreignObject>` RITAGLIA il proprio contenuto al proprio rettangolo, quindi
- * se lo dimensionassimo 150×80 il badge verrebbe tagliato a metà. Il riquadro è
+ * se lo dimensionassimo 120×64 il badge verrebbe tagliato a metà. Il riquadro è
  * perciò più grande su tutti i lati e la card viene rimessa in posizione con un
- * margine interno di pari valore: il tile resta 150×80 e allineato alla griglia,
+ * margine interno di pari valore: il tile resta 120×64 e allineato alla griglia,
  * cambia solo la finestra in cui è disegnato.
  */
 const TILE_BLEED = 12;

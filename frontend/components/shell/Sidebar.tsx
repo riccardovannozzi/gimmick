@@ -45,9 +45,11 @@ export interface SidebarProps {
   groups: SidebarGroup[];
   /** Total tag count shown in the header badge. */
   count?: number;
-  /** Currently selected child id (single selection). */
-  activeChildId?: string;
-  onSelectChild?: (id: string) => void;
+  /** Tag selezionati. Più d'uno quando li si prende con ctrl/cmd+click: le viste
+   *  che filtrano per tag ne mostrano l'unione. */
+  activeChildIds?: string[];
+  /** `additive` = ctrl/cmd premuto: aggiungi/togli invece di sostituire. */
+  onSelectChild?: (id: string, additive: boolean) => void;
   filter?: string;
   onFilterChange?: (value: string) => void;
   /** Label for the "pinned" segment (e.g. "Pinned · 2"). */
@@ -65,7 +67,7 @@ export interface SidebarProps {
 export function Sidebar({
   groups,
   count,
-  activeChildId,
+  activeChildIds,
   onSelectChild,
   filter = 'all',
   onFilterChange,
@@ -81,6 +83,8 @@ export function Sidebar({
   // Ricerca testuale: filtra gruppi e tag per nome.
   const [query, setQuery] = React.useState('');
   const q = query.trim().toLowerCase();
+
+  const activeIds = React.useMemo(() => new Set(activeChildIds), [activeChildIds]);
 
   const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
@@ -168,13 +172,19 @@ export function Sidebar({
             {isOpen && kids.length > 0 && (
               <div className="ob-sb-group__kids">
                 {kids.map((c) => {
-                  const isActive = c.id === activeChildId;
+                  const isActive = activeIds.has(c.id);
                   return (
                     <div key={c.id} className={cn('ob-sb-child', isActive && 'ob-sb-child--active')}>
                       <button
                         type="button"
                         className="ob-sb-child__main"
-                        onClick={() => onSelectChild?.(c.id)}
+                        // Ctrl (cmd sul Mac) aggiunge invece di sostituire: si
+                        // guardano più tag insieme. Chi riceve decide se la sua
+                        // vista sa mostrarne più d'uno.
+                        onClick={(e) => onSelectChild?.(c.id, e.ctrlKey || e.metaKey)}
+                        title={isActive
+                          ? 'Ctrl+click per togliere questo tag dalla selezione'
+                          : 'Ctrl+click per aggiungerlo a quelli già selezionati'}
                       >
                         <span className="ob-sb-child__name">{c.name}</span>
                       </button>

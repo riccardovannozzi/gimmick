@@ -1,22 +1,24 @@
 'use client';
 
 import { useState } from 'react';
-import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
+import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconCircleCheck } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import type { Tag } from '@/types';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
-function ToolbarToggle({ icon, label, active, onClick }: {
+function ToolbarToggle({ icon, label, active, onClick, title }: {
   icon: React.ReactNode;
   label: string;
   active: boolean;
   onClick: () => void;
+  /** Quando l'etichetta da sola non basta a dire cosa fa il pulsante. */
+  title?: string;
 }) {
   const theme = usePixelTheme();
   const style = obsidianToolbarBtn(theme, active);
   return (
-    <button onClick={onClick} style={style} title={label}>
+    <button onClick={onClick} style={style} title={title ?? label}>
       {icon}
       {label}
     </button>
@@ -50,6 +52,14 @@ interface CanvasTopbarProps {
   onToggleSelectMode: () => void;
   onFit: () => void;
   onZoom100: () => void;
+  /**
+   * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
+   * entrambi gli stati, cambia solo se si tingono.
+   * Assente il callback, il pulsante non compare: è così che la barra si spegne
+   * nello stato "nessun tag aperto".
+   */
+  doneHighlight?: boolean;
+  onToggleDoneHighlight?: () => void;
   pinnedTags?: Tag[];
   onPinnedTagClick?: (tagId: string) => void;
   onUnpinTag?: (tagId: string) => void;
@@ -57,7 +67,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, onFit, onZoom100, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   const chipFont = 'var(--ob-font-sans)';
@@ -70,18 +80,21 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   // linea inferiore della barra (tab-strip). Più alta dei 30 degli altri controlli,
   // altrimenti non si legge come tab.
   //
-  // Il testo però deve stare sulla STESSA riga ottica degli altri controlli della
-  // fascia (segmentato di sinistra, toolbar, tabbar di destra), quindi non è
-  // centrato nella linguetta: il padding inferiore spinge la scatola del contenuto
-  // verso l'alto. I conti, in una barra da 48 con hairline da 1 (→ 47 utili):
-  //   · un controllo da 30 centrato occupa 8.5–38.5, quindi il suo testo è a 23.5;
-  //   · la linguetta è ancorata in basso, dunque va da 47-38=9 a 47; la scatola del
-  //     contenuto è 38-8=30 e parte da 9, quindi il suo testo cade a 9+15=24.
-  // Mezzo pixel di scarto, invisibile. Cambiando TAB_H va ricalcolato TAB_PAD_B
-  // come TAB_H - 30 — e lo stesso vale se cambia `--ob-toolbar-height`: i conti
-  // qui sopra partono da quel 48.
+  // TAB_PAD_B è lo spazio SOTTO l'etichetta, dentro la linguetta.
+  //
+  // Valeva `TAB_H - 30`, cioè 8: rendeva la scatola del contenuto alta quanto un
+  // controllo (30) così il testo della linguetta cadeva sulla stessa riga ottica
+  // di Fit e 100%, all'altro capo della barra. Corretto in astratto, ma lasciava
+  // 8px di linguetta vuota sotto il nome — e una linguetta staccata da quello
+  // che etichetta smette di leggersi come linguetta: una tab sta SOPRA il suo
+  // contenuto, appoggiata.
+  //
+  // Con 4 l'etichetta scende di 2px rispetto ai controlli di destra: è lo scarto
+  // che si è scelto di pagare per riattaccare le linguette alla riga sotto.
+  // ⚠️ Il gemello è `.ob-kanban__tag-tab` in app/obsidian-kanban.css — stessa
+  // forma, stessa barra da 48, e vanno mossi insieme.
   const TAB_H = 38;
-  const TAB_PAD_B = TAB_H - 30;
+  const TAB_PAD_B = 4;
   const tabShape = {
     height: TAB_H,
     alignSelf: 'flex-end' as const,
@@ -290,6 +303,22 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         <ToolbarToggle icon={<IconLayoutGrid size={12} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
         <ToolbarToggle icon={<IconNote size={12} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolbarToggle icon={<IconPhoto size={12} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onToggleDoneHighlight && (
+          <>
+            <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px' }} />
+            {/* Non e' una modalita' di disegno come i quattro qui sopra: e' un
+                modo di guardare la board. Il separatore lo tiene a parte. */}
+            <ToolbarToggle
+              icon={<IconCircleCheck size={12} />}
+              label="Done"
+              active={doneHighlight}
+              onClick={onToggleDoneHighlight}
+              title={doneHighlight
+                ? 'Togli il verde dalle attività completate'
+                : 'Evidenzia in verde le attività completate'}
+            />
+          </>
+        )}
         <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px' }} />
         <ToolbarButton icon={<IconMaximize size={12} />} label="Fit" onClick={onFit} />
         <ToolbarButton icon={null} label="100%" onClick={onZoom100} />

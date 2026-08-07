@@ -788,13 +788,26 @@ export interface ChronoViewProps {
   colorMode?: ChronoColorMode;
   /** Imposta la modalità colorazione (segmented By Tag / By Type). */
   onSetColorMode?: (mode: ChronoColorMode) => void;
+  /**
+   * Tinge di verde le attività COMPLETATE, come il pulsante "Done" della topbar
+   * del canvas. Non le filtra: i tile ci sono in entrambi gli stati, cambia solo
+   * se si tingono — nelle colonne E nel calendario.
+   * Assente il callback, il pulsante non compare (anteprime senza dati veri).
+   */
+  doneHighlight?: boolean;
+  onToggleDoneHighlight?: () => void;
 }
 
 export function ChronoView({
   notes = NOTES, todos = TODOS, flows = FLOWS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onSetColorMode,
+  doneHighlight = false, onToggleDoneHighlight,
 }: ChronoViewProps) {
   return (
-    <div className="ob-chrono">
+    // `ob-done-hl` accende il verde sui completati DENTRO la vista: una classe
+    // sul contenitore, come sul canvas. Qui copre due famiglie — i `Tile` delle
+    // colonne e i blocchi del calendario — che restano entrambi ignari di chi li
+    // ospita: sono le regole di contesto a decidere.
+    <div className={cn('ob-chrono', doneHighlight && 'ob-done-hl')}>
       {/* Toolbar — gemella della toolbar del canvas (`CanvasTopbar`): stessa
           fascia da 48, stessi chip da 30, e come lì i controlli stanno tutti a
           destra (nel canvas la sinistra è occupata dalle linguette dei tag
@@ -806,6 +819,25 @@ export function ChronoView({
             <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'tag' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('tag')} title="Colora i tile per Tag">By Tag</button>
             <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'type' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('type')} title="Colora i tile per Tipo">By Type</button>
             <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'status' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('status')} title="Colora i tile per Status">By Status</button>
+            <div className="ob-chrono__tbar-sep" />
+          </>
+        )}
+        {onToggleDoneHighlight && (
+          <>
+            {/* Non è una modalità di colorazione come le tre qui sopra: quelle
+                decidono da quale campo il tile prende il colore, questa accende
+                un segnale sopra tutte. Il separatore la tiene a parte. */}
+            <button
+              type="button"
+              className={cn('ob-chrono__tbtn', doneHighlight && 'ob-chrono__tbtn--active')}
+              onClick={onToggleDoneHighlight}
+              aria-pressed={doneHighlight}
+              title={doneHighlight
+                ? 'Togli il verde dalle attività completate'
+                : 'Evidenzia in verde le attività completate'}
+            >
+              <Icon name="check" size={12} />Done
+            </button>
             <div className="ob-chrono__tbar-sep" />
           </>
         )}

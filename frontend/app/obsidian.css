@@ -156,8 +156,8 @@
   --ob-text-micro: 9px;
   --ob-text-meta: 11px;
   --ob-text-card: 12px;
-  --ob-text-control: 13px;
-  --ob-text-title: 16px;
+  --ob-text-control: 12px;
+  --ob-text-title: 14px;
 
   /* Tre pesi, nessun altro. `mono` è il 700 delle etichette monospaziate;
      400 e 600 sono corpo ed enfasi. Il 300 e il 500 sono stati riassorbiti. */
@@ -195,6 +195,22 @@
      passando da una all'altra la fascia sotto la navbar saltava.
      NON riguarda la navbar (56, in `.ob-hd`) né le barre di secondo livello. */
   --ob-toolbar-height: 48px;
+
+  /* ── Scala del TILE ──────────────────────────────────────────────────────
+     Il tile è disegnato su un rettangolo di 150×80 e mostrato a 0.8, cioè
+     120×64. È la misura STANDARD: canvas, staging, colonne di CHRONO
+     (Notes/Todo/Flow) e Kanban lo mostrano tutti così.
+
+     Perché una scala e non un rettangolo da 120×64 ridisegnato: `zoom` riduce
+     ANCHE l'interno — testo, spaziature, strip, badge — mantenendo le
+     proporzioni che rendono il tile leggibile. Ridisegnarlo a 120×64 avrebbe
+     voluto dire ricalcolare a mano ogni misura interna, e i corpi tipografici
+     sarebbero caduti fuori dalla scala canonica (8/9/11/12/13/16).
+
+     ⚠️ Il gemello di questo numero è `TILE_SCALE` in lib/tile-visual.ts, che
+     serve al canvas per la geometria SVG (JavaScript non può leggere un token
+     CSS). Sono le uniche due dichiarazioni: se ne cambi una, cambia l'altra. */
+  --ob-tile-zoom: 0.8;
 
   /* Rosso dell'azione distruttiva (elimina, conferma eliminazione).
      È DISTINTO da `--ob-error`, che segnala uno stato e cambia col tema
