@@ -5,9 +5,12 @@
  * GimmickMobileAuth.dc.html. Reuses the mobile shell + tokens.
  */
 import React from 'react';
-import { View, Text, Pressable, TextInput, Image } from 'react-native';
 import {
-  IconMail, IconLock, IconEye, IconBrandGoogle, IconBrandApple, IconArrowRight,
+  View, Text, Pressable, TextInput, Image,
+  KeyboardAvoidingView, ScrollView, Platform,
+} from 'react-native';
+import {
+  IconMail, IconLock, IconEye, IconEyeOff, IconBrandGoogle, IconBrandApple, IconArrowRight,
   IconMicrophone, IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconPaperclip,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
@@ -44,15 +47,22 @@ function GimmickMark({ size }: { size: number }) {
 // definiti nel corpo di Login, ad ogni keystroke Login si ri-renderizza, la loro
 // identità cambia e React rimonta il TextInput → il focus si perde e la tastiera
 // si chiude ad ogni lettera. Tenendoli fuori, l'identità resta stabile.
-function LoginField({ c, Icon, placeholder, secure, eye, value, onChangeText, keyboardType, autoCapitalize, loading }: {
+function LoginField({ c, Icon, placeholder, secure, eye, eyeOpen, onToggleEye, value, onChangeText, keyboardType, autoCapitalize, loading, textContentType, onSubmitEditing, returnKeyType, inputRef }: {
   c: ObsidianColors; Icon: typeof IconMail; placeholder: string; secure?: boolean; eye?: boolean;
+  eyeOpen?: boolean; onToggleEye?: () => void;
   value?: string; onChangeText?: (t: string) => void;
   keyboardType?: 'email-address' | 'default'; autoCapitalize?: 'none' | 'sentences'; loading?: boolean;
+  textContentType?: 'emailAddress' | 'password'; onSubmitEditing?: () => void;
+  returnKeyType?: 'next' | 'go'; inputRef?: React.Ref<TextInput>;
 }) {
   return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, backgroundColor: c.field, borderWidth: 1, borderColor: c.line2, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, minHeight: OB_BTN_H }}>
-      <Icon size={17} color={c.subtle} strokeWidth={1.8} />
+    // Senza bordo: il campo si stacca dal fondo per la sola superficie `field`,
+    // come ogni altro input dell'app (TileScreen, SubtaskList, composer di Ask).
+    // I bordi qui dentro stanno sui contenitori, non sui campi.
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.field, borderRadius: 11, paddingHorizontal: 13, paddingVertical: 12, minHeight: OB_BTN_H }}>
+      <Icon size={16} color={c.subtle} strokeWidth={1.8} />
       <TextInput
+        ref={inputRef}
         placeholder={placeholder}
         placeholderTextColor={c.subtle}
         secureTextEntry={secure}
@@ -62,19 +72,39 @@ function LoginField({ c, Icon, placeholder, secure, eye, value, onChangeText, ke
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
         editable={!loading}
+        textContentType={textContentType}
+        onSubmitEditing={onSubmitEditing}
+        returnKeyType={returnKeyType}
+        blurOnSubmit={false}
         style={{ flex: 1, fontSize: 14, color: c.text }}
       />
-      {eye ? <IconEye size={16} color={c.subtle} strokeWidth={1.8} /> : null}
+      {/* L'occhio era un'icona e basta: nessun modo di rileggere la password
+          appena digitata, che su tastiera mobile è il primo motivo per cui un
+          login «non funziona». */}
+      {eye ? (
+        <Pressable
+          onPress={onToggleEye}
+          hitSlop={10}
+          accessibilityRole="button"
+          accessibilityLabel={eyeOpen ? 'Nascondi password' : 'Mostra password'}
+        >
+          {eyeOpen
+            ? <IconEyeOff size={16} color={c.text} strokeWidth={1.8} />
+            : <IconEye size={16} color={c.subtle} strokeWidth={1.8} />}
+        </Pressable>
+      ) : null}
     </View>
   );
 }
 
-function LoginSocial({ c, Icon, label }: { c: ObsidianColors; Icon: typeof IconBrandGoogle; label: string }) {
+function LoginSocial({ c, Icon, label, onPress }: { c: ObsidianColors; Icon: typeof IconBrandGoogle; label: string; onPress?: () => void }) {
   return (
-    <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface }}>
-      <Icon size={18} color={c.text} strokeWidth={1.8} />
-      <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>{label}</Text>
-    </View>
+    <Pressable onPress={onPress} accessibilityRole="button" style={{ flex: 1 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, minHeight: OB_BTN_H, borderRadius: 12, borderWidth: 1, borderColor: c.line2, backgroundColor: c.surface }}>
+        <Icon size={18} color={c.text} strokeWidth={1.8} />
+        <Text style={{ fontSize: 13.5, fontWeight: '600', color: c.text }}>{label}</Text>
+      </View>
+    </Pressable>
   );
 }
 
@@ -89,47 +119,82 @@ interface LoginProps {
   onPassword?: (t: string) => void;
   onSubmit?: () => void;
   onRegister?: () => void;
+  onForgot?: () => void;
+  onSocial?: () => void;
   loading?: boolean;
   error?: string | null;
+  info?: string | null;
 }
-function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRegister, loading, error }: LoginProps) {
+function Login({ c, onNext, email, password, onEmail, onPassword, onSubmit, onRegister, onForgot, onSocial, loading, error, info }: LoginProps) {
   const live = onSubmit !== undefined;
   const primary = live ? onSubmit : onNext;
+  const [showPassword, setShowPassword] = React.useState(false);
+  const passwordRef = React.useRef<TextInput>(null);
+
   return (
-    <View style={{ flex: 1, paddingHorizontal: 24, justifyContent: 'center' }}>
-      <View style={{ alignItems: 'center', marginBottom: 30 }}>
-        <GimmickMark size={56} />
-        <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.7, color: c.text, marginTop: 18 }}>Bentornato</Text>
-        <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi tiles</Text>
-      </View>
-      <View style={{ gap: 11 }}>
-        <LoginField c={c} loading={loading} Icon={IconMail} placeholder="ruslan@gimmick.app" value={email} onChangeText={onEmail} keyboardType="email-address" autoCapitalize="none" />
-        <LoginField c={c} loading={loading} Icon={IconLock} placeholder="••••••••••" secure eye value={password} onChangeText={onPassword} />
-      </View>
-      {error ? <Text style={{ fontSize: 12.5, color: c.deadline, marginTop: 12, marginHorizontal: 2 }}>{error}</Text> : null}
-      <Text style={{ textAlign: 'right', fontSize: 12.5, fontWeight: '600', color: c.accent, marginVertical: 14, marginHorizontal: 2 }}>Password dimenticata?</Text>
-      {/* Touch = Pressable, chrome = View interno con stile STATICO. In questo
-          ambiente lo `style` in forma-funzione su Pressable non viene applicato,
-          quindi il rettangolo (sfondo/altezza/raggio) sparirebbe: lo spostiamo
-          sulla View, che lo rende sempre. */}
-      <Pressable onPress={primary} disabled={loading} android_ripple={{ color: 'rgba(0,0,0,0.18)' }}>
-        <View style={{ minHeight: OB_BTN_H, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', opacity: loading ? 0.6 : 1 }}>
-          <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
+    // La form stava in un View centrato, senza scroll né gestione tastiera: ad
+    // aprire la tastiera il campo password finiva sotto, e sembrava che la
+    // schermata non lasciasse inserire i dati. `keyboardShouldPersistTaps` è
+    // l'altra metà del problema — senza, il primo tocco su «Accedi» veniva
+    // consumato per chiudere la tastiera e il bottone non rispondeva.
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={{ flex: 1 }}
+    >
+      <ScrollView
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 }}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={{ alignItems: 'center', marginBottom: 30 }}>
+          <GimmickMark size={56} />
+          <Text style={{ fontSize: 24, fontWeight: '700', letterSpacing: -0.7, color: c.text, marginTop: 18 }}>Bentornato</Text>
+          <Text style={{ fontSize: 14, color: c.muted, marginTop: 5 }}>Accedi per gestire i tuoi tiles</Text>
         </View>
-      </Pressable>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
-        <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
-        <Text style={{ fontSize: 11, color: c.subtle }}>oppure</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
-      </View>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        <LoginSocial c={c} Icon={IconBrandGoogle} label="Google" />
-        <LoginSocial c={c} Icon={IconBrandApple} label="Apple" />
-      </View>
-      <Pressable onPress={live ? onRegister : onNext} disabled={loading} style={{ marginTop: 24 }}>
-        <Text style={{ textAlign: 'center', fontSize: 13, color: c.muted }}>Non hai un account? <Text style={{ fontWeight: '600', color: c.accent }}>Registrati</Text></Text>
-      </Pressable>
-    </View>
+        <View style={{ gap: 11 }}>
+          <LoginField
+            c={c} loading={loading} Icon={IconMail} placeholder="Indirizzo email"
+            value={email} onChangeText={onEmail}
+            keyboardType="email-address" autoCapitalize="none" textContentType="emailAddress"
+            returnKeyType="next" onSubmitEditing={() => passwordRef.current?.focus()}
+          />
+          <LoginField
+            c={c} loading={loading} Icon={IconLock} placeholder="Password" inputRef={passwordRef}
+            secure={!showPassword} eye eyeOpen={showPassword} onToggleEye={() => setShowPassword((v) => !v)}
+            value={password} onChangeText={onPassword}
+            autoCapitalize="none" textContentType="password"
+            returnKeyType="go" onSubmitEditing={loading ? undefined : primary}
+          />
+        </View>
+        {error ? <Text style={{ fontSize: 12.5, color: c.deadline, marginTop: 12, marginHorizontal: 2 }}>{error}</Text> : null}
+        {info ? <Text style={{ fontSize: 12.5, color: c.muted, marginTop: 12, marginHorizontal: 2 }}>{info}</Text> : null}
+        <Pressable onPress={onForgot} disabled={loading || !onForgot} hitSlop={8} style={{ marginVertical: 14 }}>
+          <Text style={{ textAlign: 'right', fontSize: 12.5, fontWeight: '600', color: c.accent, marginHorizontal: 2 }}>Password dimenticata?</Text>
+        </Pressable>
+        {/* Touch = Pressable, chrome = View interno con stile STATICO. In questo
+            ambiente lo `style` in forma-funzione su Pressable non viene applicato,
+            quindi il rettangolo (sfondo/altezza/raggio) sparirebbe: lo spostiamo
+            sulla View, che lo rende sempre. */}
+        <Pressable onPress={primary} disabled={loading} android_ripple={{ color: 'rgba(0,0,0,0.18)' }}>
+          <View style={{ minHeight: OB_BTN_H, borderRadius: 13, backgroundColor: c.accent, alignItems: 'center', justifyContent: 'center', overflow: 'hidden', opacity: loading ? 0.6 : 1 }}>
+            <Text style={{ fontSize: 15, fontWeight: '600', color: c.accentInk }}>{loading ? 'Accesso…' : 'Accedi'}</Text>
+          </View>
+        </Pressable>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 20 }}>
+          <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
+          <Text style={{ fontSize: 11, color: c.subtle }}>oppure</Text>
+          <View style={{ flex: 1, height: 1, backgroundColor: c.line }} />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <LoginSocial c={c} Icon={IconBrandGoogle} label="Google" onPress={onSocial} />
+          <LoginSocial c={c} Icon={IconBrandApple} label="Apple" onPress={onSocial} />
+        </View>
+        <Pressable onPress={live ? onRegister : onNext} disabled={loading} style={{ marginTop: 24 }}>
+          <Text style={{ textAlign: 'center', fontSize: 13, color: c.muted }}>Non hai un account? <Text style={{ fontWeight: '600', color: c.accent }}>Registrati</Text></Text>
+        </Pressable>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -215,12 +280,16 @@ export interface ObsidianAuthScreenProps {
   onPassword?: (t: string) => void;
   onLogin?: () => void;
   onRegister?: () => void;
+  onForgot?: () => void;
+  onSocial?: () => void;
   loading?: boolean;
   error?: string | null;
+  info?: string | null;
 }
 
 export function ObsidianAuthScreen({
-  initial = 'login', email, password, onEmail, onPassword, onLogin, onRegister, loading, error,
+  initial = 'login', email, password, onEmail, onPassword, onLogin, onRegister,
+  onForgot, onSocial, loading, error, info,
 }: ObsidianAuthScreenProps = {}) {
   const c = useObsidian();
   const [screen, setScreen] = React.useState<'login' | 'onb' | 'first'>(initial);
@@ -238,8 +307,11 @@ export function ObsidianAuthScreen({
           onPassword={onPassword}
           onSubmit={onLogin}
           onRegister={onRegister}
+          onForgot={onForgot}
+          onSocial={onSocial}
           loading={loading}
           error={error}
+          info={info}
         />
       )}
       {screen === 'onb' && <Onboarding c={c} onNext={() => setScreen('first')} />}

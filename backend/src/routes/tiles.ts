@@ -418,6 +418,35 @@ tilesRouter.patch(
         }
       }
 
+      // QUANDO è stato completato, non solo se (migration 040).
+      //
+      // Qui e non prima: a questo punto `is_completed` è già stato derivato
+      // dallo status, quindi la regola vale per ogni strada che porta al
+      // completamento — cambio di status o flag mandato dal client.
+      if ('is_completed' in updates) {
+        const { data: current } = await supabaseAdmin
+          .from('tiles')
+          .select('is_completed, completed_at')
+          .eq('id', id)
+          .eq('user_id', req.user!.id)
+          .maybeSingle();
+
+        if (updates.is_completed) {
+          // Solo alla TRANSIZIONE: ri-salvare un tile già chiuso non deve
+          // spostarne in avanti la data di chiusura — quella dell'ultima
+          // modifica è `updated_at`, ed è un'altra cosa. La seconda condizione
+          // recupera i tile chiusi prima della 040 a cui il backfill non è
+          // arrivato.
+          if (!current?.is_completed || !current?.completed_at) {
+            updates.completed_at = new Date().toISOString();
+          }
+        } else {
+          // Riaperto: senza questo azzeramento una riga risulterebbe insieme
+          // aperta e con una data di chiusura.
+          updates.completed_at = null;
+        }
+      }
+
       updates.updated_at = new Date().toISOString();
 
       const { data, error } = await supabaseAdmin

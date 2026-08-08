@@ -47,7 +47,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
     <div
       style={{
         borderLeft: `1px solid ${theme.border}`,
-        background: theme.bg2,
+        background: 'var(--ob-rail-bg)',
         transition: 'width 200ms',
         display: 'flex',
         flexDirection: 'column',
@@ -58,7 +58,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
       {/* Header: collapse + titolo */}
       <div
         style={{
-          height: 48,
+          height: 'var(--ob-toolbar-height)',
           padding: open ? '0 8px' : 0,
           display: 'flex',
           alignItems: 'center',
@@ -133,7 +133,7 @@ export function EdgeSidebar({ edge, open, onToggle, onUpdate, onDelete }: EdgeSi
               placeholder="Etichetta del collegamento"
               style={{
                 width: '100%', padding: '8px 10px',
-                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
                 color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, outline: 'none',
               }}
             />

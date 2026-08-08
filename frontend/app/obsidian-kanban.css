@@ -60,9 +60,15 @@
    Con 4 l'etichetta scende di 2px rispetto ai controlli di destra. È lo scarto
    che si è scelto di pagare per riattaccare le linguette alla riga sotto. */
 .ob-kanban__tag-tab {
-  height: 38px; align-self: flex-end; padding: 0 14px 4px;
+  /* Come `.ob-lug`: 4px di respiro sopra, e un padding inferiore che vale
+     altrettanto perché il testo resti sulla riga comune. Vedi la nota estesa sul
+     primitivo — i due numeri vanno cambiati insieme. */
+  height: calc(var(--ob-toolbar-height) - 5px); align-self: flex-end; padding: 0 14px 4px;
   display: inline-flex; align-items: center;
-  border-radius: var(--ob-radius-sm) var(--ob-radius-sm) 0 0;
+  /* Raggio dei CONTENITORI, come `.ob-lug`: è una linguetta, non un controllo.
+     ⚠️ Questa striscia è l'ultima rimasta fuori dal primitivo — quando passerà
+     a `.ob-lug` questa riga sparisce con tutto il resto. */
+  border-radius: var(--ob-radius-md) var(--ob-radius-md) 0 0;
   font-family: var(--ob-font-sans); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); letter-spacing: 0;
   color: var(--ob-muted);
   background: var(--ob-surface-2); border: none;
@@ -111,13 +117,17 @@
 .ob-kanban__lane {
   flex: 1 0 256px; min-width: 256px;
   display: flex; flex-direction: column;
-  background: #f4f3f6;
+  /* Il dentro della griglia è la stessa superficie del fuori: `--ob-canvas`,
+     come ogni area di lavoro. Aveva una coppia di grigi propri (#f4f3f6 /
+     #141414) che facevano della griglia un riquadro appoggiato sulla vista,
+     con un salto di tono lungo il suo perimetro. A dividere le celle bastano le
+     hairline — è una griglia, non una pila di schede. */
+  background: var(--ob-canvas);
   border: none;
   border-right: 1px solid var(--ob-line);
   overflow: hidden;
 }
 .ob-kanban__lane:last-child { border-right: none; }
-[data-theme='dark'] .ob-kanban__lane { background: #141414; }
 /* Colonna compressa: si stringe alla sola testata. Resta VISIBILE — sparisce il
    corpo, non la colonna — altrimenti non si saprebbe come riaprirla. Il titolo
    ruota per restare leggibile nella striscia stretta, come il binario delle
@@ -352,6 +362,12 @@
    separa le colonne (`--ob-line-2` contro `--ob-line`): sono due tagli di peso
    diverso, e la griglia si legge solo se si vede quale dei due comanda. */
 .ob-kanban__band + .ob-kanban__band { border-top: 2px solid var(--ob-line-2); }
+/* L'ULTIMA corsia si chiude sotto. Con le sole righe fra una fascia e l'altra la
+   griglia restava aperta in basso: l'ultima corsia sfumava nella vista e non si
+   capiva se fosse finita o solo tagliata dal bordo della finestra. Ora che le
+   celle sono bianche come il fondo, quella riga è l'unica cosa che dice dove
+   finisce la board. */
+.ob-kanban__band:last-child { border-bottom: 2px solid var(--ob-line-2); }
 
 /* Prima colonna della fascia: il NOME della corsia.
    `position: sticky; left: 0` la tiene ferma mentre le altre colonne scorrono —

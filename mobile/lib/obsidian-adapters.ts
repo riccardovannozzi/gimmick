@@ -9,6 +9,7 @@
 import { formatFileSize, formatDuration } from '@/utils/formatters';
 import { TILE_VISUAL, subtaskToStep, tileVisualKey, type StepState, type TileVisualKey } from '@/lib/tile-visual';
 import type { Spark, Tile, BufferItem } from '@/types';
+import type { ChatTile } from '@/lib/api';
 
 // ─── Sparks ────────────────────────────────────────────────────────────────
 
@@ -250,6 +251,23 @@ export function tileToVM(t: Tile, ctx: TileVMContext = {}): ObTileVM {
     whenTs: whenTs !== undefined && !Number.isNaN(whenTs) ? whenTs : undefined,
     ...tilePreview(t),
   };
+}
+
+/**
+ * Tile trovata dalla chat AI → view-model della card.
+ *
+ * Passa da `tileToVM` invece di comporre il VM a mano: le regole visive
+ * (`event + all_day = allday`, il formato della data, il titolo di ripiego) sono
+ * scritte lì, e duplicarle qui vorrebbe dire vedere la stessa tile resa in due
+ * modi a seconda che arrivi dalla lista o dalla chat.
+ *
+ * Il cast è necessario e sicuro: `ChatTile` è un sottoinsieme di `Tile` e
+ * `tileToVM` legge il resto solo in forma difensiva (`t.sparks ?? []`,
+ * `t.tags ?? []`, `t.status_id ?` …). Ne esce una card senza anteprime, passi,
+ * tag e status — che è la verità: la chat quei dati non li ha.
+ */
+export function chatTileToVM(t: ChatTile): ObTileVM {
+  return tileToVM(t as unknown as Tile);
 }
 
 /**

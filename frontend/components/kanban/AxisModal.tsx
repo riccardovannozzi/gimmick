@@ -125,7 +125,7 @@ export function AxisModal({
     color: theme.ink3, marginBottom: 6,
   };
   const field: React.CSSProperties = {
-    height: 30, background: theme.bg1, border: 'none',
+    height: 30, background: 'var(--ob-sunken)', border: 'none',
     borderRadius: 'var(--ob-radius-sm)', padding: '0 8px', color: theme.ink,
     fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, outline: 'none',
   };
@@ -258,7 +258,7 @@ export function AxisModal({
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 200, overflowY: 'auto' }}>
                   {entries.map((c) => (
-                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', background: theme.bg1, borderRadius: 'var(--ob-radius-sm)' }}>
+                    <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, height: 30, padding: '0 8px', background: 'var(--ob-sunken)', borderRadius: 'var(--ob-radius-sm)' }}>
                       <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, color: theme.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {c.title}
                       </span>

@@ -46,6 +46,8 @@ interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
   message?: string;
+  /** Codice applicativo del backend (es. `EMAIL_NOT_CONFIRMED`) quando c'è. */
+  code?: string;
 }
 
 /** Esportata: l'aggiornamento ottimistico deve riscrivere la cache di `tilesApi.list`
@@ -72,8 +74,39 @@ let refreshToken: string | null = null;
 
 // Token refresh state
 let isRefreshing = false;
-let refreshSubscribers: Array<(token: string | null) => void> = [];
+let refreshSubscribers: ((result: RefreshResult) => void)[] = [];
 let onAuthFailedCallback: (() => void) | null = null;
+let onTokensRefreshedCallback: ((tokens: AuthTokens) => void) | null = null;
+
+/**
+ * Timeout di rete. React Native NON ne applica uno di default su Android
+ * (OkHttp è configurato con read/write timeout a 0 = infinito): senza questo
+ * una fetch appesa non si risolve MAI. Sul giro di refresh era fatale — vedi
+ * `handleTokenRefresh`.
+ */
+const REQUEST_TIMEOUT_MS = 20_000;
+/** Il refresh è nel cammino critico dell'avvio: deve fallire in fretta. */
+const REFRESH_TIMEOUT_MS = 15_000;
+/** Gli upload viaggiano su `authenticatedFetch` e possono durare parecchio. */
+const UPLOAD_TIMEOUT_MS = 120_000;
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.message === 'Aborted');
+}
 
 /**
  * Register callback for when auth fails completely (refresh token invalid)
@@ -83,7 +116,24 @@ export function setOnAuthFailed(cb: () => void) {
 }
 
 /**
+ * Avvisa che il server ha emesso una NUOVA coppia di token.
+ *
+ * Senza questo aggancio il rinnovo restava confinato alle variabili di modulo
+ * qui sotto: lo store (e quindi AsyncStorage) conservava la coppia originale.
+ * Siccome Supabase RUOTA il refresh token a ogni rinnovo, al riavvio l'app
+ * ripescava da disco un refresh token già consumato → «Session expired» e
+ * logout forzato a ogni sessione durata più di un'ora.
+ */
+export function setOnTokensRefreshed(cb: (tokens: AuthTokens) => void) {
+  onTokensRefreshedCallback = cb;
+}
+
+/**
  * Set authentication tokens
+ *
+ * Scrive SOLO le variabili di modulo: è la direzione store → client, usata da
+ * chi i token li ha già persistiti per conto suo. Per i token che arrivano dal
+ * server usa `applyTokens`, che notifica anche lo store.
  */
 export function setTokens(tokens: AuthTokens | null) {
   if (tokens) {
@@ -95,6 +145,12 @@ export function setTokens(tokens: AuthTokens | null) {
   }
 }
 
+/** Token freschi dal server: aggiorna il client E lo store che li persiste. */
+function applyTokens(tokens: AuthTokens) {
+  setTokens(tokens);
+  onTokensRefreshedCallback?.(tokens);
+}
+
 /**
  * Get current access token
  */
@@ -102,42 +158,56 @@ export function getAccessToken(): string | null {
   return accessToken;
 }
 
+interface RefreshResult {
+  token: string | null;
+  /**
+   * `true` solo se il server ha RIFIUTATO il refresh token: la sessione è
+   * davvero morta. Un errore di rete o un 5xx lasciano `false` — prima
+   * qualunque fallimento sloggava, quindi bastava un tunnel per farsi buttare
+   * fuori dall'app (e perdere la cattura offline).
+   */
+  authFailed: boolean;
+}
+
 /**
  * Try to refresh the access token
  */
-async function tryRefreshToken(): Promise<string | null> {
-  if (!refreshToken) {
-    onAuthFailedCallback?.();
-    return null;
-  }
+async function tryRefreshToken(): Promise<RefreshResult> {
+  if (!refreshToken) return { token: null, authFailed: true };
 
   try {
-    const response = await fetch(`${API_URL}/api/auth/refresh`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: refreshToken }),
-    });
+    const response = await fetchWithTimeout(
+      `${API_URL}/api/auth/refresh`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      },
+      REFRESH_TIMEOUT_MS
+    );
 
-    const data = await response.json();
+    // Backend in difficoltà, non sessione scaduta: non toccare i token.
+    if (response.status >= 500) return { token: null, authFailed: false };
 
-    if (data.success && data.data?.session) {
-      setTokens(data.data.session);
-      return accessToken;
+    const data = await response.json().catch(() => null);
+
+    if (response.ok && data?.success && data?.data?.session) {
+      applyTokens(data.data.session);
+      return { token: accessToken, authFailed: false };
     }
 
-    // Refresh failed — force logout
-    onAuthFailedCallback?.();
-    return null;
+    // 400/401 da /auth/refresh: il refresh token non è più valido.
+    return { token: null, authFailed: true };
   } catch {
-    onAuthFailedCallback?.();
-    return null;
+    // Rete assente o timeout: la sessione non è scaduta, è irraggiungibile.
+    return { token: null, authFailed: false };
   }
 }
 
 /**
  * Handle 401: queue concurrent requests, refresh once, retry all
  */
-function handleTokenRefresh(): Promise<string | null> {
+async function handleTokenRefresh(): Promise<RefreshResult> {
   if (isRefreshing) {
     return new Promise((resolve) => {
       refreshSubscribers.push(resolve);
@@ -145,21 +215,50 @@ function handleTokenRefresh(): Promise<string | null> {
   }
 
   isRefreshing = true;
-
-  return tryRefreshToken().then((newToken) => {
+  let result: RefreshResult = { token: null, authFailed: false };
+  try {
+    result = await tryRefreshToken();
+  } finally {
+    // `finally`, non la coda di una `.then`: se `tryRefreshToken` lanciasse,
+    // `isRefreshing` resterebbe `true` per sempre e OGNI 401 successivo si
+    // accoderebbe in `refreshSubscribers` senza risolversi mai — l'app si
+    // piantava e serviva chiuderla.
     isRefreshing = false;
-    refreshSubscribers.forEach((cb) => cb(newToken));
+    const waiting = refreshSubscribers;
     refreshSubscribers = [];
-    return newToken;
-  });
+    waiting.forEach((cb) => cb(result));
+  }
+
+  // Fuori dalla sezione critica: il logout che ne consegue farà altre
+  // richieste, e le deve trovare con `isRefreshing` già a `false`.
+  if (result.authFailed) notifyAuthFailed();
+
+  return result;
+}
+
+/** Sessione morta: butta i token e avvisa lo store una volta sola. */
+function notifyAuthFailed() {
+  setTokens(null);
+  onAuthFailedCallback?.();
 }
 
 /**
  * Make authenticated API request (with auto-refresh on 401)
  */
+interface RequestOpts {
+  /**
+   * Salta il giro di refresh sul 401. Serve al logout: il suo token è già
+   * morto per definizione, e lasciarlo passare di qui lo farebbe rimbalzare in
+   * `notifyAuthFailed` → `signOut` → logout → 401 → ricorsione.
+   */
+  skipAuthRefresh?: boolean;
+  timeoutMs?: number;
+}
+
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  opts: RequestOpts = {}
 ): Promise<ApiResponse<T>> {
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
@@ -170,31 +269,40 @@ async function apiRequest<T>(
     (headers as Record<string, string>)['Authorization'] = `Bearer ${accessToken}`;
   }
 
+  const timeoutMs = opts.timeoutMs ?? REQUEST_TIMEOUT_MS;
+
   try {
-    const response = await fetch(`${API_URL}${endpoint}`, {
-      ...options,
-      headers,
-    });
+    const response = await fetchWithTimeout(`${API_URL}${endpoint}`, { ...options, headers }, timeoutMs);
 
     // Il server ha risposto (a qualunque status) → siamo online.
     useConnectivityStore.getState().setOnline(true);
 
     // On 401, try refreshing token and retry once
-    if (response.status === 401 && !endpoint.includes('/auth/refresh')) {
-      const newToken = await handleTokenRefresh();
-      if (newToken) {
-        (headers as Record<string, string>)['Authorization'] = `Bearer ${newToken}`;
-        const retryResponse = await fetch(`${API_URL}${endpoint}`, {
-          ...options,
-          headers,
-        });
-        const retryData = await retryResponse.json();
+    if (
+      response.status === 401 &&
+      !opts.skipAuthRefresh &&
+      !endpoint.includes('/auth/refresh')
+    ) {
+      const refreshed = await handleTokenRefresh();
+      if (refreshed.token) {
+        (headers as Record<string, string>)['Authorization'] = `Bearer ${refreshed.token}`;
+        const retryResponse = await fetchWithTimeout(
+          `${API_URL}${endpoint}`,
+          { ...options, headers },
+          timeoutMs
+        );
+        const retryData = await retryResponse.json().catch(() => null);
         if (!retryResponse.ok) {
-          return { success: false, error: retryData.error || `HTTP ${retryResponse.status}` };
+          return { success: false, error: retryData?.error || `HTTP ${retryResponse.status}` };
         }
         return retryData;
       }
-      return { success: false, error: 'Session expired' };
+      // «Session expired» SOLO se il server ha rifiutato il refresh token.
+      // Un timeout o un backend giù non sono una sessione scaduta, e dirlo
+      // all'utente lo mandava a rifare un login di cui non aveva bisogno.
+      return refreshed.authFailed
+        ? { success: false, error: 'Session expired' }
+        : { success: false, error: 'Backend non raggiungibile' };
     }
 
     const data = await response.json();
@@ -203,6 +311,7 @@ async function apiRequest<T>(
       return {
         success: false,
         error: data.error || `HTTP ${response.status}`,
+        code: data.code,
       };
     }
 
@@ -210,6 +319,9 @@ async function apiRequest<T>(
   } catch (error) {
     // Fetch ha lanciato → rete assente/irraggiungibile: segnala offline.
     useConnectivityStore.getState().setOnline(false);
+    if (isAbort(error)) {
+      return { success: false, error: 'Timeout di rete' };
+    }
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Network error',
@@ -222,7 +334,8 @@ async function apiRequest<T>(
  */
 async function authenticatedFetch(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  timeoutMs: number = UPLOAD_TIMEOUT_MS
 ): Promise<Response> {
   const headers: Record<string, string> = {
     ...(options.headers as Record<string, string>),
@@ -231,13 +344,13 @@ async function authenticatedFetch(
     headers['Authorization'] = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(`${API_URL}${endpoint}`, { ...options, headers });
+  const response = await fetchWithTimeout(`${API_URL}${endpoint}`, { ...options, headers }, timeoutMs);
 
   if (response.status === 401) {
-    const newToken = await handleTokenRefresh();
-    if (newToken) {
-      headers['Authorization'] = `Bearer ${newToken}`;
-      return fetch(`${API_URL}${endpoint}`, { ...options, headers });
+    const refreshed = await handleTokenRefresh();
+    if (refreshed.token) {
+      headers['Authorization'] = `Bearer ${refreshed.token}`;
+      return fetchWithTimeout(`${API_URL}${endpoint}`, { ...options, headers }, timeoutMs);
     }
   }
 
@@ -245,6 +358,21 @@ async function authenticatedFetch(
 }
 
 // ============ Auth API ============
+
+/**
+ * Traduce l'esito di un signin fallito. Il backend distingue i due casi con
+ * `code` ([backend] routes/auth.ts): affidarsi al testo di Supabase
+ * significherebbe dipendere da una stringa inglese che loro possono cambiare.
+ */
+function signInErrorMessage(result: ApiResponse<unknown>): string {
+  if (result.code === 'EMAIL_NOT_CONFIRMED') {
+    return 'Email non ancora confermata: controlla la posta.';
+  }
+  if (result.code === 'INVALID_CREDENTIALS') {
+    return 'Email o password non corretti.';
+  }
+  return result.error || 'Accesso non riuscito';
+}
 
 export const authApi = {
   async signUp(email: string, password: string) {
@@ -258,45 +386,62 @@ export const authApi = {
   },
 
   async signIn(email: string, password: string) {
+    // `skipAuthRefresh` è obbligatorio qui: il signin risponde 401 quando le
+    // credenziali sono sbagliate: è una RISPOSTA, non una sessione scaduta.
+    // Senza, il 401 finiva nel giro di refresh, che non ha nulla da rinnovare
+    // (siamo sloggati) e sostituiva il messaggio vero con «Session expired» —
+    // così ogni password sbagliata sembrava un problema di sessione.
     const result = await apiRequest<{
       user: { id: string; email: string };
       session: AuthTokens;
-    }>('/api/auth/signin', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (result.success && result.data?.session) {
-      setTokens(result.data.session);
-    }
-
-    return result;
-  },
-
-  async signOut() {
-    const result = await apiRequest('/api/auth/signout', { method: 'POST' });
-    setTokens(null);
-    return result;
-  },
-
-  async refreshSession() {
-    if (!refreshToken) {
-      return { success: false, error: 'No refresh token' };
-    }
-
-    const result = await apiRequest<{ session: AuthTokens }>(
-      '/api/auth/refresh',
+    }>(
+      '/api/auth/signin',
       {
         method: 'POST',
-        body: JSON.stringify({ refresh_token: refreshToken }),
-      }
+        body: JSON.stringify({ email, password }),
+      },
+      { skipAuthRefresh: true }
     );
 
     if (result.success && result.data?.session) {
       setTokens(result.data.session);
+      return result;
     }
 
+    // Supabase parla inglese, la schermata di login è in italiano.
+    return { ...result, error: signInErrorMessage(result) };
+  },
+
+  async signOut() {
+    // Senza token non c'è niente da invalidare lato server, e chiamare
+    // comunque prenderebbe un 401 inutile. `skipAuthRefresh` chiude il cerchio:
+    // il 401 di un logout non deve innescare un refresh né un altro logout.
+    const result = accessToken
+      ? await apiRequest('/api/auth/signout', { method: 'POST' }, { skipAuthRefresh: true })
+      : { success: true };
+    setTokens(null);
     return result;
+  },
+
+  /**
+   * Rinnovo esplicito (avvio app). Passa dallo STESSO single-flight del giro
+   * dei 401 invece di duplicarlo: condivide la coda, i token e soprattutto la
+   * semantica di `authFailed` — «il server ha rifiutato il refresh token»
+   * contro «non sono riuscito a raggiungerlo». Nel primo caso `notifyAuthFailed`
+   * porta dritti al login; nel secondo la sessione locale resta in piedi, che è
+   * quel che serve per lavorare offline.
+   */
+  async refreshSession(): Promise<{ ok: boolean; authFailed: boolean }> {
+    const result = await handleTokenRefresh();
+    return { ok: !!result.token, authFailed: result.authFailed };
+  },
+
+  /** Invia il link di reset. Il backend risponde sempre 200 (anti-enumeration). */
+  async forgotPassword(email: string) {
+    return apiRequest('/api/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
   },
 
   async getMe() {
@@ -633,13 +778,40 @@ export const subtasksApi = {
 
 // ============ Chat API ============
 
+/**
+ * Tile che la chat ha trovato, con abbastanza dati per DISEGNARLA.
+ *
+ * Il backend le mandava già come soli id (`foundTileIds`, che il web usa per i
+ * link) e il mobile le ignorava del tutto. Con le righe intere la risposta può
+ * essere un elenco di card vere invece di un elenco puntato dentro il testo.
+ * `end_at`/`all_day` non li porta ogni tool: la card deve reggere senza.
+ */
+export interface ChatTile {
+  id: string;
+  title: string | null;
+  description: string | null;
+  action_type: string | null;
+  start_at: string | null;
+  end_at?: string | null;
+  all_day?: boolean | null;
+  is_completed?: boolean | null;
+  is_cta?: boolean | null;
+}
+
+export interface ChatReply {
+  reply: string;
+  foundTileIds?: string[];
+  foundSparkIds?: string[];
+  foundTiles?: ChatTile[];
+}
+
 export const chatApi = {
   async send(
     message: string,
     history: { role: string; content: string }[],
     model?: string
   ) {
-    return apiRequest<{ reply: string }>('/api/chat', {
+    return apiRequest<ChatReply>('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ message, history, model }),
     });
@@ -658,7 +830,7 @@ export const chatApi = {
     file: { uri: string; name: string; type: string },
     history: { role: string; content: string }[],
     model?: string
-  ): Promise<{ success: boolean; data?: { reply: string }; error?: string }> {
+  ): Promise<{ success: boolean; data?: ChatReply; error?: string }> {
     try {
       const formData = new FormData();
       formData.append('file', {

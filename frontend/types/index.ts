@@ -38,6 +38,8 @@ export interface Tile {
   action_type_confidence?: number;
   action_type_reviewed?: boolean;
   is_completed?: boolean;
+  /** Quando è stato completato (migration 040). `null` = mai chiuso, o riaperto. */
+  completed_at?: string | null;
   is_cta?: boolean;
   status_id?: string;
   color?: string;

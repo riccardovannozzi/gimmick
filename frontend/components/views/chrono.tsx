@@ -809,7 +809,7 @@ export function ChronoView({
     // ospita: sono le regole di contesto a decidere.
     <div className={cn('ob-chrono', doneHighlight && 'ob-done-hl')}>
       {/* Toolbar — gemella della toolbar del canvas (`CanvasTopbar`): stessa
-          fascia da 48, stessi chip da 30, e come lì i controlli stanno tutti a
+          stessa fascia, stessi chip da 30, e come lì i controlli stanno tutti a
           destra (nel canvas la sinistra è occupata dalle linguette dei tag
           pinnati, qui non c'è nulla di equivalente). */}
       <div className="ob-chrono__toolbar">

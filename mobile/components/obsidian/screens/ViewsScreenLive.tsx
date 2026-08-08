@@ -80,8 +80,17 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
   const setConfirmDelete = useSettingsStore((s) => s.setConfirmDelete);
   const themeMode = useSettingsStore((s) => s.theme);
   const setThemeMode = useSettingsStore((s) => s.setTheme);
+  // Scadenza della chat AI: vive nei settings ma la applica la schermata Ask.
+  const chatRetention = useSettingsStore((s) => s.chatRetentionMinutes);
+  const setChatRetention = useSettingsStore((s) => s.setChatRetentionMinutes);
 
   const authUser = useAuthStore((s) => s.user);
+  // La sessione è il TOKEN, non l'anagrafica. Prima la sezione account si
+  // reggeva su `user.email`: con un token valido ma `user` nullo mostrava
+  // «Accedi», e quel bottone porta a /auth/login — da cui il guard di root
+  // rimbalza subito indietro perché un token c'è. Risultato: nessun modo di
+  // uscire se non cancellare i dati dell'app.
+  const authToken = useAuthStore((s) => s.accessToken);
   const signOut = useAuthStore((s) => s.signOut);
 
   /**
@@ -449,7 +458,9 @@ export function ObsidianViewsScreenLive({ initial = 'tiles', active: activeProp,
       themeMode={themeMode}
       onThemeMode={setThemeMode}
       errorText={errorText}
-      account={{ email: authUser?.email ?? null, onSignIn, onSignOut: signOut }}
+      account={{ email: authUser?.email ?? null, isAuthed: !!authToken, onSignIn, onSignOut: signOut }}
+      chatRetention={chatRetention}
+      onChatRetention={setChatRetention}
       onHome={onHome}
       onAsk={onAsk}
     />

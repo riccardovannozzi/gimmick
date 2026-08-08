@@ -307,11 +307,6 @@
 .ob-chrono__now { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid var(--ob-accent); z-index: 5; }
 .ob-chrono__now-dot { position: absolute; left: -3px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-accent); }
 
-/* ── Menu contestuale (tasto destro su card/evento): Copia · Incolla · Apri flow · Elimina ── */
-.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); box-shadow: var(--ob-shadow-card); }
-.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); }
-.ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
-.ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
-.ob-ctx__item--danger { color: var(--ob-error); }
-.ob-ctx__item--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-error) 14%, transparent); }
-.ob-ctx__sep { height: 1px; margin: 4px 2px; background: var(--ob-line); }
+/* Il menu contestuale (`.ob-ctx`) stava qui, ma lo aprono ormai Chrono, Kanban,
+   Tiles e la sidebar dei tag: e' un primitivo, e vive in
+   obsidian-primitives.css. */

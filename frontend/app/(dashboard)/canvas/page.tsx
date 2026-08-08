@@ -10,6 +10,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
+import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
@@ -1009,8 +1010,6 @@ export default function CanvasPage() {
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); }}
             onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setSelectMode(false); }}
             onToggleSelectMode={() => { setSelectMode((v) => !v); setTextMode(false); setTileMode(false); setImageMode(false); }}
-            onFit={handleFit}
-            onZoom100={handleZoom100}
             doneHighlight={doneHl}
             onToggleDoneHighlight={toggleDoneHl}
             pinnedTags={pinnedTags}
@@ -1159,6 +1158,11 @@ export default function CanvasPage() {
               }}
               onTileDragEnd={() => setStagingDropHover(false)}
             />
+            {/* Adatta e Scala 1:1, appoggiati sulla lavagna in basso a destra.
+                Stavano in fondo alla topbar: sono gli unici comandi che non
+                toccano il documento — spostano il punto da cui lo guardi — e
+                stavano lontanissimi dal loro effetto, che accade qui. */}
+            <CanvasZoomControls onFit={handleFit} onZoom100={handleZoom100} />
           </div>
         </div>
 
@@ -1598,7 +1602,7 @@ export default function CanvasPage() {
                 style={{
                   width: '100%',
                   padding: '9px 12px',
-                  background: theme.bg1,
+                  background: 'var(--ob-sunken)',
                   border: `1px solid ${theme.border}`,
                   borderRadius: 'var(--ob-radius-sm)',
                   color: theme.ink,
@@ -1699,8 +1703,6 @@ export default function CanvasPage() {
             onToggleTileMode={() => {}}
             onToggleImageMode={() => {}}
             onToggleSelectMode={() => {}}
-            onFit={() => {}}
-            onZoom100={() => {}}
             pinnedTags={pinnedTags}
             onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
             onReorderPinned={handleReorderPinned}

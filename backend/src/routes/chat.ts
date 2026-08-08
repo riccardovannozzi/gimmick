@@ -64,7 +64,7 @@ chatRouter.post(
 
       res.json({
         success: true,
-        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
+        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds, foundTiles: result.foundTiles },
       });
     } catch (error) {
       const err = error as ApiError;
@@ -141,7 +141,7 @@ chatRouter.post(
 
       res.json({
         success: true,
-        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
+        data: { reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds, foundTiles: result.foundTiles },
       });
     } catch (error) {
       // Formato non allegabile o file illeggibile: è un problema della richiesta,
@@ -210,7 +210,7 @@ chatRouter.post(
 
       res.json({
         success: true,
-        data: { transcript, reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds },
+        data: { transcript, reply: result.reply, foundSparkIds: result.foundSparkIds, foundTileIds: result.foundTileIds, foundTiles: result.foundTiles },
       });
     } catch (error) {
       console.error('Voice chat error:', error);

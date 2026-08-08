@@ -132,7 +132,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
           width: '100%',
           height: 30,
           padding: '0 10px',
-          background: theme.bg1,
+          background: 'var(--ob-sunken)',
           border: noBorder ? '1px solid transparent' : `1px solid ${theme.border}`,
           borderRadius: 'var(--ob-radius-sm)',
           cursor: 'pointer',
@@ -219,7 +219,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
             <button
               type="button"
               onClick={() => pick(new Date())}
-              style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
+              style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: 'var(--ob-sunken)', color: theme.ink2, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
             >
               Oggi
             </button>
@@ -227,7 +227,7 @@ export function DatePicker({ value, onChange, icon, placeholder = 'gg/mm/aaaa', 
               <button
                 type="button"
                 onClick={() => { onChange(''); setOpen(false); }}
-                style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: theme.bg1, color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
+                style={{ flex: 1, height: 26, borderRadius: 'var(--ob-radius-sm)', border: 'none', background: 'var(--ob-sunken)', color: theme.ink3, cursor: 'pointer', fontFamily: sansFont, fontSize: OB_TEXT.card }}
               >
                 Cancella
               </button>

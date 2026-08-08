@@ -6,24 +6,65 @@
  * and the inline tile-result/confirm card are deferred — text chat first.
  */
 import React from 'react';
+import { AppState } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import { chatApi } from '@/lib/api';
-import { toast } from '@/store';
+import { useQuery } from '@tanstack/react-query';
+import { chatApi, settingsApi } from '@/lib/api';
+import { toast, useSettingsStore } from '@/store';
+import { useChatStore } from '@/store/chatStore';
 import { generateId } from '@/utils/formatters';
-import { ObsidianAskScreen, type AskMessage } from './AskScreen';
+import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
+import { ObsidianAskScreen } from './AskScreen';
+import type { ChatMessage } from '@/store/chatStore';
 
 /** File scelto e in attesa: resta qui finché non parte col prossimo messaggio. */
 type PendingFile = { uri: string; name: string; type: string };
 
-/**
- * Nessun prop: da quando la schermata non ha più la barra in cima non c'è un
- * "indietro" da cablare — ci pensano il tasto di sistema e lo swipe dal bordo.
- */
-export function ObsidianAskScreenLive() {
-  const [messages, setMessages] = React.useState<AskMessage[]>([]);
+export interface ObsidianAskScreenLiveProps {
+  /** Cablato dalla rotta: il tasto di sistema e lo swipe restano, questo li
+   *  rende visibili a chi non li conosce. */
+  onBack?: () => void;
+  /** Apre una tile trovata dall'AI, nel dettaglio tile. */
+  onOpenTile?: (id: string) => void;
+}
+
+export function ObsidianAskScreenLive({ onBack, onOpenTile }: ObsidianAskScreenLiveProps = {}) {
+  // La conversazione vive nello STORE, non qui: uscire dalla schermata la
+  // smontava e il discorso spariva — anche solo aprendo un tile trovato dalla
+  // risposta, cioè facendo quello per cui le card esistono.
+  const messages = useChatStore((s) => s.messages);
+  const appendMessage = useChatStore((s) => s.append);
+  const clearChat = useChatStore((s) => s.clear);
+  const expireIfStale = useChatStore((s) => s.expireIfStale);
+  const retention = useSettingsStore((s) => s.chatRetentionMinutes);
+
   const [input, setInput] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [file, setFile] = React.useState<PendingFile | null>(null);
+
+  // Scadenza: si controlla all'ingresso e a ogni ritorno in primo piano, non con
+  // un timer. Una chat non deve svanire sotto gli occhi mentre la leggi — e un
+  // timer che scatta con l'app chiusa non esiste comunque.
+  React.useEffect(() => {
+    expireIfStale(retention);
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') expireIfStale(retention);
+    });
+    return () => sub.remove();
+  }, [retention, expireIfStale]);
+
+  // Stessa chiave di query della vista Tiles: la cache è condivisa, quindi qui
+  // di norma non parte nessuna richiesta in più — e una tile ha gli stessi
+  // colori in chat e in elenco.
+  const actionColorsQuery = useQuery({
+    queryKey: ['settings', 'action_colors'],
+    queryFn: () => settingsApi.get<Partial<Record<TileActionKey, string>>>('action_colors'),
+    staleTime: 5 * 60 * 1000,
+  });
+  const actionColors = React.useMemo(
+    () => ({ ...DEFAULT_ACTION_COLORS, ...(actionColorsQuery.data?.data ?? {}) }),
+    [actionColorsQuery.data],
+  );
 
   /**
    * Sceglie un file da allegare al prossimo messaggio. Uno per volta: una
@@ -52,9 +93,9 @@ export function ObsidianAskScreenLive() {
     // dal discorso e le domande di seguito ("e nell'altra pagina?") non
     // avrebbero appiglio.
     const shown = file ? `${trimmed}\n\n📎 ${file.name}` : trimmed;
-    const userMsg: AskMessage = { id: generateId('m'), role: 'user', content: shown };
+    const userMsg: ChatMessage = { id: generateId('m'), role: 'user', content: shown };
     const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }));
-    setMessages((prev) => [...prev, userMsg]);
+    appendMessage(userMsg);
     setInput('');
     const sending = file;
     setFile(null);
@@ -68,13 +109,21 @@ export function ObsidianAskScreenLive() {
       // motivo. Va anche in toast, perché in mezzo alla conversazione una riga
       // d'errore si confonde con una risposta.
       if (!res.success && sending) toast.warning(res.error || 'Allegato non accettato');
-      setMessages((prev) => [...prev, { id: generateId('m'), role: 'assistant', content: reply }]);
+      appendMessage({
+        id: generateId('m'),
+        role: 'assistant',
+        content: reply,
+        // Le tile restano attaccate AL TURNO che le ha trovate: scorrendo
+        // indietro la conversazione ogni risposta conserva i propri risultati,
+        // invece di mostrare sempre gli ultimi.
+        tiles: res.success ? res.data?.foundTiles : undefined,
+      });
     } catch {
-      setMessages((prev) => [...prev, { id: generateId('m'), role: 'assistant', content: 'Errore di rete.' }]);
+      appendMessage({ id: generateId('m'), role: 'assistant', content: 'Errore di rete.' });
     } finally {
       setLoading(false);
     }
-  }, [messages, loading, file]);
+  }, [messages, loading, file, appendMessage]);
 
   return (
     <ObsidianAskScreen
@@ -86,6 +135,10 @@ export function ObsidianAskScreenLive() {
       attachment={file}
       onAttach={pickFile}
       onRemoveAttachment={() => setFile(null)}
+      onBack={onBack}
+      onOpenTile={onOpenTile}
+      actionColors={actionColors}
+      onClear={clearChat}
     />
   );
 }

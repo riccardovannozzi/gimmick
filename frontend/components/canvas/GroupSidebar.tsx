@@ -75,7 +75,7 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
             display: 'flex', alignItems: 'center', gap: 8,
             width: '100%', padding: '6px 8px',
             // Nessun contorno: l'oggetto si distingue per il fondo (vedi TextSidebar).
-            background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-sm)',
+            background: 'var(--ob-rail-field)', border: 'none', borderRadius: 'var(--ob-radius-sm)',
             cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta,
           }}
         >
@@ -172,7 +172,7 @@ export function Segmented<T extends string | number>({ label, value, options, on
                 height: 30,
                 // Stato attivo: viola scuro (accent-soft) + testo accent, come i
                 // tab della navbar — non il lavanda pieno.
-                background: active ? 'var(--ob-accent-soft)' : theme.bg1,
+                background: active ? 'var(--ob-accent-soft)' : 'var(--ob-rail-field)',
                 border: `1px solid ${active ? 'transparent' : theme.border}`,
                 borderRadius: 'var(--ob-radius-sm)',
                 color: active ? 'var(--ob-accent)' : theme.ink2,
@@ -200,7 +200,10 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
     .filter((t): t is { id: string; title?: string } => !!t);
 
   const eyebrow = eyebrowStyle(theme);
-  const width = group.borderWidth ?? 0;
+  // Stesso default del disegno (`gBw` in CanvasBoard.tsx): un gruppo nasce con
+  // la sua hairline. Con 0 qui il pannello avrebbe mostrato «nessun bordo» su un
+  // gruppo che il canvas disegna col bordo.
+  const width = group.borderWidth ?? 1;
   const style: GroupBorderStyle = group.borderStyle ?? 'solid';
 
   const commitName = () => {
@@ -212,7 +215,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
     <div
       style={{
         borderLeft: `1px solid ${theme.border}`,
-        background: theme.bg2,
+        background: 'var(--ob-rail-bg)',
         transition: 'width 200ms',
         display: 'flex',
         flexDirection: 'column',
@@ -223,7 +226,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
       {/* Header: collapse + titolo */}
       <div
         style={{
-          height: 48,
+          height: 'var(--ob-toolbar-height)',
           padding: open ? '0 8px' : 0,
           display: 'flex',
           alignItems: 'center',
@@ -264,7 +267,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
               placeholder="Nome del gruppo"
               style={{
                 width: '100%', padding: '8px 10px',
-                background: theme.bg1, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
                 color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, outline: 'none',
               }}
             />
@@ -317,7 +320,7 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
                   title={t.title || 'Senza titolo'}
                   style={{
                     display: 'flex', alignItems: 'center', width: '100%', padding: '7px 10px',
-                    textAlign: 'left', background: theme.bg1, border: `1px solid ${theme.border}`,
+                    textAlign: 'left', background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`,
                     borderRadius: 'var(--ob-radius-sm)', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
                     cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}

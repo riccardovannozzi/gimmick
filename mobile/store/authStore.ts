@@ -1,12 +1,47 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { authApi, setTokens, setOnAuthFailed } from '@/lib/api';
+import { authApi, setTokens, setOnAuthFailed, setOnTokensRefreshed } from '@/lib/api';
 
 interface User {
   id: string;
   email: string;
   created_at?: string;
+}
+
+/** Rinnova un po' prima della scadenza: un token che muore fra 5 secondi è
+ *  già inutile, e farlo scoprire alla prima richiesta costa un 401 di troppo. */
+const EXPIRY_MARGIN_S = 60;
+
+/** Logout in corso — vedi la guardia di rientranza in `signOut`. */
+let signOutInFlight: Promise<void> | null = null;
+
+/**
+ * Attende la fine dell'idratazione da AsyncStorage, con un tetto di sicurezza:
+ * se `persist` non notificasse mai, l'avvio non deve restare appeso — il velo
+ * opaco del root layout resterebbe sopra tutto e servirebbe killare l'app.
+ */
+function waitForHydration(timeoutMs = 3000): Promise<void> {
+  if (useAuthStore.persist.hasHydrated()) return Promise.resolve();
+
+  return new Promise((resolve) => {
+    let done = false;
+    let unsub: (() => void) | undefined;
+
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      unsub?.();
+      resolve();
+    };
+
+    const timer = setTimeout(finish, timeoutMs);
+    unsub = useAuthStore.persist.onFinishHydration(finish);
+    // L'idratazione può essere finita fra il check e la sottoscrizione: in quel
+    // caso il listener non scatterebbe mai e resteremmo fermi fino al timeout.
+    if (useAuthStore.persist.hasHydrated()) finish();
+  });
 }
 
 interface AuthState {
@@ -39,6 +74,13 @@ export const useAuthStore = create<AuthState>()(
         try {
           set({ isLoading: true });
 
+          // `persist` idrata da AsyncStorage in modo ASINCRONO, mentre questa
+          // parte dal primo `useEffect` del root layout. Senza attendere, la
+          // corsa la vinceva spesso l'effect: `get()` leggeva uno store ancora
+          // vuoto, il rinnovo del token scaduto non partiva affatto e l'app
+          // entrava con una sessione già morta.
+          await waitForHydration();
+
           const state = get();
 
           // If we have tokens, set them in the API client
@@ -49,9 +91,6 @@ export const useAuthStore = create<AuthState>()(
               expires_at: state.expiresAt || 0,
             });
 
-            // Register auto-logout on auth failure
-            setOnAuthFailed(() => get().signOut());
-
             // Token scaduto → prova a rinnovarlo, ma NON sloggare se fallisce.
             // Offline il refresh fallisce SEMPRE: azzerare la sessione qui
             // chiuderebbe l'utente fuori dall'app (niente nemmeno cattura
@@ -60,15 +99,17 @@ export const useAuthStore = create<AuthState>()(
             // un refresh token davvero non valido farà logout al primo 401 online
             // via onAuthFailed → signOut.
             const now = Math.floor(Date.now() / 1000);
-            if (state.expiresAt && state.expiresAt < now) {
+            if (!state.expiresAt || state.expiresAt - EXPIRY_MARGIN_S < now) {
               await get().refreshSession();
             }
           }
-
-          set({ isInitialized: true, isLoading: false });
         } catch (error) {
           console.error('Error initializing auth:', error);
-          set({ isLoading: false, isInitialized: true });
+        } finally {
+          // Sempre, anche su eccezione: `isInitialized` è ciò che toglie il velo
+          // opaco del root layout. Se restasse `false` l'app mostrerebbe uno
+          // schermo cieco che intercetta pure i tocchi.
+          set({ isInitialized: true, isLoading: false });
         }
       },
 
@@ -121,41 +162,55 @@ export const useAuthStore = create<AuthState>()(
         }
       },
 
+      // NB: `isLoading` NON viene toccato qui. È lo stato che la schermata di
+      // login usa per disabilitare i campi: siccome il logout automatico
+      // (onAuthFailed) precede di un istante la navigazione al login, la
+      // schermata si apriva con email e password in sola lettura e il bottone
+      // spento, finché la chiamata di rete non tornava. Al logout non c'è
+      // nessuna form da bloccare.
       signOut: async () => {
-        try {
-          set({ isLoading: true });
-          await authApi.signOut();
-        } catch (error) {
-          console.error('Error signing out:', error);
-        } finally {
-          setTokens(null);
-          set({
-            user: null,
-            accessToken: null,
-            refreshToken: null,
-            expiresAt: null,
-            isLoading: false,
-          });
-        }
+        // Guardia di rientranza: a sessione morta le richieste in volo prendono
+        // 401 tutte insieme e ognuna innescherebbe il suo logout.
+        if (signOutInFlight) return signOutInFlight;
+
+        signOutInFlight = (async () => {
+          try {
+            await authApi.signOut();
+          } catch (error) {
+            console.error('Error signing out:', error);
+          } finally {
+            setTokens(null);
+            set({
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              expiresAt: null,
+            });
+            signOutInFlight = null;
+          }
+        })();
+
+        return signOutInFlight;
       },
 
+      // I token nuovi NON vengono scritti qui: ci pensa `setOnTokensRefreshed`
+      // in fondo a questo file, che è l'unico punto attraverso cui passano
+      // TUTTI i rinnovi — sia questo esplicito sia quelli innescati dai 401.
+      // Prima c'erano due strade e solo questa persisteva: bastava che il
+      // rinnovo avvenisse per un 401 perché il token buono restasse in RAM.
       refreshSession: async () => {
         try {
-          const result = await authApi.refreshSession();
-
-          if (!result.success || !result.data) {
-            return false;
+          const { ok, authFailed } = await authApi.refreshSession();
+          // Se il server ha rifiutato il refresh token, il client ha già
+          // invocato `onAuthFailed` → `signOut`: la sessione è morta davvero e
+          // l'app va al login subito, invece di entrare con un token scaduto e
+          // scoprirlo alla prima richiesta (era il limbo in cui comparivano le
+          // scritte «Session expired»).
+          if (!ok && !authFailed) {
+            // Solo irraggiungibile: teniamo la sessione locale per l'offline.
+            console.warn('Refresh non riuscito: backend irraggiungibile');
           }
-
-          const { session } = result.data;
-
-          set({
-            accessToken: session.access_token,
-            refreshToken: session.refresh_token,
-            expiresAt: session.expires_at,
-          });
-
-          return true;
+          return ok;
         } catch (error) {
           console.error('Error refreshing session:', error);
           return false;
@@ -171,7 +226,7 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         expiresAt: state.expiresAt,
       }),
-      onRehydrateStorage: () => (state, store) => {
+      onRehydrateStorage: () => (state) => {
         // Sync tokens to API module as soon as AsyncStorage rehydrates
         if (state?.accessToken && state?.refreshToken) {
           setTokens({
@@ -179,12 +234,36 @@ export const useAuthStore = create<AuthState>()(
             refresh_token: state.refreshToken,
             expires_at: state.expiresAt || 0,
           });
-          setOnAuthFailed(() => state.signOut());
         }
       },
     }
   )
 );
+
+// ── Ponte api.ts ⇄ store ─────────────────────────────────────────────────────
+//
+// Registrati UNA VOLTA, a livello di modulo. Prima vivevano dentro
+// `initialize()` e `onRehydrateStorage`, entrambi condizionati alla presenza di
+// token GIÀ persistiti: dopo un login su installazione pulita non scattava
+// nessuno dei due, `onAuthFailed` restava `null` e a sessione morta l'app non
+// tornava mai al login — mostrava «Session expired» su ogni schermata finché
+// non la si chiudeva a mano.
+
+setOnAuthFailed(() => {
+  void useAuthStore.getState().signOut();
+});
+
+// Il rinnovo che avviene sul giro dei 401 aggiornava SOLO le variabili di
+// modulo di api.ts. Qui lo riportiamo nello store, che lo persiste: senza
+// questo, al riavvio si ripescava da AsyncStorage il refresh token che Supabase
+// aveva già ruotato — invalido — e la sessione moriva a ogni riapertura.
+setOnTokensRefreshed((tokens) => {
+  useAuthStore.setState({
+    accessToken: tokens.access_token,
+    refreshToken: tokens.refresh_token,
+    expiresAt: tokens.expires_at ?? null,
+  });
+});
 
 // Selectors
 export const selectIsAuthenticated = (state: AuthState) => !!state.accessToken;

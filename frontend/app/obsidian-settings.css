@@ -9,8 +9,10 @@
 .ob-settings { display: flex; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
 
 /* ── Settings sidebar ── */
-.ob-settings__sidebar { width: 240px; flex-shrink: 0; background: #faf9fb; border-right: 1px solid var(--ob-line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
-[data-theme='dark'] .ob-settings__sidebar { background: #1a1a1a; }
+/* Sponda anche questa: stesso token delle altre, in entrambi i temi. Aveva una
+   coppia di valori propri (#faf9fb / #1a1a1a) che non corrispondeva a nessuna
+   delle altre colonne laterali dell'app. */
+.ob-settings__sidebar { width: 240px; flex-shrink: 0; background: var(--ob-rail-bg); border-right: 1px solid var(--ob-line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
 .ob-settings__nav-eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); padding: 0 8px 12px; }
 .ob-settings__nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--ob-radius-sm); background: transparent; border: none; cursor: pointer; color: var(--ob-muted); text-align: left; width: 100%; transition: background-color 120ms ease-out, color 120ms ease-out; }
 .ob-settings__nav-item:hover:not(.ob-settings__nav-item--active) { background: color-mix(in srgb, var(--ob-text) 4%, transparent); color: var(--ob-text); }

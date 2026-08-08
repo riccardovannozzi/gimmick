@@ -27,19 +27,56 @@
   --ob-mascot-ink: #26212f;
 
   /* Neutrals */
-  --ob-canvas: #f6f6f8;
+  /* L'area di lavoro è il BIANCO PIENO, come `--background-primary` di Obsidian.
+     Era #f6f6f8 — cioè, a due punti, il colore che Obsidian usa per le sue barre
+     LATERALI: tutta la scala stava un gradino più in basso, e le sponde non
+     avevano dove andare per staccarsi senza diventare più cupe di lui. */
+  --ob-canvas: #ffffff;
   --ob-surface: #ffffff;
   --ob-surface-2: #f1f0f4;
   --ob-head: #fbfbfc;
+  /* ── Le due colonne laterali ────────────────────────────────────────────────
+     Sidebar dei tag a sinistra e pannello del dettaglio a destra sono la stessa
+     cosa — le sponde della vista — e devono avere lo stesso fondo. Erano due
+     valori diversi (`--ob-surface-2` a sinistra, `--ob-surface` a destra) e in
+     dark la differenza si vedeva: la colonna di destra sembrava un buco più
+     scuro accanto a quella di sinistra.
+     Un token solo, letto da entrambe: non possono piu' scostarsi.
+
+     ⚠️ In LIGHT è il valore di Obsidian, `--background-secondary` #f6f6f6, e sta
+     con `--ob-canvas` a #ffffff: sono i due colori dell'app di riferimento, presi
+     in coppia.
+     Prima erano #faf9fb di sponda contro un centro #f6f6f8, cioè sponde più
+     CHIARE del corpo e per giunta di quattro punti — le tre colonne si leggevano
+     come un'unica superficie. Il primo rimedio fu scurire la sponda a #eae9ef,
+     che dava lo stacco giusto ma per la strada sbagliata: la nostra sponda
+     finiva più cupa di quella di Obsidian, perché il centro era rimasto grigio.
+     Obsidian non stacca scurendo il bordo — stacca SCHIARENDO il centro. */
+  --ob-rail-bg: #f6f6f6;
+  /* Fondo degli oggetti DENTRO le colonne (campi, trigger dei menu, box degli
+     spark). Non hanno contorno: si distinguono perché si STACCANO dal fondo
+     della colonna, e va scelto insieme a `--ob-rail-bg`.
+     Il verso dipende dal tema, ed è il verso naturale di ciascuno: qui in light
+     l'oggetto è bianco e si SOLLEVA sul grigio della sponda, come il campo di
+     ricerca dei tag e come ogni input di un tema chiaro. In dark affonda. */
+  --ob-rail-field: #ffffff;
+  /* Campo INCASSATO su una superficie chiara: input e celle dentro modali,
+     popup e pannelli che stanno su `--ob-surface`. È il gemello rovesciato di
+     `--ob-rail-field`, che serve invece agli oggetti su fondo grigio.
+     Serve da quando l'area di lavoro è il bianco pieno: prima questi campi
+     usavano `--ob-canvas`, che era grigio e faceva da incasso per conto suo, e
+     con il bianco sono diventati bianchi su bianco. In dark vale quello che
+     valeva `--ob-canvas` prima, quindi lì non è cambiato niente. */
+  --ob-sunken: #f1f0f4;
   /* Base di OGNI tile (canvas, staging, chrono, kanban): è il colore che si vede
      quando la tile non ha nessuna colorazione impostata, ed è la base sotto la
      velatura quando invece ce l'ha. Unico punto di verità: cambiarlo qui cambia
      lo sfondo dei tile in tutte le viste. */
   --ob-tile-bg: var(--ob-surface);
-  /* Bordo dei tile SENZA colorazione. Deve restare più chiaro di --ob-tile-bg
-     (altrimenti il tile perde il contorno e si fonde con lo sfondo della vista),
-     ma più spento della hairline generica --ob-line-2, che su un fondo tile
-     opaco risultava troppo accesa. */
+  /* Contorno del tile. In light è quello che REGGE la carta: su area di lavoro
+     bianca il tile senza colorazione è bianco su bianco, e il rettangolo lo
+     disegna solo questa riga — come le note nel canvas di Obsidian. Da qui i 13
+     punti percentuali della hairline forte e non gli 8 di --ob-line. */
   --ob-tile-border: var(--ob-line-2);
   --ob-field: #ffffff;
   --ob-text: #1b1923;
@@ -93,6 +130,15 @@
   --ob-surface: #1e1e1e;
   --ob-surface-2: #262626;
   --ob-head: #1b1b1b;
+  /* Le due colonne laterali — vedi la nota nel blocco light.
+     In dark il verso si rovescia, ed è giusto così: le sponde sono più CHIARE
+     del centro (#262626 contro #161616) perché su fondo cupo è la luce a stare
+     davanti, e gli oggetti dentro le sponde affondano invece di sollevarsi. Il
+     rapporto che conta — sponde staccate dal centro, oggetti staccati dalla
+     sponda — è lo stesso nei due temi; cambia solo da che parte. */
+  --ob-rail-bg: var(--ob-surface-2);
+  --ob-rail-field: var(--ob-canvas);
+  --ob-sunken: var(--ob-canvas);
   /* Sfondo unico dei tile in dark — vedi nota nel blocco light. */
   --ob-tile-bg: #2f3134;
   /* Prima era --ob-line-2 (bianco al 13%), che sul fondo #2f3134 rendeva un
@@ -135,6 +181,24 @@
 
 /* ── Theme-independent tokens (typography, radii, spacing) ── */
 :root {
+  /* ── Fondo di un GRUPPO sul canvas (quando non gliene hai dato uno) ─────────
+     A metà strada fra l'area di lavoro e le sponde. Era `--ob-surface`, cioè lo
+     stesso bianco della lavagna: da quando il centro è bianco pieno, un gruppo
+     senza colore proprio spariva e restava solo il suo bordo — se ce l'aveva.
+
+     È un `color-mix` dei due token e non un hex, per due ragioni: dice da sé
+     cos'è («fra la lavagna e le sponde») e si ricalcola da solo se uno dei due
+     cambia. Per lo stesso motivo sta qui e non nei blocchi per tema: gli
+     ingredienti sono già theme-dependent, quindi una dichiarazione basta e vale
+     per entrambi — in light dà ~#f8f8f8, in dark ~#222222.
+
+     ⚠️ La quota è 25 e non 50: a metà esatta (~#fbfbfb) il contrasto sulla
+     lavagna era 1.035, cioè niente. Un gruppo è un rettangolo isolato, non una
+     superficie contigua come la sponda, e ha bisogno di più stacco per pesare
+     lo stesso. Comunque il fondo da solo non basta: il gruppo si legge insieme
+     alla sua hairline (vedi `gBw` in CanvasBoard.tsx). */
+  --ob-group-bg: color-mix(in srgb, var(--ob-canvas) 25%, var(--ob-rail-bg));
+
   /* Typography — Geist (UI) + Geist Mono (dates/counts/labels/eyebrow).
      The font families resolve to the next/font CSS vars set in layout.tsx. */
   --ob-font-sans: var(--font-geist-sans), system-ui, sans-serif;
@@ -188,13 +252,21 @@
   --ob-radius-card: 14px;
   --ob-radius-icon: 8px;
 
-  /* Scala verticale dello shell: 56 navbar · 48 prima barra della vista · 40
+  /* Scala verticale dello shell: 56 navbar · 44 prima barra della vista · 40
      barre annidate. Questo token è il gradino di mezzo: la PRIMA barra di ogni
      vista (toolbar/header di Ask, Flows, Sparks, Canvas, Chrono, Kanban,
-     Panopticon, Tiles). Le viste nascevano a 60/52/48 ciascuna per conto suo e
-     passando da una all'altra la fascia sotto la navbar saltava.
-     NON riguarda la navbar (56, in `.ob-hd`) né le barre di secondo livello. */
-  --ob-toolbar-height: 48px;
+     Panopticon, Tiles) E la barra delle due sidebar. Le viste nascevano a
+     60/52/48 ciascuna per conto suo e passando da una all'altra la fascia sotto
+     la navbar saltava.
+     NON riguarda la navbar (56, in `.ob-hd`) né le barre di secondo livello.
+
+     ⚠️ Da qui dipendono le LINGUETTE (`.ob-lug`, obsidian-primitives.css): sono
+     ancorate al fondo e lasciano 4px scoperti in cima, quindi valgono
+     `fascia − 5` (4 di respiro + 1 di hairline). Sono scritte in `calc()` su
+     questo token apposta, così cambiando la barra si adeguano da sole.
+     ⚠️ Il gemello TypeScript è `OBSIDIAN_TOOLBAR_HEIGHT` in lib/theme/obsidian.ts,
+     che serve alle viste in stili inline: vanno cambiati INSIEME. */
+  --ob-toolbar-height: 44px;
 
   /* ── Scala del TILE ──────────────────────────────────────────────────────
      Il tile è disegnato su un rettangolo di 150×80 e mostrato a 0.8, cioè

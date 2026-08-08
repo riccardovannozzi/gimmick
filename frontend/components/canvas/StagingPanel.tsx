@@ -249,13 +249,20 @@ export function StagingPanel({
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  // Outer bg according to drop-target state. Default matches the canvas
-  // background (theme.bg1) so the panel feels like a continuation of the board.
+  /**
+   * Fondo del pannello, secondo lo stato di drop.
+   *
+   * A riposo è il fondo della LAVAGNA, non quello delle sponde: lo staging è la
+   * stessa superficie del canvas, solo la parte in cui i tile aspettano di
+   * essere posizionati. Ci si trascina dentro e fuori di continuo, ed è quel
+   * passaggio che il colore unico racconta — a separarli basta la hairline.
+   * L'header non ha un fondo proprio e lo eredita da qui.
+   */
   const panelBg = isDropTargetHover
     ? `${theme.accent}33`
     : isCanvasDragActive
       ? `${theme.accent}14`
-      : theme.bg1;
+      : 'var(--ob-canvas)';
   const panelBorderColor = (isDropTargetHover || isCanvasDragActive) ? theme.accent : theme.border;
 
   /**
@@ -397,7 +404,10 @@ export function StagingPanel({
           paddingLeft: 4,
           paddingRight: 12,
           borderBottom: `${bW}px solid ${theme.border}`,
-          background: theme.surfaceVariant,
+          // Nessun fondo proprio: eredita quello del pannello e si separa con la
+          // sola hairline, come la barra della sidebar dei tag e come la tabbar
+          // del pannello del tile. Aveva `surfaceVariant`, che la staccava dal
+          // corpo della colonna e ne faceva una fascia a sé.
         }}
       >
         <button

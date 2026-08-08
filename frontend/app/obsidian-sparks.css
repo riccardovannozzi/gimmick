@@ -20,7 +20,7 @@
 /* Striscia dei chip di filtro, dentro l'UNICA toolbar della vista. Prende lo
    spazio a sinistra e spinge ricerca e filtro-tipo a destra: niente più
    spaziatore. Scorre in orizzontale quando i chip non ci stanno, con la barra
-   nascosta — in una fascia da 48 si mangerebbe l'altezza. */
+   nascosta — in una fascia alta come questa si mangerebbe l'altezza. */
 .ob-sparks__chipbar {
   flex: 1; min-width: 0;
   display: flex; align-items: center; gap: 8px;

@@ -8,6 +8,7 @@
  * / GimmickSidebar.dc.html. Single tag per tile, so children select exclusively.
  */
 import * as React from 'react';
+import { createPortal } from 'react-dom';
 import * as TablerIcons from '@tabler/icons-react';
 import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
@@ -86,6 +87,23 @@ export function Sidebar({
 
   const activeIds = React.useMemo(() => new Set(activeChildIds), [activeChildIds]);
 
+  /**
+   * Il menu del tasto destro su una riga tag. Porta le azioni che prima stavano
+   * sulla riga come tre bottoni da 24px — pin, archivia, apri nel canvas.
+   *
+   * Se non è arrivato nessun callback non c'è niente da mostrare, e il tasto
+   * destro torna a fare quello che fa il browser (anteprime senza handler).
+   */
+  const hasActions = !!onTogglePin || !!onToggleArchive || !!onOpenCanvas;
+  const [menu, setMenu] = React.useState<{ x: number; y: number; child: SidebarChild } | null>(null);
+  const closeMenu = React.useCallback(() => setMenu(null), []);
+  React.useEffect(() => {
+    if (!menu) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [menu]);
+
   const toggle = (id: string) => setOpen((o) => ({ ...o, [id]: !o[id] }));
 
   // "Espandi/Comprimi tutto": apre tutti i gruppi se almeno uno è chiuso,
@@ -94,9 +112,17 @@ export function Sidebar({
   const toggleAll = () =>
     setOpen(Object.fromEntries(groups.map((g) => [g.id, !allOpen])));
 
+  // Quante voci avrà il menu aperto, e quindi quanto è alto: 8 di padding, 29 per
+  // voce, 9 per il separatore. STIMATA e non misurata: misurarla vorrebbe dire
+  // disegnare il menu nel posto sbagliato e poi spostarlo, che si vede.
+  const ctxItems = menu
+    ? (onOpenCanvas ? 1 : 0) + (onTogglePin && !menu.child.archived ? 1 : 0) + (onToggleArchive ? 1 : 0)
+    : 0;
+  const ctxH = 8 + ctxItems * 29 + (onOpenCanvas && (onTogglePin || onToggleArchive) ? 9 : 0);
+
   return (
     <aside className="ob-sb">
-      {/* Header della sidebar: barra da 48 della fascia sotto la navbar, come
+      {/* Header della sidebar: prima barra della fascia sotto la navbar, come
           la toolbar del canvas e la tabbar dell'inspector. Resta fissa mentre
           la lista dei tag scorre nel corpo. */}
       <div className="ob-sb__bar">
@@ -174,7 +200,20 @@ export function Sidebar({
                 {kids.map((c) => {
                   const isActive = activeIds.has(c.id);
                   return (
-                    <div key={c.id} className={cn('ob-sb-child', isActive && 'ob-sb-child--active')}>
+                    <div
+                      key={c.id}
+                      className={cn('ob-sb-child', isActive && 'ob-sb-child--active')}
+                      // Tasto destro → le azioni del tag. Non stanno più sulla
+                      // riga: erano tre bottoni che mangiavano il nome per farsi
+                      // spazio (vedi la nota su `.ob-sb-child` in
+                      // obsidian-shell.css).
+                      onContextMenu={(e) => {
+                        if (!hasActions) return;
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setMenu({ x: e.clientX, y: e.clientY, child: c });
+                      }}
+                    >
                       <button
                         type="button"
                         className="ob-sb-child__main"
@@ -182,45 +221,15 @@ export function Sidebar({
                         // guardano più tag insieme. Chi riceve decide se la sua
                         // vista sa mostrarne più d'uno.
                         onClick={(e) => onSelectChild?.(c.id, e.ctrlKey || e.metaKey)}
-                        title={isActive
+                        // Il tooltip è l'unico posto in cui le due cose che la
+                        // riga sa fare oltre al click si annunciano: senza
+                        // bottoni in vista, niente le suggerirebbe.
+                        title={`${c.name}\n${isActive
                           ? 'Ctrl+click per togliere questo tag dalla selezione'
-                          : 'Ctrl+click per aggiungerlo a quelli già selezionati'}
+                          : 'Ctrl+click per aggiungerlo a quelli già selezionati'}${hasActions ? '\nTasto destro per le opzioni' : ''}`}
                       >
                         <span className="ob-sb-child__name">{c.name}</span>
                       </button>
-                      <div className="ob-sb-child__actions">
-                        {onTogglePin && !c.archived && (
-                          <button
-                            type="button"
-                            className={cn('ob-sb-child__act', c.pinned && 'ob-sb-child__act--on')}
-                            title={c.pinned ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-                            aria-pressed={!!c.pinned}
-                            onClick={(e) => { e.stopPropagation(); onTogglePin(c.id, !c.pinned); }}
-                          >
-                            {c.pinned ? <IconPinFilled size={13} /> : <IconPin size={13} />}
-                          </button>
-                        )}
-                        {onToggleArchive && (
-                          <button
-                            type="button"
-                            className="ob-sb-child__act"
-                            title={c.archived ? 'Ripristina in Tags' : 'Sposta in Storage'}
-                            onClick={(e) => { e.stopPropagation(); onToggleArchive(c.id, !c.archived); }}
-                          >
-                            {c.archived ? <IconArchiveOff size={13} /> : <IconArchive size={13} />}
-                          </button>
-                        )}
-                        {onOpenCanvas && (
-                          <button
-                            type="button"
-                            className="ob-sb-child__act"
-                            title="Apri nel Canvas"
-                            onClick={(e) => { e.stopPropagation(); onOpenCanvas(c.id); }}
-                          >
-                            <Icon name="canvas" size={13} />
-                          </button>
-                        )}
-                      </div>
                     </div>
                   );
                 })}
@@ -230,6 +239,65 @@ export function Sidebar({
         );
       })}
       </div>
+
+      {menu && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Sfondo che intercetta il click (e il tasto destro) fuori dal menu.
+              Copre la finestra intera: chiudere solo al blur del menu lascerebbe
+              aperto un menu mentre si lavora altrove. */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={closeMenu}
+            onContextMenu={(e) => { e.preventDefault(); closeMenu(); }}
+          />
+          <div
+            className="ob-ctx"
+            // Clampato sui bordi: aperto in fondo alla lista dei tag, un menu
+            // ancorato al puntatore uscirebbe sotto la finestra.
+            style={{
+              top: Math.min(menu.y, window.innerHeight - ctxH),
+              left: Math.min(menu.x, window.innerWidth - 200),
+            }}
+          >
+            {onOpenCanvas && (
+              <>
+                <button
+                  type="button"
+                  className="ob-ctx__item"
+                  onClick={() => { onOpenCanvas(menu.child.id); closeMenu(); }}
+                >
+                  <Icon name="canvas" size={14} />Apri nel Canvas
+                </button>
+                {(onTogglePin || onToggleArchive) && <div className="ob-ctx__sep" />}
+              </>
+            )}
+            {/* Un tag archiviato non si pinna: sta in Storage, e le linguette dei
+                pinnati sono una scorciatoia a quello che tieni sott'occhio. */}
+            {onTogglePin && !menu.child.archived && (
+              <button
+                type="button"
+                className="ob-ctx__item"
+                onClick={() => { onTogglePin(menu.child.id, !menu.child.pinned); closeMenu(); }}
+              >
+                {menu.child.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
+                {menu.child.pinned ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+              </button>
+            )}
+            {onToggleArchive && (
+              <button
+                type="button"
+                className="ob-ctx__item"
+                onClick={() => { onToggleArchive(menu.child.id, !menu.child.archived); closeMenu(); }}
+              >
+                {menu.child.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
+                {menu.child.archived ? 'Ripristina in Tags' : 'Sposta in Storage'}
+              </button>
+            )}
+          </div>
+        </>,
+        document.body,
+      )}
     </aside>
   );
 }
+

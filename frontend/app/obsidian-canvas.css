@@ -43,16 +43,29 @@
 .ob-canvas__stage {
   width: 228px; flex-shrink: 0;
   display: flex; flex-direction: column;
-  background: #faf9fb;
+  /* Lo staging è la STESSA superficie della lavagna: la parte in cui i tile
+     aspettano di essere posizionati. Ci si trascina dentro e fuori di continuo,
+     ed è quel passaggio che il colore unico racconta — a separarlo dalla board
+     basta la hairline a destra. Aveva un fondo tutto suo per tema
+     (#faf9fb / #121212) che non era né quello della lavagna né quello delle
+     sponde. */
+  background: var(--ob-canvas);
   border-right: 1px solid var(--ob-line-2);
   overflow: hidden;
 }
-[data-theme='dark'] .ob-canvas__stage { background: #121212; }
+/* Testata senza fondo proprio, separata dalla sola hairline — come la barra
+   della sidebar dei tag e come quella dell'inspector. Aveva `--ob-surface-2`,
+   che con lo staging su un fondo tutto suo faceva da stacco; ora che le sponde
+   condividono il token quel valore le sarebbe finito addosso in dark, dove
+   `--ob-surface-2` È il fondo delle sponde. */
 .ob-canvas__stage-head {
-  height: 46px; flex-shrink: 0;
+  /* Il token: è la prima barra della colonna e sta sulla stessa riga della
+     toolbar del canvas. Era 46, due pixel per conto suo, e le due hairline non
+     cadevano alla stessa quota. Nel componente vero (`StagingPanel`) il token
+     c'era già; questa era l'anteprima rimasta indietro. */
+  height: var(--ob-toolbar-height); flex-shrink: 0;
   display: flex; align-items: center; gap: 8px;
   padding: 0 14px;
-  background: var(--ob-surface-2);
   border-bottom: 1px solid var(--ob-line);
 }
 /* Allineata alla testata STAGING reale (`StagingPanel.tsx`, quella che si vede
@@ -173,3 +186,40 @@
 /* Anche le etichette del footer sono sotto i 6px reali: illeggibili. */
 .ob-canvas-svg--lod .ob-tstatus,
 .ob-canvas-svg--lod .ob-tile__meta { display: none; }
+
+/* ── Comandi di zoom, appoggiati sulla lavagna ────────────────────────────────
+   Adatta e Scala 1:1, impilati in basso a destra. Stavano in fondo alla topbar
+   come due bottoni con etichetta: non sono comandi del documento come gli altri
+   della barra — non creano né cambiano niente, spostano il punto da cui guardi —
+   e stavano lontanissimi dal loro effetto, che accade qui.
+
+   La colonna è un oggetto solo: fondo pieno (le card ci passano sotto), un
+   contorno, e una hairline a dividere i due comandi. Niente ombra dura: la
+   separazione la fanno fondo e bordo, come ovunque nel sistema. */
+.ob-zoomctl {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line-2);
+  border-radius: var(--ob-radius-sm);
+  box-shadow: var(--ob-shadow-card);
+  overflow: hidden;
+}
+.ob-zoomctl__btn {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--ob-muted);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-zoomctl__btn + .ob-zoomctl__btn { border-top: 1px solid var(--ob-line); }
+.ob-zoomctl__btn:hover { background: color-mix(in srgb, var(--ob-text) 6%, transparent); color: var(--ob-text); }

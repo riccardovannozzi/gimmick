@@ -252,7 +252,10 @@ function TileStepper({ c, steps }: { c: ObsidianColors; steps: StepState[] }) {
  * raggio a ogni figlio che tocca il bordo — il velo del tipo e la strip ce
  * l'hanno.
  */
-function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
+// Esportata perché la usa anche la chat (AskScreen): un tile trovato dall'AI si
+// disegna con la STESSA card della lista, o l'utente si troverebbe davanti due
+// oggetti diversi che sono la stessa cosa.
+export function TileCard({ c, t, actionColors, onPress }: { c: ObsidianColors; t: Tile; actionColors: Record<TileActionKey, string>; onPress?: (id: string) => void }) {
   const action = t.visualKey;
   const spec = TILE_VISUAL[action];
   // La corsia ospita SOLO i passi. Lo status se n'è andato nel footer: erano due
@@ -1346,12 +1349,14 @@ function ChronoContent({ c, events, loading, dayLabel, isToday: isTodayProp, dat
 
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
 type ThemeMode = 'light' | 'dark' | 'system';
-function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confirmProp, onConfirmDelete, theme: themeProp, onTheme, account }: {
+function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confirmProp, onConfirmDelete, theme: themeProp, onTheme, account, chatRetention, onChatRetention }: {
   c: ObsidianColors;
   haptic?: boolean; onHaptic?: (v: boolean) => void;
   confirmDelete?: boolean; onConfirmDelete?: (v: boolean) => void;
   theme?: ThemeMode; onTheme?: (v: ThemeMode) => void;
-  account?: { email?: string | null; onSignIn?: () => void; onSignOut?: () => void };
+  /** Minuti di inattività dopo cui la chat si svuota. 0 = mai. */
+  chatRetention?: number; onChatRetention?: (v: number) => void;
+  account?: { email?: string | null; isAuthed?: boolean; onSignIn?: () => void; onSignOut?: () => void };
 }) {
   // Controlled when a setter is provided (live), otherwise local state (mock).
   const [hapticState, setHapticState] = React.useState(true);
@@ -1392,12 +1397,19 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
   // Account section. The app has no auth guard on the root layout, so an
   // unauthenticated session lands straight on the tabs with every list silently
   // empty — this is the only way back to the login screen.
+  // Il discriminante è la SESSIONE, non l'email: `isAuthed` arriva dal token.
+  // Legandolo a `account.email` bastava un `user` nullo con token valido per
+  // far sparire «Esci» e mostrare «Accedi», che il guard di root rimbalza
+  // indietro — l'utente restava chiuso dentro senza modo di uscire.
+  // Il fallback su `email` tiene in piedi le anteprime statiche, che passano
+  // solo l'indirizzo.
+  const authed = account?.isAuthed ?? !!account?.email;
   const AccountSection = !account ? null : (
     <>
       <SectionHead>ACCOUNT</SectionHead>
-      {account.email ? (
+      {authed ? (
         <View style={{ gap: 9 }}>
-          <Row Icon={IconUser} label={account.email} sub="Connesso" control={<View />} />
+          <Row Icon={IconUser} label={account.email ?? 'Sessione attiva'} sub="Connesso" control={<View />} />
           <Pressable
             onPress={account.onSignOut}
             style={({ pressed }) => ({ alignItems: 'center', minHeight: OB_BTN_H, justifyContent: 'center', borderRadius: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.line, opacity: pressed ? 0.75 : 1 })}
@@ -1431,6 +1443,29 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
       <SectionHead>ASPETTO</SectionHead>
       <SegRow label="Tema" control={<Segmented c={c} value={theme} onChange={setTheme} items={[{ value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }, { value: 'system', label: 'Sistema' }]} />} />
       <SegRow label="Colore tile" control={<Segmented c={c} value={tileColor} onChange={setTileColor} items={[{ value: 'tint', label: 'Tinta' }, { value: 'solid', label: 'Pieno' }]} />} />
+
+      {/* Da quando la chat sopravvive all'uscita dalla schermata, qualcuno deve
+          pur chiuderla: o il pulsante nel compositore, o questa scadenza. Conta
+          l'INATTIVITÀ, non l'età — una conversazione ripresa poco fa non è
+          vecchia. Il controllo passa minuti, che è l'unità dello store. */}
+      {onChatRetention ? (
+        <SegRow
+          label="Svuota la chat dopo"
+          control={
+            <Segmented
+              c={c}
+              value={String(chatRetention ?? 1440)}
+              onChange={(v) => onChatRetention(Number(v))}
+              items={[
+                { value: '60', label: "1 ora" },
+                { value: '1440', label: '1 giorno' },
+                { value: '10080', label: '1 settimana' },
+                { value: '0', label: 'Mai' },
+              ]}
+            />
+          }
+        />
+      ) : null}
 
       <SectionHead>GENERALE</SectionHead>
       <View style={{ gap: 9 }}>
@@ -1503,7 +1538,10 @@ export interface ObsidianViewsScreenProps {
    *  broken fetch can't masquerade as an empty list. */
   errorText?: string | null;
   /** Settings tab — account row + sign in/out. Omit for the mock. */
-  account?: { email?: string | null; onSignIn?: () => void; onSignOut?: () => void };
+  account?: { email?: string | null; isAuthed?: boolean; onSignIn?: () => void; onSignOut?: () => void };
+  /** Minuti di inattività dopo cui la chat AI si svuota. 0 = mai. */
+  chatRetention?: number;
+  onChatRetention?: (v: number) => void;
   /** Home button (nel Drawer) → the Capture screen. Falls back to the Tiles tab. */
   onHome?: () => void;
   onBack?: () => void;
@@ -1529,7 +1567,7 @@ export function ObsidianViewsScreen({
   chronoRange, onChronoRange, onChronoSelectDay,
   onChronoPrev, onChronoNext, onChronoToday, onChronoPickDate, onOpenEvent, onChronoAddTile,
   haptic, onHaptic, confirmDelete, onConfirmDelete, themeMode, onThemeMode,
-  errorText, account, onHome, onAsk,
+  errorText, account, onHome, onAsk, chatRetention, onChatRetention,
 }: ObsidianViewsScreenProps = {}) {
   const c = useObsidian();
   const [activeState, setActiveState] = React.useState<MobileViewId>(initial);
@@ -1571,7 +1609,7 @@ export function ObsidianViewsScreen({
       )}
       {active === 'flows' && <FlowsContent c={c} flows={flows} actionColors={actionColors} loading={flowsLoading} onOpenTile={onOpenTile} />}
       {active === 'chrono' && <ChronoContent c={c} events={chronoEvents} loading={chronoLoading} dayLabel={chronoDayLabel} isToday={chronoIsToday} date={chronoDate} range={chronoRange} onRange={onChronoRange} onSelectDay={onChronoSelectDay} onPrev={onChronoPrev} onNext={onChronoNext} onToday={onChronoToday} onPickDate={onChronoPickDate} onOpenEvent={onOpenEvent} onAddTile={onChronoAddTile} />}
-      {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} />}
+      {active === 'settings' && <SettingsContent c={c} haptic={haptic} onHaptic={onHaptic} confirmDelete={confirmDelete} onConfirmDelete={onConfirmDelete} theme={themeMode} onTheme={onThemeMode} account={account} chatRetention={chatRetention} onChatRetention={onChatRetention} />}
       <ObsidianNavPill background={shellBg} />
 
       {/* Drawer: viste + Cattura (Home) + Impostazioni. */}

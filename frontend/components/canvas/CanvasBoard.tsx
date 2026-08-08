@@ -771,8 +771,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const isSel = grp.id === selectedGroupIdRef.current;
         // Stile per-gruppo (sfondo/bordo). In selezione il bordo passa all'accento
         // (mantenendo spessore/tipologia) per rendere evidente la selezione.
-        const gBg = grp.bgColor || theme.surface;
-        const gBw = grp.borderWidth ?? 0;
+        // Senza un colore scelto, il fondo è `--ob-group-bg`: a metà fra la
+        // lavagna e le sponde. Era `theme.surface`, che da quando l'area di
+        // lavoro è bianca coincide con la lavagna — il gruppo spariva.
+        // ⚠️ Arriva come CSS var, quindi va posato con `.style()` e non con
+        // `.attr()`: un attributo di presentazione SVG non risolve le custom
+        // properties, e il rettangolo resterebbe senza riempimento.
+        const gBg = grp.bgColor || 'var(--ob-group-bg)';
+        // Un gruppo nasce CON la sua hairline. Il default era 0, cioè nessun
+        // contorno: il rettangolo si reggeva sul solo fondo, e su una lavagna
+        // bianca quel fondo vale un contrasto di 1.06 — il gruppo c'era e non si
+        // vedeva. Ogni altro contenitore del sistema (tile, card, menu) ha il suo
+        // contorno; questo non aveva ragione di essere l'eccezione.
+        // `??` e non `||`: uno zero SCELTO resta zero, è chi non ha mai deciso
+        // che prende la hairline.
+        const gBw = grp.borderWidth ?? 1;
         const gStroke = isSel ? selAccent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
         const gStrokeW = isSel ? Math.max(1.5, gBw) : gBw;
         const dashFor = (style: string | null | undefined, w: number): string | null => {
@@ -783,7 +796,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const gDash = dashFor(grp.borderStyle, gStrokeW);
         const gw = groupsBg.append('g');
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
-          .attr('fill', gBg)
+          .style('fill', gBg)
           .attr('stroke', gStroke).attr('stroke-width', gStrokeW)
           .attr('stroke-dasharray', gDash)
           .attr('stroke-linecap', grp.borderStyle === 'dotted' ? 'round' : 'butt')
