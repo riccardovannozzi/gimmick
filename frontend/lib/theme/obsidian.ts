@@ -46,7 +46,13 @@ export interface ObsidianNeutrals {
 
 export const OBSIDIAN_NEUTRALS: Record<ObsidianMode, ObsidianNeutrals> = {
   light: {
-    canvas: '#f6f6f8',
+    // ⚠️ MIRROR di app/obsidian.css — vanno cambiati INSIEME. Quello che passa di
+    // qui non sono le CSS var: è il PixelTheme, cioè i colori risolti in hex che
+    // usano il canvas D3, lo staging e la sidebar del tile. Cambiando solo il
+    // CSS, l'app si divide in due — le viste in classi si aggiornano e quelle in
+    // stili inline restano indietro, che è esattamente com'era il canvas quando
+    // tutto il resto era già passato al bianco.
+    canvas: '#ffffff',
     surface: '#ffffff',
     surface2: '#f1f0f4',
     head: '#fbfbfc',
@@ -161,11 +167,16 @@ export const OBSIDIAN_DANGER = '#E24B4A';
  * Altezza della PRIMA barra di una vista (px) — toolbar/header di Ask, Flows,
  * Sparks, Canvas, Chrono, Kanban, Panopticon, Tiles.
  *
- * Scala verticale dello shell: 56 navbar · 48 prima barra · 40 barre annidate.
+ * Scala verticale dello shell: 56 navbar · 44 prima barra · 40 barre annidate.
  * Emesso come `--ob-toolbar-height`; è il gradino di mezzo e NON riguarda la
  * navbar né le barre di secondo livello.
+ *
+ * ⚠️ MIRROR di `--ob-toolbar-height` in app/obsidian.css — vanno cambiati
+ * INSIEME, o le viste in stili inline restano su un'altra altezza e la fascia
+ * salta passando da una all'altra, che è esattamente il guaio che questo numero
+ * era nato per chiudere.
  */
-export const OBSIDIAN_TOOLBAR_HEIGHT = 48;
+export const OBSIDIAN_TOOLBAR_HEIGHT = 44;
 
 // ─── Elevation ────────────────────────────────────────────────────────────────
 // No hard shadows. Separation relies on surface vs surface2 + hairlines.

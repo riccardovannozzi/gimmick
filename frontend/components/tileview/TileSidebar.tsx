@@ -50,6 +50,24 @@ const AllIcons = TablerIcons as unknown as Record<string, React.ComponentType<{ 
 type PT = ReturnType<typeof usePixelTheme>;
 
 /**
+ * Il fondo di QUESTA colonna e quello degli oggetti che ci stanno dentro.
+ *
+ * Non passano dal PixelTheme come tutto il resto: sono i token delle due sponde
+ * della vista (`obsidian.css`), gli STESSI che usa la sidebar dei tag a
+ * sinistra. Prima erano `theme.bg2` e `theme.bg1`, cioe' due neutri scelti qui
+ * per conto proprio, e in dark la colonna di destra risultava piu' scura della
+ * sua gemella a sinistra — sembrava un buco accanto a lei.
+ *
+ * I due valori vanno insieme: gli oggetti dentro la colonna non hanno contorno e
+ * si distinguono solo perche' si staccano dal fondo del pannello — sollevandosi
+ * in light, affondando in dark. Il verso lo decidono i token, non questo file.
+ */
+const RAIL_BG = 'var(--ob-rail-bg)';
+const RAIL_FIELD = 'var(--ob-rail-field)';
+/** Fondo della barra delle linguette: un gradino sotto il pannello. */
+const RAIL_SUNKEN = 'var(--ob-sunken)';
+
+/**
  * Eyebrow/section label (TITOLO, AZIONE, …) — la tipografia arriva dall'helper
  * condiviso `lib/theme/ob-typography`; qui si aggiunge solo il layout di blocco,
  * che è specifico di questa sidebar (etichetta sopra il campo, non in riga).
@@ -59,13 +77,12 @@ function obLabel(theme: PT): React.CSSProperties {
 }
 
 /** Field / select trigger box (input, dropdown trigger).
- *  Nessun contorno: gli oggetti si distinguono per il fondo, che dev'essere più
- *  scuro del pannello (`bg2`) — stessa scelta della sidebar TEXT, dove gli
- *  oggetti stanno su `bg1`. Con `surface` sarebbero dello stesso colore del
- *  pannello e, senza bordo, sparirebbero. */
+ *  Nessun contorno: gli oggetti si distinguono per il fondo, che si stacca da
+ *  quello del pannello — `--ob-rail-field` contro `--ob-rail-bg`. Dando loro il
+ *  fondo del pannello, senza bordo, sparirebbero. */
 function obField(theme: PT): React.CSSProperties {
   return {
-    background: theme.bg1,
+    background: RAIL_FIELD,
     border: 'none',
     borderRadius: 'var(--ob-radius-sm)',
     color: theme.ink,
@@ -138,7 +155,7 @@ function TypeIconPicker({ tileId }: { tileId: string }) {
           gap: 8,
           // Senza tipo impostato niente velatura: stesso fondo nero degli altri
           // campi (bg1), non `surface` che è il colore del pannello.
-          background: current?.color ? `${current.color}40` : theme.bg1,
+          background: current?.color ? `${current.color}40` : RAIL_FIELD,
           padding: '0 10px',
           height: 30,
           cursor: 'pointer',
@@ -315,7 +332,7 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
           gap: 8,
           // 'active' è il default → nessuna velatura, fondo nero come gli altri
           // campi. Quando invece uno status c'è, la tinta poggia sullo stesso nero.
-          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${theme.bg1})` : theme.bg1,
+          background: current && current.name !== 'active' && currentMeta ? `color-mix(in srgb, ${currentMeta.color} 16%, ${RAIL_FIELD})` : RAIL_FIELD,
           padding: '0 10px',
           height: 30,
           cursor: 'pointer',
@@ -557,7 +574,7 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
           height: 30,
           // Con un tag assegnato la velatura accent-soft; senza, fondo nero come
           // gli altri campi senza valore.
-          background: selectedTag ? `${theme.accent}1f` : theme.bg1,
+          background: selectedTag ? `${theme.accent}1f` : RAIL_FIELD,
           color: selectedTag ? theme.accent : theme.ink3,
           padding: '0 10px',
           cursor: 'pointer',
@@ -706,7 +723,7 @@ function SparkEditor({
 
   const mediaWrap: React.CSSProperties = {
     overflow: 'hidden',
-    background: theme.bg1,
+    background: RAIL_FIELD,
     border: 'none',
     borderRadius: 'var(--ob-radius-md)',
     position: 'relative',
@@ -726,7 +743,7 @@ function SparkEditor({
       <div
         className="group"
         style={{
-          background: theme.bg1,
+          background: RAIL_FIELD,
           border: 'none',
           borderRadius: 'var(--ob-radius-md)',
           padding: '10px 12px',
@@ -903,7 +920,7 @@ function SparkEditor({
           onClick={() => setPdfModalOpen(true)}
           className="group"
           style={{
-            background: theme.bg1,
+            background: RAIL_FIELD,
             border: 'none',
             borderRadius: 'var(--ob-radius-md)',
             overflow: 'hidden',
@@ -912,7 +929,7 @@ function SparkEditor({
           }}
         >
           {/* Thumbnail — first page, interaction blocked so click falls through to wrapper */}
-          <div style={{ position: 'relative', height: 96, background: theme.bg1, overflow: 'hidden', pointerEvents: 'none' }}>
+          <div style={{ position: 'relative', height: 96, background: RAIL_FIELD, overflow: 'hidden', pointerEvents: 'none' }}>
             <iframe
               src={`${signedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH&page=1`}
               title={spark.file_name || 'PDF'}
@@ -1034,6 +1051,9 @@ function SparkEditor({
               <iframe
                 src={signedUrl}
                 title={spark.file_name || 'PDF'}
+                // Il visore a tutta pagina esce dalla colonna (è in un portale su
+                // `document.body`): il suo fondo è quello della vista, non quello
+                // degli oggetti della sidebar.
                 style={{ flex: 1, width: '100%', background: theme.bg1, border: 0 }}
               />
             </div>
@@ -1052,7 +1072,7 @@ function SparkEditor({
       onClick={(e) => { if (!signedUrl) e.preventDefault(); }}
       className="group"
       style={{
-        background: theme.bg1,
+        background: RAIL_FIELD,
         border: 'none',
         borderRadius: 'var(--ob-radius-md)',
         padding: '8px 10px',
@@ -1327,7 +1347,7 @@ export function TileSidebar({
     <div
       style={{
         borderLeft: `1px solid ${theme.border}`,
-        background: theme.bg2,
+        background: RAIL_BG,
         transition: 'width 200ms',
         display: 'flex',
         flexDirection: 'column',
@@ -1340,7 +1360,7 @@ export function TileSidebar({
         <button
           onClick={onToggle}
           style={{
-            height: 48,
+            height: 'var(--ob-toolbar-height)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -1364,13 +1384,17 @@ export function TileSidebar({
         {tileId && (
           <div
             style={{
-              height: 48,
+              height: 'var(--ob-toolbar-height)',
               padding: '0 8px',
               display: 'flex',
               alignItems: 'center',
               gap: 4,
+              // Barra delle linguette: INCASSATA, come `.ob-insp__top` e come
+              // quella della sidebar dei tag. La hairline qui sotto è il bordo
+              // superiore del pannello, e la linguetta attiva la interrompe
+              // sbordando di un pixel — vedi `.ob-insp-tab--active`.
               borderBottom: `1px solid ${theme.border}`,
-              background: theme.bg2,
+              background: RAIL_SUNKEN,
               flexShrink: 0,
             }}
           >
@@ -1548,7 +1572,7 @@ export function TileSidebar({
                   return (
                     // Unico container (tutti i 6 bottoni appartengono ad AZIONE):
                     // surface + padding, come segmented control. Niente cornice.
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: theme.bg1, border: 'none', borderRadius: 'var(--ob-radius-md)', padding: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, background: RAIL_FIELD, border: 'none', borderRadius: 'var(--ob-radius-md)', padding: 6 }}>
                       <div style={{ display: 'flex', gap: 6 }}>{row1.map(renderBtn)}</div>
                       <div style={{ display: 'flex', gap: 6 }}>{row2.map(renderBtn)}</div>
                     </div>
@@ -1619,7 +1643,7 @@ export function TileSidebar({
                 // Cella generica dentro il container: sfondo surface, NESSUN bordo
                 // (la cornice la dà il container del gruppo).
                 const cellBase: React.CSSProperties = {
-                  background: theme.bg1, border: 'none',
+                  background: RAIL_FIELD, border: 'none',
                   // 30 come ogni altro campo/controllo della sidebar.
                   borderRadius: 'var(--ob-radius-sm)', height: 30,
                 };
@@ -1720,7 +1744,7 @@ export function TileSidebar({
                     if (e.dataTransfer.files?.length) handleFileSelect(e.dataTransfer.files);
                   }}
                   style={{
-                    background: boxDragOver ? `${theme.accent}1F` : theme.bg1,
+                    background: boxDragOver ? `${theme.accent}1F` : RAIL_FIELD,
                     borderRadius: 'var(--ob-radius-md)',
                     padding: 12,
                     marginBottom: 12,

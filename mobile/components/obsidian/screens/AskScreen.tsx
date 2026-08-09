@@ -5,16 +5,21 @@
  * row and a composer. Reference: GimmickMobileAsk.dc.html.
  */
 import React from 'react';
-import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, Keyboard } from 'react-native';
 import Markdown from 'react-native-markdown-display';
 import {
   IconPaperclip, IconMicrophone, IconSend,
-  IconTag, IconCheck, IconAlignLeft, IconX,
+  IconTag, IconCheck, IconAlignLeft, IconX, IconArrowLeft, IconEraser,
+  IconCornerDownLeft,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import { useDictation } from '@/hooks/useDictation';
 import { toast } from '@/store';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
+import { DEFAULT_ACTION_COLORS, type TileActionKey } from '@/constants/tile-colors';
+import { chatTileToVM } from '@/lib/obsidian-adapters';
+import type { ChatTile } from '@/lib/api';
+import { TileCard } from './ViewsScreen';
 import { ObsidianStatusBar } from '../StatusBar';
 import { ObsidianNavPill } from '../NavPill';
 import { BitoMascot } from '../Mascot';
@@ -176,7 +181,36 @@ function ConfirmRow({ c }: { c: ObsidianColors }) {
   );
 }
 
-export interface AskMessage { id: string; role: 'user' | 'assistant'; content: string }
+export interface AskMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  /** Tile trovate dall'AI per questo turno: si disegnano sotto la risposta. */
+  tiles?: ChatTile[];
+}
+
+/**
+ * Le tile della risposta, con la card VERA della lista.
+ *
+ * Non una card della chat: un tile trovato dall'AI e lo stesso tile visto in
+ * elenco sono la stessa cosa, e disegnarli diversi costringerebbe a impararli
+ * due volte. Quello che la chat non sa — anteprime, passi, tag, status — la card
+ * semplicemente non lo disegna, perché è costruita per tacere sui dati assenti.
+ */
+function TileResults({ c, tiles, actionColors, onOpenTile }: {
+  c: ObsidianColors;
+  tiles: ChatTile[];
+  actionColors: Record<TileActionKey, string>;
+  onOpenTile?: (id: string) => void;
+}) {
+  return (
+    <View style={{ gap: 9 }}>
+      {tiles.map((t) => (
+        <TileCard key={t.id} c={c} t={chatTileToVM(t)} actionColors={actionColors} onPress={onOpenTile} />
+      ))}
+    </View>
+  );
+}
 
 export interface ObsidianAskScreenProps {
   /** Live conversation. Omit to render the static demo thread (QA preview). */
@@ -190,11 +224,20 @@ export interface ObsidianAskScreenProps {
   /** Apre il selettore di file. Omessa → graffetta spenta (mock QA). */
   onAttach?: () => void;
   onRemoveAttachment?: () => void;
+  /** Torna alla schermata precedente. Omessa → nessuna riga in cima. */
+  onBack?: () => void;
+  /** Apre una tile trovata dall'AI. Omessa → card mostrate ma non toccabili. */
+  onOpenTile?: (id: string) => void;
+  /** Colori azione dell'utente. Omessi → i default, come in lista. */
+  actionColors?: Record<TileActionKey, string>;
+  /** Svuota la conversazione. Omessa → nessun pulsante (anteprima statica). */
+  onClear?: () => void;
 }
 
 export function ObsidianAskScreen({
   messages, input, onInput, onSend, isLoading,
-  attachment, onAttach, onRemoveAttachment,
+  attachment, onAttach, onRemoveAttachment, onBack,
+  onOpenTile, actionColors, onClear,
 }: ObsidianAskScreenProps = {}) {
   const c = useObsidian();
   const live = messages !== undefined;
@@ -206,21 +249,144 @@ export function ObsidianAskScreen({
   });
   /** Invio possibile: non è già in corso una risposta e c'è del testo. */
   const canSend = !isLoading && !!(input ?? '').trim();
+  const tileColors = actionColors ?? DEFAULT_ACTION_COLORS;
+  const hasMessages = (messages?.length ?? 0) > 0;
+
+  // ── Il thread resta incollato in fondo ──────────────────────────────────────
+  const threadRef = React.useRef<ScrollView>(null);
+  const scrollToEnd = React.useCallback(() => {
+    // Un frame di attesa: nel tick in cui lo stato cambia il nuovo contenuto non
+    // è ancora misurato, e uno `scrollToEnd` fatto adesso si fermerebbe
+    // all'altezza vecchia — cioè poco sopra il punto giusto, che è il modo più
+    // fastidioso di sbagliare.
+    requestAnimationFrame(() => threadRef.current?.scrollToEnd({ animated: true }));
+  }, []);
+
+  // Mentre scrivi o detti, il compositore CRESCE (fino a sei righe) e mangia
+  // altezza al thread da sotto: senza questo, l'ultimo messaggio scivola fuori
+  // vista proprio mentre stai parlando.
+  React.useEffect(() => {
+    scrollToEnd();
+  }, [input, attachment, isLoading, scrollToEnd]);
+
+  // La tastiera che si apre riduce la finestra: stesso effetto, altra causa.
+  React.useEffect(() => {
+    const sub = Keyboard.addListener('keyboardDidShow', scrollToEnd);
+    return () => sub.remove();
+  }, [scrollToEnd]);
+
+  /**
+   * Invio: chiude la dettatura PRIMA di mandare.
+   *
+   * Prima non la toccava nessuno, e il microfono sembrava spegnersi da sé —
+   * in realtà era Android che chiude il riconoscitore dopo il silenzio con cui
+   * smetti di parlare per premere invio. Sembrava una nostra scelta e non lo era.
+   *
+   * `reset` e non `stop`: `stop` lascia in piedi gli accumulatori della sessione
+   * (il testo di partenza e i segmenti già finalizzati), e al primo risultato che
+   * arriva in ritardo `compose` li riscriverebbe nel campo — cioè il messaggio
+   * appena inviato RICOMPARIVA sotto le dita. `reset` annulla e azzera, quindi
+   * il campo resta vuoto e la dettatura successiva riparte da zero.
+   */
+  // L'Invio da tastiera arriva per due strade diverse a seconda della
+  // piattaforma (vedi `handleChangeText`), e non c'è modo di sapere in anticipo
+  // quale. Le lasciamo attive entrambe e ci difendiamo qui: una finestra breve
+  // scarta il secondo colpo se per caso scattassero insieme, senza toccare in
+  // alcun modo l'invio normale.
+  const lastSentAt = React.useRef(0);
+  const handleSend = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastSentAt.current < 300) return;
+    lastSentAt.current = now;
+    dictation.reset();
+    onSend?.();
+  }, [dictation, onSend]);
+
+  /**
+   * Invio da tastiera = freccia di invio.
+   *
+   * Su un campo `multiline` non si può usare `onSubmitEditing`: su iOS non
+   * scatta proprio, su Android è incostante. L'unico segnale affidabile è il
+   * testo stesso — l'a capo appena comparso in fondo.
+   *
+   * La condizione è stretta di proposito: UN carattere in più, ed è "\n", e il
+   * resto è identico a prima. Un incollaggio multiriga ne aggiunge molti in una
+   * volta e NON deve partire da solo: è il modo più facile di mandare per
+   * sbaglio un testo che si stava solo preparando.
+   *
+   * Se non c'è niente da mandare l'a capo viene ingoiato invece che scritto: il
+   * pulsante in quel momento è spento, e una tastiera che si comporta
+   * diversamente dal pulsante accanto è peggio di una che non fa nulla.
+   */
+  const handleChangeText = React.useCallback((next: string) => {
+    const prev = input ?? '';
+    const isEnter = next.length === prev.length + 1 && next.endsWith('\n') && next.slice(0, -1) === prev;
+    if (!isEnter) { onInput?.(next); return; }
+    if (canSend) handleSend();
+  }, [input, canSend, handleSend, onInput]);
+
+  /**
+   * A capo esplicito, dato che l'Invio ora manda.
+   *
+   * Su tastiera software non esiste un equivalente affidabile di Maiusc+Invio,
+   * e comunque sarebbe una scorciatoia invisibile: qui l'a capo è un tasto che
+   * si vede. Senza, scrivere un messaggio su più righe diventerebbe impossibile
+   * — e non è un caso di nicchia, è come si scrive una richiesta articolata.
+   *
+   * Inserisce nel punto del cursore, non in fondo: l'ultima posizione nota
+   * arriva da `onSelectionChange`. Chiama `onInput` DIRETTAMENTE e non
+   * `handleChangeText`, altrimenti l'a capo appena aggiunto verrebbe scambiato
+   * per un Invio e manderebbe il messaggio.
+   */
+  const selection = React.useRef({ start: 0, end: 0 });
+  const insertNewline = React.useCallback(() => {
+    const text = input ?? '';
+    const s = Math.min(Math.max(selection.current.start, 0), text.length);
+    const e = Math.min(Math.max(selection.current.end, s), text.length);
+    const next = `${text.slice(0, s)}\n${text.slice(e)}`;
+    selection.current = { start: s + 1, end: s + 1 };
+    onInput?.(next);
+  }, [input, onInput]);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.canvas }}>
       <ObsidianStatusBar />
 
-      {/* Niente barra in cima: la schermata comincia dal thread.
-          Si esce col tasto indietro di sistema (Android) o con lo swipe dal
-          bordo (iOS), che la Stack di expo-router lascia attivo di suo — la
-          rotta non dichiara opzioni proprie e eredita `headerShown: false` +
-          `slide_from_right` da app/_layout.tsx.
+      {/* Indietro in alto a sinistra. Prima si contava solo sul tasto di
+          sistema e sullo swipe dal bordo: gesti che esistono, ma che non si
+          vedono — su una schermata aperta a tutto campo dall'header non c'è
+          nessun segno di come tornare indietro.
+          Riga leggera e senza bordo, non una barra piena: la schermata resta
+          quella che comincia dal thread. Metriche del canone «indietro su
+          schermata secondaria» (SparksScreen, BufferScreen), non quelle
+          dell'header principale, che sono per i quadrati di navigazione.
           Lo spazio sotto la status bar lo tiene già `ObsidianStatusBar`, che
-          riempie l'inset: il primo messaggio non finisce sotto l'orologio. */}
+          riempie l'inset. */}
+      {onBack ? (
+        <View style={{ height: 54, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10 }}>
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel="Indietro"
+            hitSlop={6}
+            style={({ pressed }) => ({ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}
+          >
+            <IconArrowLeft size={19} color={c.muted} strokeWidth={1.8} />
+          </Pressable>
+        </View>
+      ) : null}
 
       {/* Thread */}
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, gap: 13 }}>
+      <ScrollView
+        ref={threadRef}
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: 16, gap: 13 }}
+        // Il contenuto cresce anche DOPO il cambio di stato: il markdown di una
+        // risposta lunga si misura in un secondo momento, e uno scroll legato al
+        // solo arrivo del messaggio si fermerebbe all'altezza di prima. Questo
+        // evento scatta ad altezza definitiva.
+        onContentSizeChange={scrollToEnd}
+      >
         {live ? (
           <>
             {messages!.length === 0 && !isLoading && (
@@ -229,7 +395,17 @@ export function ObsidianAskScreen({
             {messages!.map((m) => (
               m.role === 'user'
                 ? <UserMsg key={m.id} c={c}>{m.content}</UserMsg>
-                : <BotWrap key={m.id} c={c}><Bubble c={c}>{m.content}</Bubble></BotWrap>
+                : (
+                  <BotWrap key={m.id} c={c}>
+                    <Bubble c={c}>{m.content}</Bubble>
+                    {/* Le card DENTRO il wrapper del bot, non sotto: sono parte
+                        della risposta, e allineate al testo si leggono come un
+                        unico turno invece che come un blocco a sé. */}
+                    {m.tiles?.length ? (
+                      <TileResults c={c} tiles={m.tiles} actionColors={tileColors} onOpenTile={onOpenTile} />
+                    ) : null}
+                  </BotWrap>
+                )
             ))}
             {isLoading && <BotWrap c={c}><Bubble c={c}>…</Bubble></BotWrap>}
           </>
@@ -269,15 +445,30 @@ export function ObsidianAskScreen({
             scorreva via mentre lo si scriveva, e dopo una dettatura non si
             riusciva a rileggere quello che era finito nel campo. Cresce fino a
             120dp e poi scorre da sé.
-            CONSEGUENZA: l'invio da tastiera non c'è più (su un campo multilinea
-            l'Invio va a capo). A mandare è il pulsante della seconda riga, che
-            per questo è il solo pieno d'accento. */}
+            L'Invio da tastiera MANDA, come la freccia: lo intercetta
+            `handleChangeText` qui sotto. Il pulsante resta, ed è il solo pieno
+            d'accento perché è l'azione. */}
         <View style={{ backgroundColor: c.field, borderRadius: 14, borderTopLeftRadius: attachment ? 0 : 14, borderTopRightRadius: attachment ? 0 : 14, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 }}>
           <TextInput
             value={input}
-            onChangeText={onInput}
+            onChangeText={handleChangeText}
             editable={!isLoading}
             multiline
+            // Il tasto mostra "invia" invece del glifo di a capo, dove la
+            // piattaforma lo consente: l'aspetto della tastiera deve dire cosa
+            // farà davvero premerla.
+            returnKeyType="send"
+            // `submitBehavior="submit"` fa sì che il tasto INVII invece di
+            // andare a capo, tenendo il fuoco nel campo. Dove è onorato l'a capo
+            // non arriva mai al testo, quindi serve anche questo aggancio: le
+            // due strade si escludono a vicenda in pratica, e `handleSend` si
+            // difende comunque dal doppio colpo.
+            submitBehavior="submit"
+            onSubmitEditing={() => { if (canSend) handleSend(); }}
+            // Serve al tasto a capo per sapere DOVE inserire. In un ref e non
+            // in stato: cambia a ogni tocco nel campo, e non deve far
+            // ridisegnare la schermata a ogni spostamento del cursore.
+            onSelectionChange={(e) => { selection.current = e.nativeEvent.selection; }}
             placeholder={dictation.listening ? 'Sto ascoltando…' : 'Chiedi a Gimmick…'}
             placeholderTextColor={c.subtle}
             // Stesso corpo delle bolle: quello che scrivi e quello che leggi
@@ -339,13 +530,52 @@ export function ObsidianAskScreen({
               </View>
             </Pressable>
 
+            {/* A capo. Da quando l'Invio manda, questo è l'UNICO modo di andare
+                a capo su tastiera software: Maiusc+Invio lì non esiste, e una
+                scorciatoia invisibile non sarebbe una risposta. Sta con gli
+                altri comandi di scrittura, a sinistra, non con le azioni. */}
+            <Pressable
+              onPress={insertNewline}
+              disabled={isLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Vai a capo"
+              android_ripple={{ color: c.accent + '33', borderless: true }}
+              hitSlop={6}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', opacity: isLoading ? 0.35 : 1 }}>
+                <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
+              </View>
+            </Pressable>
+
             <View style={{ flex: 1 }} />
+
+            {/* Svuota la conversazione. Da quando la chat è persistente non se
+                ne va più da sé uscendo dalla schermata, quindi ci vuole un modo
+                esplicito di chiuderla. Spento a chat vuota: un pulsante che non
+                ha niente da fare non deve sembrare premibile.
+                Accanto all'invio ma NON pieno d'accento — l'azione della barra
+                resta una sola, e questa è di servizio. */}
+            {onClear ? (
+              <Pressable
+                onPress={onClear}
+                disabled={!hasMessages || isLoading}
+                accessibilityRole="button"
+                accessibilityLabel="Svuota la conversazione"
+                accessibilityState={{ disabled: !hasMessages }}
+                android_ripple={{ color: c.deadline + '33', borderless: true }}
+                hitSlop={6}
+              >
+                <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', opacity: hasMessages && !isLoading ? 1 : 0.35 }}>
+                  <IconEraser size={22} color={c.text} strokeWidth={1.9} />
+                </View>
+              </Pressable>
+            ) : null}
 
             {/* Invio in fondo a destra: pieno d'accento perché è l'azione, e
                 perché da quando il campo è multilinea è l'UNICO modo di mandare
                 il messaggio. Spento finché non c'è niente da mandare. */}
             <Pressable
-              onPress={onSend}
+              onPress={handleSend}
               disabled={!canSend}
               accessibilityRole="button"
               accessibilityLabel="Invia"

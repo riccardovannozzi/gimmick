@@ -115,11 +115,11 @@ export default function TileListScreen() {
   // Track which row is in "reorder mode" (shows up/down arrows).
   const [reorderingId, setReorderingId] = useState<string | null>(null);
 
-  // Swipe-right → back to EDIT, swipe-left → forward to FLOW. Mirrors the
-  // segmented header buttons.
+  // Swipe-right → back to EDIT. Non c'è più un gesto in avanti: la vista FLOW
+  // era la terza di questa serie ed è sparita col modello a nodi (i passi di un
+  // flow sono le voci di QUESTA lista).
   const swipe = useHorizontalSwipe({
     onSwipeRight: () => router.replace(`/tile/${id}` as any),
-    onSwipeLeft: () => router.replace(`/tile/${id}/flow` as any),
   });
 
   return (
@@ -127,14 +127,13 @@ export default function TileListScreen() {
       <TopNav activePath="/history" />
       <GestureDetector gesture={swipe}>
       <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-        {/* Header — TILES (square) | EDIT | LIST (active) | FLOW */}
+        {/* Header — TILES (square) | EDIT | LIST (active) */}
         <TileHeaderNav
           colors={colors}
           active="list"
           onTiles={() => router.replace('/history' as any)}
           onEdit={() => router.replace(`/tile/${id}` as any)}
           onList={() => { /* already here */ }}
-          onFlow={() => router.replace(`/tile/${id}/flow` as any)}
         />
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>

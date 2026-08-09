@@ -10,6 +10,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
+import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
@@ -165,6 +166,30 @@ export default function CanvasPage() {
     () => new Set(layout.map((l: { tile_id: string }) => l.tile_id)),
     [layout],
   );
+  /**
+   * Il pulsante "Done" della topbar EVIDENZIA le attività completate, non le
+   * filtra: i tile ci sono in entrambi gli stati, e quello che cambia è solo se
+   * si tingono di verde. Acceso, il contenitore della board prende `ob-done-hl`
+   * e la regola di contesto in obsidian-primitives.css fa il resto — nessun
+   * ricalcolo, nessun ridisegno della board.
+   *
+   * Default SPENTO: il verde è un modo di guardare la board, non come la board
+   * è fatta. Chi apre il canvas vede quello che vedeva prima e accende
+   * l'evidenziazione quando gli serve. La scelta resta su questo dispositivo
+   * (localStorage), come la larghezza dello staging.
+   */
+  const [doneHl, setDoneHl] = useState(false);
+  useIsomorphicLayoutEffect(() => {
+    try { if (localStorage.getItem('canvas_done_hl') === '1') setDoneHl(true); } catch { /* */ }
+  }, []);
+  const toggleDoneHl = useCallback(() => {
+    setDoneHl((v) => {
+      const next = !v;
+      try { localStorage.setItem('canvas_done_hl', next ? '1' : '0'); } catch { /* */ }
+      return next;
+    });
+  }, []);
+
   const tiles = useMemo(
     () => allTagTiles.filter((t) => positionedTileIds.has(t.id)),
     [allTagTiles, positionedTileIds],
@@ -185,7 +210,11 @@ export default function CanvasPage() {
   // (stessa regola delle colonne NOTES/TODO di CHRONO), così il minimo resta
   // agganciato alla dimensione reale del tile invece di essere un numero fisso.
   const STAGING_MAX_W = 700;
-  const [stagingWidth, setStagingWidth] = useState<number>(176);
+  // Default = una colonna di tile esatta. Era 176, calcolato su un tile da 150:
+  // col tile standard a 120 quei 33px in più erano vuoto a destra delle card.
+  // Le larghezze già salvate restano (sono sopra il minimo): cambia solo il
+  // punto di partenza di chi apre il canvas per la prima volta.
+  const [stagingWidth, setStagingWidth] = useState<number>(STAGING_MIN_W);
   const [stagingOpen, setStagingOpen] = useState<boolean>(true);
   // Layout-effect: evita che il pannello venga disegnato alla larghezza di
   // default (176px) prima di saltare a quella salvata.
@@ -307,9 +336,25 @@ export default function CanvasPage() {
   // Save positions (debounced) + optimistic cache update
   const handlePositionChange = useCallback((positions: { tile_id: string; x: number; y: number }[]) => {
     if (!tagId) return;
-    // Optimistic: keep layout cache in sync with current visual positions
-    // so that any re-render uses the latest values, not stale DB data.
-    queryClient.setQueryData(['canvas-layout', tagId], { success: true, data: positions });
+    /**
+     * Optimistic: keep layout cache in sync with current visual positions
+     * so that any re-render uses the latest values, not stale DB data.
+     *
+     * FUSIONE e non sostituzione: `positions` descrive i tile DISEGNATI, che
+     * oggi sono tutti quelli posizionati ma non è detto lo restino. Sostituendo,
+     * un tile non disegnato uscirebbe da `positionedTileIds` al primo
+     * trascinamento e ricomparirebbe nel pannello STAGING come se non fosse mai
+     * stato messo sul canvas. Il server è già al sicuro da solo — il suo PUT è
+     * un upsert e non cancella mai le voci mancanti (backend/src/routes/canvas.ts):
+     * l'unica a poterle perdere era questa cache.
+     */
+    queryClient.setQueryData(['canvas-layout', tagId], (old: any) => {
+      const merged = new Map<string, { tile_id: string; x: number; y: number }>(
+        ((old?.data ?? []) as { tile_id: string; x: number; y: number }[]).map((l) => [l.tile_id, l]),
+      );
+      positions.forEach((p) => merged.set(p.tile_id, p));
+      return { success: true, data: [...merged.values()] };
+    });
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       canvasApi.saveLayout(tagId, positions);
@@ -965,8 +1010,8 @@ export default function CanvasPage() {
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); }}
             onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setSelectMode(false); }}
             onToggleSelectMode={() => { setSelectMode((v) => !v); setTextMode(false); setTileMode(false); setImageMode(false); }}
-            onFit={handleFit}
-            onZoom100={handleZoom100}
+            doneHighlight={doneHl}
+            onToggleDoneHighlight={toggleDoneHl}
             pinnedTags={pinnedTags}
             onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
             onReorderPinned={handleReorderPinned}
@@ -981,7 +1026,11 @@ export default function CanvasPage() {
           />
           <div
             ref={canvasWrapperRef}
-            className="flex-1 relative overflow-hidden"
+            // `ob-done-hl` accende il verde sui tile completati DENTRO la board.
+            // Una classe sul contenitore, non un dato passato ai nodi: la board
+            // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
+            // sproporzionato — qui cambia solo una regola CSS.
+            className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
             style={{ cursor: (textMode || tileMode || imageMode || selectMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
@@ -1109,6 +1158,11 @@ export default function CanvasPage() {
               }}
               onTileDragEnd={() => setStagingDropHover(false)}
             />
+            {/* Adatta e Scala 1:1, appoggiati sulla lavagna in basso a destra.
+                Stavano in fondo alla topbar: sono gli unici comandi che non
+                toccano il documento — spostano il punto da cui lo guardi — e
+                stavano lontanissimi dal loro effetto, che accade qui. */}
+            <CanvasZoomControls onFit={handleFit} onZoom100={handleZoom100} />
           </div>
         </div>
 
@@ -1548,7 +1602,7 @@ export default function CanvasPage() {
                 style={{
                   width: '100%',
                   padding: '9px 12px',
-                  background: theme.bg1,
+                  background: 'var(--ob-sunken)',
                   border: `1px solid ${theme.border}`,
                   borderRadius: 'var(--ob-radius-sm)',
                   color: theme.ink,
@@ -1649,8 +1703,6 @@ export default function CanvasPage() {
             onToggleTileMode={() => {}}
             onToggleImageMode={() => {}}
             onToggleSelectMode={() => {}}
-            onFit={() => {}}
-            onZoom100={() => {}}
             pinnedTags={pinnedTags}
             onPinnedTagClick={(id) => router.push(`/canvas?tag=${id}`)}
             onReorderPinned={handleReorderPinned}

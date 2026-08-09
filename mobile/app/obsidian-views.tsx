@@ -17,7 +17,6 @@ export default function ObsidianViewsRoute() {
     return (
       <ObsidianViewsScreenLive
         onOpenTile={(id) => router.push(`/obsidian-tile?id=${id}` as never)}
-        onOpenFlow={(tileId) => router.push(`/obsidian-tile?id=${tileId}` as never)}
         // Home = la schermata di cattura VIVA, che sta in `(tabs)/index` — NON
         // `/obsidian-capture`, che è il mockup QA statico e porterebbe a una
         // home finta, senza buffer né invio.

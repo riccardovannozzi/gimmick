@@ -446,14 +446,13 @@ export default function TileDetailScreen() {
       <TopNav activePath="/history" />
       <GestureDetector gesture={swipe}>
       <View style={{ flex: 1, backgroundColor: colors.background1 }}>
-        {/* Header — TILES (square) | EDIT (active) | LIST | FLOW */}
+        {/* Header — TILES (square) | EDIT (active) | LIST */}
         <TileHeaderNav
           colors={colors}
           active="edit"
           onTiles={() => router.replace('/history' as any)}
           onEdit={() => { /* already here */ }}
           onList={() => router.push(`/tile/${id}/list` as any)}
-          onFlow={() => router.push(`/tile/${id}/flow` as any)}
         />
 
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>

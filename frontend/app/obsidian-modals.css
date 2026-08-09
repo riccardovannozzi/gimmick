@@ -36,7 +36,7 @@
 .ob-mico__chip--active { color: var(--ob-accent); background: var(--ob-accent-soft); border-color: transparent; }
 .ob-mico__grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 6px; padding: 0 16px 16px; max-height: 236px; overflow: hidden; }
 .ob-mico__cell { aspect-ratio: 1; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: 1px solid var(--ob-line); cursor: pointer; transition: background-color 120ms ease-out; }
-.ob-mico__cell:hover:not(.ob-mico__cell--on) { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
+.ob-mico__cell:hover:not(.ob-mico__cell--on) { background: var(--ob-hover); }
 .ob-mico__cell--on { color: var(--ob-accent); background: var(--ob-accent-soft); border-color: var(--ob-accent); }
 
 /* ── Color modal ── */

@@ -25,6 +25,7 @@ import { tagsApi } from '@/lib/api';
 import { prefetchView } from '@/lib/view-prefetch';
 import { useTagTypes } from '@/store/tag-types-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useChatStore } from '@/store/chat-store';
 import { useAuthStore } from '@/store/auth-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -66,6 +67,9 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   const setChatOpen = useChatStore((s) => s.setOpen);
   const selectedTagIds = useTagFilterStore((s) => s.selectedTagIds);
   const selectOnly = useTagFilterStore((s) => s.selectOnly);
+  const toggleTag = useTagFilterStore((s) => s.toggle);
+  const hydrateTags = useTagFilterStore((s) => s.hydrate);
+  const pruneTags = useTagFilterStore((s) => s.prune);
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const clearTile = useTileSelectionStore((s) => s.clear);
   const { tagTypes } = useTagTypes();
@@ -80,6 +84,26 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     () => tagsToSidebarGroups((tagsData?.data ?? []) as Tag[], tagTypes),
     [tagsData?.data, tagTypes],
   );
+
+  /**
+   * La selezione dei tag dell'ultima sessione. Sta qui e non nelle viste perché
+   * lo shell è l'unica cosa montata sempre: ripristinandola nel Kanban, entrare
+   * nel Kanban dopo aver scelto un tag altrove avrebbe sovrascritto la scelta
+   * appena fatta con quella vecchia.
+   */
+  useIsomorphicLayoutEffect(() => { hydrateTags(); }, [hydrateTags]);
+
+  // Un tag cancellato lascerebbe il suo id nella selezione persistita, e le
+  // viste filtrerebbero su qualcosa che non esiste: board vuota e niente di
+  // acceso che spieghi il perché. Si potano quando l'elenco vero è arrivato —
+  // mai su un elenco vuoto, che in caricamento cancellerebbe tutto.
+  const knownTagIds = React.useMemo(
+    () => new Set(((tagsData?.data ?? []) as Tag[]).map((t) => t.id)),
+    [tagsData?.data],
+  );
+  React.useEffect(() => {
+    if (knownTagIds.size) pruneTags(knownTagIds);
+  }, [knownTagIds, pruneTags]);
 
   // Navigazione ottimistica: il tab attivo deriva dal pathname, che si aggiorna
   // solo a transizione completata → il clic sembrava "non rispondere". Teniamo
@@ -180,9 +204,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
   // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
   const pageOwnsInspector = activeView === 'canvas' || activeView === 'panopticon';
-  // Single tag per tile → un solo tag selezionato alla volta lato sidebar.
-  const activeChildId =
-    selectedTagIds.size === 1 ? [...selectedTagIds][0] : undefined;
+  const activeChildIds = React.useMemo(() => [...selectedTagIds], [selectedTagIds]);
 
   const userInitials = (user?.email ?? 'GM').slice(0, 2).toUpperCase();
 
@@ -205,13 +227,19 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
         <Sidebar
           groups={groups}
           count={count}
-          activeChildId={activeChildId}
-          onSelectChild={(id) => {
-            selectOnly(id);
+          activeChildIds={activeChildIds}
+          onSelectChild={(id, additive) => {
             // In Canvas il click sul tag apre direttamente la sua lavagna
             // (senza dover usare l'icona "Apri nel Canvas"). Nelle altre viste
             // resta una semplice selezione/filtro.
-            if (activeView === 'canvas') handleOpenCanvas(id);
+            //
+            // ⚠️ Il canvas IGNORA il ctrl: una lavagna è di un tag solo, e la sua
+            // rotta ne porta uno solo (`?tag=`). Accettando qui la selezione
+            // multipla la sidebar avrebbe acceso due tag mentre la lavagna ne
+            // mostrava uno — l'evidenziazione deve dire cosa stai guardando.
+            if (activeView === 'canvas') { selectOnly(id); handleOpenCanvas(id); return; }
+            if (additive) toggleTag(id);
+            else selectOnly(id);
           }}
           filter={tagFilter}
           onFilterChange={setTagFilter}

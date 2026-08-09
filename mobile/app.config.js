@@ -38,7 +38,12 @@ export default {
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      edgeToEdgeEnabled: true
+      edgeToEdgeEnabled: true,
+      // Esplicito, non implicito: con edge-to-edge attivo è questo che fa
+      // rimpicciolire la finestra all'apertura della tastiera invece di
+      // lasciarla coprire i campi. Le form (login in testa) si appoggiano a
+      // questo comportamento più uno ScrollView interno.
+      softwareKeyboardLayoutMode: "resize"
     },
     web: {
       favicon: "./assets/favicon.png",

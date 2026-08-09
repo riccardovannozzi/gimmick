@@ -1,11 +1,16 @@
 /**
  * Segmented header used on the TILE detail flow:
- *   [TILES (square)] [ EDIT ] [ LIST ] [ FLOW ]
+ *   [TILES (square)] [ EDIT ] [ LIST ]
  *
- * The square TILES button always navigates back to the tiles list. The EDIT,
- * LIST and FLOW buttons switch between the three views of the same tile.
+ * The square TILES button always navigates back to the tiles list. EDIT and
+ * LIST switch between the two views of the same tile.
  * Pixel design: bordo inferiore 2px ink, active = bg accent + label onAccent
  * (mirror del TopNav active pill).
+ *
+ * I tab erano TRE: c'era anche FLOW, ed è uscito di scena col modello che lo
+ * alimentava. I passi di un flow sono voci della LIST, quindi un terzo tab
+ * avrebbe mostrato la stessa cosa da un'altra porta — stessa potatura fatta
+ * sulla sidebar web (vedi la nota in cima a frontend/components/shell/Inspector.tsx).
  */
 import React from 'react';
 import { View, Text, Pressable } from 'react-native';
@@ -15,14 +20,13 @@ import { usePixelTheme } from '@/components/pixel';
 interface Props {
   /** Unused — kept for backward-compat with legacy call sites. */
   colors?: any;
-  active: 'edit' | 'list' | 'flow';
+  active: 'edit' | 'list';
   onTiles: () => void;
   onEdit: () => void;
   onList: () => void;
-  onFlow: () => void;
 }
 
-export function TileHeaderNav({ active, onTiles, onEdit, onList, onFlow }: Props) {
+export function TileHeaderNav({ active, onTiles, onEdit, onList }: Props) {
   const theme = usePixelTheme();
   return (
     <View
@@ -58,7 +62,6 @@ export function TileHeaderNav({ active, onTiles, onEdit, onList, onFlow }: Props
 
       <SegmentedButton label="EDIT" active={active === 'edit'} onPress={onEdit} />
       <SegmentedButton label="LIST" active={active === 'list'} onPress={onList} />
-      <SegmentedButton label="FLOW" active={active === 'flow'} onPress={onFlow} />
     </View>
   );
 }

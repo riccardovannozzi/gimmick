@@ -202,6 +202,25 @@ export function ChronoLive() {
     try { window.localStorage.setItem('chrono-color-mode', m); } catch { /* storage non disponibile */ }
   }, []);
 
+  /**
+   * Evidenziazione verde dei COMPLETATI — lo stesso pulsante della topbar del
+   * canvas. Distinta dalla colorazione qui sopra: quella decide da quale campo
+   * il tile prende il colore, questa accende un segnale sopra tutte e tre.
+   * Default SPENTO e init a `false` per non sfasare l'idratazione; il ripristino
+   * gira in layout-effect, prima del paint.
+   */
+  const [doneHl, setDoneHl] = useState(false);
+  useIsomorphicLayoutEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage.getItem('chrono-done-hl') === '1') setDoneHl(true);
+  }, []);
+  const toggleDoneHl = useCallback(() => {
+    setDoneHl((v) => {
+      const next = !v;
+      try { window.localStorage.setItem('chrono-done-hl', next ? '1' : '0'); } catch { /* storage non disponibile */ }
+      return next;
+    });
+  }, []);
+
   // Sorgenti colore (definite nei settings): colore del tag_type e del type-icon.
   const { getColor: getTagTypeColor } = useTagTypes();
   const { getIconForTile, loaded: typeIconsLoaded, fetchAll: fetchTypeIcons } = useTypeIcons();
@@ -711,6 +730,8 @@ export function ChronoLive() {
         onCreateColumnTile={handleCreateColumnTile}
         colorMode={colorMode}
         onSetColorMode={selectColorMode}
+        doneHighlight={doneHl}
+        onToggleDoneHighlight={toggleDoneHl}
       />
       {menu && typeof document !== 'undefined' && createPortal(
         <>

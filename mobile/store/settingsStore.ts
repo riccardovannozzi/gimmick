@@ -24,6 +24,12 @@ interface SettingsState {
   // AI settings
   aiProvider: string;
   aiModel: string;
+  /**
+   * Dopo quanti minuti di INATTIVITÀ la conversazione della chat si svuota da
+   * sé. `0` = mai. Conta l'inattività e non l'età: una chat ripresa poco fa non
+   * è vecchia.
+   */
+  chatRetentionMinutes: number;
 
   // Theme (legacy ThemeProvider in mobile/lib/theme.tsx)
   theme: 'light' | 'dark' | 'system';
@@ -41,6 +47,7 @@ interface SettingsState {
   setConfirmDelete: (confirm: boolean) => void;
   setAiProvider: (provider: string) => void;
   setAiModel: (model: string) => void;
+  setChatRetentionMinutes: (minutes: number) => void;
   setTheme: (theme: 'light' | 'dark' | 'system') => void;
   setPixelSetting: <K extends keyof PixelSettings>(k: K, v: PixelSettings[K]) => void;
   setPixelSettings: (next: PixelSettings) => void;
@@ -67,6 +74,9 @@ const defaultSettings = {
   confirmDelete: true,
   aiProvider: 'anthropic',
   aiModel: 'claude-haiku-4-5-20251001',
+  // Un giorno: abbastanza per riprendere il discorso il giorno dopo, non tanto
+  // da ritrovarsi davanti una conversazione di cui non si ricorda il contesto.
+  chatRetentionMinutes: 1440,
   theme: 'dark' as const,
   pixelSettings: defaultPixelSettings,
 };
@@ -85,6 +95,7 @@ export const useSettingsStore = create<SettingsState>()(
       setConfirmDelete: (confirmDelete) => set({ confirmDelete }),
       setAiProvider: (aiProvider) => set({ aiProvider }),
       setAiModel: (aiModel) => set({ aiModel }),
+      setChatRetentionMinutes: (chatRetentionMinutes) => set({ chatRetentionMinutes }),
       setTheme: (theme) => set({ theme }),
       setPixelSetting: (k, v) =>
         set((s) => ({ pixelSettings: { ...s.pixelSettings, [k]: v } })),
@@ -93,12 +104,19 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'gimmick-settings',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => AsyncStorage),
       migrate: (persisted, version) => {
-        const state = (persisted ?? {}) as Partial<SettingsState>;
+        let state = (persisted ?? {}) as Partial<SettingsState>;
         if (version < 2 || !state.pixelSettings) {
-          return { ...state, pixelSettings: defaultPixelSettings } as SettingsState;
+          state = { ...state, pixelSettings: defaultPixelSettings };
+        }
+        // v3: la chat è diventata persistente e le serve una scadenza. Chi
+        // aggiorna non ha il campo: senza default resterebbe `undefined`, che
+        // in `expireIfStale` vale "non scade mai" — silenziosamente diverso da
+        // quel che vede un'installazione nuova.
+        if (typeof state.chatRetentionMinutes !== 'number') {
+          state = { ...state, chatRetentionMinutes: defaultSettings.chatRetentionMinutes };
         }
         return state as SettingsState;
       },

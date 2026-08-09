@@ -175,6 +175,32 @@ export const FLOW_NODE_TO_STEP: Record<'active' | 'wait' | 'done' | 'undo' | 'st
  */
 export const STEPPER_MAX_SEGMENTS = 5;
 
+// ─── MISURE ──────────────────────────────────────────────────────────────────
+
+/**
+ * Il rettangolo su cui il tile è DISEGNATO. Tutte le misure interne — padding
+ * 10, strip 20, corpi 11/12 — sono tarate su questo, ed è il 150×80 di cui parla
+ * l'intestazione di questo file.
+ */
+export const TILE_BASE_W = 150;
+export const TILE_BASE_H = 80;
+
+/**
+ * La scala a cui il tile è MOSTRATO. 0.8 → 120×64, misura standard in canvas,
+ * staging, colonne di CHRONO (Notes/Todo/Flow) e Kanban.
+ *
+ * ⚠️ Il gemello di questo numero è il token `--ob-tile-zoom` in app/obsidian.css,
+ * che è quello che riduce davvero il tile. Questo serve a chi deve fare i conti
+ * in JavaScript — il canvas, che posiziona i tile in geometria SVG e non può
+ * leggere un token CSS. Sono le uniche due dichiarazioni: cambiarne una sola
+ * sfaserebbe le posizioni del canvas dal disegno dei tile.
+ */
+export const TILE_SCALE = 0.8;
+
+/** Quanto un tile OCCUPA davvero: è questo che serve a chi calcola colonne. */
+export const TILE_W = TILE_BASE_W * TILE_SCALE;
+export const TILE_H = TILE_BASE_H * TILE_SCALE;
+
 // ─── LIVELLO DI DETTAGLIO ────────────────────────────────────────────────────
 
 /**

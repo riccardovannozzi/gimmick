@@ -1,16 +1,21 @@
 'use client';
 
 import React, { useEffect, useRef, useCallback, useState } from 'react';
+// Serve a rendere la card React dentro il `<foreignObject>`. Import statico e
+// non `require()` dentro l'effect: il bundle è lo stesso, la regola no.
+import { renderToString } from 'react-dom/server';
 import * as d3 from 'd3';
 import type { Tile } from '@/types';
 import { useActionColors } from '@/store/action-colors-store';
 import { useStatuses } from '@/store/statuses-store';
 import { useTypeIcons } from '@/store/type-icons-store';
-import * as TablerIcons from '@tabler/icons-react';
 import { readableOn } from '@/lib/palette';
 import { usePixelTheme } from '@/components/pixel';
-import { statusMeta, statusGlyph } from '@/lib/status-meta';
-import { TileMeta } from '@/components/tileview/TileMeta';
+// `Tile` è già il tipo di dominio importato qui sopra: la card si chiama
+// `TileCard` per non coprirlo.
+import { Tile as TileCard } from '@/components/tiles/Tile';
+import { tileVisualKey, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
+import type { ActionType } from '@/types';
 import { TextEditor } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
@@ -37,8 +42,24 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
   } catch { /* quota/privacy mode: la vista semplicemente non si ricorda */ }
 }
 
-const TILE_W = 150;
-const TILE_H = 80;
+/**
+ * ⚠️ `TILE_W`/`TILE_H` arrivano ora da lib/tile-visual (120×64) e NON sono più
+ * dichiarati qui a 150×80. È l'ingombro che il tile occupa davvero: il
+ * rettangolo di presa, l'anello di selezione e gli agganci degli edge devono
+ * combaciare col disegno, e il disegno è scalato da `--ob-tile-zoom`.
+ * Le posizioni salvate non cambiano: i tile restano dove sono, più piccoli.
+ */
+/**
+ * Gronda del riquadro che ospita la card.
+ *
+ * Il badge d'angolo sborda di 8px sopra il bordo superiore, per costruzione. Un
+ * `<foreignObject>` RITAGLIA il proprio contenuto al proprio rettangolo, quindi
+ * se lo dimensionassimo 120×64 il badge verrebbe tagliato a metà. Il riquadro è
+ * perciò più grande su tutti i lati e la card viene rimessa in posizione con un
+ * margine interno di pari valore: il tile resta 120×64 e allineato alla griglia,
+ * cambia solo la finestra in cui è disegnato.
+ */
+const TILE_BLEED = 12;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
@@ -209,7 +230,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   // nel codice D3 sotto.
   const RX = 5;         // card / group / clip corner radius (tile + gruppi + box)
   const RX_SEL = 8;     // selection ring radius
-  const RX_BADGE = 4;   // footer action/type badge radius
   const SW = 1;         // card hairline stroke width
   const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
   const svgRef = useRef<SVGSVGElement>(null);
@@ -483,6 +503,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // is reachable) can safely call it without hitting a TDZ on transform restore.
     let computeSelectionScreenBbox: () => { x: number; y: number; w: number; h: number } | null = () => null;
 
+    /**
+     * LIVELLO DI DETTAGLIO — sotto una certa scala il badge e i segmenti dei
+     * passi smettono di essere simboli e diventano sporcizia: il segmento è
+     * alto 3px e il bordo del badge 1.2px, quindi sotto 0.6 scendono sotto il
+     * pixel fisico. Si spengono, e restano i canali che sopravvivono in
+     * miniatura: fondo, colore e bordo.
+     *
+     * È una classe sul contenitore, non un ridisegno: lo zoom scorre a 60fps e
+     * rifare la grafica di ogni tile a ogni frame della rotella non è
+     * sostenibile. La regola sta in `obsidian-canvas.css`.
+     */
+    const applyLod = (k: number) => {
+      svg.classList.toggle('ob-canvas-svg--lod', k < TILE_LOD_MIN_SCALE);
+    };
+
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
@@ -492,6 +527,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       .on('zoom', (ev) => {
         zoomTransformRef.current = ev.transform;
         board.attr('transform', ev.transform);
+        applyLod(ev.transform.k);
         // Mirror the SVG transform on the HTML overlay so TipTap editors stay
         // glued to their D3-drawn box frames during pan/zoom — without forcing
         // a React re-render of the editor list.
@@ -526,6 +562,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     if (zoomTransformRef.current !== d3.zoomIdentity) {
       d3svg.call(zoom.transform as any, zoomTransformRef.current);
     }
+    // Anche il ripristino della vista salvata deve rispettare la soglia: senza,
+    // riaprendo un canvas lasciato a scala 0.4 i badge tornerebbero accesi
+    // finché non tocchi la rotella.
+    applyLod(zoomTransformRef.current.k);
     const boardNode = board.node()!;
     const nodes = buildNodes();
     nodesRef.current = nodes;
@@ -672,13 +712,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dropTarget.current = null;
       }
       // Reset all highlights
-      nodeGrps.each(function (d) {
-        const isDeadline = (d as CanvasNode).actionType === 'deadline';
-        d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#E24B4A' : tileBorder)
-          .attr('stroke-width', 2)
-          .attr('stroke-dasharray', isDeadline ? '4,3' : null);
-      });
+      // Il bordo del tile ora lo disegna la card (HTML): il rettangolo di presa
+      // torna semplicemente senza contorno.
+      nodeGrps.select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0);
       groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
         const r = d3.select(this);
         r.attr('stroke', r.attr('data-base-stroke') || 'none')
@@ -701,13 +737,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
     const endLink = () => {
       tempLine.attr('opacity', 0);
-      nodeGrps.each(function (d) {
-        const isDeadline = (d as CanvasNode).actionType === 'deadline';
-        d3.select(this).select('.tile-bg')
-          .attr('stroke', isDeadline ? '#E24B4A' : tileBorder)
-          .attr('stroke-width', 2)
-          .attr('stroke-dasharray', isDeadline ? '4,3' : null);
-      });
+      // Il bordo del tile ora lo disegna la card (HTML): il rettangolo di presa
+      // torna semplicemente senza contorno.
+      nodeGrps.select('.tile-bg').attr('stroke', 'none').attr('stroke-width', 0);
       groupsBg.selectAll<SVGRectElement, unknown>('rect').each(function () {
         const r = d3.select(this);
         r.attr('stroke', r.attr('data-base-stroke') || 'none')
@@ -739,8 +771,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const isSel = grp.id === selectedGroupIdRef.current;
         // Stile per-gruppo (sfondo/bordo). In selezione il bordo passa all'accento
         // (mantenendo spessore/tipologia) per rendere evidente la selezione.
-        const gBg = grp.bgColor || theme.surface;
-        const gBw = grp.borderWidth ?? 0;
+        // Senza un colore scelto, il fondo è `--ob-group-bg`: a metà fra la
+        // lavagna e le sponde. Era `theme.surface`, che da quando l'area di
+        // lavoro è bianca coincide con la lavagna — il gruppo spariva.
+        // ⚠️ Arriva come CSS var, quindi va posato con `.style()` e non con
+        // `.attr()`: un attributo di presentazione SVG non risolve le custom
+        // properties, e il rettangolo resterebbe senza riempimento.
+        const gBg = grp.bgColor || 'var(--ob-group-bg)';
+        // Un gruppo nasce CON la sua hairline. Il default era 0, cioè nessun
+        // contorno: il rettangolo si reggeva sul solo fondo, e su una lavagna
+        // bianca quel fondo vale un contrasto di 1.06 — il gruppo c'era e non si
+        // vedeva. Ogni altro contenitore del sistema (tile, card, menu) ha il suo
+        // contorno; questo non aveva ragione di essere l'eccezione.
+        // `??` e non `||`: uno zero SCELTO resta zero, è chi non ha mai deciso
+        // che prende la hairline.
+        const gBw = grp.borderWidth ?? 1;
         const gStroke = isSel ? selAccent : (gBw > 0 ? (grp.borderColor || theme.border) : 'none');
         const gStrokeW = isSel ? Math.max(1.5, gBw) : gBw;
         const dashFor = (style: string | null | undefined, w: number): string | null => {
@@ -751,7 +796,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const gDash = dashFor(grp.borderStyle, gStrokeW);
         const gw = groupsBg.append('g');
         gw.append('rect').attr('x', b.x).attr('y', b.y - LABEL_H).attr('width', b.w).attr('height', b.h + LABEL_H).attr('rx', RX)
-          .attr('fill', gBg)
+          .style('fill', gBg)
           .attr('stroke', gStroke).attr('stroke-width', gStrokeW)
           .attr('stroke-dasharray', gDash)
           .attr('stroke-linecap', grp.borderStyle === 'dotted' ? 'round' : 'butt')
@@ -1048,220 +1093,112 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       onTileClickRef.current(d.id);
     });
     nodeGrps.on('contextmenu.ctx', (ev: MouseEvent, d: CanvasNode) => { ev.preventDefault(); ev.stopPropagation(); onTileContextMenuRef.current({ x: ev.clientX, y: ev.clientY, tileId: d.id, inGroup: groupsRef.current.some((g) => g.nodeIds.includes(d.id)) }); });
-    // Sfondo a VELATURA (come Kanban/Chrono): base surface opaca + tinta del
-    // tipo molto attenuata, così i badge e il testo restano leggibili. Lo status
-    // NON è più un pattern a tutta tile: è uno swatch nel footer (vedi TileMeta).
-    nodeGrps.append('rect').attr('class', 'tile-bg').attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
-      // Fondo unico dei tile: via `style` e non `attr` perché var() non è
-      // supportata negli attributi di presentazione SVG.
-      .style('fill', 'var(--ob-tile-bg)')
-      .attr('stroke', (d) => d.actionType === 'deadline' ? '#E24B4A' : (d.typeColor ? d.typeColor + '3A' : tileBorder))
-      .attr('stroke-width', SW)
-      .attr('stroke-dasharray', (d) => d.actionType === 'deadline' ? '4,3' : null)
-      .style('cursor', moveRef.current ? 'grab' : 'default');
-    // Tinta del tipo (velatura) sopra la base surface.
-    nodeGrps.each(function (d) {
-      if (!d.typeColor) return;
-      d3.select(this).append('rect')
-        .attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
-        .attr('fill', d.typeColor).attr('opacity', 0.14)
-        .style('pointer-events', 'none');
-    });
-    // Colonna verticale di STATUS (a sinistra): una vera colonna, senza bordo né
-    // margini, ma rientrata dello spessore del bordo del tile (SW) così NON lo
-    // copre. Angoli sinistri arrotondati coerenti col tile. Per ora solo la
-    // traccia vuota — il riempimento in base allo status verrà aggiunto dopo.
-    const STRIP_W = 16;                 // bordo destro della colonna
-    const CONTENT_X = STRIP_W + 8;      // margine sinistro del contenuto = 24
-    const IN = SW;                      // rientro = spessore bordo tile (non lo copre)
-    const RR = RX - IN;                 // raggio interno degli angoli sinistri
-    const YB = TILE_H - IN;
-    const stripPath = `M ${IN} ${IN + RR} Q ${IN} ${IN} ${IN + RR} ${IN} H ${STRIP_W} V ${YB} H ${IN + RR} Q ${IN} ${YB} ${IN} ${YB - RR} Z`;
-    // Margine sinistro del contenuto quando NON c'è status (niente colonna).
-    const CONTENT_X_NOSTAT = 10;
-    // Un tile ha la colonna status solo se ha un glifo (dot/text/icon); 'active'
-    // (glyph 'none') non la mostra → in quel caso la strip sparisce e il
-    // contenuto occupa tutta la larghezza (stesso ragionamento di CHRONO).
-    const hasStatusCol = (d: CanvasNode) => statusGlyph(d.statusName).kind !== 'none';
-    const contentLeft = (d: CanvasNode) => (hasStatusCol(d) ? CONTENT_X : CONTENT_X_NOSTAT);
-    nodeGrps.each(function (d) {
-      if (!hasStatusCol(d)) return;
-      const g = d3.select(this);
-      g.append('g').attr('class', 'status-strip').append('path')
-        .attr('class', 'status-strip-track')
-        .attr('d', stripPath)
-        .attr('fill', theme.bg1)
-        .style('pointer-events', 'none');
-    });
-    // STATUS nella colonna — guidato dalla config centralizzata `statusGlyph`
-    // (single source of truth condivisa con staging e picker). Due tipologie:
-    // ICONA/DOT colorato oppure TESTO. 'none' (active) non mostra nulla.
-    nodeGrps.each(function (d) {
-      const glyph = statusGlyph(d.statusName);
-      if (glyph.kind === 'none') return;
-      const g = d3.select(this);
-      const meta = statusMeta(d.statusName!);
-      const cx = (IN + STRIP_W) / 2;
-      const cy = TILE_H / 2;
-      if (glyph.kind === 'dot') {
-        g.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 4)
-          .attr('fill', meta.hex).style('pointer-events', 'none');
-      } else if (glyph.kind === 'text') {
-        g.append('text')
-          .attr('x', cx).attr('y', cy)
-          .attr('transform', `rotate(-90, ${cx}, ${cy})`)
-          .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
-          .attr('fill', meta.hex).attr('font-family', labelFont)
-          .attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.mono)
-          .style('letter-spacing', '0.15em').style('pointer-events', 'none')
-          .text(glyph.text);
-      } else if (glyph.kind === 'icon') {
-        const IconComp = (TablerIcons as unknown as Record<string, any>)[glyph.icon];
-        if (!IconComp) return;
-        const React = require('react');
-        const { renderToString } = require('react-dom/server');
-        const html = renderToString(React.createElement(IconComp, { size: 12, color: meta.hex }));
-        const fo = g.append('foreignObject').attr('x', cx - 6).attr('y', cy - 6).attr('width', 12).attr('height', 12).style('pointer-events', 'none');
-        const container = document.createElement('div');
-        container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:12px;height:12px;';
-        container.innerHTML = html;
-        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
+    // ─── LA CARD ─────────────────────────────────────────────────────────────
+    //
+    // Il tile del canvas NON è più ridisegnato con primitive SVG: monta il
+    // componente `Tile` — lo stesso di Chrono — dentro un `<foreignObject>`.
+    //
+    // È una scelta, non una scorciatoia. I cinque canali del sistema visivo
+    // (bordo, badge d'angolo, strip dei passi, status a sinistra, metadato a
+    // destra) vivono in CSS, e due di quelle cose in SVG non si possono fare:
+    // i token dello stepper cambiano col tema chiaro/scuro, e un attributo di
+    // presentazione SVG non legge `var(--…)`. Riscriverlo con `<rect>` avrebbe
+    // prodotto un sosia destinato a divergere alla prima modifica del CSS.
+    // Il file usa già `foreignObject` + `renderToString` per icone e badge:
+    // questa è la stessa tecnica, applicata all'intera card invece che ai pezzi.
+    //
+    // Il riquadro è più grande del tile di TILE_BLEED per lato, perché il badge
+    // sborda e il foreignObject ritaglia (vedi la costante).
+    const formatDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    const formatTime = (iso: string) => {
+      const t = new Date(iso);
+      return `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+    };
+
+    /** Metadato del footer, già formattato, secondo quanto il tipo prevede. */
+    const metaFor = (d: CanvasNode, key: ReturnType<typeof tileVisualKey>): string | undefined => {
+      const kind = TILE_VISUAL[key].meta;
+      if (kind === 'none') return undefined;
+      if (kind === 'progress') {
+        const items = d.subtasks ?? [];
+        if (!items.length) return undefined;
+        return `${items.filter((s) => s.is_done).length} di ${items.length}`;
       }
-    });
-    nodeGrps.each(function (d) {
-      const g = d3.select(this);
-      const cx0 = contentLeft(d);
-      const fo = g.append('foreignObject').attr('x', cx0).attr('y', 6).attr('width', TILE_W - cx0 - 6).attr('height', TILE_H - 26);
-      // Titolo del tile: stessa tipografia degli altri quattro resi
-      // (canvas demo, kanban, chrono, staging) — 12/600/16, --ob-text.
-      // Il colore passava da `readableOn(theme.surface)`: quella funzione serve
-      // per i fondi COLORATI, e su una surface neutra restituiva #FFFFFF, un
-      // bianco che nel design system non esiste. Qui basta il token, che dentro
-      // un foreignObject eredita normalmente (è HTML, non SVG).
-      const fg = theme.ink;
-      // Barrato + attenuato quando completato, come nel titolo della sidebar.
-      const doneDeco = d.isCompleted ? 'text-decoration:line-through;opacity:0.65;' : '';
-      fo.append('xhtml:div')
-        .attr('style', `color:${fg};font-size: var(--ob-text-card);font-weight: var(--ob-weight-emphasis);letter-spacing:-0.01em;line-height: var(--ob-leading-tight);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;pointer-events:none;${doneDeco}`)
-        .text(d.title);
-    });
-    // Footer: date info + checklist (LIST) + action badge + type icon badge
-    const formatDate = (iso: string) => { const d = new Date(iso); return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' }); };
-    const formatTime = (iso: string) => { const d = new Date(iso); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+      // `deadline` vive su end_at, gli eventi su start_at: stessa regola del
+      // resto dell'app (cfr. eventRefIso in chrono-live).
+      const iso = key === 'deadline' ? (d.endAt || d.startAt) : (d.startAt || d.endAt);
+      if (!iso) return undefined;
+      if (kind === 'time') {
+        const t = formatTime(iso);
+        return d.endAt && d.startAt ? `${formatTime(d.startAt)}–${formatTime(d.endAt)}` : t;
+      }
+      return formatDate(iso);
+    };
+
+    /**
+     * Oltre cinque segmenti la strip diventa illeggibile e il Tile mostra un
+     * segmento riassuntivo: il conteggio pieno passa allora nel metadato, che
+     * è responsabilità di chi monta la card.
+     */
+    const stepsFor = (d: CanvasNode): StepState[] | undefined => {
+      const items = d.subtasks ?? [];
+      if (!items.length) return undefined;
+      return items.map((s): StepState => (s.is_done ? 'done' : 'pending'));
+    };
 
     nodeGrps.each(function (d) {
       const g = d3.select(this);
-      const hasDate = d.actionType === 'deadline' || d.actionType === 'event' || d.actionType === 'allday';
-      if (!hasDate || (!d.startAt && !d.endAt)) return;
-      // Date on row 1, time on row 2 — both centered horizontally between the
-      // action (left) and type (right) badges in the bottom footer.
-      let dateLine = '';
-      let timeLine = '';
-      if (d.actionType === 'deadline' && d.endAt) {
-        dateLine = formatDate(d.endAt);
-      } else if (d.allDay && d.startAt) {
-        dateLine = formatDate(d.startAt);
-      } else if (d.startAt) {
-        dateLine = formatDate(d.startAt);
-        timeLine = formatTime(d.startAt);
-        if (d.endAt) timeLine += ` - ${formatTime(d.endAt)}`;
-      }
-      // Left-aligned just past the action badge (che parte da contentLeft, largo 16).
-      const textX = contentLeft(d) + 24;
-      if (dateLine && timeLine) {
-        g.append('text').attr('x', textX).attr('y', TILE_H - 16)
-          .attr('fill', theme.ink).attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.body).text(dateLine);
-        g.append('text').attr('x', textX).attr('y', TILE_H - 6)
-          .attr('fill', theme.ink2).attr('font-size', OB_TEXT.eyebrow).attr('font-weight', OB_WEIGHT.body).text(timeLine);
-      } else if (dateLine) {
-        // Single line — center vertically between badges.
-        g.append('text').attr('x', textX).attr('y', TILE_H - 11)
-          .attr('fill', theme.ink).attr('font-size', OB_TEXT.micro).attr('font-weight', OB_WEIGHT.body).text(dateLine);
-      }
-    });
-    // Checklist bar (LIST) — sits between title and the badges row.
-    nodeGrps.each(function (d) {
-      const items = d.subtasks || [];
-      if (items.length === 0) return;
-      const g = d3.select(this);
-      const innerX = contentLeft(d);
-      const innerW = TILE_W - innerX - 6;
-      const y = TILE_H - 34;
-      const h = 4;
-      const gap = 2;
-      const n = items.length;
-      const itemW = n <= 10 ? 8 : Math.max(1, (innerW - (n - 1) * gap) / n);
-      items.forEach((sub, i) => {
-        g.append('rect')
-          .attr('x', innerX + i * (itemW + gap))
-          .attr('y', y)
-          .attr('width', itemW)
-          .attr('height', h)
-          .attr('rx', 1)
-          .attr('fill', sub.is_done ? '#20C933' : '#F82B60')
-          .style('pointer-events', 'none');
-      });
-    });
-    // Action badge (round colored circle + white icon) in bottom-left.
-    // Notes (none) shows nothing.
-    const ACTION_ICON_NAME: Record<string, string | null> = {
-      none: null,
-      anytime: 'IconArrowUp',
-      deadline: 'IconBolt',
-      event: 'IconClock',     // TIMED
-      allday: 'IconCalendar',
-    };
-    nodeGrps.each(function (d) {
-      const iconName = ACTION_ICON_NAME[d.actionType];
-      if (!iconName) return;
-      const IconComp = (TablerIcons as unknown as Record<string, any>)[iconName];
-      if (!IconComp) return;
-      const g = d3.select(this);
-      const actionColor = getColor(d.actionType);
-      const bx = contentLeft(d);
-      g.append('rect')
-        .attr('x', bx).attr('y', TILE_H - 22)
-        .attr('width', 16).attr('height', 16).attr('rx', RX_BADGE)
-        .attr('fill', actionColor)
-        .attr('stroke', theme.border).attr('stroke-width', SW);
-      const React = require('react');
-      const { renderToString } = require('react-dom/server');
-      const html = renderToString(React.createElement(IconComp, { size: 10, color: readableOn(actionColor) }));
-      const fo = g.append('foreignObject').attr('x', bx + 3).attr('y', TILE_H - 19).attr('width', 10).attr('height', 10).style('pointer-events', 'none');
-      const container = document.createElement('div');
-      container.style.cssText = 'display:flex;align-items:center;justify-content:center;width:10px;height:10px;';
-      container.innerHTML = html;
-      (fo.node() as SVGForeignObjectElement)?.appendChild(container);
-    });
-    // Badge TIPO + STATUS in basso a destra — stesso componente/logica delle
-    // altre viste (TileMeta): chip colorato del tipo + swatch dello status.
-    // Lo status 'active' (default/prevalente) non viene mai mostrato.
-    nodeGrps.each(function (d) {
-      const showType = !!d.typeIcon;
-      // Gli status gestiti dalla colonna (STATUS_COLUMN_ICONS) NON vanno anche
-      // nel footer → evita doppioni. Gli altri usano ancora lo swatch nel footer.
-      // Ogni status con una rappresentazione (icona/dot/testo) vive nella colonna
-      // → mai nel footer. Solo 'active' (glyph 'none') non è in colonna.
-      const inColumn = statusGlyph(d.statusName).kind !== 'none';
-      const showStatus = !!d.statusName && d.statusName !== 'active' && !inColumn;
-      if (!showType && !showStatus) return;
-      const g = d3.select(this);
+      const key = tileVisualKey({ action_type: d.actionType as ActionType, all_day: d.allDay });
+      // `is_completed` e lo status `done` sono tenuti allineati dal database
+      // (migration 015): qui valgono come la stessa cosa, come in Chrono.
+      const status: TileStatus = d.isCompleted ? 'done' : ((d.statusName as TileStatus) ?? 'active');
+      // L'accento tinge fondo, bordo e badge. Il colore del TIPO ha la
+      // precedenza perché è quello con cui il canvas ha sempre velato i tile;
+      // senza tipo si ricade sul colore dell'AZIONE, che almeno tiene rossa la
+      // scadenza invece di lasciarla a una hairline grigia. Entrambi vengono
+      // dalle impostazioni utente: nessun esadecimale scritto qui.
+      const accent = d.typeColor || getColor(key);
+      const steps = stepsFor(d);
+      const meta = metaFor(d, key);
+
+      const fo = g.append('foreignObject')
+        .attr('class', 'tile-card')
+        .attr('x', -TILE_BLEED).attr('y', -TILE_BLEED)
+        .attr('width', TILE_W + TILE_BLEED * 2).attr('height', TILE_H + TILE_BLEED * 2)
+        // Il disegno non intercetta il puntatore: click, menu contestuale e
+        // trascinamento restano sul gruppo e sul rettangolo di presa qui sotto.
+        .style('pointer-events', 'none')
+        .style('overflow', 'visible');
+
+      const host = document.createElement('div');
+      host.style.cssText = `padding:${TILE_BLEED}px;`;
       try {
-        const React = require('react');
-        const { renderToString } = require('react-dom/server');
-        const meta = showStatus ? statusMeta(d.statusName!) : null;
-        const html = renderToString(React.createElement(TileMeta, {
-          type: showType ? { icon: d.typeIcon, color: d.typeColor || '#5C5868' } : undefined,
-          // token Obsidian come nelle altre viste (theme-aware, stesso rendering).
-          status: showStatus && meta ? { shape: d.statusShape, color: meta.color, label: meta.label } : undefined,
-        }));
-        const fo = g.append('foreignObject').attr('x', TILE_W - 62).attr('y', TILE_H - 24).attr('width', 56).attr('height', 20).style('pointer-events', 'none');
-        const container = document.createElement('div');
-        container.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;width:56px;height:20px;';
-        container.innerHTML = html;
-        (fo.node() as SVGForeignObjectElement)?.appendChild(container);
-      } catch { /* un badge non renderizzabile non deve rompere il disegno/l'interazione della board */ }
+        host.innerHTML = renderToString(
+          React.createElement(TileCard, {
+            title: d.title,
+            visualKey: key,
+            status,
+            steps,
+            meta,
+            accent,
+          }),
+        );
+      } catch {
+        // Una card non renderizzabile non deve rompere la board: il nodo resta
+        // selezionabile e trascinabile, semplicemente senza grafica.
+      }
+      (fo.node() as SVGForeignObjectElement)?.appendChild(host);
     });
+
+    // Rettangolo di PRESA — invisibile, sopra la card. Porta la classe
+    // `.tile-bg` perché è il bersaglio che l'evidenziazione del drop-target
+    // cerca per disegnarci il contorno di aggancio.
+    nodeGrps.append('rect').attr('class', 'tile-bg')
+      .attr('width', TILE_W).attr('height', TILE_H).attr('rx', RX)
+      .attr('fill', 'transparent')
+      .attr('stroke', 'none')
+      .style('cursor', moveRef.current ? 'grab' : 'default');
+
 
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')

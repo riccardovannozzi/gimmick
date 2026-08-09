@@ -13,7 +13,7 @@ import type { PixelTheme } from '../pixel-theme';
  * `--ob-leading-*` (app/obsidian.css). Stessi valori, in numeri.
  *
  * Perché numeri e non stringhe `var(...)`: negli stili inline di React un numero
- * è più sicuro. `fontSize: 13` diventa `13px` da solo, mentre `'var(--ob-text-control)'`
+ * è più sicuro. `fontSize: 12` diventa `12px` da solo, mentre `'var(--ob-text-control)'`
  * è una stringa opaca che TypeScript non può controllare, che non si può usare in
  * aritmetica (`size * 0.85`) e che fallisce silenziosamente se il token non esiste
  * o non è in scope — per esempio dentro un `foreignObject` SVG o in un portale
@@ -33,10 +33,18 @@ export const OB_TEXT = {
   meta: 11,
   /** Testo dentro una tile. */
   card: 12,
-  /** Controlli: bottoni, campi, righe di tabella, sidebar. */
-  control: 13,
+  /**
+   * Controlli: bottoni, campi, righe di tabella, sidebar.
+   *
+   * ⚠️ Vale 12 come `card`, ma resta un RUOLO distinto e non un alias: il testo
+   * dei tile è rimpicciolito dallo zoom del tile (`--ob-tile-zoom`) e rende
+   * 9,6px, mentre i controlli rendono 12 pieni. Sono due misure diverse sullo
+   * schermo che partono dallo stesso numero — unificarli in un token solo
+   * legherebbe fra loro due cose che si guardano in contesti diversi.
+   */
+  control: 12,
   /** Titolo di vista, di modale, di riga impostazioni. */
-  title: 16,
+  title: 14,
 } as const;
 
 /** Pesi. Tre, nessun altro: il 300 e il 500 sono stati riassorbiti. */

@@ -121,8 +121,8 @@ function ShellDemo({ mode }: { mode: ObsidianMode }) {
           groups={GROUPS}
           count={26}
           pinnedLabel="Pinned · 2"
-          activeChildId={active}
-          onSelectChild={setActive}
+          activeChildIds={[active]}
+          onSelectChild={(id) => setActive(id)}
         />
       }
       inspector={<Inspector><TileDetail /></Inspector>}

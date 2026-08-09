@@ -55,11 +55,14 @@
 .ob-btn--primary:active:not(:disabled) { filter: brightness(0.88); }
 
 .ob-btn--secondary { background: var(--ob-surface); color: var(--ob-text); border-color: var(--ob-line-2); }
-.ob-btn--secondary:hover:not(:disabled) { background: var(--ob-surface-2); }
+/* Ha un fondo PROPRIO, quindi non può prendere `--ob-hover` così com'è: una
+   velatura come `background` sostituirebbe il fondo invece di sommarcisi, e il
+   bottone diventerebbe semitrasparente. Stessa dose, mescolata al suo fondo. */
+.ob-btn--secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-text) 4%, var(--ob-surface)); }
 .ob-btn--secondary:active:not(:disabled) { background: var(--ob-surface-2); filter: brightness(0.97); }
 
 .ob-btn--ghost { background: transparent; color: var(--ob-muted); }
-.ob-btn--ghost:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+.ob-btn--ghost:hover:not(:disabled) { background: var(--ob-hover); color: var(--ob-text); }
 .ob-btn--ghost:active:not(:disabled) { background: var(--ob-surface-2); filter: brightness(0.97); }
 
 .ob-btn--danger { background: transparent; color: var(--ob-error); border-color: color-mix(in srgb, var(--ob-error) 35%, transparent); }
@@ -80,7 +83,11 @@
   cursor: pointer;
   transition: background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
 }
-.ob-iconbtn:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+/* Bersaglio piccolo → dose forte. Ed è una VELATURA: con `--ob-surface-2` in
+   dark l'hover cadeva sul fondo delle sponde e della navbar, cioè sul colore che
+   c'era già, e spariva. Le tre pezze locali che rimediavano volta per volta
+   (navbar, toggle inspector, comandi delle barre) non servono più. */
+.ob-iconbtn:hover:not(:disabled) { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-iconbtn:active:not(:disabled) { filter: brightness(0.97); }
 .ob-iconbtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ob-iconbtn--sm { width: 28px; height: 28px; }
@@ -214,7 +221,7 @@
   cursor: pointer;
   transition: background-color 100ms ease-out, color 100ms ease-out;
 }
-.ob-select__option:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+.ob-select__option:hover:not(:disabled) { background: var(--ob-hover); color: var(--ob-text); }
 .ob-select__option--active { color: var(--ob-text); background: var(--ob-surface-2); }
 .ob-select__option:disabled { opacity: 0.4; cursor: not-allowed; }
 .ob-select__option-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -393,7 +400,7 @@
   transition: background-color 120ms ease-out;
 }
 .ob-listrow--interactive { cursor: pointer; }
-.ob-listrow--interactive:hover { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-listrow--interactive:hover { background: var(--ob-hover); }
 .ob-listrow--active { background: var(--ob-accent-soft); color: var(--ob-accent); }
 .ob-listrow__main { flex: 1; min-width: 0; }
 .ob-listrow__meta { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); flex-shrink: 0; }
@@ -414,7 +421,7 @@
 .ob-tablerow { transition: background-color 120ms ease-out; }
 .ob-tablerow td { padding: 11px 12px; border-bottom: 1px solid var(--ob-line); vertical-align: middle; }
 .ob-tablerow--interactive { cursor: pointer; }
-.ob-tablerow--interactive:hover td { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
+.ob-tablerow--interactive:hover td { background: var(--ob-hover); }
 .ob-tablerow--active td { background: var(--ob-accent-soft); }
 
 /* ─── SISTEMA VISIVO DEI TILE — canali indipendenti ─────────────────────────
@@ -505,7 +512,16 @@
    ────────────────────────────────────────────────────────────────────────── */
 .ob-tile {
   position: relative;
+  /* Il rettangolo di DISEGNO resta 150×80: tutte le misure interne (padding 10,
+     strip 20, corpi 11/12) sono tarate su questo, ed è il sistema descritto in
+     lib/tile-visual.ts. Quello che si VEDE è 120×64, perché `zoom` scala il
+     rettangolo e tutto quello che contiene.
+     `zoom` e non `transform: scale()`: lo zoom entra nel calcolo del layout,
+     quindi il tile OCCUPA davvero 120×64 e le colonne che lo contengono si
+     stringono di conseguenza. Con `transform` sarebbe rimasta in piedi una
+     scatola da 150×80 con dentro un tile più piccolo. */
   width: 150px; height: 80px; flex-shrink: 0;
+  zoom: var(--ob-tile-zoom, 0.8);
   border-radius: var(--ob-radius-sm);
   /* Velatura del colore dell'action sul fondo unico dei tile — la STESSA
      ricetta di canvas, chrono, kanban e staging (14% del colore su
@@ -515,8 +531,14 @@
   background: color-mix(in srgb, var(--ac, var(--ob-tile-bg)) 14%, var(--ob-tile-bg));
   /* Hairline strutturale: definisce il rettangolo, non porta significato.
      Con box-sizing border-box l'ingombro resta 150×80 anche quando il bordo
-     action lo ingrossa a 1.5px. */
-  border: 0.5px solid var(--ob-line);
+     action lo ingrossa a 1.5px.
+     ⚠️ È `--ob-tile-border` e non la hairline generica `--ob-line`: da quando in
+     light l'area di lavoro è il bianco pieno, il tile senza colorazione è una
+     CARTA BIANCA SU FONDO BIANCO, e a reggerla resta solo il contorno — come le
+     note nel canvas di Obsidian. Con --ob-line (8% contro 13%) sul canvas e
+     nelle colonne di Chrono il rettangolo si perdeva. In dark i due valori si
+     equivalgono, quindi lì non cambia nulla. */
+  border: 0.5px solid var(--ob-tile-border);
   color: var(--ob-text);
   /* Il font va DICHIARATO qui, non ereditato.
      Nell'app arriva da `html[data-ob='on'] body`, una regola che dipende da un
@@ -549,18 +571,44 @@
   box-shadow: inset 0 0 0 2px var(--ob-accent);
   pointer-events: none;
 }
-/* `cancelled` attenua l'intero tile; `done` barra il solo titolo. */
+/* `cancelled` attenua l'intero tile; `done` barra il titolo. */
 .ob-tile--cancelled { opacity: 0.5; }
 .ob-tile--done .ob-tile__title { text-decoration: line-through; }
+
+/* ── Evidenziazione verde dei COMPLETATI ─────────────────────────────────────
+   NON è un default del tile: si accende da fuori. Sul canvas la accende il
+   pulsante "Done" della topbar, che mette questa classe sul contenitore della
+   board — i tile completati ci sono comunque, con o senza pulsante, e quello
+   che cambia è solo se si tingono.
+   È scritta come regola di CONTESTO e non sul tile perché il tile non deve
+   sapere niente di chi lo ospita: resta presentazionale, e chi lo monta decide
+   se accendere l'evidenziazione. Chiunque altro voglia lo stesso effetto mette
+   la stessa classe sul proprio contenitore.
+
+   Il verde è `--ob-success`, il token, velato al 30% sul fondo tile. Il 14%
+   delle velature ordinarie — la dose con cui il tile prende il colore della sua
+   action — qui era un sussurro: giusto per distinguere sei azioni fra loro,
+   troppo debole per farsi notare in mezzo a tile già colorati di loro.
+   Resta comunque una velatura e non un fondo pieno: sopra ci va il titolo, e a
+   dose piena il verde se lo mangerebbe.
+   Il BORDO non si tinge: quello è il canale dell'azione, e un completato resta
+   una scadenza o un evento. */
+.ob-done-hl .ob-tile--done { background: color-mix(in srgb, var(--ob-success) 30%, var(--ob-tile-bg)); }
 
 /* Corpo: il titolo in alto, spazio riservato in basso per la riga del footer
    (status a sinistra, metadato a destra), che è posizionata in assoluto. */
 .ob-tile__body { height: 100%; padding: 10px 10px 26px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
 
+/* Peso BODY e non emphasis. Il 600 era tarato su un tile a grandezza naturale,
+   dove il titolo rendeva 12px pieni; da quando il tile è scalato a 0.8 quel
+   testo rende 9,6px, e a quel corpo un tratto grasso chiude le contro-forme
+   delle lettere — la parola diventa una macchia con la sagoma giusta.
+   La gerarchia col metadato regge lo stesso: quello è più piccolo (8,8) e al
+   60% di opacità, quindi il titolo resta primo senza bisogno del peso. */
 .ob-tile__title {
   font-size: var(--ob-text-card);
-  font-weight: var(--ob-weight-emphasis);
+  font-weight: var(--ob-weight-body);
   line-height: var(--ob-leading-tight);
   letter-spacing: -0.01em;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -583,3 +631,258 @@
    resta una parola, l'icona del tipo non compare sulla card. Le regole sono
    state rimosse invece di lasciate spente — una regola morta è peggio di una
    assente, perché la prossima persona non sa se serve. */
+
+/* ─── MENU CONTESTUALE ───────────────────────────────────────────────────────
+   Il menu del tasto destro: righe icona + testo, separatori fra i gruppi, voce
+   distruttiva in rosso in fondo. Lo aprono Chrono (card ed eventi), Kanban,
+   Tiles e la sidebar dei tag; stava in obsidian-chrono.css, che era il posto di
+   chi l'aveva scritto per primo e non di chi lo usa.
+
+   Va montato in un PORTALE su `document.body`: `position: fixed` basterebbe a
+   scavalcare l'overflow degli antenati, ma non un antenato con `transform`, che
+   diventerebbe il suo contenitore. Le coordinate arrivano dal click, clampate
+   sui bordi della finestra da chi lo apre. */
+.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); box-shadow: var(--ob-shadow-card); }
+.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); }
+.ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
+.ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
+.ob-ctx__item--danger { color: var(--ob-error); }
+.ob-ctx__item--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-error) 14%, transparent); }
+.ob-ctx__sep { height: 1px; margin: 4px 2px; background: var(--ob-line); }
+
+/* ─── LINGUETTE ──────────────────────────────────────────────────────────────
+   Le schede di una barra: sidebar dei tag (Storage/Tags/Pinned), pannello del
+   tile (Edit/List), topbar del canvas (i tag pinnati).
+
+   Sono LINGUETTE, non pulsanti. Erano pill con l'attiva in accent pieno: stessa
+   forma e stesso colore dei comandi accanto. Ma un pulsante FA qualcosa, una
+   linguetta dice DOVE SEI, e col vestito del primo si perdeva la gerarchia — la
+   barra sembrava una fila di azioni di cui una accesa.
+
+   Il modello è quello degli editor a schede:
+     · la barra sta INCASSATA, un gradino sotto il pannello (`--ob-sunken`);
+     · la linguetta ATTIVA prende il colore del pannello che apre, con gli angoli
+       superiori arrotondati e la base appoggiata sul contenuto — è un pezzo di
+       quel pannello che sporge nella barra;
+     · le inattive restano nell'incasso, spente, separate da un filo verticale;
+     · la hairline in fondo alla barra è il bordo superiore del pannello, e
+       l'attiva la INTERROMPE sbordando di un pixel.
+   Così l'attiva non è «quella colorata» ma quella ATTACCATA a ciò che stai
+   guardando: informazione di posizione, non di enfasi.
+
+   ⚠️ `--lug-bg` è il fondo del pannello sotto la barra, e va dichiarato dalla
+   striscia quando non è quello delle sponde: nel canvas è la lavagna. È l'unico
+   pezzo che cambia da una barra all'altra — tutto il resto è condiviso, così le
+   quattro strisce dell'app non possono divergere. */
+.ob-lugs,
+.ob-sb__seg .ob-seg,
+.ob-insp-tabs {
+  display: flex;
+  width: 100%;
+  /* Altezza piena della fascia: le linguette si ancorano al FONDO, e per farlo
+     serve che il loro contenitore arrivi fin lì. */
+  height: 100%;
+  gap: 0;
+  padding: 0;
+  border: none;
+  align-items: flex-end;
+  background: transparent;
+}
+.ob-lug,
+.ob-sb__seg .ob-seg-item,
+.ob-insp-tab {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  /* ⚠️ Il centraggio va DICHIARATO, non ereditato dal tipo di elemento. Un
+     `<button>` centra il proprio contenuto da sé, un `<div>` lo appoggia in cima
+     al content box: la linguetta del canvas corrente è un div, e il suo nome
+     stava più in alto di tutti gli altri. Dichiarandolo qui, una linguetta è
+     allineata perché è una linguetta — non perché è stata scritta con il tag
+     giusto. */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* ── L'altezza, e i 4px di respiro sopra ───────────────────────────────────
+     La linguetta è ancorata al fondo e lascia scoperti 4px in cima alla fascia:
+     senza, riempirebbe la barra da bordo a bordo e smetterebbe di leggersi come
+     una scheda appoggiata su qualcosa.
+
+     ⚠️ Il padding inferiore vale ESATTAMENTE quanto il respiro sopra, e non è
+     una coincidenza: è la condizione perché il TESTO non si muova quando si
+     cambia il respiro. Scendendo il bordo alto di S, il contenuto scenderebbe
+     di S/2; un padding inferiore di S lo rialza della stessa quantità. Così il
+     testo resta sulla riga ottica di tutto ciò che nelle barre è centrato — i
+     titoli («Staging»), i comandi, i controlli da 30 — qualunque sia S.
+
+     Il prezzo è che dentro la linguetta il testo sta S/2 sopra il centro: con 4
+     sono due pixel, che non si vedono. Erano 9 (4.5px fuori centro) e su una
+     linguetta col contorno si notavano. Alzando ancora S il testo resta sulla
+     riga ma si sbilancia: 6 → 3px, 9 → 4.5px. */
+  height: calc(var(--ob-toolbar-height) - 5px);
+  align-self: flex-end;
+  padding: 0 10px 4px;
+  border: none;
+  /* `md` e non `sm`: la linguetta non è un controllo, è un pezzo del pannello
+     che sporge nella barra, e prende il raggio dei contenitori. Con `sm` (4) gli
+     angoli superiori erano appena accennati e la forma si leggeva più come un
+     rettangolo che come una scheda. Restano i due soli valori della scala. */
+  border-radius: var(--ob-radius-md) var(--ob-radius-md) 0 0;
+  background: transparent;
+  color: var(--ob-subtle);
+  font-family: var(--ob-font-sans);
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+/* Nell'inspector le linguette hanno un'icona accanto all'etichetta: l'unica
+   differenza ammessa fra le strisce. Display e centraggio arrivano dal blocco
+   condiviso qui sopra. */
+.ob-insp-tab { gap: 5px; }
+/* Hover: nessuno sfondo, cambia solo il testo che schiarisce. */
+.ob-lug:hover:not(.ob-lug--active),
+.ob-sb__seg .ob-seg-item:hover:not(.ob-seg-item--active),
+.ob-insp-tab:hover:not(.ob-insp-tab--active) { background: transparent; color: var(--ob-text); }
+
+/* Filo verticale FRA due linguette spente. Sta sul pseudo-elemento e non come
+   bordo perché deve sparire accanto all'attiva: un bordo lì disegnerebbe una
+   riga contro il fianco della linguetta che sporge, e la staccherebbe dal
+   pannello a cui deve sembrare attaccata. Accorciato sopra e sotto: a tutta
+   altezza sembrerebbe una divisione della barra, non una separazione fra voci. */
+.ob-lug + .ob-lug::before,
+.ob-sb__seg .ob-seg-item + .ob-seg-item::before,
+.ob-insp-tab + .ob-insp-tab::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 11px; bottom: 9px; width: 1px;
+  background: var(--ob-line-2);
+}
+.ob-lug--active::before,
+.ob-lug--active + .ob-lug::before,
+.ob-sb__seg .ob-seg-item--active::before,
+.ob-sb__seg .ob-seg-item--active + .ob-seg-item::before,
+.ob-insp-tab--active::before,
+.ob-insp-tab--active + .ob-insp-tab::before { display: none; }
+
+/* Attiva: prende il fondo del PANNELLO che apre, non un colore d'accento.
+   ⚠️ NON deve cambiare INGOMBRO rispetto a una spenta. Cliccando una linguetta
+   la striscia non si deve riassestare: la linguetta cliccata resta larga
+   com'era, e quelle dopo di lei non slittano. Due cose lo rompevano:
+     · il grassetto sull'attiva — un testo più largo allarga la linguetta, che
+       nel canvas è dimensionata sul contenuto, e spinge via tutte le altre.
+       Il peso è tolto: a dire quale sia l'attiva bastano il fondo, il contorno,
+       il colore pieno del testo e il varco nella hairline, che sono quattro
+       segnali per una cosa sola;
+     · il contorno come `border` — due pixel di larghezza in più. Ora è una
+       `box-shadow: inset`, che si disegna DENTRO e non occupa spazio.
+   Con questi due fuori, attiva e spenta hanno lo stesso identico content box:
+   il testo non si muove di un pixel, né in orizzontale né in verticale. */
+.ob-lug--active,
+.ob-sb__seg .ob-seg-item--active,
+.ob-insp-tab--active {
+  background: var(--lug-bg, var(--ob-rail-bg));
+  color: var(--ob-text);
+  /* Un pixel più alta e tirata giù di uno: sborda sotto il fondo della barra e
+     copre la hairline col proprio fondo. È il VARCO nel bordo superiore del
+     pannello — la linea si apre esattamente sotto la linguetta attiva.
+     Il padding inferiore prende il pixel guadagnato, così il content box torna
+     identico a quello di una spenta e il testo resta sulla sua riga. */
+  height: calc(var(--ob-toolbar-height) - 4px);
+  margin-bottom: -1px;
+  padding-bottom: 5px;
+  /* Contorno sui tre lati che restano: chiude la linguetta contro l'incasso e,
+     in light — dove fondo barra e fondo pannello distano poco — è quello che
+     rende visibile il varco in basso. Niente lato inferiore: è quello aperto. */
+  box-shadow:
+    inset 0 1px 0 var(--ob-line),
+    inset 1px 0 0 var(--ob-line),
+    inset -1px 0 0 var(--ob-line);
+}
+
+/* ─── STRUMENTI DI BARRA ──────────────────────────────────────────────────────
+   Due forme leggere per i comandi che stanno accanto alle linguette, pensate
+   per NON competere con loro.
+
+   `.ob-tool` — sola icona, nessun fondo a riposo. Erano bottoni con etichetta e
+   fondo pieno: quattro strumenti di disegno si prendevano mezza barra e pesavano
+   quanto il contenuto che stanno lì per creare. Uno strumento si riconosce dalla
+   sua forma; il nome sta nel tooltip. Il fondo compare al passaggio, e resta
+   quando lo strumento è ACCESO — armare un modo cambia cosa fa il click, e non
+   può essere uno stato che si scopre provando.
+
+   `.ob-toolword` — una parola nuda, senza fondo e senza icona, con la tipografia
+   delle linguette. Per i comandi che non creano niente e cambiano solo come
+   guardi quello che c'è: sono i più leggeri di tutti e devono sembrarlo.
+   Il colore dell'acceso lo decide chi la usa, inline: quando un comando ha un
+   colore proprio (il verde dei completati) mostrarlo vale più di qualunque
+   evidenziazione generica. */
+.ob-tool {
+  width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--ob-radius-sm);
+  background: transparent;
+  color: var(--ob-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-tool:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
+.ob-tool--on,
+.ob-tool--on:hover { background: var(--ob-accent-soft); color: var(--ob-accent); }
+
+.ob-toolword {
+  height: 30px; padding: 0 8px;
+  display: inline-flex; align-items: center;
+  border: none; background: transparent;
+  color: var(--ob-subtle);
+  font-family: var(--ob-font-sans);
+  font-size: var(--ob-text-control);
+  font-weight: var(--ob-weight-body);
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 120ms ease-out;
+}
+.ob-toolword:hover { color: var(--ob-text); }
+
+/* Striscia di linguette che SCORRE (topbar del canvas: i tag pinnati possono
+   essere tanti).
+   ⚠️ Lo scroll e il gruppo devono stare su due elementi DIVERSI. `overflow-x`
+   diverso da `visible` forza anche `overflow-y` a ritagliare, e quello che
+   verrebbe ritagliato è esattamente il pixel con cui la linguetta attiva copre
+   la hairline: il varco sparirebbe. Il wrapper è quindi alto un pixel PIÙ della
+   fascia — tanto quanto sborda la linguetta — e il gruppo dentro resta alto
+   quanto il content box, così le linguette spente si fermano sulla riga. */
+.ob-lugs-scroll {
+  min-width: 0;
+  height: calc(100% + 1px);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.ob-lugs-scroll::-webkit-scrollbar { display: none; }
+.ob-lugs-scroll > .ob-lugs { height: calc(100% - 1px); width: max-content; }
+
+/* ─── GRIGLIA A PUNTINI ───────────────────────────────────────────────────────
+   La texture di fondo delle superfici di lavoro: la lavagna del canvas e la
+   board del kanban. Dà una misura allo spazio vuoto — senza, un'area bianca non
+   dice quanto è grande né se si sta muovendo.
+
+   Il pattern viveva scritto a mano in `.ob-canvas__board`; è una utility perché
+   ormai la usano due viste, e perché il passo (22px) è una scelta sola: due
+   griglie con passi diversi si leggono come due materiali diversi.
+
+   ⚠️ Va messa sul contenitore che fa da SFONDO, e le celle sopra devono essere
+   trasparenti: un fondo opaco sopra la griglia la copre. E va messa su UN
+   contenitore solo, non su ogni cella — il pattern riparte a ogni elemento su
+   cui è dichiarato, e su celle di larghezza diversa i puntini si
+   disallineerebbero da una colonna all'altra. */
+.ob-dotgrid {
+  background-image: radial-gradient(var(--ob-dot) 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}

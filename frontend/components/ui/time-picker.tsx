@@ -109,10 +109,12 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
         padding: compact ? '0 10px' : '6px 8px',
         // Compact = cella dentro un gruppo della sidebar: stesso standard degli
         // altri campi (30 di altezza, raggio 8, testo 12.5). Con `noBorder` il
-        // fondo è quello degli oggetti della sidebar (bg1), non `surface`, che
-        // coincide col colore del pannello e sparirebbe.
+        // fondo è quello degli OGGETTI DELLE SPONDE — `--ob-rail-field`, lo
+        // stesso degli altri campi del pannello del tile. Era `bg1`, che valeva
+        // finché il fondo della vista faceva da incasso; da quando l'area di
+        // lavoro è bianca, `bg1` è il bianco e la cella sparirebbe.
         height: compact ? 30 : 'auto',
-        background: noBorder ? theme.bg1 : theme.surface,
+        background: noBorder ? 'var(--ob-rail-field)' : theme.surface,
         border: `1px solid ${noBorder ? 'transparent' : theme.border}`,
         // Compatto o no, è sempre un controllo: la distinzione 8/10 è sparita
         // con la consolidazione su due soli raggi.
@@ -247,7 +249,7 @@ export function TimePicker({ value, onChange, label, icon, compact, borderless, 
                   width: 44,
                   height: 28,
                   textAlign: 'center',
-                  background: theme.bg1,
+                  background: 'var(--ob-sunken)',
                   border: 'none',
                   borderRadius: 'var(--ob-radius-sm)',
                   outline: 'none',

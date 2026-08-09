@@ -25,7 +25,6 @@ import {
   IconArrowsMinimize,
 } from '@tabler/icons-react-native';
 import { tagsApi, tagTypesApi, type TagTypeEntity } from '@/lib/api';
-import { useAuthStore } from '@/store';
 import { usePixelTheme, PixelButton } from '@/components/pixel';
 import type { Tag as TagInterface } from '@/types';
 
@@ -125,18 +124,14 @@ export function TagFilterModal({
 
   useEffect(() => {
     if (!visible) return;
-    // Sync auth tokens before fetching (same pattern used by the home screen
-    // modal — protects against stale tokens after a session restore).
-    const state = useAuthStore.getState();
-    if (state.accessToken && state.refreshToken) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { setTokens } = require('@/lib/api');
-      setTokens({
-        access_token: state.accessToken,
-        refresh_token: state.refreshToken,
-        expires_at: 0,
-      });
-    }
+    // NIENTE re-sync dei token qui (c'era, e sloggava l'utente). Ricopiare
+    // quelli dello store sul client API rimetteva in uso l'access token
+    // vecchio — per giunta con `expires_at: 0` — sovrascrivendo quello appena
+    // rinnovato dal giro dei 401: la richiesta dopo prendeva 401, il refresh
+    // ripartiva con un token già ruotato da Supabase e la sessione moriva.
+    // Aprire il filtro dei tag bastava. Il client tiene i propri token
+    // aggiornati da sé; la direzione store → client vive in `initialize` e
+    // `onRehydrateStorage`, quella opposta in `setOnTokensRefreshed`.
     tagsApi
       .list()
       .then((res) => {

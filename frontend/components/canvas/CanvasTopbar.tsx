@@ -1,39 +1,39 @@
 'use client';
 
 import { useState } from 'react';
-import { IconMaximize, IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
+import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
+import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
-import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
+import { OB_WEIGHT } from '@/lib/theme/ob-typography';
 
-function ToolbarToggle({ icon, label, active, onClick }: {
+/**
+ * Uno dei quattro MODI di disegno (gruppo, tile, testo, immagine).
+ *
+ * Sola icona, senza fondo: quattro bottoni con etichetta occupavano mezza barra
+ * e pesavano quanto il contenuto che stanno lì per creare. Sono strumenti, e uno
+ * strumento si riconosce dalla sua forma — il nome sta nel tooltip.
+ *
+ * Il fondo compare solo al passaggio del puntatore, tranne quando il modo è
+ * ACCESO: lì resta, perché armare un modo cambia cosa fa il click sulla lavagna
+ * e non può essere uno stato che si scopre provando.
+ */
+function ModeToggle({ icon, label, active, onClick }: {
   icon: React.ReactNode;
   label: string;
   active: boolean;
   onClick: () => void;
 }) {
-  const theme = usePixelTheme();
-  const style = obsidianToolbarBtn(theme, active);
   return (
-    <button onClick={onClick} style={style} title={label}>
+    <button
+      type="button"
+      className={cn('ob-tool', active && 'ob-tool--on')}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+    >
       {icon}
-      {label}
-    </button>
-  );
-}
-
-function ToolbarButton({ icon, label, onClick }: {
-  icon: React.ReactNode;
-  label: string;
-  onClick: () => void;
-}) {
-  const theme = usePixelTheme();
-  const style = obsidianToolbarBtn(theme, false);
-  return (
-    <button onClick={onClick} style={style} title={label}>
-      {icon}
-      {label}
     </button>
   );
 }
@@ -48,8 +48,14 @@ interface CanvasTopbarProps {
   onToggleTileMode: () => void;
   onToggleImageMode: () => void;
   onToggleSelectMode: () => void;
-  onFit: () => void;
-  onZoom100: () => void;
+  /**
+   * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
+   * entrambi gli stati, cambia solo se si tingono.
+   * Assente il callback, il pulsante non compare: è così che la barra si spegne
+   * nello stato "nessun tag aperto".
+   */
+  doneHighlight?: boolean;
+  onToggleDoneHighlight?: () => void;
   pinnedTags?: Tag[];
   onPinnedTagClick?: (tagId: string) => void;
   onUnpinTag?: (tagId: string) => void;
@@ -57,40 +63,22 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, onFit, onZoom100, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
-  const chipFont = 'var(--ob-font-sans)';
-  const chipFontSize = OB_TEXT.control;
-  // Linguetta = controllo → raggio sm (i due soli valori vivono in obsidian.css).
-  const chipRadius = 'var(--ob-radius-sm)';
-  const chipTransform: 'none' | 'uppercase' = 'none';
-  const chipWeight = OB_WEIGHT.emphasis;
-  // Forma "linguetta": angoli superiori arrotondati, base piatta appoggiata sulla
-  // linea inferiore della barra (tab-strip). Più alta dei 30 degli altri controlli,
-  // altrimenti non si legge come tab.
-  //
-  // Il testo però deve stare sulla STESSA riga ottica degli altri controlli della
-  // fascia (segmentato di sinistra, toolbar, tabbar di destra), quindi non è
-  // centrato nella linguetta: il padding inferiore spinge la scatola del contenuto
-  // verso l'alto. I conti, in una barra da 48 con hairline da 1 (→ 47 utili):
-  //   · un controllo da 30 centrato occupa 8.5–38.5, quindi il suo testo è a 23.5;
-  //   · la linguetta è ancorata in basso, dunque va da 47-38=9 a 47; la scatola del
-  //     contenuto è 38-8=30 e parte da 9, quindi il suo testo cade a 9+15=24.
-  // Mezzo pixel di scarto, invisibile. Cambiando TAB_H va ricalcolato TAB_PAD_B
-  // come TAB_H - 30 — e lo stesso vale se cambia `--ob-toolbar-height`: i conti
-  // qui sopra partono da quel 48.
-  const TAB_H = 38;
-  const TAB_PAD_B = TAB_H - 30;
-  const tabShape = {
-    height: TAB_H,
-    alignSelf: 'flex-end' as const,
-    paddingBottom: TAB_PAD_B,
-    borderTopLeftRadius: chipRadius,
-    borderTopRightRadius: chipRadius,
-    borderBottomLeftRadius: 0,
-    borderBottomRightRadius: 0,
-  };
+  /**
+   * Forma, misure e colori delle linguette NON stanno più qui: sono `.ob-lug` in
+   * app/obsidian-primitives.css, le stesse identiche delle sidebar. Erano una
+   * quarantina di righe di stili inline — altezza, raggi, ancoraggio, fondi —
+   * che ripetevano a mano quello che le sidebar dichiaravano in CSS, e che a
+   * ogni ritocco andavano tenute allineate a occhio.
+   *
+   * Resta questo: metà della scatola del CONTENUTO della linguetta, su cui si
+   * centra la crocetta di unpin, che è l'unica cosa che questa striscia ha in
+   * più delle altre. Ora che la linguetta riempie la fascia coincide col centro
+   * della barra, quindi la crocetta cade sulla riga del testo.
+   */
+  const TAB_CONTENT_MID = 'calc((var(--ob-toolbar-height) - 1px) / 2)';
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dropTargetId, setDropTargetId] = useState<string | null>(null);
 
@@ -116,7 +104,15 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     setDropTargetId(null);
   };
 
-  const otherPinned = tag ? pinnedTags.filter((p) => p.id !== tag.id) : pinnedTags;
+  /**
+   * La striscia mostra i pinnati NEL LORO ORDINE, sempre gli stessi e sempre al
+   * loro posto: cambiare canvas accende una linguetta, non riordina la barra.
+   *
+   * Il tag corrente si aggiunge in testa solo quando NON è pinnato — lì è un
+   * ospite, non una scheda che hai messo tu.
+   */
+  const isCurrentPinned = !!tag && pinnedTags.some((p) => p.id === tag.id);
+  const strip = pinnedTags;
 
   return (
     <div
@@ -131,53 +127,56 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        // 12 a sinistra come a destra: la prima linguetta non parte incollata al
+        // bordo della lavagna, e i due margini della barra sono uguali.
+        // Sta sulla BARRA e non sulla striscia, così resta anche quando le
+        // linguette scorrono — un padding dentro lo scroller se ne andrebbe via
+        // col primo trascinamento.
         padding: '0 12px',
         borderBottom: `${chipBorderW}px solid ${theme.border}`,
-        background: theme.bg2,
+        // Bianca come le toolbar di Chrono e Kanban: la fascia dei comandi resta
+        // sulla superficie chiara, non incassata.
+        // ⚠️ Le linguette perdono così il loro stacco: l'attiva prende il fondo
+        // della lavagna, che è lo stesso della barra, e a distinguerla restano
+        // solo il contorno e il varco nella hairline. Da rivedere insieme al
+        // resto delle strisce.
+        background: 'var(--ob-surface)',
+        // Il pannello sotto questa barra è la LAVAGNA, non una sponda: le
+        // linguette leggono di qui il colore che devono prendere da accese.
+        ['--lug-bg' as string]: 'var(--ob-canvas)',
       }}
     >
-      <div
-        className="[scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        style={{ display: 'flex', alignItems: 'flex-end', gap: 4, minWidth: 0, overflowX: 'auto', overflowY: 'hidden', height: '100%' }}
-      >
-        {tag && (
-          <>
-            <div
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '0 14px',
-                ...tabShape,
-                // Tab attivo (tag corrente): stesso stile del tab attivo della
-                // navbar → sfondo accent-soft + testo accent (token --ob-*).
-                background: 'var(--ob-accent-soft)',
-                color: 'var(--ob-accent)',
-                border: 'none',
-                fontFamily: chipFont,
-                fontSize: chipFontSize,
-                fontWeight: chipWeight,
-                letterSpacing: 0,
-                textTransform: chipTransform,
-                flexShrink: 0,
-                boxShadow: 'none',
-              }}
-              title={`Canvas corrente: ${tag.name}`}
-            >
-              {tag.name}
-            </div>
-          </>
+      {/* Lo SCROLL sta sul wrapper e il gruppo dentro: `overflow-x` diverso da
+          `visible` fa ritagliare anche in verticale, e quello che verrebbe
+          tagliato è il pixel con cui la linguetta attiva copre la hairline —
+          cioè il varco. Le misure che lo evitano sono in `.ob-lugs-scroll`. */}
+      <div className="ob-lugs-scroll">
+      <div className="ob-lugs">
+        {/* Il canvas corrente in testa SOLO se non è fra i pinnati. Se lo è, si
+            accende al suo posto nella striscia (vedi `isActive` qui sotto):
+            prima veniva tolto dalla lista e ridisegnato per primo, così
+            cliccando una linguetta quella saltava in testa e tutte le altre
+            slittavano — l'ordine dei pinnati è una cosa che hai deciso tu
+            trascinandole, e cambiare canvas non deve rimescolarlo. */}
+        {tag && !isCurrentPinned && (
+          <div
+            className="ob-lug ob-lug--active"
+            style={{ flex: '0 0 auto', cursor: 'default' }}
+            title={`Canvas corrente: ${tag.name}`}
+          >
+            {tag.name}
+          </div>
         )}
-        {otherPinned.map((pt, idx) => {
+        {strip.map((pt, idx) => {
           const isDragging = draggingId === pt.id;
           const isDropTarget = dropTargetId === pt.id && draggingId !== pt.id;
-          const draggingIdx = draggingId ? otherPinned.findIndex((t) => t.id === draggingId) : -1;
+          const draggingIdx = draggingId ? strip.findIndex((t) => t.id === draggingId) : -1;
           const insertAfter = draggingIdx !== -1 && draggingIdx < idx;
-          // Chip neutro Obsidian (surface-2, senza bordo).
-          const chipBg = theme.surfaceVariant;
-          const chipFg = theme.ink2;
+          const isActive = pt.id === tag?.id;
           return (
           <div
             key={pt.id}
+            className={cn('ob-lug group', isActive && 'ob-lug--active')}
             draggable={!!onReorderPinned}
             onDragStart={(e) => {
               setDraggingId(pt.id);
@@ -201,22 +200,13 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               setDraggingId(null);
               setDropTargetId(null);
             }}
-            className="group"
             style={{
-              position: 'relative',
-              display: 'inline-flex',
-              alignItems: 'center',
-              padding: '0 26px 0 14px',
-              ...tabShape,
-              background: chipBg,
-              color: chipFg,
-              border: 'none',
-              fontFamily: chipFont,
-              fontSize: chipFontSize,
-              fontWeight: chipWeight,
-              letterSpacing: 0,
-              textTransform: chipTransform,
-              flexShrink: 0,
+              // Forma, misure, centraggio e colori vengono dalla classe
+              // `.ob-lug`: qui restano solo le due cose che questa striscia ha in
+              // piu' — lo spazio a destra per la crocetta di unpin e il gesto di
+              // riordino.
+              paddingRight: 26,
+              flex: '0 0 auto',
               cursor: 'grab',
               opacity: isDragging ? 0.4 : 1,
             }}
@@ -224,16 +214,20 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
             <button
               onClick={() => onPinnedTagClick?.(pt.id)}
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
+                // Eredita tutto dalla linguetta che lo contiene: è la sua area
+                // cliccabile, non un controllo con un aspetto suo. L'ellissi sta
+                // QUI e non sulla linguetta: il contenitore è un flex, e lì
+                // `text-overflow` non ha su cosa applicarsi.
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
                 background: 'transparent',
                 border: 'none',
                 cursor: 'pointer',
                 color: 'inherit',
-                fontFamily: 'inherit',
-                fontSize: 'inherit',
+                font: 'inherit',
                 letterSpacing: 'inherit',
-                textTransform: 'inherit',
                 padding: 0,
               }}
               title={`Apri "${pt.name}" in Canvas`}
@@ -251,7 +245,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 // Centrata sulla scatola del CONTENUTO (che esclude il padding
                 // inferiore della linguetta), non sull'intera linguetta: così
                 // resta sulla riga del testo.
-                top: (TAB_H - TAB_PAD_B) / 2,
+                top: TAB_CONTENT_MID,
                 transform: 'translateY(-50%)',
                 width: 16,
                 height: 16,
@@ -284,15 +278,39 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
           );
         })}
       </div>
+      </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        <ToolbarToggle icon={<IconLasso size={12} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
-        <ToolbarToggle icon={<IconLayoutGrid size={12} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ToolbarToggle icon={<IconNote size={12} />} label="Text" active={textMode} onClick={onToggleTextMode} />
-        <ToolbarToggle icon={<IconPhoto size={12} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
-        <div style={{ width: chipBorderW, height: 20, background: theme.border, margin: '0 4px' }} />
-        <ToolbarButton icon={<IconMaximize size={12} />} label="Fit" onClick={onFit} />
-        <ToolbarButton icon={null} label="100%" onClick={onZoom100} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <ModeToggle icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
+        <ModeToggle icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ModeToggle icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
+        <ModeToggle icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onToggleDoneHighlight && (
+          <>
+            <div style={{ width: chipBorderW, height: 18, background: theme.border, margin: '0 8px' }} />
+            {/* Non e' una modalita' di disegno come i quattro qui sopra — quelli
+                cambiano cosa fa il click sulla lavagna, questo cambia solo come
+                la guardi. Il separatore lo tiene a parte, e la forma pure: una
+                parola nuda, senza fondo e senza icona.
+                ACCESO si tinge di VERDE, cioè del colore che accende sui tile: il
+                comando mostra il suo effetto invece di descriverlo, e non serve
+                nessun'altra evidenziazione. */}
+            <button
+              type="button"
+              className="ob-toolword"
+              onClick={onToggleDoneHighlight}
+              aria-pressed={doneHighlight}
+              style={doneHighlight
+                ? { color: 'var(--ob-success)', fontWeight: OB_WEIGHT.emphasis }
+                : undefined}
+              title={doneHighlight
+                ? 'Togli il verde dalle attività completate'
+                : 'Evidenzia in verde le attività completate'}
+            >
+              Done
+            </button>
+          </>
+        )}
       </div>
     </div>
   );

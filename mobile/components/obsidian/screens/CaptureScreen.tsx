@@ -13,7 +13,7 @@ import { View, Text, Pressable, ScrollView, Modal, LayoutAnimation, TextInput, I
 import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconWaveSine, IconPaperclip,
   IconSend, IconChevronDown, IconChevronUp,
-  IconNote, IconCheckbox, IconBolt, IconCalendar, IconClock, IconTag,
+  IconNote, IconCheckbox, IconRoute, IconBolt, IconCalendar, IconClock, IconTag,
   IconSearch, IconWand, IconCheck, IconX, IconCornerDownLeft, IconCategory, IconCircleDot, IconEraser,
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
@@ -216,13 +216,14 @@ function statusColor(c: ObsidianColors, name: string): string {
   }
 }
 
-type ActionOpt = 'note' | 'todo' | 'due' | 'allday' | 'timed';
+type ActionOpt = 'note' | 'todo' | 'flow' | 'due' | 'allday' | 'timed';
 
 /** Chiave-pulsante attiva a partire dai metadati (inverso di seedAction). */
 function actionKeyOf(o: CaptureOptions): ActionOpt {
   if (o.action_type === 'event') return o.all_day ? 'allday' : 'timed';
   if (o.action_type === 'deadline') return 'due';
   if (o.action_type === 'anytime') return 'todo';
+  if (o.action_type === 'flow') return 'flow';
   return 'note';
 }
 
@@ -231,6 +232,10 @@ function seedAction(key: ActionOpt, o: CaptureOptions, now: Date): CaptureOption
   switch (key) {
     case 'note': return { ...o, action_type: 'none', start_at: null, end_at: null, all_day: false };
     case 'todo': return { ...o, action_type: 'anytime', start_at: null, end_at: null, all_day: false };
+    // Un flow non è schedulabile: nessuna data da seminare, e le eventuali già
+    // impostate si azzerano — restare appese porterebbe in calendario un tile
+    // che in calendario non ci va.
+    case 'flow': return { ...o, action_type: 'flow', start_at: null, end_at: null, all_day: false };
     case 'due': {
       // La data della scadenza vive in end_at (convenzione del web/calendario:
       // vedi eventRefIso e l'endpoint /calendar/events, che cerca le deadline
@@ -448,9 +453,12 @@ function SetOptionsBody({ options, onChange, onClose, suggestText = '' }: { opti
         </Pressable>
       </View>
 
+      {/* Due righe da tre: sopra i tipi SENZA tempo, sotto quelli CON tempo —
+          stessa disposizione della sidebar web e del dettaglio tile. */}
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
         <OptBtn id="note" label="Note" Icon={IconNote} />
         <OptBtn id="todo" label="To-do" Icon={IconCheckbox} />
+        <OptBtn id="flow" label="Flow" Icon={IconRoute} />
       </View>
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <OptBtn id="due" label="Due" Icon={IconBolt} />

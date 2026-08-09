@@ -38,6 +38,8 @@ export interface Tile {
   action_type_confidence?: number;
   action_type_reviewed?: boolean;
   is_completed?: boolean;
+  /** Quando è stato completato (migration 040). `null` = mai chiuso, o riaperto. */
+  completed_at?: string | null;
   is_cta?: boolean;
   status_id?: string;
   color?: string;
@@ -201,6 +203,22 @@ export interface KanbanFilter {
   type: KanbanFilterType;
   // For date_range: "from|to" (ISO date strings, either side can be empty)
   value: string;
+}
+
+/**
+ * Corsia orizzontale. Gemella della colonna su un secondo asse: una cella della
+ * board e' l'incrocio dei due, e ci finiscono i tile che soddisfano ENTRAMBI i
+ * gruppi di filtri. Niente `width`, `bg_color` o `sort_by`: la larghezza di una
+ * corsia non ha senso e l'ordinamento dentro la cella resta quello della colonna.
+ */
+export interface KanbanLane {
+  id: string;
+  user_id: string;
+  title: string;
+  sort_order: number;
+  filters: KanbanFilter[];
+  created_at: string;
+  updated_at: string;
 }
 
 export interface KanbanColumn {

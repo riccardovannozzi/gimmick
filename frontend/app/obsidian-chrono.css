@@ -78,20 +78,24 @@
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
 /* ── COLONNA NOTES / TODO ── */
-/* 176 = 150 di tile + 9+9 di padding del corpo + 6 di gutter della scrollbar
-   (`.ob-scroll-quiet`, sempre riservato) + 1 di bordo. Prima erano 170: quando
-   la colonna iniziava a scrollare la barra rubava spazio e il tile veniva
-   tagliato. Stessa contabilità di STAGING (173) e delle lane del KANBAN (178). */
-.ob-chrono__col { width: 176px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
+/* 146 = 120 di tile + 9+9 di padding del corpo + 6 di gutter della scrollbar
+   (`.ob-scroll-quiet`, sempre riservato) + 1 di bordo, più 1 di scarto.
+   Erano 176, calcolati su un tile da 150: da quando il tile standard è 120×64
+   (`--ob-tile-zoom`) quei 30px in più erano vuoto a destra di ogni card.
+   Il gutter resta: senza, quando la colonna inizia a scrollare la barra ruba
+   spazio e il tile viene tagliato.
+   ⚠️ Vale per le colonne NOTES/TODO/FLOW. Il CALENDARIO non passa di qui: i
+   suoi blocchi sono dimensionati dal tempo, non dal tile. */
+.ob-chrono__col { width: 146px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
 /* Drop di un tile dalla griglia/altra colonna su Notes/Todo. */
 .ob-chrono__col--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ob-accent) 40%, transparent); }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
 .ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
-.ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* Colonna collassata: barra verticale stretta, cliccabile per riaprire. */
 .ob-chrono__col--collapsed { width: 40px; }
 .ob-chrono__col-rail { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 9px 0; background: transparent; border: none; cursor: pointer; }
-.ob-chrono__col-rail:hover { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
+.ob-chrono__col-rail:hover { background: var(--ob-hover); }
 .ob-chrono__col-rail-icon { display: inline-flex; flex-shrink: 0; }
 .ob-chrono__col-rail-label { writing-mode: vertical-rl; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__col-rail-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
@@ -100,7 +104,7 @@
 .ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-chrono__colhead-btns { display: flex; gap: 1px; }
 .ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__colhead-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-chrono__colhead-btn:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* `gap: 3px` — la distanza fra due tile NON è questo numero: è 3 + i 9 della
    gronda della cella qui sotto, cioè 12px. Erano 17 e respiravano troppo per
    una colonna larga 176. Sotto i 3 il badge del tile inferiore, che sborda di
@@ -143,6 +147,21 @@
 .ob-chrono__event--done .ob-chrono__event-title,
 .ob-chrono__allday-pill--done .ob-chrono__allday-title,
 .ob-chrono__month-ev--done .ob-chrono__month-ev-title { text-decoration: line-through; opacity: 0.55; }
+
+/* ── Evidenziazione verde dei COMPLETATI ─────────────────────────────────────
+   Il gemello, per i blocchi del CALENDARIO, della regola di contesto che sta in
+   obsidian-primitives.css per il `.ob-tile` (colonne Notes/Todo/Flow). Si
+   accende dalla stessa classe sul contenitore della vista, messa dal pulsante
+   "Done" della toolbar: senza queste tre righe accendere il verde avrebbe tinto
+   le tre colonne e lasciato intatto il calendario, cioè la parte grossa della
+   vista.
+   Stessa dose del tile — `--ob-success` al 30% — e stessa base della velatura
+   che il blocco ha già (`--ob-tile-bg` per eventi e pill, transparent nella
+   cella del mese). Il BORDO non si tinge: quello è il canale dell'azione, e un
+   completato resta una scadenza o un evento. */
+.ob-done-hl .ob-chrono__event--done,
+.ob-done-hl .ob-chrono__allday-pill--done { background: color-mix(in srgb, var(--ob-success) 30%, var(--ob-tile-bg)); }
+.ob-done-hl .ob-chrono__month-ev--done { background: color-mix(in srgb, var(--ob-success) 30%, transparent); }
 /* ── Vista Mese ── */
 .ob-chrono__month { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; }
 .ob-chrono__month-head { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--ob-line); position: sticky; top: 0; background: var(--ob-surface); z-index: 1; }
@@ -288,11 +307,6 @@
 .ob-chrono__now { position: absolute; left: 0; right: 0; height: 0; border-top: 1.5px solid var(--ob-accent); z-index: 5; }
 .ob-chrono__now-dot { position: absolute; left: -3px; top: -3.5px; width: 7px; height: 7px; border-radius: 50%; background: var(--ob-accent); }
 
-/* ── Menu contestuale (tasto destro su card/evento): Copia · Incolla · Apri flow · Elimina ── */
-.ob-ctx { position: fixed; z-index: 9999; min-width: 180px; padding: 4px; background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: var(--ob-radius-md); box-shadow: var(--ob-shadow-card); }
-.ob-ctx__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 6px 9px; text-align: left; background: transparent; border: none; border-radius: var(--ob-radius-sm); cursor: pointer; color: var(--ob-text); font-family: var(--ob-font-sans); font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); }
-.ob-ctx__item:hover:not(:disabled) { background: var(--ob-accent-soft); }
-.ob-ctx__item:disabled { opacity: 0.4; cursor: default; }
-.ob-ctx__item--danger { color: var(--ob-error); }
-.ob-ctx__item--danger:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-error) 14%, transparent); }
-.ob-ctx__sep { height: 1px; margin: 4px 2px; background: var(--ob-line); }
+/* Il menu contestuale (`.ob-ctx`) stava qui, ma lo aprono ormai Chrono, Kanban,
+   Tiles e la sidebar dei tag: e' un primitivo, e vive in
+   obsidian-primitives.css. */
