@@ -154,13 +154,12 @@
 /* ── Board ── */
 .ob-canvas__board {
   flex: 1; min-height: 0; min-width: 0; overflow: auto;
+  /* Il pattern dei puntini è `.ob-dotgrid` (obsidian-primitives.css), che questo
+     elemento indossa nel markup: stava scritto qui a mano, con un token locale
+     `--ob-canvas-dot`, ed è diventato una utility da quando lo usa anche la
+     board del Kanban. Un passo solo per tutte le superfici di lavoro. */
   background: var(--ob-canvas);
-  background-image: radial-gradient(var(--ob-canvas-dot) 1.4px, transparent 1.4px);
-  background-size: 22px 22px;
-  background-position: -1px -1px;
-  --ob-canvas-dot: rgba(24, 20, 38, 0.10);
 }
-[data-theme='dark'] .ob-canvas__board { --ob-canvas-dot: rgba(255, 255, 255, 0.07); }
 .ob-canvas__board-inner { position: relative; width: 1180px; height: 880px; --ob-edge: rgba(24, 20, 38, 0.32); }
 [data-theme='dark'] .ob-canvas__board-inner { --ob-edge: rgba(255, 255, 255, 0.32); }
 .ob-canvas__edges { position: absolute; top: 0; left: 0; overflow: visible; z-index: 1; pointer-events: none; }
@@ -222,4 +221,4 @@
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
 .ob-zoomctl__btn + .ob-zoomctl__btn { border-top: 1px solid var(--ob-line); }
-.ob-zoomctl__btn:hover { background: color-mix(in srgb, var(--ob-text) 6%, transparent); color: var(--ob-text); }
+.ob-zoomctl__btn:hover { background: var(--ob-hover-strong); color: var(--ob-text); }

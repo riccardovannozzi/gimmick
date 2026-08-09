@@ -115,6 +115,9 @@
 }
 
 [data-theme='dark'] {
+  /* Puntini della griglia — vedi la nota nel blocco chiaro. */
+  --ob-dot: rgba(255, 255, 255, 0.07);
+
   /* Accent — Phantom Violet */
   --ob-accent: #AB9FF2;
   --ob-accent-ink: #1b0d2e;
@@ -181,6 +184,36 @@
 
 /* ── Theme-independent tokens (typography, radii, spacing) ── */
 :root {
+  /* ── HOVER ──────────────────────────────────────────────────────────────────
+     Il fondo che compare al passaggio del puntatore. Due dosi, non cinque:
+     erano 3, 4, 5, 6 e 8% sparsi in diciassette regole, cioè un continuo senza
+     significato in cui nessuno sapeva quale prendere.
+
+       · `--ob-hover`        righe ed elementi larghi (voci di lista, tab,
+                             opzioni di menu): tanta area, basta poco;
+       · `--ob-hover-strong` bersagli piccoli — i bottoni-icona da 24–30px, dove
+                             su pochi pixel quadrati la dose leggera non si
+                             legge.
+
+     ⚠️ Sono VELATURE su `transparent`, non colori opachi, e questo è il punto:
+     si sommano a qualunque fondo. Diversi primitivi usavano `--ob-surface-2`,
+     che in dark È il fondo delle sponde e della navbar — l'hover cadeva sul
+     colore che c'era già e spariva, e ci sono volute tre pezze locali per
+     rimediarci volta per volta. Un elemento che ha un fondo PROPRIO non può
+     usare questi token così com'è: deve mescolare la stessa dose col proprio
+     fondo (vedi `.ob-btn--secondary`).
+
+     Restano fuori gli hover con un colore PROPRIO (accent, accent-soft,
+     danger): quelli non sono «hover generico», sono stati con un significato. */
+  --ob-hover: color-mix(in srgb, var(--ob-text) 4%, transparent);
+  --ob-hover-strong: color-mix(in srgb, var(--ob-text) 7%, transparent);
+
+  /* Colore dei puntini della griglia di fondo (`.ob-dotgrid`). Non è una
+     velatura del testo come gli hover: è una tacca, e va tarata a mano perché
+     sia percepibile senza diventare rumore — in dark serve meno alpha per la
+     stessa resa, come sempre quando si schiarisce su fondo cupo. */
+  --ob-dot: rgba(24, 20, 38, 0.10);
+
   /* ── Fondo di un GRUPPO sul canvas (quando non gliene hai dato uno) ─────────
      A metà strada fra l'area di lavoro e le sponde. Era `--ob-surface`, cioè lo
      stesso bianco della lavagna: da quando il centro è bianco pieno, un gruppo

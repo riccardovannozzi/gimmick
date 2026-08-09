@@ -107,11 +107,10 @@
 .ob-hd .ob-tab { height: 30px; padding: 0 13px; }
 .ob-hd .ob-btn { height: 30px; padding: 0 12px; }
 .ob-hd .ob-iconbtn { width: 30px; height: 30px; }
-/* Hover dei bottoni-icona della barra (campanella, impostazioni): velatura del
-   testo invece di `--ob-surface-2`, che il primitivo usa e che in dark coincide
-   col fondo della cornice — l'hover cadeva sul colore che c'era già. Una
-   velatura si stacca da qualunque fondo. */
-.ob-hd .ob-iconbtn:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-text) 6%, transparent); }
+/* L'hover dei bottoni-icona era ridichiarato qui, perché il primitivo usava
+   `--ob-surface-2` e in dark cadeva sul fondo della cornice, sparendo. Ora
+   `.ob-iconbtn` usa `--ob-hover-strong`, che si stacca da qualunque fondo: la
+   pezza non serve più. */
 
 /* ── ViewTabs (navbar) ── */
 /* Cornice come l'header sopra: stessa fascia, stesso token. */
@@ -139,7 +138,7 @@
   white-space: nowrap;
   transition: background-color 140ms ease-out, color 140ms ease-out;
 }
-.ob-tab:hover:not(.ob-tab--active) { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-tab:hover:not(.ob-tab--active) { color: var(--ob-text); background: var(--ob-hover); }
 .ob-tab--active { color: var(--ob-accent); background: var(--ob-accent-soft); font-weight: var(--ob-weight-emphasis); }
 .ob-tab__icon { color: var(--ob-subtle); display: inline-flex; }
 .ob-tab--active .ob-tab__icon { color: var(--ob-accent); }
@@ -213,14 +212,23 @@
 .ob-sb__search-input::placeholder { color: var(--ob-subtle); }
 .ob-sb__search-input:focus { border-color: color-mix(in srgb, var(--ob-accent) 45%, transparent); }
 .ob-sb__search-clear { position: absolute; right: 6px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center; border: none; border-radius: var(--ob-radius-sm); background: transparent; color: var(--ob-subtle); font-size: var(--ob-text-title); line-height: var(--ob-leading-none); cursor: pointer; }
-.ob-sb__search-clear:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 8%, transparent); }
+.ob-sb__search-clear:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* "Espandi/Comprimi tutto": link discreto allineato a destra sotto i tab. */
 .ob-sb__expand { display: flex; align-items: center; gap: 5px; margin: 0 0 8px auto; padding: 2px 4px; background: transparent; border: none; cursor: pointer; font-family: var(--ob-font-sans); font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-subtle); }
 .ob-sb__expand:hover { color: var(--ob-text); }
 .ob-sb-group { margin-bottom: 1px; }
+/* ⚠️ L'interlinea è DICHIARATA, non ereditata. Le righe della sidebar non ne
+   avevano una e prendevano l'1.5 che Tailwind mette su `html` nel preflight: un
+   testo da 12px occupava 18px di line box, sei più del necessario, e la riga
+   arrivava a 32. Il grosso dell'altezza veniva da lì, non dal padding — con
+   `tight` il testo occupa 15.6 e la riga scende a 26, la densità di un elenco
+   di file. Il padding cala da 7 a 5 per la stessa ragione.
+   ⚠️ Gruppo e tag vanno tenuti allineati: nella colonna si alternano, e due
+   ritmi diversi si vedono. */
 .ob-sb-group__head {
   display: flex; align-items: center; gap: 8px;
-  padding: 7px 8px; border-radius: var(--ob-radius-sm);
+  padding: 5px 8px; border-radius: var(--ob-radius-sm);
+  line-height: var(--ob-leading-tight);
   cursor: pointer;
   transition: background-color 120ms ease-out;
   background: transparent;
@@ -228,7 +236,7 @@
   width: 100%;
   text-align: left;
 }
-.ob-sb-group__head:hover { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-sb-group__head:hover { background: var(--ob-hover); }
 .ob-sb-group__chev { color: var(--ob-subtle); display: inline-flex; transition: transform 140ms ease-out; }
 .ob-sb-group__chev--open { transform: rotate(90deg); }
 .ob-sb-group__glyph { display: inline-flex; align-items: center; justify-content: center; width: 18px; flex-shrink: 0; }
@@ -240,9 +248,10 @@
   padding: 0 5px 0 9px; border-radius: var(--ob-radius-sm);
   transition: background-color 120ms ease-out;
 }
-.ob-sb-child:hover:not(.ob-sb-child--active) { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-sb-child:hover:not(.ob-sb-child--active) { background: var(--ob-hover); }
 .ob-sb-child--active { background: var(--ob-accent-soft); }
-.ob-sb-child__main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 6px 0; background: transparent; border: none; cursor: pointer; text-align: left; }
+/* Interlinea e padding come `.ob-sb-group__head` — vedi la nota lì sopra. */
+.ob-sb-child__main { flex: 1; min-width: 0; display: flex; align-items: center; padding: 5px 0; line-height: var(--ob-leading-tight); background: transparent; border: none; cursor: pointer; text-align: left; }
 .ob-sb-child__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-muted); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ob-sb-child--active .ob-sb-child__name { color: var(--ob-accent); font-weight: var(--ob-weight-emphasis); }
 /* ⚠️ Sulla riga NON ci sono comandi: pin, archivia e apri-nel-canvas stanno nel
@@ -320,7 +329,7 @@
    delle sponde, e l'hover cadeva esattamente sul colore del pannello che sta
    sotto — cioè non si vedeva. Una velatura si stacca da qualunque fondo, ed è
    la stessa che usano le righe della sidebar dei tag. */
-.ob-insp__panel-toggle:hover { background: color-mix(in srgb, var(--ob-text) 6%, transparent); color: var(--ob-text); }
+.ob-insp__panel-toggle:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-insp__body { flex: 1; min-height: 0; padding: 16px 14px 24px; overflow-y: auto; }
 .ob-insp__eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); margin: 0 0 7px; }
 .ob-insp__section { margin-top: 18px; }

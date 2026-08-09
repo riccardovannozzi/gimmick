@@ -91,11 +91,11 @@
 .ob-chrono__col--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ob-accent) 40%, transparent); }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
 .ob-chrono__colhead-collapse { width: 20px; height: 20px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
-.ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-chrono__colhead-collapse:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* Colonna collassata: barra verticale stretta, cliccabile per riaprire. */
 .ob-chrono__col--collapsed { width: 40px; }
 .ob-chrono__col-rail { flex: 1; width: 100%; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 9px 0; background: transparent; border: none; cursor: pointer; }
-.ob-chrono__col-rail:hover { background: color-mix(in srgb, var(--ob-text) 4%, transparent); }
+.ob-chrono__col-rail:hover { background: var(--ob-hover); }
 .ob-chrono__col-rail-icon { display: inline-flex; flex-shrink: 0; }
 .ob-chrono__col-rail-label { writing-mode: vertical-rl; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-text); }
 .ob-chrono__col-rail-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
@@ -104,7 +104,7 @@
 .ob-chrono__colhead-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-chrono__colhead-btns { display: flex; gap: 1px; }
 .ob-chrono__colhead-btn { width: 22px; height: 22px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__colhead-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-chrono__colhead-btn:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* `gap: 3px` — la distanza fra due tile NON è questo numero: è 3 + i 9 della
    gronda della cella qui sotto, cioè 12px. Erano 17 e respiravano troppo per
    una colonna larga 176. Sotto i 3 il badge del tile inferiore, che sborda di

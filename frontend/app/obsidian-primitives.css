@@ -55,11 +55,14 @@
 .ob-btn--primary:active:not(:disabled) { filter: brightness(0.88); }
 
 .ob-btn--secondary { background: var(--ob-surface); color: var(--ob-text); border-color: var(--ob-line-2); }
-.ob-btn--secondary:hover:not(:disabled) { background: var(--ob-surface-2); }
+/* Ha un fondo PROPRIO, quindi non può prendere `--ob-hover` così com'è: una
+   velatura come `background` sostituirebbe il fondo invece di sommarcisi, e il
+   bottone diventerebbe semitrasparente. Stessa dose, mescolata al suo fondo. */
+.ob-btn--secondary:hover:not(:disabled) { background: color-mix(in srgb, var(--ob-text) 4%, var(--ob-surface)); }
 .ob-btn--secondary:active:not(:disabled) { background: var(--ob-surface-2); filter: brightness(0.97); }
 
 .ob-btn--ghost { background: transparent; color: var(--ob-muted); }
-.ob-btn--ghost:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+.ob-btn--ghost:hover:not(:disabled) { background: var(--ob-hover); color: var(--ob-text); }
 .ob-btn--ghost:active:not(:disabled) { background: var(--ob-surface-2); filter: brightness(0.97); }
 
 .ob-btn--danger { background: transparent; color: var(--ob-error); border-color: color-mix(in srgb, var(--ob-error) 35%, transparent); }
@@ -80,7 +83,11 @@
   cursor: pointer;
   transition: background-color 140ms ease-out, color 140ms ease-out, border-color 140ms ease-out;
 }
-.ob-iconbtn:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+/* Bersaglio piccolo → dose forte. Ed è una VELATURA: con `--ob-surface-2` in
+   dark l'hover cadeva sul fondo delle sponde e della navbar, cioè sul colore che
+   c'era già, e spariva. Le tre pezze locali che rimediavano volta per volta
+   (navbar, toggle inspector, comandi delle barre) non servono più. */
+.ob-iconbtn:hover:not(:disabled) { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-iconbtn:active:not(:disabled) { filter: brightness(0.97); }
 .ob-iconbtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .ob-iconbtn--sm { width: 28px; height: 28px; }
@@ -214,7 +221,7 @@
   cursor: pointer;
   transition: background-color 100ms ease-out, color 100ms ease-out;
 }
-.ob-select__option:hover:not(:disabled) { background: var(--ob-surface-2); color: var(--ob-text); }
+.ob-select__option:hover:not(:disabled) { background: var(--ob-hover); color: var(--ob-text); }
 .ob-select__option--active { color: var(--ob-text); background: var(--ob-surface-2); }
 .ob-select__option:disabled { opacity: 0.4; cursor: not-allowed; }
 .ob-select__option-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -393,7 +400,7 @@
   transition: background-color 120ms ease-out;
 }
 .ob-listrow--interactive { cursor: pointer; }
-.ob-listrow--interactive:hover { background: color-mix(in srgb, var(--ob-text) 3%, transparent); }
+.ob-listrow--interactive:hover { background: var(--ob-hover); }
 .ob-listrow--active { background: var(--ob-accent-soft); color: var(--ob-accent); }
 .ob-listrow__main { flex: 1; min-width: 0; }
 .ob-listrow__meta { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); flex-shrink: 0; }
@@ -414,7 +421,7 @@
 .ob-tablerow { transition: background-color 120ms ease-out; }
 .ob-tablerow td { padding: 11px 12px; border-bottom: 1px solid var(--ob-line); vertical-align: middle; }
 .ob-tablerow--interactive { cursor: pointer; }
-.ob-tablerow--interactive:hover td { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
+.ob-tablerow--interactive:hover td { background: var(--ob-hover); }
 .ob-tablerow--active td { background: var(--ob-accent-soft); }
 
 /* ─── SISTEMA VISIVO DEI TILE — canali indipendenti ─────────────────────────
@@ -823,7 +830,7 @@
   flex-shrink: 0;
   transition: background-color 120ms ease-out, color 120ms ease-out;
 }
-.ob-tool:hover { background: color-mix(in srgb, var(--ob-text) 6%, transparent); color: var(--ob-text); }
+.ob-tool:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-tool--on,
 .ob-tool--on:hover { background: var(--ob-accent-soft); color: var(--ob-accent); }
 
@@ -859,3 +866,23 @@
 }
 .ob-lugs-scroll::-webkit-scrollbar { display: none; }
 .ob-lugs-scroll > .ob-lugs { height: calc(100% - 1px); width: max-content; }
+
+/* ─── GRIGLIA A PUNTINI ───────────────────────────────────────────────────────
+   La texture di fondo delle superfici di lavoro: la lavagna del canvas e la
+   board del kanban. Dà una misura allo spazio vuoto — senza, un'area bianca non
+   dice quanto è grande né se si sta muovendo.
+
+   Il pattern viveva scritto a mano in `.ob-canvas__board`; è una utility perché
+   ormai la usano due viste, e perché il passo (22px) è una scelta sola: due
+   griglie con passi diversi si leggono come due materiali diversi.
+
+   ⚠️ Va messa sul contenitore che fa da SFONDO, e le celle sopra devono essere
+   trasparenti: un fondo opaco sopra la griglia la copre. E va messa su UN
+   contenitore solo, non su ogni cella — il pattern riparte a ogni elemento su
+   cui è dichiarato, e su celle di larghezza diversa i puntini si
+   disallineerebbero da una colonna all'altra. */
+.ob-dotgrid {
+  background-image: radial-gradient(var(--ob-dot) 1.4px, transparent 1.4px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}

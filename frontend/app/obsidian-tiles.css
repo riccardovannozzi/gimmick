@@ -76,7 +76,7 @@
   transition: background-color 120ms ease-out;
 }
 .ob-tiles__row:last-child { border-bottom: none; }
-.ob-tiles__row:hover { background: color-mix(in srgb, var(--ob-text) 2.5%, transparent); }
+.ob-tiles__row:hover { background: var(--ob-hover); }
 .ob-tiles__row--clickable { cursor: pointer; }
 .ob-tiles__row--active { background: var(--ob-accent-soft); }
 .ob-tiles__row--checked { background: color-mix(in srgb, var(--ob-accent) 10%, transparent); }

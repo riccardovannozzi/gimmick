@@ -10,6 +10,7 @@ import Markdown from 'react-native-markdown-display';
 import {
   IconPaperclip, IconMicrophone, IconSend,
   IconTag, IconCheck, IconAlignLeft, IconX, IconArrowLeft, IconEraser,
+  IconCornerDownLeft,
 } from '@tabler/icons-react-native';
 import { useObsidian } from '@/lib/obsidian';
 import { useDictation } from '@/hooks/useDictation';
@@ -287,10 +288,65 @@ export function ObsidianAskScreen({
    * appena inviato RICOMPARIVA sotto le dita. `reset` annulla e azzera, quindi
    * il campo resta vuoto e la dettatura successiva riparte da zero.
    */
+  // L'Invio da tastiera arriva per due strade diverse a seconda della
+  // piattaforma (vedi `handleChangeText`), e non c'è modo di sapere in anticipo
+  // quale. Le lasciamo attive entrambe e ci difendiamo qui: una finestra breve
+  // scarta il secondo colpo se per caso scattassero insieme, senza toccare in
+  // alcun modo l'invio normale.
+  const lastSentAt = React.useRef(0);
   const handleSend = React.useCallback(() => {
+    const now = Date.now();
+    if (now - lastSentAt.current < 300) return;
+    lastSentAt.current = now;
     dictation.reset();
     onSend?.();
   }, [dictation, onSend]);
+
+  /**
+   * Invio da tastiera = freccia di invio.
+   *
+   * Su un campo `multiline` non si può usare `onSubmitEditing`: su iOS non
+   * scatta proprio, su Android è incostante. L'unico segnale affidabile è il
+   * testo stesso — l'a capo appena comparso in fondo.
+   *
+   * La condizione è stretta di proposito: UN carattere in più, ed è "\n", e il
+   * resto è identico a prima. Un incollaggio multiriga ne aggiunge molti in una
+   * volta e NON deve partire da solo: è il modo più facile di mandare per
+   * sbaglio un testo che si stava solo preparando.
+   *
+   * Se non c'è niente da mandare l'a capo viene ingoiato invece che scritto: il
+   * pulsante in quel momento è spento, e una tastiera che si comporta
+   * diversamente dal pulsante accanto è peggio di una che non fa nulla.
+   */
+  const handleChangeText = React.useCallback((next: string) => {
+    const prev = input ?? '';
+    const isEnter = next.length === prev.length + 1 && next.endsWith('\n') && next.slice(0, -1) === prev;
+    if (!isEnter) { onInput?.(next); return; }
+    if (canSend) handleSend();
+  }, [input, canSend, handleSend, onInput]);
+
+  /**
+   * A capo esplicito, dato che l'Invio ora manda.
+   *
+   * Su tastiera software non esiste un equivalente affidabile di Maiusc+Invio,
+   * e comunque sarebbe una scorciatoia invisibile: qui l'a capo è un tasto che
+   * si vede. Senza, scrivere un messaggio su più righe diventerebbe impossibile
+   * — e non è un caso di nicchia, è come si scrive una richiesta articolata.
+   *
+   * Inserisce nel punto del cursore, non in fondo: l'ultima posizione nota
+   * arriva da `onSelectionChange`. Chiama `onInput` DIRETTAMENTE e non
+   * `handleChangeText`, altrimenti l'a capo appena aggiunto verrebbe scambiato
+   * per un Invio e manderebbe il messaggio.
+   */
+  const selection = React.useRef({ start: 0, end: 0 });
+  const insertNewline = React.useCallback(() => {
+    const text = input ?? '';
+    const s = Math.min(Math.max(selection.current.start, 0), text.length);
+    const e = Math.min(Math.max(selection.current.end, s), text.length);
+    const next = `${text.slice(0, s)}\n${text.slice(e)}`;
+    selection.current = { start: s + 1, end: s + 1 };
+    onInput?.(next);
+  }, [input, onInput]);
 
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, backgroundColor: c.canvas }}>
@@ -389,15 +445,30 @@ export function ObsidianAskScreen({
             scorreva via mentre lo si scriveva, e dopo una dettatura non si
             riusciva a rileggere quello che era finito nel campo. Cresce fino a
             120dp e poi scorre da sé.
-            CONSEGUENZA: l'invio da tastiera non c'è più (su un campo multilinea
-            l'Invio va a capo). A mandare è il pulsante della seconda riga, che
-            per questo è il solo pieno d'accento. */}
+            L'Invio da tastiera MANDA, come la freccia: lo intercetta
+            `handleChangeText` qui sotto. Il pulsante resta, ed è il solo pieno
+            d'accento perché è l'azione. */}
         <View style={{ backgroundColor: c.field, borderRadius: 14, borderTopLeftRadius: attachment ? 0 : 14, borderTopRightRadius: attachment ? 0 : 14, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 8 }}>
           <TextInput
             value={input}
-            onChangeText={onInput}
+            onChangeText={handleChangeText}
             editable={!isLoading}
             multiline
+            // Il tasto mostra "invia" invece del glifo di a capo, dove la
+            // piattaforma lo consente: l'aspetto della tastiera deve dire cosa
+            // farà davvero premerla.
+            returnKeyType="send"
+            // `submitBehavior="submit"` fa sì che il tasto INVII invece di
+            // andare a capo, tenendo il fuoco nel campo. Dove è onorato l'a capo
+            // non arriva mai al testo, quindi serve anche questo aggancio: le
+            // due strade si escludono a vicenda in pratica, e `handleSend` si
+            // difende comunque dal doppio colpo.
+            submitBehavior="submit"
+            onSubmitEditing={() => { if (canSend) handleSend(); }}
+            // Serve al tasto a capo per sapere DOVE inserire. In un ref e non
+            // in stato: cambia a ogni tocco nel campo, e non deve far
+            // ridisegnare la schermata a ogni spostamento del cursore.
+            onSelectionChange={(e) => { selection.current = e.nativeEvent.selection; }}
             placeholder={dictation.listening ? 'Sto ascoltando…' : 'Chiedi a Gimmick…'}
             placeholderTextColor={c.subtle}
             // Stesso corpo delle bolle: quello che scrivi e quello che leggi
@@ -456,6 +527,23 @@ export function ObsidianAskScreen({
             >
               <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: dictation.listening ? c.accentSoft : 'transparent' }}>
                 <IconMicrophone size={22} color={dictation.listening ? c.accent : c.text} strokeWidth={1.9} />
+              </View>
+            </Pressable>
+
+            {/* A capo. Da quando l'Invio manda, questo è l'UNICO modo di andare
+                a capo su tastiera software: Maiusc+Invio lì non esiste, e una
+                scorciatoia invisibile non sarebbe una risposta. Sta con gli
+                altri comandi di scrittura, a sinistra, non con le azioni. */}
+            <Pressable
+              onPress={insertNewline}
+              disabled={isLoading}
+              accessibilityRole="button"
+              accessibilityLabel="Vai a capo"
+              android_ripple={{ color: c.accent + '33', borderless: true }}
+              hitSlop={6}
+            >
+              <View style={{ width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', opacity: isLoading ? 0.35 : 1 }}>
+                <IconCornerDownLeft size={22} color={c.text} strokeWidth={1.9} />
               </View>
             </Pressable>
 

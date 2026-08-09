@@ -748,7 +748,7 @@ export function KanbanView({
         // resta fermo in entrambi i sensi. Con scroller separati per fascia le
         // colonne si sarebbero disallineate al primo scorrimento.
         <div
-          className="ob-kanban__grid ob-scroll"
+          className="ob-kanban__grid ob-dotgrid ob-scroll"
           onScroll={(e) => {
             if (dateAxis?.column) onEdgeScroll('column')(e);
             if (dateAxis?.lane) onEdgeScroll('lane')(e);
@@ -867,7 +867,7 @@ export function KanbanView({
           })}
         </div>
       ) : (
-        <div className="ob-kanban__board ob-scroll" onScroll={dateAxis?.column ? onEdgeScroll('column') : undefined}>
+        <div className="ob-kanban__board ob-dotgrid ob-scroll" onScroll={dateAxis?.column ? onEdgeScroll('column') : undefined}>
           {lanes.map((l) => {
             const key = l.id ?? l.label;
             return (

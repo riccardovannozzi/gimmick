@@ -117,12 +117,15 @@
 .ob-kanban__lane {
   flex: 1 0 256px; min-width: 256px;
   display: flex; flex-direction: column;
-  /* Il dentro della griglia è la stessa superficie del fuori: `--ob-canvas`,
-     come ogni area di lavoro. Aveva una coppia di grigi propri (#f4f3f6 /
-     #141414) che facevano della griglia un riquadro appoggiato sulla vista,
-     con un salto di tono lungo il suo perimetro. A dividere le celle bastano le
-     hairline — è una griglia, non una pila di schede. */
-  background: var(--ob-canvas);
+  /* ⚠️ TRASPARENTE, non `--ob-canvas`: il fondo — e la griglia a puntini — lo
+     mette il contenitore (`.ob-kanban__grid` / `.ob-kanban__board`). Un fondo
+     opaco qui coprirebbe i puntini cella per cella; e metterli sulle celle non
+     è un'alternativa, perché il pattern ripartirebbe a ogni cella e su colonne
+     di larghezza diversa i puntini si disallineerebbero fra una e l'altra.
+     Aveva una coppia di grigi propri (#f4f3f6 / #141414) che facevano della
+     griglia un riquadro appoggiato sulla vista, con un salto di tono lungo il
+     suo perimetro. A dividere le celle bastano le hairline. */
+  background: transparent;
   border: none;
   border-right: 1px solid var(--ob-line);
   overflow: hidden;
@@ -170,7 +173,7 @@
   display: flex; align-items: center; justify-content: center;
   color: var(--ob-subtle); background: transparent; border: none; cursor: pointer;
 }
-.ob-kanban__lane-btn:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-kanban__lane-btn:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 /* `scrollbar-gutter: stable` riserva SEMPRE i 10px della scrollbar: la colonna
    di contenuto resta esattamente 150px (= larghezza tile) e i tile non slittano
    né vengono tagliati quando la lane inizia a scrollare. */

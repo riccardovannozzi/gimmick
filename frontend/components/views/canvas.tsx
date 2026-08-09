@@ -185,7 +185,7 @@ export function CanvasView({ nodes = NODES, links = LINKS, stageTiles = STAGE_TI
             </div>
           </div>
 
-          <div className="ob-canvas__board ob-scroll">
+          <div className="ob-canvas__board ob-dotgrid ob-scroll">
             <div className="ob-canvas__board-inner">
               <Edges nodes={nodes} links={links} />
               {nodes.map((n) => (

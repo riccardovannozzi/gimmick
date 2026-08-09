@@ -21,7 +21,7 @@
   color: var(--ob-muted); cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.ob-ask__close:hover { background: color-mix(in srgb, var(--ob-text) 8%, var(--ob-surface-2)); color: var(--ob-text); }
+.ob-ask__close:hover { background: color-mix(in srgb, var(--ob-text) 7%, var(--ob-surface-2)); color: var(--ob-text); }
 
 /* ── Thread ── */
 .ob-ask__thread { flex: 1; overflow-y: auto; padding: 24px; }
@@ -55,7 +55,7 @@
 .ob-ask__input-bar { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 10px; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: var(--ob-radius-md); padding: 10px 12px; transition: border-color 140ms ease-out; }
 .ob-ask__input-bar:focus-within { border-color: var(--ob-accent); }
 .ob-ask__input-icon { width: 32px; height: 32px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
-.ob-ask__input-icon:hover { color: var(--ob-text); background: color-mix(in srgb, var(--ob-text) 5%, transparent); }
+.ob-ask__input-icon:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 .ob-ask__input-field { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--ob-font-sans); font-size: var(--ob-text-title); color: var(--ob-text); }
 .ob-ask__input-field::placeholder { color: var(--ob-subtle); }
 .ob-ask__send { width: 38px; height: 38px; border-radius: var(--ob-radius-sm); background: var(--ob-accent); color: var(--ob-accent-ink); display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; flex-shrink: 0; }

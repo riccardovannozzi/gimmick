@@ -15,7 +15,7 @@
 .ob-settings__sidebar { width: 240px; flex-shrink: 0; background: var(--ob-rail-bg); border-right: 1px solid var(--ob-line); padding: 18px 12px; display: flex; flex-direction: column; gap: 2px; }
 .ob-settings__nav-eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); padding: 0 8px 12px; }
 .ob-settings__nav-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: var(--ob-radius-sm); background: transparent; border: none; cursor: pointer; color: var(--ob-muted); text-align: left; width: 100%; transition: background-color 120ms ease-out, color 120ms ease-out; }
-.ob-settings__nav-item:hover:not(.ob-settings__nav-item--active) { background: color-mix(in srgb, var(--ob-text) 4%, transparent); color: var(--ob-text); }
+.ob-settings__nav-item:hover:not(.ob-settings__nav-item--active) { background: var(--ob-hover); color: var(--ob-text); }
 .ob-settings__nav-item--active { background: var(--ob-accent-soft); color: var(--ob-accent); }
 .ob-settings__nav-icon { color: var(--ob-subtle); display: inline-flex; }
 .ob-settings__nav-item--active .ob-settings__nav-icon { color: var(--ob-accent); }
