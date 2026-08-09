@@ -9,85 +9,34 @@
 
 .ob-kanban { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
 
-/* ── Toolbar ── */
-/* Prima riga della vista (l'header con titolo/mascotte è stato rimosso): stessa
-   altezza e stesso fondo della topbar del CANVAS — fascia sotto la navbar, 48. */
+/* ── Toolbar ─────────────────────────────────────────────────────────────────
+   Prima riga della vista (l'header con titolo/mascotte è stato rimosso). Non
+   «somiglia» alla topbar del CANVAS: è fatta degli STESSI pezzi, presi dai
+   primitivi — `.ob-lug` per le linguette dei tag pinnati, `.ob-tool` per i
+   comandi a sola icona, `.ob-toolword` per Done. Qui restano solo il contenitore
+   e le due cose che nessun'altra barra ha.
+
+   Prima erano tre blocchi locali (`__ctrl`, `__tag-tab`, `__tag-tabs`) che
+   ripetevano a mano i numeri del canvas, con la nota «vanno mossi insieme»
+   attaccata: la nota serviva perché la duplicazione c'era. Adesso non c'è. */
 .ob-kanban__toolbar {
   height: var(--ob-toolbar-height); flex-shrink: 0;
-  display: flex; align-items: center; gap: 6px;
+  display: flex; align-items: center; gap: 0;
   padding: 0 12px;
   background: var(--ob-surface);
-  border-bottom: 1px solid var(--ob-line-2);
+  /* `--ob-line` come nel canvas: è la riga che la linguetta attiva INTERROMPE, e
+     il contorno che apre il varco (`.ob-lug--active`) è disegnato con lo stesso
+     token. Con `--ob-line-2` il varco si vedeva contro una linea di un altro
+     colore. */
+  border-bottom: 1px solid var(--ob-line);
+  /* Il pannello sotto questa barra è la BOARD, che sta su `--ob-canvas`: è di
+     qui che le linguette leggono il fondo da prendere da accese. */
+  --lug-bg: var(--ob-canvas);
 }
-/* Bottoni identici a quelli della topbar CANVAS (`obsidianToolbarBtn`):
-   surface-2, NIENTE bordo, raggio sm, corpo `control` in peso emphasis, muted.
-   Il corpo si nomina e non si cita: era scritto «12.5px» ed era gia' falso. */
-.ob-kanban__ctrl {
-  display: inline-flex; align-items: center; gap: 6px;
-  height: 30px; padding: 0 12px;
-  border-radius: var(--ob-radius-sm);
-  font-family: var(--ob-font-sans); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); letter-spacing: 0;
-  color: var(--ob-muted);
-  background: var(--ob-surface-2); border: none;
-  cursor: pointer;
-}
-.ob-kanban__ctrl:hover { color: var(--ob-text); }
-/* Acceso = accent PIENO con testo on-accent, come i toggle del canvas e di
-   Chrono. L'icona segue il testo: lasciata a --ob-subtle sparirebbe dentro
-   l'accent. */
-.ob-kanban__ctrl--active,
-.ob-kanban__ctrl--active:hover { background: var(--ob-accent); color: var(--ob-accent-ink); }
-.ob-kanban__ctrl--active .ob-kanban__ctrl-icon { color: inherit; }
-.ob-kanban__ctrl-muted { color: var(--ob-subtle); font-weight: var(--ob-weight-body); }
-.ob-kanban__ctrl-icon { color: var(--ob-subtle); display: inline-flex; }
-.ob-kanban__div { width: 1px; height: 20px; background: var(--ob-line-2); margin: 0 4px; }
-/* ── Linguette dei tag PINNATI ────────────────────────────────────────────────
-   Stessa forma delle linguette della topbar del CANVAS: angoli superiori
-   arrotondati, base piatta appoggiata sulla linea inferiore della fascia. Non è
-   una somiglianza a occhio, sono gli stessi numeri — entrambe le barre sono alte
-   48. ⚠️ Il gemello è `TAB_PAD_B` in CanvasTopbar.tsx: vanno mossi insieme.
-
-   ─── Il padding inferiore ────────────────────────────────────────────────────
-   È lo spazio SOTTO l'etichetta, dentro la linguetta. Vale 4, ed era 8.
-
-   Gli 8 venivano da una regola precisa: `TAB_H − 30`, cioè rendere la scatola
-   del contenuto alta quanto un controllo (30), così il testo della linguetta
-   cadeva sulla stessa riga ottica di «Colonna» e «Corsia», all'altro capo della
-   barra. Corretto in astratto, ma produceva 8px di linguetta vuota sotto il
-   nome, e una linguetta staccata da quello che etichetta smette di leggersi
-   come linguetta: una tab sta SOPRA il suo contenuto, appoggiata.
-
-   Con 4 l'etichetta scende di 2px rispetto ai controlli di destra. È lo scarto
-   che si è scelto di pagare per riattaccare le linguette alla riga sotto. */
-.ob-kanban__tag-tab {
-  /* Come `.ob-lug`: 4px di respiro sopra, e un padding inferiore che vale
-     altrettanto perché il testo resti sulla riga comune. Vedi la nota estesa sul
-     primitivo — i due numeri vanno cambiati insieme. */
-  height: calc(var(--ob-toolbar-height) - 5px); align-self: flex-end; padding: 0 14px 4px;
-  display: inline-flex; align-items: center;
-  /* Raggio dei CONTENITORI, come `.ob-lug`: è una linguetta, non un controllo.
-     ⚠️ Questa striscia è l'ultima rimasta fuori dal primitivo — quando passerà
-     a `.ob-lug` questa riga sparisce con tutto il resto. */
-  border-radius: var(--ob-radius-md) var(--ob-radius-md) 0 0;
-  font-family: var(--ob-font-sans); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); letter-spacing: 0;
-  color: var(--ob-muted);
-  background: var(--ob-surface-2); border: none;
-  white-space: nowrap; flex-shrink: 0;
-  cursor: pointer;
-}
-.ob-kanban__tag-tab:hover { color: var(--ob-text); }
-/* Attivo = lo stesso viola del tab corrente del CANVAS e del segmented attivo
-   della sidebar: fondo `--ob-accent-soft` + testo `--ob-accent`. NON l'accent
-   pieno, che in dark è la tinta chiara. */
-.ob-kanban__tag-tab--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
-.ob-kanban__tag-tab--active:hover { color: var(--ob-accent); }
-/* La striscia scorre se i pinnati non ci stanno, senza barra visibile — come la
-   tab-strip del canvas. */
-.ob-kanban__tag-tabs { display: flex; align-items: flex-end; gap: 4px; min-width: 0; height: 100%; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
-.ob-kanban__tag-tabs::-webkit-scrollbar { display: none; }
-/* Bottone primario della toolbar ("+ Tile"): stesso trattamento. */
-.ob-kanban__toolbar .ob-btn--primary { background: var(--ob-accent-soft); color: var(--ob-accent); }
-.ob-kanban__toolbar .ob-btn--primary:hover:not(:disabled) { filter: none; background: color-mix(in srgb, var(--ob-accent) 22%, var(--ob-accent-soft)); }
+/* Gruppo dei comandi, in fondo a destra. `gap: 2` come nel canvas: gli strumenti
+   a sola icona si leggono come una fila, non come bottoni sparsi. */
+.ob-kanban__tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.ob-kanban__div { width: 1px; height: 18px; background: var(--ob-line); margin: 0 8px; }
 .ob-kanban__spacer { flex: 1; }
 
 /* ── Board ── */

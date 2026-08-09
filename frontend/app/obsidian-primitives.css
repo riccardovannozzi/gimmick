@@ -833,6 +833,11 @@
 .ob-tool:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-tool--on,
 .ob-tool--on:hover { background: var(--ob-accent-soft); color: var(--ob-accent); }
+/* Spento perché il comando non è disponibile (anteprime senza dati, callback
+   assente). Niente fondo al passaggio: uno strumento che non risponde non deve
+   nemmeno accendersi. */
+.ob-tool:disabled { opacity: 0.4; cursor: default; }
+.ob-tool:disabled:hover { background: transparent; color: var(--ob-muted); }
 
 .ob-toolword {
   height: 30px; padding: 0 8px;
@@ -866,6 +871,12 @@
 }
 .ob-lugs-scroll::-webkit-scrollbar { display: none; }
 .ob-lugs-scroll > .ob-lugs { height: calc(100% - 1px); width: max-content; }
+/* In una striscia che scorre la linguetta è larga QUANTO IL SUO NOME, non una
+   frazione della barra: sono i tag che hai pinnato, un elenco che cresce e che
+   deve poter uscire dal bordo. È l'opposto delle strisce delle sidebar, dove le
+   linguette sono poche e note e si dividono la larghezza in parti uguali
+   (`flex: 1`, dal blocco condiviso). */
+.ob-lugs-scroll .ob-lug { flex: 0 0 auto; }
 
 /* ─── GRIGLIA A PUNTINI ───────────────────────────────────────────────────────
    La texture di fondo delle superfici di lavoro: la lavagna del canvas e la

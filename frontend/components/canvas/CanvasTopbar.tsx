@@ -161,7 +161,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         {tag && !isCurrentPinned && (
           <div
             className="ob-lug ob-lug--active"
-            style={{ flex: '0 0 auto', cursor: 'default' }}
+            style={{ cursor: 'default' }}
             title={`Canvas corrente: ${tag.name}`}
           >
             {tag.name}
@@ -204,9 +204,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               // Forma, misure, centraggio e colori vengono dalla classe
               // `.ob-lug`: qui restano solo le due cose che questa striscia ha in
               // piu' — lo spazio a destra per la crocetta di unpin e il gesto di
-              // riordino.
+              // riordino. (Anche il «larga quanto il nome» viene dal CSS ora:
+              // `.ob-lugs-scroll .ob-lug`, condiviso con la barra del Kanban.)
               paddingRight: 26,
-              flex: '0 0 auto',
               cursor: 'grab',
               opacity: isDragging ? 0.4 : 1,
             }}
