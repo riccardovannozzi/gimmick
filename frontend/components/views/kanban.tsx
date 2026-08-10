@@ -32,9 +32,9 @@ import {
   IconGripVertical, IconDots, IconArrowAutofitWidth,
   IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid,
 } from '@tabler/icons-react';
+import { ToolButton, ToolWord } from '@/components/primitives';
 import { Icon } from '@/components/shell';
 import { Tile } from '@/components/tiles/Tile';
-import { OB_WEIGHT } from '@/lib/theme/ob-typography';
 import {
   autoSlots, colWidth, rowsIn, slotsFor, COL_COLLAPSED_W, MIN_COL_W, MIN_ROW_H,
   RAIL_CHROME, RAIL_KEY, RAIL_MIN, RAIL_MAX,
@@ -386,37 +386,6 @@ function LaneCol({
   );
 }
 
-/**
- * Comando della toolbar: sola icona, fondo solo al passaggio.
- *
- * È lo stesso `.ob-tool` degli strumenti del canvas, con una differenza di
- * significato: là armano un MODO e restano accesi, qui fanno una cosa e finisce
- * lì — nessuno stato da mostrare, quindi nessun `--on`.
- *
- * Il nome sta nel tooltip. Erano bottoni con icona ED etichetta su fondo pieno:
- * quattro parole in fila, «Adatta Colonna Corsia Tile», pesavano quanto la board
- * che comandano.
- */
-function ToolBtn({ icon, label, onClick, disabled }: {
-  icon: React.ReactNode;
-  label: string;
-  onClick?: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className="ob-tool"
-      onClick={onClick}
-      disabled={disabled}
-      title={label}
-      aria-label={label}
-    >
-      {icon}
-    </button>
-  );
-}
-
 export interface KanbanViewProps {
   lanes?: Lane[];
   onCardClick?: (id: string) => void;
@@ -747,30 +716,30 @@ export function KanbanView({
             canvas: la stessa cosa si chiede con la stessa icona, in qualunque
             vista si sia. Era un `+` con l'etichetta, e il `+` diceva «aggiungi»
             ma non aggiungi COSA. */}
-        <div className="ob-kanban__tools">
-          <ToolBtn
+        <div className="ob-tools">
+          <ToolButton
             icon={<IconLayoutGrid size={16} stroke={1.6} />}
             label="Nuovo tile"
             onClick={onAddTile}
             disabled={!onAddTile}
           />
-          <div className="ob-kanban__div" />
+          <div className="ob-toolsep" />
           {/* Icone di INSERIMENTO, non di struttura: senza etichetta, una colonna
               e una corsia si distinguono solo se l'icona dice dove finiscono. */}
-          <ToolBtn
+          <ToolButton
             icon={<IconColumnInsertRight size={16} stroke={1.6} />}
             label="Nuova colonna"
             onClick={onAddColumn}
             disabled={!onAddColumn}
           />
-          <ToolBtn
+          <ToolButton
             icon={<IconRowInsertBottom size={16} stroke={1.6} />}
             label="Nuova corsia"
             onClick={onAddLane}
             disabled={!onAddLane}
           />
           {onReset && (
-            <ToolBtn
+            <ToolButton
               icon={<IconArrowAutofitWidth size={16} stroke={1.6} />}
               label="Adatta — cancella larghezze, altezze e ordine fissati a mano: la board torna ad adattarsi ai tile"
               onClick={() => { setCollapsedCols(new Set()); onReset(); }}
@@ -784,21 +753,17 @@ export function KanbanView({
                   Una parola nuda; accesa si tinge di VERDE, cioe' del colore che
                   accende sulle card — mostra il suo effetto invece di
                   descriverlo. */}
-              <div className="ob-kanban__div" />
-              <button
-                type="button"
-                className="ob-toolword"
+              <div className="ob-toolsep" />
+              <ToolWord
+                on={doneHighlight}
+                tone="var(--ob-success)"
                 onClick={onToggleDoneHighlight}
-                aria-pressed={doneHighlight}
-                style={doneHighlight
-                  ? { color: 'var(--ob-success)', fontWeight: OB_WEIGHT.emphasis }
-                  : undefined}
                 title={doneHighlight
                   ? 'Togli il verde dalle attività completate'
                   : 'Evidenzia in verde le attività completate'}
               >
                 Done
-              </button>
+              </ToolWord>
             </>
           )}
         </div>

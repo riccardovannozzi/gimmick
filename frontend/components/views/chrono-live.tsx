@@ -29,7 +29,6 @@ import {
   type ChronoAllDay,
   type MonthCell,
   type MonthEvent,
-  type ChronoColorMode,
   type ChronoCalView,
   type ColumnActionType,
 } from '@/components/views/chrono';
@@ -38,7 +37,6 @@ import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import type { TileStatus } from '@/lib/tile-visual';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
-import { useTagTypes } from '@/store/tag-types-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTileClipboardStore } from '@/store/tile-clipboard-store';
@@ -133,11 +131,31 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
   };
 }
 
-function mondayOf(offsetWeeks: number): Date {
-  const now = new Date();
-  const day = now.getDay(); // 0 Sun … 6 Sat
+/** Il lunedì della settimana in cui cade `d`. */
+function mondayOfDate(d: Date): Date {
+  const day = d.getDay(); // 0 Sun … 6 Sat
   const diffToMon = day === 0 ? -6 : 1 - day;
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + diffToMon + offsetWeeks * 7);
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + diffToMon);
+}
+
+function mondayOf(offsetWeeks: number): Date {
+  const m = mondayOfDate(new Date());
+  return new Date(m.getFullYear(), m.getMonth(), m.getDate() + offsetWeeks * 7);
+}
+
+/** `yyyy-mm-dd` nel fuso LOCALE. `toISOString()` no: converte in UTC, e in Italia
+ *  d'estate le date fino alle 02:00 tornerebbero indietro di un giorno. */
+function isoDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** Giorni fra due date, ignorando l'orario. `Math.round` perché fra i due
+ *  estremi può esserci un cambio d'ora, che sposta la differenza di 3600000ms. */
+function daysBetween(from: Date, to: Date): number {
+  const a = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime();
+  const b = new Date(to.getFullYear(), to.getMonth(), to.getDate()).getTime();
+  return Math.round((b - a) / 86400000);
 }
 
 function dayIndexFrom(iso: string, gridStart: Date): number {
@@ -190,17 +208,20 @@ export function ChronoLive() {
   // sugli slot vuoti della griglia.
   const [addArmed, setAddArmed] = useState(false);
 
-  // Colorazione dei tile: per Tag (colore del tag_type) o per Tipo (type-icon).
-  // Persistita in localStorage; init 'tag' per evitare mismatch di idratazione.
-  const [colorMode, setColorMode] = useState<ChronoColorMode>('tag');
-  useIsomorphicLayoutEffect(() => {
-    const s = typeof window !== 'undefined' ? window.localStorage.getItem('chrono-color-mode') : null;
-    if (s === 'tag' || s === 'type' || s === 'status') setColorMode(s);
-  }, []);
-  const selectColorMode = useCallback((m: ChronoColorMode) => {
-    setColorMode(m);
-    try { window.localStorage.setItem('chrono-color-mode', m); } catch { /* storage non disponibile */ }
-  }, []);
+  /*
+   * La COLORAZIONE dei tile (per Tag / per Tipo / per Status) non c'è più.
+   *
+   * Erano tre modi di tingere di pieno lo stesso tile, scelti da tre pulsanti in
+   * barra e persistiti in `chrono-color-mode`. Il colore però lo portano già i
+   * canali del sistema visivo — l'icona del tipo col suo colore, lo swatch dello
+   * status, il bordo, il badge — e ridipingere l'intero tile con UNO di quei tre
+   * significati costringeva a sceglierne uno e perdere gli altri due, per di più
+   * mascherando i segnali che restano visibili sempre.
+   *
+   * ⚠️ Restano `ColTile.bg` e `ChronoTimed/AllDay/Month.color`: sono il CANALE
+   * (il tile prende un colore da chi glielo passa), non la funzione che è stata
+   * tolta. Li usa ancora il ripiego `amber` delle scadenze.
+   */
 
   /**
    * Evidenziazione verde dei COMPLETATI — lo stesso pulsante della topbar del
@@ -221,26 +242,21 @@ export function ChronoLive() {
     });
   }, []);
 
-  // Sorgenti colore (definite nei settings): colore del tag_type e del type-icon.
-  const { getColor: getTagTypeColor } = useTagTypes();
   const { getIconForTile, loaded: typeIconsLoaded, fetchAll: fetchTypeIcons } = useTypeIcons();
-  const typeTileIcons = useTypeIcons((s) => s.tileIcons); // riabbona il render agli assegnamenti
+  /**
+   * ⚠️ Sottoscrizione agli ASSEGNAMENTI icona→tile. `getIconForTile` è una
+   * funzione stabile dello store: da sola non cambia mai identità, quindi i memo
+   * che la elencano fra le dipendenze non ricalcolerebbero quando cambia
+   * l'icona di un tile — e le liste resterebbero col glifo vecchio finché non
+   * cambia qualcos'altro. È questa mappa a farli ricalcolare, ed è per questo
+   * che compare nelle dipendenze qui sotto pur non essendo letta direttamente.
+   *
+   * Prima ci arrivava di rimbalzo: era dipendenza di `colorOf`, che a sua volta
+   * era dipendenza dei memo. Tolto `colorOf`, il rimbalzo è sparito e il legame
+   * va dichiarato dove serve davvero.
+   */
+  const typeTileIcons = useTypeIcons((s) => s.tileIcons);
   useEffect(() => { if (!typeIconsLoaded) fetchTypeIcons(); }, [typeIconsLoaded, fetchTypeIcons]);
-
-  /** Colore pieno (hex) del tile secondo la modalità corrente, o null se assente. */
-  const colorOf = useCallback((t: Tile): string | undefined => {
-    if (colorMode === 'type') {
-      return getIconForTile(t.id)?.color ?? undefined;
-    }
-    if (colorMode === 'status') {
-      const st = t.status_id ? statusById.get(t.status_id) : undefined;
-      // 'active' è il default → nessuna colorazione (non si segnala).
-      return st && st.name !== 'active' ? statusMeta(st.name).hex : undefined;
-    }
-    const tag = t.tags?.find((tg) => !tg.is_root);
-    return tag?.tag_type ? (getTagTypeColor(tag.tag_type) ?? undefined) : undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [colorMode, getTagTypeColor, getIconForTile, typeTileIcons, statusById]);
 
   // Numero di colonne-giorno per la vista corrente (month gestito a parte).
   const dayCount = view === 'day' ? 1 : view === '3day' ? 3 : 7;
@@ -308,17 +324,24 @@ export function ChronoLive() {
   const events = useMemo<Tile[]>(() => eventsData?.data ?? [], [eventsData]);
   const allTiles = useMemo<Tile[]>(() => allTilesData?.data ?? [], [allTilesData]);
 
+  // `typeTileIcons` non è letta qui dentro, e il linter la segnala per questo:
+  // è la dipendenza che fa RICALCOLARE il memo quando cambia l'icona di un tile,
+  // perché `getIconForTile` è stabile e da sola non lo sveglierebbe mai. Vedi la
+  // nota sulla sottoscrizione, sopra.
   const notes = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'none').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
-    [allTiles, colorOf, statusById, getIconForTile],
+    () => allTiles.filter((t) => t.action_type === 'none').map((t) => toColTile(t, statusById, getIconForTile)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allTiles, statusById, getIconForTile, typeTileIcons],
   );
   const todos = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
-    [allTiles, colorOf, statusById, getIconForTile],
+    () => allTiles.filter((t) => t.action_type === 'anytime').map((t) => toColTile(t, statusById, getIconForTile)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allTiles, statusById, getIconForTile, typeTileIcons],
   );
   const flows = useMemo(
-    () => allTiles.filter((t) => t.action_type === 'flow').map((t) => ({ ...toColTile(t, statusById, getIconForTile), bg: colorOf(t) })),
-    [allTiles, colorOf, statusById, getIconForTile],
+    () => allTiles.filter((t) => t.action_type === 'flow').map((t) => toColTile(t, statusById, getIconForTile)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [allTiles, statusById, getIconForTile, typeTileIcons],
   );
 
   // dayIndex (0 = prima colonna) + frazione d'ora → ISO assoluto nel periodo mostrato.
@@ -614,7 +637,6 @@ export function ChronoLive() {
           title: t.title || 'Senza titolo',
           kind: t.action_type === 'deadline' ? 'deadline' : 'allday',
           id: t.id,
-          color: colorOf(t),
           done: !!t.is_completed,
           type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
           status: cardStatus(t, statusById),
@@ -625,7 +647,7 @@ export function ChronoLive() {
         const ti = getIconForTile(t.id);
         timed.push({
           day, s, e: e > s ? e : s + 1, title: t.title || 'Senza titolo', kind: 'timed', id: t.id,
-          color: colorOf(t), done: !!t.is_completed,
+          done: !!t.is_completed,
           type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
           status: cardStatus(t, statusById),
         });
@@ -647,7 +669,6 @@ export function ChronoLive() {
             id: t.id,
             title: t.title || 'Senza titolo',
             kind: t.action_type === 'deadline' ? 'deadline' : t.all_day ? 'allday' : 'timed',
-            color: colorOf(t),
             done: !!t.is_completed,
           }));
         return { key, num: d.getDate(), inMonth: d.getMonth() === monthInfo.first.getMonth(), isToday: key === todayK, events: cellEvents };
@@ -668,6 +689,33 @@ export function ChronoLive() {
       else setDayOffset(0);
     };
 
+    /**
+     * Salto a una data assoluta. La griglia non tiene una data d'ancoraggio: sa
+     * solo di quanti periodi è distante da OGGI (`weekOffset`, `dayOffset`,
+     * `monthOffset`). Andare a una data vuol dire quindi convertirla nello
+     * scarto che la porta in vista, e lo scarto si misura nell'unità della vista
+     * corrente — mesi, settimane o giorni.
+     *
+     * La data arriva come `yyyy-mm-dd` e si ricompone a mano: `new Date(iso)` su
+     * una stringa senza orario è mezzanotte UTC, che a ovest di Greenwich è il
+     * giorno prima.
+     */
+    const goToDate = (iso: string) => {
+      const [y, m, d] = iso.split('-').map(Number);
+      if (!y || !m || !d) return;
+      const target = new Date(y, m - 1, d);
+      const now = new Date();
+      if (view === 'month') {
+        setMonthOffset((target.getFullYear() - now.getFullYear()) * 12 + (target.getMonth() - now.getMonth()));
+      } else if (view === 'week') {
+        setWeekOffset(Math.round(daysBetween(mondayOf(0), mondayOfDate(target)) / 7));
+      } else {
+        // Day e 3day: la data scelta diventa la PRIMA colonna, non quella
+        // centrale — chi scrive una data guarda avanti da lì.
+        setDayOffset(daysBetween(now, target));
+      }
+    };
+
     return {
       days,
       todayIndex: todayIndex >= 0 && todayIndex < dayCount ? todayIndex : -1,
@@ -681,6 +729,11 @@ export function ChronoLive() {
       onPrev: () => step(-1),
       onNext: () => step(1),
       onToday: goToday,
+      // In vista mese il campo mostra il primo del mese, non il primo giorno
+      // della griglia: quella comincia col lunedì precedente, che spesso è del
+      // mese prima e leggerebbe una data che non è quella che stai guardando.
+      anchorDate: isoDay(view === 'month' ? monthInfo.first : gridStart),
+      onGoToDate: goToDate,
       onEventClick: (id) => selectTile(id),
       onEventContextMenu: openEventMenu,
       onEventReschedule: handleEventReschedule,
@@ -694,7 +747,10 @@ export function ChronoLive() {
       onDblCreateAt: addArmed ? undefined : handleCreateAt,
       onDblCreateAllDay: addArmed ? undefined : handleDblCreateAllDay,
     };
-  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, colorOf, statusById, getIconForTile]);
+    // `typeTileIcons`: vedi la nota sulla sottoscrizione — non è letta qui, ma è
+    // ciò che risveglia il memo quando cambia l'icona di un tile.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, gridStart, dayCount, view, setView, monthInfo, selectedTileId, selectTile, openEventMenu, handleEventReschedule, handleScheduleTile, handleEventToAllDay, handleEventToTimed, handleScheduleAllDayTile, addArmed, handleCreateAt, handleDblCreateAllDay, statusById, getIconForTile, typeTileIcons]);
 
   if (isLoading) {
     return (
@@ -728,8 +784,6 @@ export function ChronoLive() {
         onAddTile={handleAddTile}
         addArmed={addArmed}
         onCreateColumnTile={handleCreateColumnTile}
-        colorMode={colorMode}
-        onSetColorMode={selectColorMode}
         doneHighlight={doneHl}
         onToggleDoneHighlight={toggleDoneHl}
       />

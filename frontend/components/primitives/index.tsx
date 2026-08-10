@@ -11,6 +11,8 @@
 export {
   Button,
   IconButton,
+  ToolButton,
+  ToolWord,
   Field,
   Select,
   Dropdown,
@@ -22,6 +24,8 @@ export type {
   ButtonVariant,
   ButtonSize,
   IconButtonProps,
+  ToolButtonProps,
+  ToolWordProps,
   FieldProps,
   SelectProps,
   SelectOption,

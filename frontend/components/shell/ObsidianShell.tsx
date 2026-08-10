@@ -105,14 +105,26 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     if (knownTagIds.size) pruneTags(knownTagIds);
   }, [knownTagIds, pruneTags]);
 
-  // Navigazione ottimistica: il tab attivo deriva dal pathname, che si aggiorna
-  // solo a transizione completata → il clic sembrava "non rispondere". Teniamo
-  // una vista ottimistica che evidenzia subito il tab cliccato, mentre la rotta
-  // carica in background (useTransition), e la azzeriamo quando il pathname
-  // raggiunge la destinazione.
+  /**
+   * Navigazione ottimistica: il tab attivo deriva dal pathname, che si aggiorna
+   * solo quando la navigazione si committa → il clic sembrava «non rispondere».
+   * Teniamo una vista ottimistica che accende subito il tab cliccato, e la
+   * azzeriamo quando il pathname raggiunge la destinazione.
+   *
+   * ⚠️ La navigazione NON è avvolta in `startTransition`. Lo era, e le due cose
+   * si annullavano a vicenda: una transizione serve a TRATTENERE la vista
+   * vecchia finché la nuova non è pronta, mentre `app/(dashboard)/loading.tsx`
+   * esiste per mostrare SUBITO un fallback. Sono due esperienze opposte, ed è
+   * stato scelto il fallback — trattenere la vecchia dà l'impressione che il
+   * clic non sia arrivato. Il flag `isPending` per giunta veniva scartato, così
+   * la transizione ritardava il commit senza dare niente in cambio.
+   *
+   * ⚠️ `activeView` accende la linguetta e scalda le cache: sono cose che
+   * possono anticipare i fatti. Per decidere COSA C'È sullo schermo — quali
+   * pannelli montare — si usa `derivedView`, che cambia insieme ai figli.
+   */
   const derivedView: ViewId = PATH_TO_VIEW[pathname ?? ''] ?? 'tiles';
   const [optimisticView, setOptimisticView] = React.useState<ViewId | null>(null);
-  const [, startTransition] = React.useTransition();
   const activeView = optimisticView ?? derivedView;
 
   React.useEffect(() => {
@@ -158,7 +170,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   const handleViewChange = React.useCallback((v: ViewId) => {
     if (v === activeView) return;
     setOptimisticView(v); // feedback immediato sul tab
-    startTransition(() => router.push(VIEW_TO_PATH[v]));
+    router.push(VIEW_TO_PATH[v]);
   }, [activeView, router]);
 
   // Hover su un tab → prefetch dei dati della vista: al clic il contenuto è
@@ -198,12 +210,48 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // Apri il tag nel Canvas (con navigazione ottimistica come i tab).
   const handleOpenCanvas = React.useCallback((tagId: string) => {
     setOptimisticView('canvas');
-    startTransition(() => router.push(`/canvas?tag=${tagId}`));
+    router.push(`/canvas?tag=${tagId}`);
   }, [router]);
 
-  // Canvas e Panopticon (D3) gestiscono il proprio pannello destro: lo shell
-  // non monta il suo Inspector su queste rotte per evitare doppio right-rail.
-  const pageOwnsInspector = activeView === 'canvas' || activeView === 'panopticon';
+  /**
+   * ─── La colonna centrale è UN RESTO ─────────────────────────────────────────
+   *
+   * Le due sponde hanno larghezza costante — 232 la sidebar dei tag, 280 il
+   * pannello destro — e il centro è quello che avanza. È l'invariante che tiene
+   * ferme le viste quando si passa dall'una all'altra: se una vista si prende
+   * anche i 280 della sponda destra, cambiare vista sposta di 280px tutto quello
+   * che c'è in mezzo.
+   *
+   * L'unica eccezione ammessa è il CANVAS, che una sponda destra ce l'ha ma se
+   * la disegna da sé (le servono gli editor di gruppo, edge e box di testo che
+   * l'Inspector generico non ha) — ed è larga 280 come questa, quindi il conto
+   * torna lo stesso.
+   *
+   * ⚠️ Qui c'era anche il PANOPTICON, ma era un errore di simmetria: il Graph
+   * NON ha una sponda propria (la console della fisica è un pannello a comparsa,
+   * chiuso di default), quindi lo shell gli toglieva l'Inspector senza che
+   * nessuno lo rimpiazzasse. Entrare e uscire dal Graph allargava e restringeva
+   * il centro di 280px a ogni giro.
+   *
+   * ⚠️ Si legge `derivedView`, NON `activeView`. La differenza è tutta nel
+   * momento in cui cambiano: `activeView` è la vista OTTIMISTICA e scatta al
+   * click, mentre `children` è ancora la pagina vecchia finché la navigazione
+   * non si è committata. `derivedView` viene dal pathname, che cambia nello
+   * STESSO commit in cui arrivano i figli nuovi: è l'unica delle due che
+   * descrive quello che c'è davvero sullo schermo.
+   *
+   * Con `activeView` la protezione si girava contro: uscendo dal Canvas lo shell
+   * montava il suo Inspector mentre la lavagna era ancora lì con il proprio
+   * (l'ultimo ramo della sidebar destra del canvas è un `TileSidebar` sempre
+   * reso, non condizionale) — due rail insieme, la lavagna schiacciata di 280px
+   * e il layer D3 ridisegnato sulla larghezza nuova, per poi rimettersi a posto
+   * a transizione finita. Entrando nel Canvas succedeva lo specchio: l'Inspector
+   * spariva subito e la pagina vecchia si allargava prima di andarsene.
+   *
+   * L'ottimismo serve ad accendere la linguetta, non a decidere quali pannelli
+   * esistono: una variabile che anticipa i fatti non può reggere la struttura.
+   */
+  const pageOwnsInspector = derivedView === 'canvas';
   const activeChildIds = React.useMemo(() => [...selectedTagIds], [selectedTagIds]);
 
   const userInitials = (user?.email ?? 'GM').slice(0, 2).toUpperCase();

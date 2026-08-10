@@ -3,40 +3,9 @@
 import { useState } from 'react';
 import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { ToolButton, ToolWord } from '@/components/primitives';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
-import { OB_WEIGHT } from '@/lib/theme/ob-typography';
-
-/**
- * Uno dei quattro MODI di disegno (gruppo, tile, testo, immagine).
- *
- * Sola icona, senza fondo: quattro bottoni con etichetta occupavano mezza barra
- * e pesavano quanto il contenuto che stanno lì per creare. Sono strumenti, e uno
- * strumento si riconosce dalla sua forma — il nome sta nel tooltip.
- *
- * Il fondo compare solo al passaggio del puntatore, tranne quando il modo è
- * ACCESO: lì resta, perché armare un modo cambia cosa fa il click sulla lavagna
- * e non può essere uno stato che si scopre provando.
- */
-function ModeToggle({ icon, label, active, onClick }: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn('ob-tool', active && 'ob-tool--on')}
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-    >
-      {icon}
-    </button>
-  );
-}
 
 interface CanvasTopbarProps {
   tag: Tag | null;
@@ -280,14 +249,17 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
       </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <ModeToggle icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
-        <ModeToggle icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ModeToggle icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
-        <ModeToggle icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+      <div className="ob-tools">
+        {/* I quattro MODI di disegno. Armato, il fondo resta acceso: cambia cosa
+            fa il click sulla lavagna, e non può essere uno stato che si scopre
+            provando. */}
+        <ToolButton icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
+        <ToolButton icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ToolButton icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
+        <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
         {onToggleDoneHighlight && (
           <>
-            <div style={{ width: chipBorderW, height: 18, background: theme.border, margin: '0 8px' }} />
+            <div className="ob-toolsep" />
             {/* Non e' una modalita' di disegno come i quattro qui sopra — quelli
                 cambiano cosa fa il click sulla lavagna, questo cambia solo come
                 la guardi. Il separatore lo tiene a parte, e la forma pure: una
@@ -295,20 +267,16 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 ACCESO si tinge di VERDE, cioè del colore che accende sui tile: il
                 comando mostra il suo effetto invece di descriverlo, e non serve
                 nessun'altra evidenziazione. */}
-            <button
-              type="button"
-              className="ob-toolword"
+            <ToolWord
+              on={doneHighlight}
+              tone="var(--ob-success)"
               onClick={onToggleDoneHighlight}
-              aria-pressed={doneHighlight}
-              style={doneHighlight
-                ? { color: 'var(--ob-success)', fontWeight: OB_WEIGHT.emphasis }
-                : undefined}
               title={doneHighlight
                 ? 'Togli il verde dalle attività completate'
                 : 'Evidenzia in verde le attività completate'}
             >
               Done
-            </button>
+            </ToolWord>
           </>
         )}
       </div>

@@ -33,10 +33,6 @@
      qui che le linguette leggono il fondo da prendere da accese. */
   --lug-bg: var(--ob-canvas);
 }
-/* Gruppo dei comandi, in fondo a destra. `gap: 2` come nel canvas: gli strumenti
-   a sola icona si leggono come una fila, non come bottoni sparsi. */
-.ob-kanban__tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.ob-kanban__div { width: 1px; height: 18px; background: var(--ob-line); margin: 0 8px; }
 .ob-kanban__spacer { flex: 1; }
 
 /* ── Board ── */

@@ -38,6 +38,62 @@
 /* ── Toolbar ── */
 /* Seconda barra della vista, sotto l'header → livello 3 (40). */
 .ob-pan__toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding: 0 16px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line-2); }
+
+/* ─── Toolbar della vista REALE (`app/(dashboard)/graph/page.tsx`) ────────────
+   ⚠️ Le classi `.ob-pan__*` qui sopra sono l'ANTEPRIMA di design: la pagina vera
+   è disegnata in stili inline sopra il layer D3 e non le usa. Questo blocco è
+   suo, ed è tutto quello che le serve — il resto viene dai primitivi condivisi
+   (`.ob-tools`, `.ob-tool`, `.ob-toolword`, `.ob-toolsep`, `.ob-toolinput`,
+   `.ob-ctx`), gli stessi di Chrono, Canvas e Kanban.
+
+   Prima era una fascia a sé: `padding: 8px 16px`, `flex-wrap: wrap` (quindi di
+   altezza VARIABILE, unica in tutta l'app) e bottoni-pillola da
+   `lib/pixel-toolbar.ts`, la ricetta che le altre tre viste avevano già
+   abbandonato. */
+.ob-graph__toolbar {
+  height: var(--ob-toolbar-height); flex-shrink: 0;
+  display: flex; align-items: center; gap: 0;
+  padding: 0 12px;
+  background: var(--ob-surface);
+  border-bottom: 1px solid var(--ob-line);
+}
+/* Il conteggio in fondo: l'unica informazione in una barra di comandi, nella
+   stessa taglia dell'arco temporale di Chrono. */
+.ob-graph__stats { font-size: var(--ob-text-card); color: var(--ob-muted); white-space: nowrap; }
+/* ── I tre livelli, come controlli SDOPPIATI ──────────────────────────────────
+   La parola sceglie il livello, il chevron accanto apre il filtro DI QUEL
+   livello. Sono due gesti diversi — «fin dove scendo» e «di questo livello,
+   cosa» — e metterli sullo stesso bersaglio avrebbe reso uno dei due una
+   sorpresa. Restano però un oggetto solo a vedersi: nessuno spazio fra i due,
+   e la parola rinuncia al padding destro. */
+.ob-graph__level { position: relative; display: inline-flex; align-items: center; }
+.ob-graph__level > .ob-toolword { padding-right: 2px; gap: 6px; }
+/* La casella del livello segue il COLORE della sua parola invece di avere una
+   tinta propria: spenta è il grigio del testo, accesa è l'accent. Casella e nome
+   si leggono come una cosa sola — nelle tendine invece la voce resta scura e la
+   casella si accende da sé, perché lì l'acceso è la casella. */
+.ob-graph__level .ob-graph__box { border-color: currentColor; }
+.ob-graph__level .ob-graph__box--on { background: currentColor; border-color: currentColor; }
+.ob-graph__level > .ob-ctx { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 50; }
+.ob-graph__caret {
+  width: 18px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: var(--ob-radius-sm);
+  background: transparent; color: var(--ob-subtle);
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.ob-graph__caret:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
+/* Acceso = quel filtro sta escludendo qualcosa. Un grafo ridotto non può
+   tacerlo: senza questo segnale «mancano dei nodi» e «non ci sono nodi» hanno
+   lo stesso aspetto. */
+.ob-graph__caret--on,
+.ob-graph__caret--on:hover { color: var(--ob-accent); }
+.ob-graph__caret:disabled { opacity: 0.4; cursor: default; }
+.ob-graph__caret:disabled:hover { background: transparent; color: var(--ob-subtle); }
+/* Casella di una voce di filtro: spenta è il solo contorno, accesa si riempie. */
+.ob-graph__box { width: 12px; height: 12px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2); flex-shrink: 0; }
+.ob-graph__box--on { background: var(--ob-accent); border-color: var(--ob-accent); }
 .ob-pan__div { width: 1px; height: 22px; background: var(--ob-line-2); margin: 0 2px; }
 .ob-pan__dd { display: flex; align-items: center; gap: 7px; height: 32px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); background: var(--ob-surface); border: 1px solid var(--ob-line-2); cursor: pointer; }
 .ob-pan__dd-icon { color: var(--ob-subtle); display: inline-flex; }
