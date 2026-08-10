@@ -155,6 +155,17 @@ interface CanvasBoardProps {
   /** Chiamata a fine contorno (modalità Raggruppa) con gli id dei tile catturati
    *  (≥2). Il parent crea il CanvasGroup. I box di testo non entrano nei gruppi. */
   onGroupTiles?: (tileIds: string[]) => void;
+  /** Modalità "Foglio": il drag sullo sfondo cerchia l'area da stampare. Stesso
+   *  gesto del contorno, altro esito — il parent apre il pannello del PDF. */
+  pdfMode?: boolean;
+  onPdfArea?: (area: { x: number; y: number; w: number; h: number }) => void;
+  /** Anteprima del foglio scelto, in coordinate canvas: il rettangolo di carta e
+   *  l'area dentro i margini. Tutto ciò che resta fuori viene velato — è l'unico
+   *  modo di far vedere PRIMA della stampa cosa entra e cosa viene tagliato. */
+  pdfPreview?: { sheet: GroupBounds; printable: GroupBounds } | null;
+  /** Il parent prende qui la radice della board (SVG + overlay) per clonarla in
+   *  stampa. Stesso schema di `screenToLocalRef`. */
+  boardRootRef?: React.RefObject<HTMLDivElement | null>;
   /** Tasto destro sulla zona del gruppo SENZA tile (sfondo/etichetta): il parent
    *  apre il menu del gruppo (Rinomina / Elimina). */
   onGroupContextMenu?: (e: { x: number; y: number; groupId: string }) => void;
@@ -212,6 +223,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
+  pdfMode, onPdfArea, pdfPreview, boardRootRef,
   onEdgeClick, selectedEdgeId,
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
@@ -258,6 +270,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const tileModeRef = useRef(tileMode); tileModeRef.current = tileMode;
   const imageModeRef = useRef(imageMode); imageModeRef.current = imageMode;
   const selectModeRef = useRef(selectMode); selectModeRef.current = selectMode;
+  const pdfModeRef = useRef(pdfMode); pdfModeRef.current = pdfMode;
+  const onPdfAreaRef = useRef(onPdfArea); onPdfAreaRef.current = onPdfArea;
+  const pdfPreviewRef = useRef(pdfPreview); pdfPreviewRef.current = pdfPreview;
+  /** Come drawGroupsRef: ridisegna SOLO l'anteprima del foglio quando cambia il
+   *  formato, senza ricostruire l'intero SVG a ogni click sul pannello. */
+  const drawPdfPreviewRef = useRef<(() => void) | null>(null);
   const onGroupTilesRef = useRef(onGroupTiles); onGroupTilesRef.current = onGroupTiles;
   const onGroupContextMenuRef = useRef(onGroupContextMenu); onGroupContextMenuRef.current = onGroupContextMenu;
   const onGroupClickRef = useRef(onGroupClick); onGroupClickRef.current = onGroupClick;
@@ -521,7 +539,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image/select mode
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image/select/pdf mode
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -601,13 +619,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     //     contenuti nel rettangolo (tratto continuo).
     //   • destra→sinistra  → "crossing": seleziona ANCHE i tile solo
     //     INTERSECATI dal rettangolo (tratto tratteggiato).
-    const selRect = board.append('rect').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('opacity', 0);
+    const selRect = board.append('rect').attr('class', 'ob-canvas-marquee').attr('fill', theme.accent).attr('fill-opacity', 0.1).attr('stroke', theme.accent).attr('stroke-width', 2).attr('opacity', 0);
     let selStart: [number, number] | null = null;
     const isSelectModifier = (e: MouseEvent) => e.ctrlKey || e.metaKey || e.shiftKey;
     d3svg.on('mousedown.sel', (e: MouseEvent) => {
-      if ((!isSelectModifier(e) && !selectModeRef.current) || e.button || e.target !== svg) return;
+      if ((!isSelectModifier(e) && !selectModeRef.current && !pdfModeRef.current) || e.button || e.target !== svg) return;
       e.preventDefault();
       selStart = d3.pointer(e, boardNode) as [number, number];
+      // Sopra tutto, velo del foglio compreso: ridisegnare l'area con la vecchia
+      // anteprima davanti vorrebbe dire trascinare un contorno smorzato dalla
+      // scelta che stai per sostituire.
+      selRect.raise();
       selRect.attr('x', selStart[0]).attr('y', selStart[1]).attr('width', 0).attr('height', 0)
         .attr('stroke-dasharray', null).attr('opacity', 1);
     });
@@ -627,6 +649,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const [x2, y2] = [Math.max(selStart[0], mx), Math.max(selStart[1], my)];
       selStart = null; selRect.attr('opacity', 0);
       if (x2 - x1 < 20 || y2 - y1 < 20) return;
+      // Modalità "Foglio": il contorno delimita l'area da stampare, non seleziona
+      // niente. Il verso del gesto qui non conta — un foglio non ha un dentro e
+      // un toccato, ha solo un bordo.
+      if (pdfModeRef.current) {
+        onPdfAreaRef.current?.({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+        return;
+      }
       // window (L→R): rettangolo del tile TUTTO dentro. crossing (R→L): basta
       // che il rettangolo del tile TOCCHI il contorno (overlap dei bbox).
       const hit = (bx: number, by: number, bw: number, bh: number) =>
@@ -653,7 +682,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
-      if (textModeRef.current || tileModeRef.current || imageModeRef.current) return;
+      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current) return;
       if (selectedIdsRef.current.length === 0 && !selectedGroupIdRef.current && !selectedTileIdRef.current && !selectedTextBoxIdRef.current) return;
       selectedIdsRef.current = [];
       // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
@@ -661,7 +690,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
 
     // ── Temp line for link drag ──
-    const tempLine = board.append('line').attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
+    const tempLine = board.append('line').attr('class', 'ob-canvas-templine').attr('stroke', theme.accent).attr('stroke-width', 2).attr('stroke-dasharray', '6,3').attr('opacity', 0);
 
     // ── Common link drag handlers ──
     const startLink = (sourceId: string, px: number, py: number, port: string, ev: any) => {
@@ -1765,14 +1794,55 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       onAddTileAtRef.current(mx, my);
     });
 
+    // ── ANTEPRIMA DEL FOGLIO ──────────────────────────────────────────────────
+    // Vela tutto ciò che resta fuori dall'area stampabile e disegna i due bordi
+    // della carta. È l'unico punto in cui la scelta del formato diventa
+    // visibile: senza, «A3 orizzontale» è un'etichetta, e ci si accorge di cosa
+    // era rimasto fuori solo a foglio stampato.
+    const pdfG = board.append('g').attr('class', 'ob-canvas-pdfpreview').style('pointer-events', 'none');
+    const drawPdfPreview = () => {
+      pdfG.selectAll('*').remove();
+      const p = pdfPreviewRef.current;
+      if (!p) return;
+      const { sheet, printable } = p;
+      // Il velo è un rettangolo enorme col buco: una sola forma invece di
+      // quattro bande da tenere allineate agli angoli.
+      const OUT = 100000;
+      const ring = (r: GroupBounds, pad: number) =>
+        `M${r.x - pad},${r.y - pad}h${r.w + 2 * pad}v${r.h + 2 * pad}h${-(r.w + 2 * pad)}Z`;
+      pdfG.append('path')
+        .attr('d', ring(printable, OUT) + ring(printable, 0))
+        .attr('fill-rule', 'evenodd')
+        .style('fill', 'var(--ob-canvas)')
+        .attr('opacity', 0.62);
+      // `non-scaling-stroke`: la carta non è un oggetto del disegno, è
+      // un'inquadratura — il suo bordo deve restare una linea sottile a
+      // qualunque zoom, come il mirino di una fotocamera.
+      pdfG.append('rect')
+        .attr('x', sheet.x).attr('y', sheet.y).attr('width', sheet.w).attr('height', sheet.h)
+        .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1.5)
+        .attr('vector-effect', 'non-scaling-stroke');
+      pdfG.append('rect')
+        .attr('x', printable.x).attr('y', printable.y).attr('width', printable.w).attr('height', printable.h)
+        .attr('fill', 'none').attr('stroke', theme.accent).attr('stroke-width', 1)
+        .attr('stroke-dasharray', '5,4').attr('opacity', 0.7)
+        .attr('vector-effect', 'non-scaling-stroke');
+    };
+    drawPdfPreviewRef.current = drawPdfPreview;
+
     drawGroups();
     nodesG.raise();
     tbG.raise();
     tempLine.raise();
+    pdfG.raise();
+    drawPdfPreview();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, theme, viewKey]);
 
   useEffect(() => { render(); }, [render]);
+
+  // Cambio di formato/orientamento → ridisegna SOLO l'anteprima del foglio.
+  useEffect(() => { drawPdfPreviewRef.current?.(); }, [pdfPreview]);
 
   // Toggle the per-item selection ring (tiles + text boxes) without rebuilding the SVG.
   // Also refreshes connected-edge highlights.
@@ -1830,14 +1900,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   }, [zoom100Trigger]);
 
   return (
-    <div className="relative w-full h-full" style={{ background: theme.bg1 }}>
+    <div ref={boardRootRef} className="relative w-full h-full" style={{ background: theme.bg1 }}>
       <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
       {/* HTML overlay: hosts TipTap editors as positioned divs OUTSIDE the SVG.
           A single inner wrapper takes the SVG's pan/zoom transform, so editors
           stay aligned with their D3-drawn box frames. Editors live in the React
           tree (no D3 mount/unmount), so TipTap state survives box redraws. */}
       <div ref={overlayRef} className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div ref={overlayInnerRef} style={{ transformOrigin: '0 0', position: 'absolute', inset: 0 }}>
+        {/* `data-canvas-overlay-inner`: l'aggancio con cui la stampa ritrova
+            questo strato nel clone e gli riscrive la trasformazione (il ref non
+            sopravvive alla copia del DOM). */}
+        <div ref={overlayInnerRef} data-canvas-overlay-inner="" style={{ transformOrigin: '0 0', position: 'absolute', inset: 0 }}>
           {textBoxes.filter((b) => b.type === 'text').map((tb) => (
             <div
               key={tb.id}

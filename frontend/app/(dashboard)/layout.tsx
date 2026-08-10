@@ -9,6 +9,7 @@ import { useAuthStore } from '@/store/auth-store';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useChatStore } from '@/store/chat-store';
 import { useCardRoster } from '@/store/card-roster-store';
+import { useViewPrefs } from '@/store/view-prefs-store';
 import { settingsApi } from '@/lib/api';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -30,6 +31,7 @@ export default function DashboardLayout({
   const fetchTypeIcons = useTypeIcons((s) => s.fetchAll);
   const typeIconsLoaded = useTypeIcons((s) => s.loaded);
   const hydrateRoster = useCardRoster((s) => s.hydrateFromServer);
+  const hydrateViewPrefs = useViewPrefs((s) => s.hydrateFromServer);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   useEffect(() => {
@@ -50,6 +52,13 @@ export default function DashboardLayout({
   useEffect(() => {
     if (user) hydrateRoster();
   }, [user, hydrateRoster]);
+
+  // Quali viste opzionali sono accese, dal server. Lo shell intanto ha già letto
+  // il localStorage in layout-effect: questa fetch serve a far seguire la scelta
+  // fra i dispositivi, non a disegnare la prima barra.
+  useEffect(() => {
+    if (user) hydrateViewPrefs();
+  }, [user, hydrateViewPrefs]);
 
   // Onboarding gating: se l'utente non ha mai completato il welcome wizard,
   // forziamo il redirect su /welcome (tranne se già lì). Un check per sessione.

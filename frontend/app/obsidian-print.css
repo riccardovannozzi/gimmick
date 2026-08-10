@@ -1,0 +1,84 @@
+/* ─── STAMPA ──────────────────────────────────────────────────────────────────
+   Il foglio del canvas (components/canvas/CanvasPrintSheet.tsx).
+
+   Perché passare dal motore di stampa del browser invece di generare il PDF con
+   una libreria: la card del tile è HTML dentro un `<foreignObject>`, e i suoi
+   cinque canali visivi (bordo, badge, strip dei passi, status, metadato) sono
+   fatti di CSS e di token `--ob-*`. Qualunque libreria dovrebbe ridisegnarli, e
+   sarebbe un sosia destinato a divergere alla prima modifica del CSS — lo stesso
+   ragionamento per cui la card sul canvas non è disegnata con primitive SVG.
+   Il motore di stampa invece impagina ESATTAMENTE quello che sa già disegnare,
+   in vettoriale, con i font veri. Il PDF lo scrive lui.
+
+   Il contenitore vive sempre nel DOM ma è `display:none`: si accende solo in
+   `@media print`, ed è portato in fondo al `<body>` così da poter spegnere tutto
+   il resto con una regola sola.
+   ────────────────────────────────────────────────────────────────────────────*/
+
+.ob-print { display: none; }
+
+@media print {
+  /* Tutto quello che non è il foglio sparisce. Il foglio è figlio diretto del
+     body proprio per rendere possibile questa singola riga: altrimenti servirebbe
+     smontare a mano ogni antenato (shell, sidebar, pannelli) uno per uno. */
+  body > *:not(.ob-print) { display: none !important; }
+
+  html, body {
+    background: #fff !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    /* Lo shell tiene il documento incastrato nella finestra: in stampa il
+       documento è lungo quanto i fogli e non deve essere né tagliato né scrollato. */
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .ob-print {
+    display: block !important;
+    /* SENZA QUESTO IL FOGLIO ESCE BIANCO. Di default il browser non stampa i
+       fondi: sparirebbero la velatura del tile, il colore del gruppo e il
+       riempimento del badge — cioè tre dei canali su cui si regge la lettura. */
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    color: #000;
+  }
+
+  /* Le ombre in stampa diventano bave grigie: la carta ha già la sua profondità. */
+  .ob-print * { box-shadow: none !important; }
+
+  /* La lavagna sulla carta è bianca, non il grigio-canvas dello schermo. */
+  .ob-print__page {
+    box-sizing: border-box;
+    background: #fff;
+    overflow: hidden;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
+
+/* Anche fuori dalla stampa la geometria resta dichiarata qui, così il componente
+   non porta un foglio di stile inline: serve al debug (basta togliere il
+   `display:none` per vedere la pagina impaginata a schermo). */
+.ob-print__page {
+  box-sizing: border-box;
+  background: #fff;
+  position: relative;
+}
+
+.ob-print__frame {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* La finestra sull'area scelta: il clone della board vive qui dentro, traslato e
+   scalato in modo che l'area cerchiata coincida con questo rettangolo. */
+.ob-print__content {
+  position: relative;
+  overflow: hidden;
+  flex: 0 0 auto;
+}

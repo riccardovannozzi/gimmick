@@ -57,9 +57,10 @@
   background: var(--ob-surface);
   border-bottom: 1px solid var(--ob-line);
 }
-/* Il conteggio in fondo: l'unica informazione in una barra di comandi, nella
-   stessa taglia dell'arco temporale di Chrono. */
-.ob-graph__stats { font-size: var(--ob-text-card); color: var(--ob-muted); white-space: nowrap; }
+/* Il contatore «N tag · M relazioni» che stava in fondo non c'è più: era un
+   numero che non entra in nessuna decisione — quanti tag ci sono si vede dal
+   grafo, e quel conteggio non teneva nemmeno conto dei filtri, quindi diceva una
+   cosa diversa da quella sullo schermo. Ora la barra è solo comandi. */
 /* ── I tre livelli, come controlli SDOPPIATI ──────────────────────────────────
    La parola sceglie il livello, il chevron accanto apre il filtro DI QUEL
    livello. Sono due gesti diversi — «fin dove scendo» e «di questo livello,

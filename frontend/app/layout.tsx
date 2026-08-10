@@ -16,6 +16,7 @@ import './obsidian-settings.css';
 import './obsidian-ask.css';
 import './obsidian-modals.css';
 import './obsidian-states.css';
+import './obsidian-print.css';
 import { Providers } from './providers';
 
 // Obsidian design system fonts. CSS vars exposed via `variable:` so the

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
-import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
+import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconChevronDown, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { ACTION_ITEMS } from '@/lib/kanban-axis';
@@ -1479,23 +1479,6 @@ export default function GraphPage() {
           `.ob-toolsep` fra le famiglie, `.ob-ctx` per le tendine. */}
       <div className="ob-graph__toolbar">
         <div className="ob-tools">
-          {/* I due MODI: cambiano cosa fa il click SUL GRAFO — navigare o
-              rimaneggiare i tag — quindi restano accesi, come gli strumenti di
-              disegno del canvas. Il nome sta nel tooltip. */}
-          <ToolButton
-            icon={<IconEye size={16} stroke={1.6} />}
-            label="Naviga: esplora il grafo"
-            active={toolbarMode === 'navigate'}
-            onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-          />
-          <ToolButton
-            icon={<IconSettings2 size={16} stroke={1.6} />}
-            label="Modifica i tag: crea, collega, elimina"
-            active={toolbarMode === 'edit'}
-            onClick={() => setToolbarMode('edit')}
-          />
-          <div className="ob-toolsep" />
-
           {toolbarMode === 'navigate' ? (
             <>
               {/* Fin dove scende il grafo. Tre parole invece di una tendina da
@@ -1646,11 +1629,35 @@ export default function GraphPage() {
 
         <div style={{ flex: 1 }} />
 
-        <span className="ob-graph__stats">
-          {tagGraph?.nodes ? (tagGraph.nodes as TagNode[]).filter((t) => !t.is_root).length : 0} tag
-          {' '}&middot;{' '}
-          {tagGraph?.edges ? Math.floor((tagGraph.edges as TagEdge[]).filter((e) => e.relation_type !== 'root-link').length / 2) : 0} relazioni
-        </span>
+        {/* I due MODI, all'estremo opposto rispetto ai comandi che governano.
+            Sono la domanda più grande della barra — «sto guardando o sto
+            rimaneggiando?» — e tenerli in testa alla fila li confondeva con gli
+            strumenti del modo corrente, che invece cambiano sotto di loro.
+
+            Sole PAROLE: due icone (un occhio e un ingranaggio) per una scelta
+            che riguarda l'intera vista chiedevano di essere indovinate.
+
+            E niente casella, a differenza dei livelli: quelli sono tre
+            interruttori che possono essere accesi tutti insieme, e col solo
+            colore non si capiva quali fossero attivi. Qui invece uno dei due è
+            sempre acceso e l'altro sempre spento, quindi il contrasto c'è per
+            costruzione e la casella non aggiungerebbe niente. */}
+        <div className="ob-tools">
+          <ToolWord
+            on={toolbarMode === 'navigate'}
+            onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
+            title="Esplora il grafo: filtra, metti a fuoco, apri i nodi"
+          >
+            Graph explorer
+          </ToolWord>
+          <ToolWord
+            on={toolbarMode === 'edit'}
+            onClick={() => setToolbarMode('edit')}
+            title="Modifica i collegamenti: crea tag, collegali fra loro, eliminali"
+          >
+            Edit link
+          </ToolWord>
+        </div>
       </div>
 
       {/* Graph area */}

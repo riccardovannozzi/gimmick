@@ -20,7 +20,8 @@
 import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AppShell, Sidebar, Inspector, type ViewId } from '@/components/shell';
+import { AppShell, Sidebar, Inspector, DEFAULT_RIGHT_VIEWS, type ViewId } from '@/components/shell';
+import { useViewPrefs } from '@/store/view-prefs-store';
 import { tagsApi } from '@/lib/api';
 import { prefetchView } from '@/lib/view-prefetch';
 import { useTagTypes } from '@/store/tag-types-store';
@@ -93,6 +94,28 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
    */
   useIsomorphicLayoutEffect(() => { hydrateTags(); }, [hydrateTags]);
 
+  /**
+   * Le viste OPZIONALI. Oggi solo il Panopticon, spento finché non lo accendi
+   * dalle impostazioni — vedi `store/view-prefs-store`.
+   *
+   * L'idratazione è in layout-effect, prima del paint: il default è «spento»,
+   * quindi un'idratazione tardiva farebbe comparire la linguetta a cose fatte,
+   * e una cosa che appare da sola dopo mezzo secondo sembra un guasto.
+   */
+  const panopticonOn = useViewPrefs((s) => s.panopticon);
+  const hydrateViews = useViewPrefs((s) => s.hydrate);
+  useIsomorphicLayoutEffect(() => { hydrateViews(); }, [hydrateViews]);
+
+  const rightViews = React.useMemo(
+    () => DEFAULT_RIGHT_VIEWS.filter((v) => v.id !== 'panopticon' || panopticonOn),
+    [panopticonOn],
+  );
+  /** Le rotte che la barra può raggiungere: solo queste si scaldano. */
+  const reachableViews = React.useMemo(
+    () => (Object.keys(VIEW_TO_PATH) as ViewId[]).filter((v) => v !== 'panopticon' || panopticonOn),
+    [panopticonOn],
+  );
+
   // Un tag cancellato lascerebbe il suo id nella selezione persistita, e le
   // viste filtrerebbero su qualcosa che non esiste: board vuota e niente di
   // acceso che spieghi il perché. Si potano quando l'elenco vero è arrivato —
@@ -134,8 +157,8 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // Prefetch di tutte le rotte delle viste al mount: il cambio pagina diventa
   // istantaneo (bundle + payload RSC già pronti) invece di caricare on-click.
   React.useEffect(() => {
-    for (const path of Object.values(VIEW_TO_PATH)) router.prefetch(path);
-  }, [router]);
+    for (const v of reachableViews) router.prefetch(VIEW_TO_PATH[v]);
+  }, [router, reachableViews]);
 
   // Prefetch dei DATI di TUTTE le viste quando il browser è inattivo. L'hover
   // sul tab copriva solo il mouse (e solo se ci passavi sopra abbastanza): al
@@ -144,7 +167,9 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // quella corrente vengono scaldate in coda, una per callback di idle, per non
   // competere con il rendering della vista attiva.
   React.useEffect(() => {
-    const others = (Object.keys(VIEW_TO_PATH) as ViewId[]).filter((v) => v !== activeView);
+    // Solo le viste raggiungibili: scaldare i dati del Panopticon quando è
+    // spento sarebbe la richiesta più pesante dell'app fatta per niente.
+    const others = reachableViews.filter((v) => v !== activeView);
     let cancelled = false;
     type IdleWindow = Window & {
       requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
@@ -165,7 +190,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     return () => { cancelled = true; };
     // Si rilancia al cambio vista: la nuova "corrente" esce dalla coda e le
     // altre restano calde.
-  }, [activeView, queryClient]);
+  }, [activeView, queryClient, reachableViews]);
 
   const handleViewChange = React.useCallback((v: ViewId) => {
     if (v === activeView) return;
@@ -264,6 +289,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
       onViewChange={handleViewChange}
       header={{
         userInitials,
+        rightViews,
         onHoverView: handleHoverView,
         onContacts: () => setContactsOpen(true),
         onAsk: () => setChatOpen(true),

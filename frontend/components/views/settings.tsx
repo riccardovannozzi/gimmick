@@ -65,7 +65,7 @@ function ChevLink({ children }: { children: React.ReactNode }) {
 }
 
 // ─── Aspetto panel ────────────────────────────────────────────────────────────
-function AspettoPanel({ themeMode, onThemeMode, onOpenBeniamini }: { themeMode?: string; onThemeMode?: (v: string) => void; onOpenBeniamini?: () => void }) {
+function AspettoPanel({ themeMode, onThemeMode, onOpenBeniamini, views }: { themeMode?: string; onThemeMode?: (v: string) => void; onOpenBeniamini?: () => void; views?: ViewPrefsControl }) {
   const [themeLocal, setThemeLocal] = React.useState('light');
   const theme = themeMode ?? themeLocal;
   const setTheme = onThemeMode ?? setThemeLocal;
@@ -106,6 +106,24 @@ function AspettoPanel({ themeMode, onThemeMode, onOpenBeniamini }: { themeMode?:
       </Card>
 
       <Card title="INTERFACCIA">
+        {/* Le viste OPZIONALI si accendono da qui. Il Panopticon è la prima: un
+            grafo dell'intero archivio, prezioso per chi ci ragiona sopra e una
+            linguetta in più per chiunque altro. Nasce spento — una vista che non
+            apri mai non è neutra, allunga la barra che leggi ogni volta che ne
+            cerchi un'altra. */}
+        <Row
+          icon="panopticon"
+          label="Panopticon"
+          sub="Il grafo di tag, tile e spark. Aggiunge la sua linguetta alla barra"
+          control={
+            <Toggle
+              checked={!!views?.panopticon}
+              onChange={(v) => views?.onPanopticon(v)}
+              disabled={!views}
+              aria-label="Mostra la vista Panopticon"
+            />
+          }
+        />
         <Row icon={<IconDeviceMobileVibration size={17} stroke={1.6} />} label="Feedback aptico" sub="Vibrazione su cattura e invio" control={<Toggle checked={haptic} onChange={setHaptic} aria-label="Feedback aptico" />} />
         <Row icon={<IconTrash size={17} stroke={1.6} />} label="Conferma eliminazione" sub="Chiedi prima di scartare uno spark" control={<Toggle checked={confirmDelete} onChange={setConfirmDelete} aria-label="Conferma eliminazione" />} />
         <Row icon={<IconWorld size={17} stroke={1.6} />} label="Lingua" control={<ChevLink>Italiano</ChevLink>} />
@@ -166,20 +184,28 @@ function AccountPanel({ email, onLogout }: { email?: string; onLogout?: () => vo
   );
 }
 
+/** Le viste opzionali, accese/spente da qui. Assente = anteprima (controllo
+ *  disabilitato: non c'è niente da accendere). */
+export interface ViewPrefsControl {
+  panopticon: boolean;
+  onPanopticon: (on: boolean) => void;
+}
+
 export interface SettingsViewProps {
   /** Modalità tema corrente ('light' | 'dark' | 'system'); controllata se passata. */
   themeMode?: string;
   onThemeMode?: (v: string) => void;
   /** Dati account reali; se assenti il pannello Account resta vuoto (anteprima). */
   account?: { email?: string; onLogout?: () => void };
+  views?: ViewPrefsControl;
 }
 
-export function SettingsView({ themeMode, onThemeMode, account }: SettingsViewProps = {}) {
+export function SettingsView({ themeMode, onThemeMode, account, views }: SettingsViewProps = {}) {
   const [active, setActive] = React.useState<NavId>('aspetto');
 
   const NAV: NavDef[] = [
     { id: 'account', label: 'Account', render: () => (account ? <AccountPanel email={account.email} onLogout={account.onLogout} /> : null) },
-    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} onOpenBeniamini={() => setActive('beniamini')} /> },
+    { id: 'aspetto', label: 'Aspetto', render: () => <AspettoPanel themeMode={themeMode} onThemeMode={onThemeMode} onOpenBeniamini={() => setActive('beniamini')} views={views} /> },
     { id: 'personalizza', label: 'Personalizzazione', render: () => <PersonalizzazionePanel /> },
     { id: 'beniamini', label: 'Beniamini', render: () => <MascotRosterPanel /> },
     { id: 'notifiche', label: 'Notifiche', render: () => null },

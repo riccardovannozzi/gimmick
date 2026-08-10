@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
+import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,13 @@ interface CanvasTopbarProps {
   onToggleImageMode: () => void;
   onToggleSelectMode: () => void;
   /**
+   * Modalità "Foglio": cerchia un'area e ne esce un PDF. Come Done, il pulsante
+   * compare solo se il callback c'è — senza un canvas aperto non c'è niente da
+   * stampare.
+   */
+  pdfMode?: boolean;
+  onTogglePdfMode?: () => void;
+  /**
    * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
    * entrambi gli stati, cambia solo se si tingono.
    * Assente il callback, il pulsante non compare: è così che la barra si spegne
@@ -32,7 +39,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -257,6 +264,15 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         <ToolButton icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
         <ToolButton icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onTogglePdfMode && (
+          <>
+            {/* Separato dai quattro qui sopra: quelli aggiungono qualcosa alla
+                lavagna, questo la porta fuori. Stesso gesto (cerchia un'area),
+                esito di natura diversa — e il divisore è quello che lo dice. */}
+            <div className="ob-toolsep" />
+            <ToolButton icon={<IconFileTypePdf size={16} stroke={1.6} />} label="PDF" active={pdfMode} onClick={onTogglePdfMode} />
+          </>
+        )}
         {onToggleDoneHighlight && (
           <>
             <div className="ob-toolsep" />

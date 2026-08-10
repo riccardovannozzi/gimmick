@@ -222,3 +222,80 @@
 }
 .ob-zoomctl__btn + .ob-zoomctl__btn { border-top: 1px solid var(--ob-line); }
 .ob-zoomctl__btn:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
+
+/* ── IL PANNELLO DEL FOGLIO (esporta in PDF) ──────────────────────────────────
+   Appoggiato sulla lavagna in basso al centro, accanto ai comandi di zoom ma
+   non sopra: quelli stanno a destra e restano raggiungibili: inquadrare l'area
+   e scegliere il formato sono la stessa operazione.
+
+   Non è un modale, ed è una scelta: dietro di lui il canvas mostra l'anteprima
+   del foglio con tutto il resto velato. Un fondale scuro nasconderebbe proprio
+   la cosa di cui il pannello parla. */
+.ob-pdfbar {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 10px;
+  min-width: 460px;
+  max-width: min(720px, calc(100% - 88px));
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line-2);
+  border-radius: var(--ob-radius-md);
+  box-shadow: var(--ob-shadow-card);
+  font-family: var(--ob-font-sans);
+}
+.ob-pdfbar__head { display: flex; align-items: center; justify-content: space-between; }
+.ob-pdfbar__eyebrow {
+  font-family: var(--ob-font-mono);
+  font-size: var(--ob-text-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ob-subtle);
+}
+.ob-pdfbar__close {
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px;
+  border: none; background: transparent; color: var(--ob-subtle);
+  border-radius: var(--ob-radius-sm); cursor: pointer;
+}
+.ob-pdfbar__close:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
+
+.ob-pdfbar__row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.ob-pdfbar__info {
+  display: flex; align-items: center; gap: 5px; flex-wrap: wrap;
+  font-size: var(--ob-text-meta);
+  color: var(--ob-muted);
+}
+.ob-pdfbar__info strong { color: var(--ob-text); font-weight: var(--ob-weight-emphasis); }
+.ob-pdfbar__sep { color: var(--ob-faint); }
+/* La parola «automatico» è un'etichetta di provenienza, non un pulsante: dice
+   chi ha scelto il formato. Sparisce appena lo scegli tu. */
+.ob-pdfbar__auto {
+  margin-left: 2px;
+  padding: 1px 6px;
+  border-radius: var(--ob-radius-sm);
+  background: color-mix(in srgb, var(--ob-accent) 12%, transparent);
+  color: var(--ob-accent-text);
+  font-family: var(--ob-font-mono);
+  font-size: var(--ob-text-micro);
+}
+
+.ob-pdfbar__warn {
+  display: flex; align-items: center; gap: 6px;
+  font-size: var(--ob-text-meta);
+  color: var(--ob-warning);
+}
+
+.ob-pdfbar__actions { display: flex; align-items: center; gap: 8px; }
+.ob-pdfbar__hint {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--ob-text-micro);
+  color: var(--ob-subtle);
+}
