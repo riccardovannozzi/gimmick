@@ -931,8 +931,14 @@
    contenitore solo, non su ogni cella — il pattern riparte a ogni elemento su
    cui è dichiarato, e su celle di larghezza diversa i puntini si
    disallineerebbero da una colonna all'altra. */
+/* Il RAGGIO è un parametro e non un numero murato nel gradiente: compare due
+   volte nella stessa dichiarazione (il colore finisce dove comincia il
+   trasparente), e due numeri da tenere uguali a mano sono due numeri che prima o
+   poi divergono. Overridabile per superficie, se mai servisse — ma il valore di
+   partenza è uno solo, per la stessa ragione per cui lo è il passo. */
 .ob-dotgrid {
-  background-image: radial-gradient(var(--ob-dot) 1.4px, transparent 1.4px);
+  --ob-dot-r: 1px;
+  background-image: radial-gradient(var(--ob-dot) var(--ob-dot-r), transparent var(--ob-dot-r));
   background-size: 22px 22px;
   background-position: -1px -1px;
 }

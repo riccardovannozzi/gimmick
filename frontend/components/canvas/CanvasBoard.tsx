@@ -59,6 +59,26 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
  * margine interno di pari valore: il tile resta 120×64 e allineato alla griglia,
  * cambia solo la finestra in cui è disegnato.
  */
+/**
+ * GRIGLIA DI RIFERIMENTO — passo nel mondo del canvas e passo minimo sullo
+ * schermo.
+ *
+ * 22px è lo stesso passo di `.ob-dotgrid` (obsidian-primitives.css), la utility
+ * che vestono già la board del Kanban e la lavagna della vista canvas: a scala 1
+ * la griglia del canvas D3 è identica alle altre, non un secondo reticolo simile.
+ *
+ * Il passo però è nel MONDO, non sullo schermo: i puntini restano ancorati ai
+ * tile mentre si trascina e si zooma, altrimenti sarebbero una carta da parati
+ * dietro un vetro e non un riferimento. Rimpicciolendo, però, un passo fisso si
+ * infittisce fino a diventare rumore — sotto 0.3 di zoom cadrebbero a 6.6px
+ * l'uno dall'altro. Quindi il passo RADDOPPIA finché sullo schermo non torna
+ * almeno `DOT_MIN_SCREEN`: la griglia si dirada invece di impastarsi, e i
+ * puntini che restano sono un sottoinsieme di quelli di prima — cioè cadono
+ * ancora sugli stessi punti del mondo.
+ */
+const DOT_STEP = 22;
+const DOT_MIN_SCREEN = 14;
+
 const TILE_BLEED = 12;
 const TILE_GAP = 8;
 const OFFSET_X = 24;
@@ -245,6 +265,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const SW = 1;         // card hairline stroke width
   const labelFont = 'var(--ob-font-mono), ui-monospace, monospace';
   const svgRef = useRef<SVGSVGElement>(null);
+  // La radice della board serve QUI (ci vive la griglia di puntini) e al parent
+  // (che la clona per la stampa): un ref di callback li serve entrambi senza
+  // obbligare chi non stampa a passarne uno.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const setRoot = useCallback((el: HTMLDivElement | null) => {
+    rootRef.current = el;
+    if (boardRootRef) boardRootRef.current = el;
+  }, [boardRootRef]);
   // HTML overlay refs — host TipTap editors at fixed canvas coordinates.
   // overlayInnerRef gets a CSS transform that mirrors the D3 zoom/pan, so
   // editors stay glued to their D3-drawn box frames without React re-renders.
@@ -536,6 +564,26 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       svg.classList.toggle('ob-canvas-svg--lod', k < TILE_LOD_MIN_SCALE);
     };
 
+    /**
+     * La griglia segue pan e zoom. Non è disegnata nell'SVG ma è lo SFONDO CSS
+     * della radice: un `background-image` ripetuto costa al compositore quanto
+     * un colore pieno, mentre migliaia di `<circle>` nel DOM costerebbero a ogni
+     * frame della rotella. Qui per frame si scrivono due proprietà.
+     *
+     * Il diametro del puntino resta quello dichiarato in `.ob-dotgrid` e NON
+     * scala: cambia solo la spaziatura. È il comportamento delle lavagne
+     * infinite — il riferimento si allarga, il segno resta un segno.
+     */
+    const applyDots = (t: d3.ZoomTransform) => {
+      const el = rootRef.current;
+      if (!el) return;
+      let step = DOT_STEP;
+      while (step * t.k < DOT_MIN_SCREEN) step *= 2;
+      const size = step * t.k;
+      el.style.backgroundSize = `${size}px ${size}px`;
+      el.style.backgroundPosition = `${t.x}px ${t.y}px`;
+    };
+
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
@@ -546,6 +594,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         zoomTransformRef.current = ev.transform;
         board.attr('transform', ev.transform);
         applyLod(ev.transform.k);
+        applyDots(ev.transform);
         // Mirror the SVG transform on the HTML overlay so TipTap editors stay
         // glued to their D3-drawn box frames during pan/zoom — without forcing
         // a React re-render of the editor list.
@@ -584,6 +633,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // riaprendo un canvas lasciato a scala 0.4 i badge tornerebbero accesi
     // finché non tocchi la rotella.
     applyLod(zoomTransformRef.current.k);
+    applyDots(zoomTransformRef.current);
     const boardNode = board.node()!;
     const nodes = buildNodes();
     nodesRef.current = nodes;
@@ -861,8 +911,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               });
           })());
         // Nome leggibile sullo sfondo del gruppo: chiaro su scuro e viceversa.
-        // Senza sfondo, colore muted (o accento se selezionato).
-        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? selAccent : theme.ink3);
+        // Senza sfondo scelto prende l'inchiostro pieno — lo STESSO dei titoli
+        // dei tile. Era `ink3` (#9a96a4 sul chiaro): un grigio che sulla lavagna
+        // vale un contrasto di 2.4:1, cioè un nome che c'è e non si legge. Un
+        // gruppo è il titolo di una regione del canvas, non una nota a margine.
+        // Selezionato passa all'accento, come ogni altra cosa selezionata.
+        const gLabelColor = grp.bgColor ? readableOn(grp.bgColor) : (isSel ? selAccent : theme.ink);
         gw.append('text').attr('x', b.x + 8).attr('y', b.y - LABEL_H + 14).attr('fill', gLabelColor).attr('font-size', OB_TEXT.meta).attr('font-weight', isSel ? OB_WEIGHT.emphasis : OB_WEIGHT.body)
           .text(grp.label || 'Gruppo').style('cursor', 'pointer')
           .on('click', (ev: MouseEvent) => { ev.stopPropagation(); onGroupClickRef.current?.(grp.id); })
@@ -1900,7 +1954,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   }, [zoom100Trigger]);
 
   return (
-    <div ref={boardRootRef} className="relative w-full h-full" style={{ background: theme.bg1 }}>
+    // `backgroundColor` e NON la scorciatoia `background`: quella azzera anche
+    // `background-image`, e l'immagine è la griglia che arriva da `.ob-dotgrid`.
+    // Uno stile inline vincerebbe sulla classe e la lavagna tornerebbe liscia.
+    <div ref={setRoot} className="relative w-full h-full ob-dotgrid" style={{ backgroundColor: theme.bg1 }}>
       <svg ref={svgRef} className="absolute inset-0 w-full h-full" />
       {/* HTML overlay: hosts TipTap editors as positioned divs OUTSIDE the SVG.
           A single inner wrapper takes the SVG's pan/zoom transform, so editors
