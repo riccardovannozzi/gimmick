@@ -20,8 +20,11 @@ import * as TablerIcons from '@tabler/icons-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from 'expo-router';
 import { useObsidian } from '@/lib/obsidian';
 import { toast } from '@/store';
+import { useAuthStore } from '@/store/authStore';
+import { accountName, pickGreeting } from '@/lib/home-greeting';
 import { useDictation } from '@/hooks/useDictation';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { tagsApi, typeIconsApi, statusesApi, tagTypesApi, type StatusEntity, type TypeIconEntity } from '@/lib/api';
@@ -801,6 +804,9 @@ export function ObsidianCaptureScreen({
   const insets = useSafeAreaInsets();
   const [drawer, setDrawer] = React.useState(false);
   const [voice, setVoice] = React.useState(false);
+  // Email dell'account: da qui si ricava il nome che le frasi citano ogni tanto.
+  const userEmail = useAuthStore((s) => s.user?.email);
+
   const [actionOpen, setActionOpen] = React.useState(false);
   // Testo della nota in composizione (spark testuale creato al tocco di Salva).
   const [note, setNote] = React.useState('');
@@ -809,6 +815,18 @@ export function ObsidianCaptureScreen({
   // quello spark invece di crearne uno nuovo.
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const noteRef = React.useRef<TextInput>(null);
+
+  // Frase della filigrana. Cambia a ogni RITORNO in home, non a ogni render: i
+  // tab restano montati, quindi un semplice effetto al mount scatterebbe una
+  // volta sola per tutta la sessione — è `useFocusEffect` a dare il momento
+  // giusto. Rigenerarla a ogni render invece la farebbe ballare a ogni tasto
+  // premuto.
+  const [greeting, setGreeting] = React.useState(() => pickGreeting(accountName(userEmail)));
+  useFocusEffect(
+    React.useCallback(() => {
+      setGreeting((prev) => pickGreeting(accountName(userEmail), prev));
+    }, [userEmail]),
+  );
   // Composizione in corso (testo digitato o spark riaperto): il campo prende
   // tutta l'altezza e in fondo restano solo gomma e invio.
   const composing = hasNote || !!editingId;
@@ -1027,7 +1045,52 @@ export function ObsidianCaptureScreen({
             // Stato neutro / digitazione: il campo nota riempie tutto lo spazio e
             // spinge le icone in fondo (con margine). Testo + icone = blocco unico.
             <View style={{ flex: 1, paddingBottom: 56 }}>
-              {renderNote(true)}
+              {/* Il campo nota e la filigrana condividono lo STESSO riquadro, e
+                  la filigrana lo riempie per intero: così è centrata nell'area
+                  vuota che si vede, non in una calcolata a mano. Prima era
+                  ancorata al contenitore esterno con uno scarto in basso, e
+                  quello scarto la spingeva più in alto del centro reale.
+                  `pointerEvents="none"` lascia passare il tocco al campo, che
+                  resta il bersaglio di tutta l'area. */}
+              <View style={{ flex: 1 }}>
+                {/* Solo a nota vuota: appena si scrive è il testo a dover avere
+                    lo schermo. */}
+                {!note.trim() ? (
+                  <View
+                    pointerEvents="none"
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    {/* Resta uno sfondo, non un logo: a opacità piena
+                        competerebbe col testo che stai per scrivere. In tema
+                        chiaro serve un filo in più, perché il rosso su bianco
+                        stacca meno che su nero. */}
+                    <Image
+                      source={require('../../../assets/adaptive-icon.png')}
+                      style={{ width: 240, height: 240, opacity: c.dark ? 0.17 : 0.2 }}
+                      resizeMode="contain"
+                      accessibilityIgnoresInvertColors
+                    />
+                    {/* Il margine negativo recupera il vuoto INTERNO dell'asset:
+                        l'omino disegnato occupa circa tre quarti del riquadro,
+                        quindi senza questo la frase sembrerebbe staccata da lui
+                        invece che appoggiata sotto. */}
+                    <Text
+                      style={{
+                        marginTop: -18,
+                        paddingHorizontal: 28,
+                        textAlign: 'center',
+                        fontSize: 19,
+                        lineHeight: 26,
+                        fontWeight: '500',
+                        color: c.muted,
+                      }}
+                    >
+                      {greeting}
+                    </Text>
+                  </View>
+                ) : null}
+                {renderNote(true)}
+              </View>
               {toolbar}
             </View>
           ) : (

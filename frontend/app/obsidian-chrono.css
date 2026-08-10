@@ -37,43 +37,17 @@
 .ob-chrono__header-meta-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ob-error); }
 
 /* ── Toolbar ── */
-/* Prima barra della vista, nella fascia sotto la navbar: 48, come toolbar del
-   canvas, header della sidebar e tabbar dell'inspector (56 · 48 · 40).
-   Fondo e hairline sono gli STESSI della toolbar del canvas (`CanvasTopbar` usa
-   `theme.bg2` = --ob-surface e `theme.border` = --ob-line-2): prima qui c'era
-   --ob-head, tre punti più scuro, e le due fasce non combaciavano. Anche il gap
-   è quello del canvas (4). */
-.ob-chrono__toolbar { height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 4px; padding: 0 12px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line-2); }
+/* ── Toolbar ─────────────────────────────────────────────────────────────────
+   Prima barra della vista, nella fascia sotto la navbar (56 · 44 · 40). Come
+   quelle di CANVAS e KANBAN non ha più controlli propri: usa i primitivi
+   `.ob-tools`, `.ob-toolsep`, `.ob-tool` e `.ob-toolword`.
 
-/* Controlli della toolbar: stessa ricetta dei bottoni del canvas
-   (lib/pixel-toolbar.ts → `obsidianToolbarBtn`) — 30 di altezza, raggio 10,
-   fondo surface-2, testo muted, 12.5/600; attivo = accent PIENO con testo
-   on-accent. Nel canvas i toggle sono chip indipendenti, senza contenitore
-   segmentato: qui idem, così le due barre si leggono come lo stesso oggetto. */
-.ob-chrono__tbtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 30px;
-  padding: 0 12px;
-  border: none;
-  border-radius: var(--ob-radius-sm);
-  background: var(--ob-surface-2);
-  color: var(--ob-muted);
-  font-family: var(--ob-font-sans);
-  font-size: var(--ob-text-control);
-  font-weight: var(--ob-weight-emphasis);
-  line-height: var(--ob-leading-none);
-  letter-spacing: 0;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.ob-chrono__tbtn:hover { color: var(--ob-text); }
-.ob-chrono__tbtn--active,
-.ob-chrono__tbtn--active:hover { background: var(--ob-accent); color: var(--ob-accent-ink); }
-
-/* Separatore fra gruppi di controlli, identico a quello del canvas. */
-.ob-chrono__tbar-sep { width: 1px; height: 20px; background: var(--ob-line-2); margin: 0 4px; flex-shrink: 0; }
+   Prima aveva `.ob-chrono__tbtn`, chip pieni su `--ob-surface-2` con l'attivo in
+   accent PIENO, e un commento che li dichiarava «stessa ricetta dei bottoni del
+   canvas» citando un file (`lib/pixel-toolbar.ts`) che nel frattempo aveva
+   cambiato ricetta due volte. È il motivo per cui la barra di Chrono era rimasta
+   indietro: la somiglianza era descritta, non condivisa. */
+.ob-chrono__toolbar { height: var(--ob-toolbar-height); flex-shrink: 0; display: flex; align-items: center; gap: 0; padding: 0 12px; background: var(--ob-surface); border-bottom: 1px solid var(--ob-line); }
 
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
@@ -215,17 +189,50 @@
 
 /* ── PANNELLO CALENDAR ── */
 .ob-chrono__cal { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--ob-canvas); overflow: hidden; }
-/* Barra annidata nel pannello calendario: livello 3 della scala → 40. */
-.ob-chrono__cal-head { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
-.ob-chrono__cal-icon { color: var(--ob-muted); display: inline-flex; }
-.ob-chrono__cal-eyebrow { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.13em; color: var(--ob-text); }
-.ob-chrono__cal-range { font-size: var(--ob-text-card); color: var(--ob-muted); }
-/* Ingombro esterno 30 come gli altri controlli: 26 di item + 2+2 di padding. */
-.ob-chrono__cal-seg { display: flex; gap: 2px; background: var(--ob-surface-2); border: none; border-radius: var(--ob-radius-sm); padding: 2px; }
-.ob-chrono__cal-seg-item { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: var(--ob-radius-sm); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__cal-seg-item--active { color: var(--ob-accent); background: var(--ob-accent-soft); }
-.ob-chrono__cal-nav { width: 26px; height: 26px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-muted); background: transparent; border: none; cursor: pointer; }
-.ob-chrono__cal-today { padding: 5px 12px; border-radius: var(--ob-radius-sm); font-size: var(--ob-text-card); font-weight: var(--ob-weight-body); color: var(--ob-text); border: none; background: transparent; cursor: pointer; }
+/* ⚠️ Il pannello NON ha più una barra propria. Ce l'aveva — `.ob-chrono__cal-head`,
+   40 di altezza, con iconcina, scritta «CALENDARIO», range, segmented delle
+   ampiezze e navigazione — e stava sotto la toolbar della vista: due strisce di
+   controlli una sull'altra per la stessa schermata, con quella sopra mezza vuota.
+   Tutto quello che faceva vive ora nella toolbar (vedi `ChronoView`), e i 40px
+   sono tornati alla griglia oraria, che è il motivo per cui si apre Chrono. */
+
+/* L'arco temporale mostrato: l'unica informazione in una barra di comandi.
+   Resta `card`/muted e non la taglia dei controlli — è un'etichetta, non un
+   pulsante, e leggerla non deve costare lo stesso di premerne uno.
+
+   ⚠️ La `min-width` è quello che tiene FERMI i comandi alla sua destra. Il testo
+   cambia lunghezza a ogni passo e a ogni cambio di ampiezza — «1 ago – 7 ago
+   2026», «27 lug – 2 ago 2026», «mer 10 set 2026», «settembre 2026» — e senza
+   uno slot fisso tutto quello che segue slitta avanti e indietro mentre navighi:
+   il puntatore è fermo sulla freccia «avanti» e la freccia gli scappa da sotto.
+
+   160 è abbondante di proposito: la forma più lunga (la settimana a cavallo di
+   due mesi) sta in circa 130, e il margine copre le lingue e i formati che
+   `toLocaleDateString` può rendere più prolissi. Un'etichetta che sforasse
+   spingerebbe comunque — che è il modo giusto di sbagliare, meglio di una data
+   tagliata a metà. */
+.ob-chrono__cal-range { font-size: var(--ob-text-card); color: var(--ob-muted); min-width: 160px; white-space: nowrap; }
+/* Le quattro ampiezze sono un carattere solo — 1 · 3 · 7 · M — e senza una
+   larghezza minima comune la «M» starebbe più larga delle cifre: la fila
+   sembrerebbe storta, e l'accesa si sposterebbe cambiando scelta. */
+.ob-chrono__cal-span { min-width: 30px; justify-content: center; }
+/* Campo «vai alla data». Forma e misure vengono da `.ob-toolinput` (il campo di
+   barra condiviso); qui restano solo le cose che riguardano il tipo `date`.
+   A riposo è muted come le altre etichette della barra e non `--ob-text`: è
+   informazione, non un valore che hai appena scritto. */
+.ob-chrono__cal-date {
+  padding: 0 6px;
+  color: var(--ob-muted);
+  /* ⚠️ Il pannellino del calendario e l'iconcina che lo apre sono disegnati dal
+     BROWSER: non leggono i nostri token, si colorano da `color-scheme`. Senza
+     questa riga, in dark restano bianchi in mezzo alla barra scura. */
+  color-scheme: light;
+}
+[data-theme='dark'] .ob-chrono__cal-date { color-scheme: dark; }
+.ob-chrono__cal-date:hover { color: var(--ob-text); }
+.ob-chrono__cal-date:focus { color: var(--ob-text); }
+.ob-chrono__cal-date::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.55; }
+.ob-chrono__cal-date:hover::-webkit-calendar-picker-indicator { opacity: 1; }
 
 /* day header */
 .ob-chrono__dayhead { display: flex; height: 46px; flex-shrink: 0; border-bottom: 1px solid var(--ob-line); }

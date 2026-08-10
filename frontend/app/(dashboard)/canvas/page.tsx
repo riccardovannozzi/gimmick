@@ -13,6 +13,10 @@ import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
 import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
+import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
+import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
+import { planPaper, type PaperFormat, type PaperOrientation } from '@/lib/paper';
+import { TILE_W, TILE_H } from '@/lib/tile-visual';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
@@ -48,6 +52,17 @@ export default function CanvasPage() {
   // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
+  // ─── FOGLIO (esporta in PDF) ───────────────────────────────────────────────
+  // `pdfMode` arma il gesto, `pdfArea` è l'area cerchiata (coordinate canvas).
+  // Formato e orientamento restano NULL finché non li imponi tu: null non vuol
+  // dire "vuoto", vuol dire "lo decide l'area" — vedi lib/paper.ts.
+  const [pdfMode, setPdfMode] = useState(false);
+  const [pdfArea, setPdfArea] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [pdfFormat, setPdfFormat] = useState<PaperFormat | null>(null);
+  const [pdfOrientation, setPdfOrientation] = useState<PaperOrientation | null>(null);
+  const [printing, setPrinting] = useState(false);
+  // La radice della board: la stampa la clona per impaginarla sul foglio.
+  const boardRootRef = useRef<HTMLDivElement | null>(null);
   const [selectedTileId, setSelectedTileId] = useState<string | null>(null);
   // Box (testo/immagine) selezionato con click singolo → contorno obsidian.
   const [selectedTextBoxId, setSelectedTextBoxId] = useState<string | null>(null);
@@ -850,6 +865,57 @@ export default function CanvasPage() {
     handleGroupsChange(ng);
   }, [canvasGroups, handleGroupsChange]);
 
+  // ─── FOGLIO ────────────────────────────────────────────────────────────────
+  // Il piano di stampa è DERIVATO dall'area: non c'è uno stato "formato scelto"
+  // da tenere in sincrono, c'è un'area e una funzione pura che la traduce in
+  // carta. Formato e orientamento imposti sono solo due deroghe a quella
+  // funzione, ed è per questo che possono restare null.
+  const pdfPlan = useMemo(
+    () => (pdfArea ? planPaper(pdfArea, { format: pdfFormat, orientation: pdfOrientation }) : null),
+    [pdfArea, pdfFormat, pdfOrientation],
+  );
+
+  const pdfPreview = useMemo(
+    () => (pdfPlan ? { sheet: pdfPlan.sheet, printable: pdfPlan.printable } : null),
+    [pdfPlan],
+  );
+
+  /** Quanti tile finiscono sul foglio: è la misura di quanto serve stamparlo. */
+  const pdfTileCount = useMemo(() => {
+    if (!pdfPlan) return 0;
+    const p = pdfPlan.printable;
+    return layout.filter((l: { x: number; y: number }) =>
+      l.x < p.x + p.w && l.x + TILE_W > p.x && l.y < p.y + p.h && l.y + TILE_H > p.y,
+    ).length;
+  }, [pdfPlan, layout]);
+
+  /** Nuova area cerchiata → il formato torna automatico: è un'altra domanda. */
+  const handlePdfArea = useCallback((area: { x: number; y: number; w: number; h: number }) => {
+    setPdfFormat(null);
+    setPdfOrientation(null);
+    setPdfArea(area);
+  }, []);
+
+  const closePdf = useCallback(() => {
+    setPdfMode(false);
+    setPdfArea(null);
+    setPdfFormat(null);
+    setPdfOrientation(null);
+    // Anche la stampa: chiudere mentre il foglio è montato lo smonta, e senza
+    // questo `printing` resterebbe acceso — la prossima area cerchiata partirebbe
+    // in stampa da sola.
+    setPrinting(false);
+  }, []);
+
+  // Esc esce dal foglio: chiude il pannello E disarma lo strumento, come per
+  // +Tile. Registrato solo quando serve, così non intercetta l'Esc di nessun altro.
+  useEffect(() => {
+    if (!pdfMode && !pdfArea) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePdf(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [pdfMode, pdfArea, closePdf]);
+
   // Menu del gruppo (Rinomina / Elimina) + modale di rinomina in stile Obsidian.
   const [groupCtx, setGroupCtx] = useState<{ x: number; y: number; groupId: string } | null>(null);
   const [renameGroup, setRenameGroup] = useState<{ id: string; name: string } | null>(null);
@@ -1006,10 +1072,18 @@ export default function CanvasPage() {
             tileMode={tileMode}
             imageMode={imageMode}
             selectMode={selectMode}
-            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); }}
-            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); }}
-            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setSelectMode(false); }}
-            onToggleSelectMode={() => { setSelectMode((v) => !v); setTextMode(false); setTileMode(false); setImageMode(false); }}
+            onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
+            onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
+            onToggleImageMode={() => { setImageMode((v) => !v); setTextMode(false); setTileMode(false); setSelectMode(false); closePdf(); }}
+            onToggleSelectMode={() => { setSelectMode((v) => !v); setTextMode(false); setTileMode(false); setImageMode(false); closePdf(); }}
+            pdfMode={pdfMode}
+            onTogglePdfMode={() => {
+              // Spegnendolo si porta via anche l'area e il pannello: il foglio
+              // esiste finché lo strumento è armato.
+              if (pdfMode) { closePdf(); return; }
+              setPdfMode(true);
+              setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false);
+            }}
             doneHighlight={doneHl}
             onToggleDoneHighlight={toggleDoneHl}
             pinnedTags={pinnedTags}
@@ -1031,7 +1105,7 @@ export default function CanvasPage() {
             // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
             // sproporzionato — qui cambia solo una regola CSS.
             className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
-            style={{ cursor: (textMode || tileMode || imageMode || selectMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
             // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
@@ -1083,6 +1157,10 @@ export default function CanvasPage() {
               tileMode={tileMode}
               imageMode={imageMode}
               selectMode={selectMode}
+              pdfMode={pdfMode}
+              onPdfArea={handlePdfArea}
+              pdfPreview={pdfPreview}
+              boardRootRef={boardRootRef}
               onGroupTiles={handleGroupTiles}
               onGroupContextMenu={handleGroupContextMenu}
               onGroupClick={handleGroupClick}
@@ -1163,8 +1241,37 @@ export default function CanvasPage() {
                 toccano il documento — spostano il punto da cui lo guardi — e
                 stavano lontanissimi dal loro effetto, che accade qui. */}
             <CanvasZoomControls onFit={handleFit} onZoom100={handleZoom100} />
+            {/* Il pannello del foglio sta SULLA lavagna, non sopra un fondale:
+                dietro di lui c'è l'anteprima con tutto il fuori-foglio velato,
+                ed è quella la risposta alla domanda «cosa entra». */}
+            {pdfPlan && pdfArea && (
+              <PdfExportPanel
+                plan={pdfPlan}
+                format={pdfFormat}
+                onFormat={setPdfFormat}
+                orientation={pdfPlan.orientation}
+                onOrientation={setPdfOrientation}
+                tileCount={pdfTileCount}
+                busy={printing}
+                onPrint={() => setPrinting(true)}
+                onClose={closePdf}
+              />
+            )}
           </div>
         </div>
+
+        {/* Monta il clone impaginato e chiama la stampa; si smonta da solo a
+            dialogo chiuso. Il pannello resta aperto: se hai annullato per
+            cambiare formato, lo trovi dov'era. */}
+        {printing && pdfPlan && pdfArea && (
+          <CanvasPrintSheet
+            plan={pdfPlan}
+            area={pdfArea}
+            source={boardRootRef.current}
+            doneHighlight={doneHl}
+            onDone={() => setPrinting(false)}
+          />
+        )}
 
           {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → edge → box di testo (editor)
               → MultiTileSidebar (≥2 tile) → TileSidebar. */}

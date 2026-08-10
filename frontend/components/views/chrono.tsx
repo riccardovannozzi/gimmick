@@ -19,13 +19,20 @@ import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/tiles/Tile';
 import { tileVisualKey, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { IconLayoutGrid } from '@tabler/icons-react';
+import { ToolButton, ToolWord } from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
 import type { StatusShape, ActionType } from '@/types';
 
-/** Modalità colorazione dei tile: per colore del tag oppure del tipo. */
-export type ChronoColorMode = 'tag' | 'type' | 'status';
+/*
+ * La COLORAZIONE dei tile (By Tag / By Type / By Status) non esiste più: tre
+ * modi di tingere di pieno lo stesso tile, di cui bisognava sceglierne uno
+ * perdendo gli altri due. Il significato lo portano già l'icona del tipo col suo
+ * colore, lo swatch dello status, il bordo e il badge — e il fondo pieno li
+ * copriva. Vedi la nota in `chrono-live.tsx`.
+ */
 
 /**
  * Gli action_type che hanno una COLONNA propria, cioè i tile senza collocazione
@@ -258,6 +265,20 @@ const HOURS = Array.from({ length: END - START + 1 }, (_, i) => START + i);
 
 /** Modalità del calendario: 1 giorno, 3 giorni, settimana, mese. */
 export type ChronoCalView = 'day' | '3day' | 'week' | 'month';
+
+/**
+ * Le quattro ampiezze del calendario, nell'ordine in cui stanno in barra.
+ *
+ * L'etichetta è un carattere solo: «1 · 3 · 7 · M» invece di «Day · 3 Days ·
+ * Week · Month». Sono giorni, e un numero di giorni si dice con un numero — la
+ * settimana pure, che è 7. Il nome per esteso sta nel tooltip.
+ */
+const CAL_SPANS: { view: ChronoCalView; label: string; title: string }[] = [
+  { view: 'day', label: '1', title: 'Un giorno' },
+  { view: '3day', label: '3', title: 'Tre giorni' },
+  { view: 'week', label: '7', title: 'Una settimana' },
+  { view: 'month', label: 'M', title: 'Un mese' },
+];
 export interface ChronoDay { dow: string; num: number }
 export interface ChronoTimed { day: number; s: number; e: number; title: string; kind: EventKind; amber?: boolean; id?: string; color?: string; done?: boolean; type?: TileMetaType; status?: { shape: StatusShape; color: string; label: string } }
 export interface ChronoAllDay { day: number; title: string; kind: EventKind; id?: string; color?: string; done?: boolean; type?: TileMetaType; status?: { shape: StatusShape; color: string; label: string } }
@@ -275,6 +296,20 @@ export interface ChronoCalendar {
   onPrev?: () => void;
   onNext?: () => void;
   onToday?: () => void;
+  /**
+   * Data mostrata dal campo «vai alla data», in `yyyy-mm-dd`. È l'inizio del
+   * periodo visibile (in vista mese, il primo del mese).
+   */
+  anchorDate?: string;
+  /**
+   * Salto a una data qualunque. Le frecce e «Oggi» sono navigazione RELATIVA:
+   * per arrivare a marzo dell'anno prossimo servono venti click.
+   *
+   * ⚠️ Passa la stringa `yyyy-mm-dd`, non un `Date`. `new Date('2026-08-10')` è
+   * mezzanotte UTC, che a ovest di Greenwich cade il giorno prima: chi riceve
+   * deve costruirsi la data nel fuso locale, componente per componente.
+   */
+  onGoToDate?: (isoDate: string) => void;
   onEventClick?: (id: string) => void;
   /** Tasto destro su un evento → menu contestuale. Per gli eventi timed passa
    *  lo slot (giorno + fascia) così "Incolla" può schedulare lì la copia. */
@@ -646,6 +681,74 @@ function AllDayCell({ dayIndex, cal }: { dayIndex: number; cal: ChronoCalendar }
   );
 }
 
+/**
+ * Campo «vai alla data».
+ *
+ * Un `<input type="date">` sembra un controllo unico ma è fatto di tre segmenti,
+ * e il browser aggiorna il proprio `value` a OGNI CIFRA: battendo «25» nel
+ * giorno il campo vale prima il 2 del mese, poi il 25. Legarlo dritto alla
+ * griglia rendeva la digitazione impossibile, e per un giro vizioso:
+ *
+ *   cifra → il campo cambia valore → la griglia ci salta → la griglia riscrive
+ *   il campo con la data del periodo che ha aperto → i segmenti già battuti
+ *   spariscono, e la cifra dopo cade in un campo azzerato.
+ *
+ * Il giro si spezza in due punti, e servono entrambi:
+ *
+ *   · finché il campo ha il FUOCO, quello che arriva da fuori non lo tocca (è
+ *     l'utente che sta scrivendo, non la griglia che deve dettare);
+ *   · il salto non parte a ogni cifra ma quando la digitazione si FERMA. Senza,
+ *     scrivere l'anno «2027» porterebbe la griglia — e la query degli eventi —
+ *     nell'anno 2, poi nel 20, poi nel 202. Invio e uscita dal campo saltano
+ *     l'attesa, così chi ha finito non aspetta.
+ *
+ * Quando la griglia si sposta per conto suo — frecce, «Oggi», cambio vista — il
+ * campo la segue.
+ */
+const GOTO_DEBOUNCE = 400;
+
+function CalDateInput({ value, onGo }: { value?: string; onGo: (iso: string) => void }) {
+  const [draft, setDraft] = React.useState(value ?? '');
+  const ref = React.useRef<HTMLInputElement>(null);
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    if (ref.current && document.activeElement === ref.current) return;
+    setDraft(value ?? '');
+  }, [value]);
+  React.useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+
+  const commit = (iso: string) => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    // L'anno fuori scala è una data a metà battitura, non una richiesta: la
+    // griglia non deve andarci, e la query degli eventi nemmeno.
+    const y = Number(iso.slice(0, 4));
+    if (!iso || !(y >= 1900 && y <= 2200)) return;
+    onGo(iso);
+  };
+
+  return (
+    <input
+      ref={ref}
+      type="date"
+      className="ob-toolinput ob-chrono__cal-date"
+      value={draft}
+      onChange={(e) => {
+        const v = e.target.value;
+        setDraft(v);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => commit(v), GOTO_DEBOUNCE);
+      }}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit(draft); }}
+      // Campo svuotato e lasciato lì: si rimette quello che la griglia mostra,
+      // perché un campo data vuoto sembra rotto.
+      onBlur={() => { if (draft) commit(draft); else setDraft(value ?? ''); }}
+      aria-label="Vai alla data"
+      title="Scrivi o scegli una data per andarci"
+    />
+  );
+}
+
 function Calendar({ cal }: { cal: ChronoCalendar }) {
   const view = cal.view ?? 'week';
 
@@ -672,25 +775,13 @@ function Calendar({ cal }: { cal: ChronoCalendar }) {
 
   return (
     <div className="ob-chrono__cal">
-      {/* Calendar header */}
-      <div className="ob-chrono__cal-head">
-        <span className="ob-chrono__cal-icon"><Icon name="calendar" size={15} /></span>
-        <span className="ob-chrono__cal-eyebrow">CALENDARIO</span>
-        <span className="ob-chrono__cal-range">{cal.rangeLabel}</span>
-        <div style={{ flex: 1 }} />
-        <div className="ob-chrono__cal-seg">
-          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'day' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('day')}>Day</button>
-          <button type="button" className={cn('ob-chrono__cal-seg-item', view === '3day' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('3day')}>3 Days</button>
-          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'week' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('week')}>Week</button>
-          <button type="button" className={cn('ob-chrono__cal-seg-item', view === 'month' && 'ob-chrono__cal-seg-item--active')} onClick={() => cal.onViewChange?.('month')}>Month</button>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 2, marginLeft: 4 }}>
-          <button type="button" className="ob-chrono__cal-nav" aria-label="Periodo precedente" onClick={cal.onPrev}><Icon name="chevL" size={14} /></button>
-          <button type="button" className="ob-chrono__cal-today" onClick={cal.onToday}>Oggi</button>
-          <button type="button" className="ob-chrono__cal-nav" aria-label="Periodo successivo" onClick={cal.onNext}><Icon name="chevR" size={14} /></button>
-        </div>
-      </div>
-
+      {/* La fascia «CALENDARIO» che stava qui NON esiste più: era una seconda
+          barra sotto la toolbar, alta 40, per comandi che riguardano la stessa
+          vista — due strisce di controlli una sull'altra, e 40px di verticale
+          tolti alla griglia che è il motivo per cui si apre Chrono. Range,
+          ampiezze, campo data e navigazione sono saliti nella toolbar (vedi
+          `ChronoView`); l'etichetta e l'iconcina sono sparite, perché in una
+          barra sola dire «CALENDARIO» sopra un calendario non aggiunge niente. */}
       {view === 'month' && cal.month ? (
         <MonthGrid cells={cal.month} selectedId={cal.selectedId} onEventClick={cal.onEventClick} onEventContextMenu={cal.onEventContextMenu} />
       ) : (
@@ -784,10 +875,6 @@ export interface ChronoViewProps {
   addArmed?: boolean;
   /** Doppio click su area vuota di Notes/Todo/Flow → crea una tile con quell'action_type. */
   onCreateColumnTile?: (actionType: ColumnActionType) => void;
-  /** Modalità colorazione tile attiva ('tag' | 'type'); se assente, il controllo è nascosto. */
-  colorMode?: ChronoColorMode;
-  /** Imposta la modalità colorazione (segmented By Tag / By Type). */
-  onSetColorMode?: (mode: ChronoColorMode) => void;
   /**
    * Tinge di verde le attività COMPLETATE, come il pulsante "Done" della topbar
    * del canvas. Non le filtra: i tile ci sono in entrambi gli stati, cambia solo
@@ -799,7 +886,7 @@ export interface ChronoViewProps {
 }
 
 export function ChronoView({
-  notes = NOTES, todos = TODOS, flows = FLOWS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile, colorMode, onSetColorMode,
+  notes = NOTES, todos = TODOS, flows = FLOWS, calendar = DEMO_CALENDAR, selectedId, onCardClick, onCardContextMenu, onMoveToColumn, onAddTile, addArmed, onCreateColumnTile,
   doneHighlight = false, onToggleDoneHighlight,
 }: ChronoViewProps) {
   return (
@@ -808,48 +895,77 @@ export function ChronoView({
     // colonne e i blocchi del calendario — che restano entrambi ignari di chi li
     // ospita: sono le regole di contesto a decidere.
     <div className={cn('ob-chrono', doneHighlight && 'ob-done-hl')}>
-      {/* Toolbar — gemella della toolbar del canvas (`CanvasTopbar`): stessa
-          stessa fascia, stessi chip da 30, e come lì i controlli stanno tutti a
-          destra (nel canvas la sinistra è occupata dalle linguette dei tag
-          pinnati, qui non c'è nulla di equivalente). */}
+      {/* Toolbar — stessi pezzi di CANVAS e KANBAN, presi dai primitivi.
+          Barra SOLA: i comandi del calendario stavano in una seconda fascia
+          sotto questa, che era vuota a sinistra mentre quella sotto era piena.
+          Ora la sinistra tiene il CALENDARIO — dove sei e come ti muovi — e la
+          destra quello che vale per tutta la vista, nello stesso ordine delle
+          altre due viste: prima quello che CREA, poi il modo di guardare, e Done
+          ultimo. */}
       <div className="ob-chrono__toolbar">
-        <div style={{ flex: 1 }} />
-        {colorMode && onSetColorMode && (
-          <>
-            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'tag' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('tag')} title="Colora i tile per Tag">By Tag</button>
-            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'type' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('type')} title="Colora i tile per Tipo">By Type</button>
-            <button type="button" className={cn('ob-chrono__tbtn', colorMode === 'status' && 'ob-chrono__tbtn--active')} onClick={() => onSetColorMode('status')} title="Colora i tile per Status">By Status</button>
-            <div className="ob-chrono__tbar-sep" />
-          </>
-        )}
-        {onToggleDoneHighlight && (
-          <>
-            {/* Non è una modalità di colorazione come le tre qui sopra: quelle
-                decidono da quale campo il tile prende il colore, questa accende
-                un segnale sopra tutte. Il separatore la tiene a parte. */}
-            <button
-              type="button"
-              className={cn('ob-chrono__tbtn', doneHighlight && 'ob-chrono__tbtn--active')}
-              onClick={onToggleDoneHighlight}
-              aria-pressed={doneHighlight}
-              title={doneHighlight
-                ? 'Togli il verde dalle attività completate'
-                : 'Evidenzia in verde le attività completate'}
+        <div className="ob-tools">
+          {/* L'unica informazione in una barra di comandi: dove sei nel tempo.
+              Prima aveva davanti un'iconcina e la scritta «CALENDARIO», che in
+              una barra sola dicono quello che si vede da sé. */}
+          <span className="ob-chrono__cal-range">{calendar.rangeLabel}</span>
+          <div className="ob-toolsep" />
+          {/* Quanto tempo guardi: 1 · 3 · 7 giorni, oppure il Mese. */}
+          {CAL_SPANS.map((s) => (
+            <ToolWord
+              key={s.view}
+              className="ob-chrono__cal-span"
+              on={(calendar.view ?? 'week') === s.view}
+              onClick={() => calendar.onViewChange?.(s.view)}
+              disabled={!calendar.onViewChange}
+              title={s.title}
             >
-              <Icon name="check" size={12} />Done
-            </button>
-            <div className="ob-chrono__tbar-sep" />
-          </>
-        )}
-        <button
-          type="button"
-          className={cn('ob-chrono__tbtn', addArmed && 'ob-chrono__tbtn--active')}
-          onClick={onAddTile}
-          aria-pressed={addArmed}
-          title={addArmed ? 'Clicca sul calendario per posizionare la tile (Esc per annullare)' : 'Posiziona una nuova tile sul calendario'}
-        >
-          <Icon name="plus" size={12} />Tile
-        </button>
+              {s.label}
+            </ToolWord>
+          ))}
+          {calendar.onGoToDate && (
+            <>
+              <div className="ob-toolsep" />
+              <CalDateInput value={calendar.anchorDate} onGo={calendar.onGoToDate} />
+            </>
+          )}
+          <div className="ob-toolsep" />
+          <ToolButton icon={<Icon name="chevL" size={14} />} label="Periodo precedente" onClick={calendar.onPrev} disabled={!calendar.onPrev} />
+          <ToolWord onClick={calendar.onToday} disabled={!calendar.onToday} title="Torna al periodo di oggi">Oggi</ToolWord>
+          <ToolButton icon={<Icon name="chevR" size={14} />} label="Periodo successivo" onClick={calendar.onNext} disabled={!calendar.onNext} />
+        </div>
+        <div style={{ flex: 1 }} />
+        <div className="ob-tools">
+          {/* Stesso glifo del «Tile» di canvas e kanban. Ed è un MODO, non un
+              comando: armato, il click sul calendario posiziona la tile — per
+              questo resta acceso, come gli strumenti di disegno del canvas. */}
+          <ToolButton
+            icon={<IconLayoutGrid size={16} stroke={1.6} />}
+            label={addArmed
+              ? 'Clicca sul calendario per posizionare la tile (Esc per annullare)'
+              : 'Posiziona una nuova tile sul calendario'}
+            active={addArmed}
+            onClick={onAddTile}
+            disabled={!onAddTile}
+          />
+          {onToggleDoneHighlight && (
+            <>
+              {/* Il separatore lo tiene a parte da «Tile», che invece crea. Il
+                  VERDE che prende da acceso è lo stesso che accende sui tile:
+                  mostra il suo effetto invece di descriverlo. */}
+              <div className="ob-toolsep" />
+              <ToolWord
+                on={doneHighlight}
+                tone="var(--ob-success)"
+                onClick={onToggleDoneHighlight}
+                title={doneHighlight
+                  ? 'Togli il verde dalle attività completate'
+                  : 'Evidenzia in verde le attività completate'}
+              >
+                Done
+              </ToolWord>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body */}

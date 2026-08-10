@@ -28,8 +28,11 @@
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { IconGripVertical, IconDots, IconArrowAutofitWidth, IconCircleCheck } from '@tabler/icons-react';
-import { Button } from '@/components/primitives';
+import {
+  IconGripVertical, IconDots, IconArrowAutofitWidth,
+  IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid,
+} from '@tabler/icons-react';
+import { ToolButton, ToolWord } from '@/components/primitives';
 import { Icon } from '@/components/shell';
 import { Tile } from '@/components/tiles/Tile';
 import {
@@ -669,19 +672,24 @@ export function KanbanView({
       // separati e altrimenti si dimensionerebbero ognuno per conto proprio.
       style={{ ['--ob-rail-w' as string]: `${railPx}px` }}
     >
-      {/* Toolbar — prima riga della vista (niente header con titolo/mascotte). */}
+      {/* Toolbar — prima riga della vista (niente header con titolo/mascotte).
+          Stessi pezzi della topbar del CANVAS, presi dai primitivi: `.ob-lug`,
+          `.ob-tool`, `.ob-toolword`. Niente più stili locali che li imitavano. */}
       <div className="ob-kanban__toolbar">
         {!!tagPills?.length && (
-          <>
-            <div className="ob-kanban__div" />
-            <div className="ob-kanban__tag-tabs">
+          // Lo SCROLL sta sul wrapper e il gruppo dentro: `overflow-x` diverso da
+          // `visible` fa ritagliare anche in verticale, e quello che verrebbe
+          // tagliato e' il pixel con cui la linguetta attiva copre la hairline —
+          // cioe' il varco. Vedi `.ob-lugs-scroll`.
+          <div className="ob-lugs-scroll">
+            <div className="ob-lugs">
               {tagPills.map((p) => {
                 const isActive = active.has(p.id);
                 return (
                   <button
                     key={p.id}
                     type="button"
-                    className={cn('ob-kanban__tag-tab', isActive && 'ob-kanban__tag-tab--active')}
+                    className={cn('ob-lug', isActive && 'ob-lug--active')}
                     // Click semplice: solo questo tag — e ricliccare la linguetta
                     // quando e' l'unica accesa toglie il filtro. Senza, servirebbe
                     // una linguetta "Tutti", che pero' non e' un tag pinnato e non
@@ -699,45 +707,66 @@ export function KanbanView({
                 );
               })}
             </div>
-          </>
+          </div>
         )}
         <div className="ob-kanban__spacer" />
-        {onToggleDoneHighlight && (
-          <>
-            {/* Non e' un comando di struttura come i tre qui a destra: e' un
-                modo di guardare la board. Il separatore lo tiene a parte, come
-                nella topbar del canvas. */}
-            <button
-              type="button"
-              className={cn('ob-kanban__ctrl', doneHighlight && 'ob-kanban__ctrl--active')}
-              onClick={onToggleDoneHighlight}
-              aria-pressed={doneHighlight}
-              title={doneHighlight
-                ? 'Togli il verde dalle attività completate'
-                : 'Evidenzia in verde le attività completate'}
-            >
-              <span className="ob-kanban__ctrl-icon"><IconCircleCheck size={13} stroke={1.6} /></span>Done
-            </button>
-            <div className="ob-kanban__div" />
-          </>
-        )}
-        {onReset && (
-          <button
-            type="button"
-            className="ob-kanban__ctrl"
-            onClick={() => { setCollapsedCols(new Set()); onReset(); }}
-            title="Cancella larghezze, altezze e ordine fissati a mano: la board torna ad adattarsi ai tile"
-          >
-            <span className="ob-kanban__ctrl-icon"><IconArrowAutofitWidth size={13} stroke={1.6} /></span>Adatta
-          </button>
-        )}
-        <button type="button" className="ob-kanban__ctrl" onClick={onAddColumn} disabled={!onAddColumn} title="Colonne verticali della board">
-          <span className="ob-kanban__ctrl-icon"><Icon name="kanban" size={13} /></span>Colonna
-        </button>
-        <button type="button" className="ob-kanban__ctrl" onClick={onAddLane} disabled={!onAddLane} title="Corsie orizzontali della board">
-          <span className="ob-kanban__ctrl-icon"><Icon name="list" size={13} /></span>Corsia
-        </button>
-        <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>Tile</Button>
+        {/* Tre gruppi separati da un filo, in ordine di raggio d'azione: il TILE
+            (il contenuto), poi la STRUTTURA che lo contiene, poi il modo di
+            GUARDARE quello che c'e'. Stesso glifo dello strumento «Tile» del
+            canvas: la stessa cosa si chiede con la stessa icona, in qualunque
+            vista si sia. Era un `+` con l'etichetta, e il `+` diceva «aggiungi»
+            ma non aggiungi COSA. */}
+        <div className="ob-tools">
+          <ToolButton
+            icon={<IconLayoutGrid size={16} stroke={1.6} />}
+            label="Nuovo tile"
+            onClick={onAddTile}
+            disabled={!onAddTile}
+          />
+          <div className="ob-toolsep" />
+          {/* Icone di INSERIMENTO, non di struttura: senza etichetta, una colonna
+              e una corsia si distinguono solo se l'icona dice dove finiscono. */}
+          <ToolButton
+            icon={<IconColumnInsertRight size={16} stroke={1.6} />}
+            label="Nuova colonna"
+            onClick={onAddColumn}
+            disabled={!onAddColumn}
+          />
+          <ToolButton
+            icon={<IconRowInsertBottom size={16} stroke={1.6} />}
+            label="Nuova corsia"
+            onClick={onAddLane}
+            disabled={!onAddLane}
+          />
+          {onReset && (
+            <ToolButton
+              icon={<IconArrowAutofitWidth size={16} stroke={1.6} />}
+              label="Adatta — cancella larghezze, altezze e ordine fissati a mano: la board torna ad adattarsi ai tile"
+              onClick={() => { setCollapsedCols(new Set()); onReset(); }}
+            />
+          )}
+          {onToggleDoneHighlight && (
+            <>
+              {/* Ultimo a destra, dopo il separatore, esattamente come nella
+                  topbar del canvas: non e' un comando di struttura come quelli
+                  qui accanto, non crea niente e cambia solo COME guardi la board.
+                  Una parola nuda; accesa si tinge di VERDE, cioe' del colore che
+                  accende sulle card — mostra il suo effetto invece di
+                  descriverlo. */}
+              <div className="ob-toolsep" />
+              <ToolWord
+                on={doneHighlight}
+                tone="var(--ob-success)"
+                onClick={onToggleDoneHighlight}
+                title={doneHighlight
+                  ? 'Togli il verde dalle attività completate'
+                  : 'Evidenzia in verde le attività completate'}
+              >
+                Done
+              </ToolWord>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Board */}

@@ -5,31 +5,118 @@ import { useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as d3 from 'd3';
 import { sparksApi, tilesApi, tagsApi, uploadApi, settingsApi } from '@/lib/api';
-import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconTag, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconEye, IconSettings2, IconChevronDown, IconFilter, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
+import { IconLoader2, IconZoomIn, IconZoomOut, IconMaximize, IconPlus, IconX, IconTrash, IconLink, IconPencil, IconChevronDown, IconAdjustmentsHorizontal, IconPalette } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
-import { obsidianToolbarBtn, obsidianSegmentedBtn, obsidianSegmentedContainer } from '@/lib/pixel-toolbar';
+import { ToolButton, ToolWord } from '@/components/primitives';
+import { ACTION_ITEMS } from '@/lib/kanban-axis';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useTileNotificationStore } from '@/store/tile-notification-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { useTagTypes } from '@/store/tag-types-store';
 import type { TagNode, TagEdge, ActionType } from '@/types';
-import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
+import { OB_TEXT } from '@/lib/theme/ob-typography';
 
-// ─── Content filter types ───
-type FilterKey = 'tiles' | 'photo' | 'image' | 'video' | 'audio_recording' | 'text' | 'file';
-
-// Filter list (chip labels). Colors are resolved at runtime against theme.cap
-// — see filterColor() inside the component so they react to palette changes.
-const filterConfig: { key: FilterKey; label: string }[] = [
-  { key: 'tiles', label: 'Tiles' },
-  { key: 'photo', label: 'Foto' },
-  { key: 'image', label: 'Image' },
-  { key: 'video', label: 'Video' },
-  { key: 'audio_recording', label: 'Voce' },
-  { key: 'text', label: 'Testo' },
-  { key: 'file', label: 'File' },
+/**
+ * ─── I tre LIVELLI del grafo ─────────────────────────────────────────────────
+ *
+ * Dal più generale al più minuto: i tag, i tile che ci stanno appesi, gli spark
+ * dentro i tile. Non sono tre interruttori indipendenti ma una PROFONDITÀ, e la
+ * ragione è nei dati: uno spark vive dentro un tile, un tile sotto un tag.
+ * Mostrare gli spark senza i tile vorrebbe dire disegnare figli senza genitori —
+ * ogni spark si aggancerebbe alla radice e il grafo direbbe una cosa falsa sulla
+ * struttura dell'archivio.
+ *
+ * Quindi si scende un gradino alla volta, e spegnere un gradino spegne anche
+ * tutto quello che gli sta sotto. `tags` è il fondo della scala: i tag ci sono
+ * sempre, sono l'impalcatura su cui il resto è appeso.
+ *
+ * Ogni livello ha poi un FILTRO suo, nella tendina che si apre dal chevron: i
+ * tag per nome, i tile per azione, gli spark per tipo. Anche i filtri cadono in
+ * cascata — vedi `visibleTagIds` nell'effetto: escludere un tag porta via i suoi
+ * tile, ed escludere un tile porta via i suoi spark. Non è una scelta di comodo,
+ * è la stessa ragione dei livelli: un nodo senza il suo genitore non ha un posto
+ * dove stare, e disegnarlo attaccato alla radice racconterebbe una gerarchia che
+ * non esiste.
+ */
+type GraphDepth = 'tags' | 'tiles' | 'sparks';
+const DEPTH_ORDER: GraphDepth[] = ['tags', 'tiles', 'sparks'];
+const DEPTH_CONFIG: { depth: GraphDepth; label: string; title: string }[] = [
+  { depth: 'tags', label: 'Tags', title: 'Mostra solo i tag' },
+  { depth: 'tiles', label: 'Tiles', title: 'Mostra anche i tile appesi ai tag' },
+  { depth: 'sparks', label: 'Sparks', title: 'Mostra anche gli spark dentro i tile' },
 ];
+
+/**
+ * Le AZIONI su cui si filtrano i tile. Le etichette sono quelle canoniche di
+ * `lib/kanban-axis.ts`, così un «Due» qui e un «Due» nel Kanban sono la stessa
+ * cosa detta con la stessa parola.
+ *
+ * ⚠️ Manca `allday`, che in quella lista c'è. Non è un `action_type` salvato —
+ * è `event` con `all_day: true` — e l'endpoint del grafo restituisce dei tile
+ * solo `id, title, created_at, action_type`: `all_day` non arriva, quindi qui un
+ * «Daily» sarebbe una casella che non può mai corrispondere a niente.
+ */
+const TILE_KIND_ITEMS = ACTION_ITEMS.filter((a) => a.value !== 'allday');
+const ALL_TILE_KINDS = TILE_KIND_ITEMS.map((a) => a.value);
+
+/** I tipi di spark, con le etichette già in uso nel tooltip dei nodi. */
+const SPARK_KIND_ITEMS: { value: string; label: string }[] = [
+  { value: 'photo', label: 'Foto' },
+  { value: 'image', label: 'Immagine' },
+  { value: 'video', label: 'Video' },
+  { value: 'audio_recording', label: 'Audio' },
+  { value: 'text', label: 'Testo' },
+  { value: 'file', label: 'File' },
+];
+const ALL_SPARK_KINDS = SPARK_KIND_ITEMS.map((s) => s.value);
+
+/**
+ * L'elenco a caselle di un filtro di livello (azioni dei tile, tipi di spark).
+ * «Mostra tutti» compare solo quando serve davvero, cioè quando qualcosa è
+ * escluso: sempre presente sarebbe un comando che il più delle volte non fa
+ * niente, e diluirebbe il segnale che il filtro è attivo.
+ */
+function FilterList({ items, selected, onToggle, onAll }: {
+  items: { value: string; label: string }[];
+  selected: Set<string>;
+  onToggle: (value: string) => void;
+  onAll: () => void;
+}) {
+  const all = items.every((i) => selected.has(i.value));
+  return (
+    <>
+      {items.map((it) => {
+        const on = selected.has(it.value);
+        return (
+          <button
+            key={it.value}
+            type="button"
+            className="ob-ctx__item"
+            onClick={() => onToggle(it.value)}
+            aria-pressed={on}
+          >
+            <span className={cn('ob-graph__box', on && 'ob-graph__box--on')} />
+            <span>{it.label}</span>
+          </button>
+        );
+      })}
+      {!all && (
+        <>
+          <div className="ob-ctx__sep" />
+          <button
+            type="button"
+            className="ob-ctx__item"
+            style={{ color: 'var(--ob-accent)' }}
+            onClick={onAll}
+          >
+            Mostra tutti
+          </button>
+        </>
+      )}
+    </>
+  );
+}
 
 const typeLabels: Record<string, string> = {
   photo: 'Foto',
@@ -113,10 +200,6 @@ export default function GraphPage() {
     text: theme.cap.text,
     file: theme.cap.file,
   }), [theme.cap]);
-  const filterColor = useCallback((key: FilterKey) => {
-    if (key === 'tiles') return theme.accent;
-    return typeColors[key] || theme.ink3;
-  }, [typeColors, theme.accent, theme.ink3]);
   const TAG_NODE_COLOR_THEME = theme.ink3;
 
   // ─── State ───
@@ -152,10 +235,15 @@ export default function GraphPage() {
   // Toolbar mode
   const [toolbarMode, setToolbarMode] = useState<'navigate' | 'edit'>('navigate');
 
-  // Content filters
-  const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(
-    () => new Set(filterConfig.map((f) => f.key))
-  );
+  // Fin dove scende il grafo. `sparks` = tutto, com'era con tutti i filtri accesi.
+  const [depth, setDepth] = useState<GraphDepth>('sparks');
+  // Il filtro CONTESTUALE di ciascun livello. Vuoto/completo = nessun filtro.
+  const [tagQuery, setTagQuery] = useState('');
+  const [tileKinds, setTileKinds] = useState<Set<string>>(() => new Set(ALL_TILE_KINDS));
+  const [sparkKinds, setSparkKinds] = useState<Set<string>>(() => new Set(ALL_SPARK_KINDS));
+  /** Quale tendina è aperta. Una sola alla volta: sono tre viste sullo stesso
+   *  filtro a cascata, e aprirne due insieme non aiuterebbe a leggerlo. */
+  const [openPanel, setOpenPanel] = useState<GraphDepth | null>(null);
   const searchParams = useSearchParams();
   const tagParam = searchParams.get('tag');
   const [selectedTagId, setSelectedTagId] = useState<string | null>(null);
@@ -164,8 +252,6 @@ export default function GraphPage() {
   useEffect(() => {
     if (tagParam) setSelectedTagId(tagParam);
   }, [tagParam]);
-  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false);
-  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [timeRange, setTimeRange] = useState<[number, number]>([0, 100]);
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef<'start' | 'end' | null>(null);
@@ -273,14 +359,58 @@ export default function GraphPage() {
   }, [dateExtent, timeRange]);
 
   // ─── Callbacks ───
-  const toggleFilter = useCallback((key: FilterKey) => {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
+  /**
+   * Click su un livello. Non è un interruttore indipendente — vedi `GraphDepth`:
+   *   · acceso  → si spegne, e con lui tutto quello che gli sta sotto (il grafo
+   *               risale al livello di sopra);
+   *   · spento  → si accende solo se il livello sopra è già acceso, cioè solo se
+   *               è il gradino immediatamente successivo;
+   *   · `tags`  → è il fondo della scala e non si spegne: cliccarlo vuol dire
+   *               «solo i tag», che è la scorciatoia per risalire tutto d'un
+   *               colpo.
+   */
+  const selectDepth = useCallback((d: GraphDepth) => {
+    setDepth((prev) => {
+      if (d === 'tags') return 'tags';
+      const i = DEPTH_ORDER.indexOf(d);
+      if (DEPTH_ORDER.indexOf(prev) >= i) return DEPTH_ORDER[i - 1];
+      return DEPTH_ORDER.indexOf(prev) === i - 1 ? d : prev;
     });
   }, []);
+
+  /** Accende/spegne una voce dentro il filtro di un livello. */
+  const toggleIn = useCallback(
+    (set: (fn: (prev: Set<string>) => Set<string>) => void) => (value: string) => {
+      set((prev) => {
+        const next = new Set(prev);
+        if (next.has(value)) next.delete(value);
+        else next.add(value);
+        return next;
+      });
+    },
+    [],
+  );
+  const toggleTileKind = useMemo(() => toggleIn(setTileKinds), [toggleIn]);
+  const toggleSparkKind = useMemo(() => toggleIn(setSparkKinds), [toggleIn]);
+
+  /** Quel livello sta escludendo qualcosa? Accende il chevron. */
+  const levelNarrowed = useCallback((d: GraphDepth) => {
+    if (d === 'tags') return tagQuery.trim() !== '';
+    if (d === 'tiles') return tileKinds.size < ALL_TILE_KINDS.length;
+    return sparkKinds.size < ALL_SPARK_KINDS.length;
+  }, [tagQuery, tileKinds, sparkKinds]);
+
+  // Click fuori → la tendina si chiude. Sul `mousedown` e non sul `click`, così
+  // non si riapre da sola quando il gesto parte fuori e finisce sul chevron.
+  useEffect(() => {
+    if (!openPanel) return;
+    const onDown = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest?.('.ob-graph__level')) return;
+      setOpenPanel(null);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [openPanel]);
 
   const handleTimelineDrag = useCallback(
     (e: React.MouseEvent | MouseEvent) => {
@@ -336,7 +466,8 @@ export default function GraphPage() {
     const tagNodes: TagNode[] = tagGraph ? (tagGraph.nodes as TagNode[]) : [];
     const tagEdges: TagEdge[] = tagGraph ? (tagGraph.edges as TagEdge[]) : [];
 
-    const showTiles = activeFilters.has('tiles');
+    const showTiles = depth !== 'tags';
+    const showSparks = depth === 'sparks';
 
     const inTimeRange = (dateStr: string) => {
       if (!timeFilter) return true;
@@ -344,12 +475,45 @@ export default function GraphPage() {
       return t >= timeFilter.from && t <= timeFilter.to;
     };
 
-    const timeTiles = tiles.filter((t) => inTimeRange(t.created_at));
-    const timeSparks = sparks.filter((m) => inTimeRange(m.created_at));
-    const filteredSparks = timeSparks.filter((m) => activeFilters.has(m.type as FilterKey));
+    /**
+     * ─── I filtri contestuali, e la CASCATA ───────────────────────────────────
+     *
+     * Ogni livello ha il suo filtro, ma non si applicano uno indipendentemente
+     * dall'altro: un nodo entra in scena solo se ci entra anche il suo genitore.
+     * Escludere un tag porta via i suoi tile, ed escludere un tile porta via i
+     * suoi spark — è la stessa ragione per cui i livelli sono una scala.
+     *
+     * L'unica eccezione sono gli orfani veri: uno spark senza `tile_id` non ha un
+     * genitore da seguire e resta appeso a GIMMICK, come ha sempre fatto.
+     *
+     * ⚠️ Anche il filtro TEMPORALE ora cade in cascata. Prima no: uno spark nella
+     * finestra il cui tile ne era fuori si riagganciava alla radice. Con una
+     * regola sola — «nessun nodo senza il suo genitore» — quello spark segue il
+     * tile fuori scena. È il prezzo della coerenza, e toglie di mezzo la classe
+     * di bug dei link con un capo che non esiste.
+     */
+    const tagNeedle = tagQuery.trim().toLowerCase();
+    const tagPass = (name: string) => !tagNeedle || name.toLowerCase().includes(tagNeedle);
+    const tileKindPass = (t: { action_type?: string | null }) =>
+      tileKinds.has(t.action_type || 'none');
 
+    const timeTiles = tiles.filter((t) => inTimeRange(t.created_at) && tileKindPass(t));
+    const timeSparks = sparks.filter((m) => inTimeRange(m.created_at));
+    const filteredSparks = showSparks
+      ? timeSparks.filter((m) => sparkKinds.has(m.type))
+      : [];
+
+    /**
+     * ⚠️ Il conteggio si fa su `timeSparks`, cioè su TUTTI gli spark del periodo,
+     * non su quelli disegnati. Quanti spark contenga un tile è una proprietà del
+     * tile, e non cambia perché hai chiuso il livello che li mostra: contandoli
+     * su `filteredSparks` ogni tile crollava a zero appena risalivi a «Tiles»,
+     * e i nodi si rimpicciolivano tutti insieme come se l'archivio si fosse
+     * svuotato. (Col vecchio filtro per tipo il difetto c'era già, solo più
+     * mimetizzato: spegnere «Foto» scontava anche le foto dal conteggio.)
+     */
     const sparkCounts = new Map<string, number>();
-    filteredSparks.forEach((m) => {
+    timeSparks.forEach((m) => {
       if (m.tile_id) sparkCounts.set(m.tile_id, (sparkCounts.get(m.tile_id) || 0) + 1);
     });
 
@@ -470,6 +634,11 @@ export default function GraphPage() {
       let gimmickNodeId: string | null = null;
       const colorForTagType = (tt: string): string => getTagTypeColor(tt) || TAG_NODE_COLOR_THEME;
       for (const t of tagNodes) {
+        // ⚠️ La RADICE non si filtra mai per nome: è l'appiglio degli orfani —
+        // i tile senza tag e gli spark senza tile — e toglierla li lascerebbe
+        // senza un posto dove stare. Cercare «viaggio» deve stringere il grafo,
+        // non farne cadere dei pezzi in mezzo al nulla.
+        if (!t.is_root && !tagPass(t.name)) continue;
         const tt = tagTypeMap.get(t.id) || 'topic';
         const node: GraphNode = {
           id: `tag-${t.id}`,
@@ -490,6 +659,7 @@ export default function GraphPage() {
       // Also add tags from content data that might not be in tagGraph
       for (const tag of graphTags) {
         if (!tagNodeMap.has(tag.id)) {
+          if (!tagPass(tag.name)) continue;
           const tt = tagTypeMap.get(tag.id) || 'topic';
           const node: GraphNode = {
             id: `tag-${tag.id}`,
@@ -530,10 +700,38 @@ export default function GraphPage() {
         }
       }
 
+      /**
+       * ─── Cascata: quale tile ha ancora un tag che lo tiene ──────────────────
+       *
+       * Un tile entra in scena se almeno uno dei suoi tag c'è, oppure se non ha
+       * tag propri — allora è un orfano e si appende a GIMMICK. Se invece i suoi
+       * tag esistono ma li ha esclusi tutti il filtro per nome, il tile esce con
+       * loro: è questo il senso di «a cascata».
+       *
+       * ⚠️ Il tag RADICE non conta in questo conto. GIMMICK è attaccato a ogni
+       * tile per costruzione (lo mette il backend alla creazione), quindi
+       * chiedere «ha almeno un tag visibile?» tenendolo dentro avrebbe risposto
+       * sempre sì, e il filtro sui nomi non avrebbe tolto un solo tile. Un tile
+       * il cui unico tag è GIMMICK è, di fatto, senza tag.
+       */
+      const rootTagIds = new Set(tagNodes.filter((t) => t.is_root).map((t) => t.id));
+      const tileHasOwnTag = new Set<string>();
+      const tileHasVisibleTag = new Set<string>();
+      for (const tag of graphTags) {
+        if (rootTagIds.has(tag.id)) continue;
+        for (const tid of tag.tile_ids) {
+          tileHasOwnTag.add(tid);
+          if (tagNodeMap.has(tag.id)) tileHasVisibleTag.add(tid);
+        }
+      }
+      const visibleTiles = timeTiles.filter(
+        (t) => !tileHasOwnTag.has(t.id) || tileHasVisibleTag.has(t.id),
+      );
+
       // Tile nodes (skip in edit mode)
       const tileNodeIds = new Set<string>();
       if (showTiles && !isEditMode) {
-        timeTiles.forEach((tile) => {
+        visibleTiles.forEach((tile) => {
           const nodeId = `tile-${tile.id}`;
           nodes.push({
             id: nodeId,
@@ -559,7 +757,7 @@ export default function GraphPage() {
         }
         // Tiles without tags → connect to GIMMICK node
         if (gimmickNodeId) {
-          timeTiles.forEach((tile) => {
+          visibleTiles.forEach((tile) => {
             if (!tilesLinkedByTag.has(`tile-${tile.id}`))
               links.push({ source: gimmickNodeId!, target: `tile-${tile.id}`, linkType: 'tag-tile' });
           });
@@ -569,6 +767,30 @@ export default function GraphPage() {
       // Spark nodes (skip in edit mode)
       if (!isEditMode) {
         filteredSparks.forEach((spark) => {
+          /**
+           * ─── Chi tiene questo spark ─────────────────────────────────────────
+           *
+           * Il nodo del tile deve ESISTERE davvero: non basta che lo spark porti
+           * un `tile_id`. Un tile può mancare dalla scena per tre motivi — la
+           * finestra temporale, il filtro per azione, il filtro sui nomi dei tag
+           * che ha portato via i suoi tag — e in tutti e tre lo spark lo segue
+           * fuori. È la cascata: un figlio senza il suo genitore non ha un posto
+           * dove stare, e appenderlo alla radice racconterebbe una gerarchia che
+           * non esiste.
+           *
+           * Restano appesi a GIMMICK solo gli orfani veri: gli spark che un
+           * `tile_id` non ce l'hanno proprio.
+           *
+           * ⚠️ Il controllo va fatto PRIMA di aggiungere il nodo, non solo prima
+           * del link. Con il nodo dentro e il link no, lo spark galleggerebbe
+           * slegato; con il link e senza il nodo, `forceLink` muore in partenza
+           * («node not found: tile-…»).
+           */
+          const tileNodeId = spark.tile_id ? `tile-${spark.tile_id}` : null;
+          const parent = tileNodeId && tileNodeIds.has(tileNodeId) ? tileNodeId : null;
+          if (spark.tile_id && !parent) return;
+          const anchor = parent ?? gimmickNodeId;
+          if (!anchor) return;
           nodes.push({
             id: `spark-${spark.id}`,
             type: 'spark',
@@ -578,10 +800,7 @@ export default function GraphPage() {
             summary: spark.summary || undefined,
             storagePath: (spark as Record<string, unknown>).storage_path as string || undefined,
           });
-          if (showTiles && spark.tile_id)
-            links.push({ source: `tile-${spark.tile_id}`, target: `spark-${spark.id}`, linkType: 'tile-spark' });
-          else if (gimmickNodeId)
-            links.push({ source: gimmickNodeId, target: `spark-${spark.id}`, linkType: 'tile-spark' });
+          links.push({ source: anchor, target: `spark-${spark.id}`, linkType: 'tile-spark' });
         });
       }
     }
@@ -1228,14 +1447,12 @@ export default function GraphPage() {
     svg.on('click', () => {
       setContextMenu(null);
       setSelectedEdge(null);
-      setFilterDropdownOpen(false);
-      setTagDropdownOpen(false);
       if (linkModeRef.current) { setLinkSource(null); setLinkMode(false); }
       resetLinkStyles();
     });
 
     return () => { simulation.stop(); };
-  }, [graphData, tagGraph, activeFilters, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities, theme, typeColors, TAG_NODE_COLOR_THEME]);
+  }, [graphData, tagGraph, depth, tagQuery, tileKinds, sparkKinds, timeFilter, selectedTagId, toolbarMode, physics, queryClient, ACTION_TYPE_COLORS, allTags, tagTypeEntities, theme, typeColors, TAG_NODE_COLOR_THEME]);
 
   // ─── Derived state ───
   const isLoading = contentLoading || tagGraphLoading;
@@ -1247,297 +1464,200 @@ export default function GraphPage() {
   const bW = 1;
   const headFont = 'var(--ob-font-mono)';
   const bodyFont = 'var(--ob-font-sans)';
-  const pillBtn = (active: boolean): React.CSSProperties =>
-    obsidianToolbarBtn(theme, active);
-  const popupContainer: React.CSSProperties = {
-    position: 'absolute',
-    top: '100%',
-    left: 0,
-    marginTop: 4,
-    zIndex: 50,
-    background: theme.surface,
-    border: `${bW}px solid ${theme.border}`,
-    borderRadius: 'var(--ob-radius-md)',
-    boxShadow: 'var(--ob-shadow-card)',
-    padding: 4,
-  };
-  const popupItem = (active: boolean): React.CSSProperties => {
-    return {
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      width: '100%',
-      padding: '6px 8px',
-      textAlign: 'left',
-      borderRadius: 'var(--ob-radius-sm)',
-      background: active ? theme.surfaceVariant : 'transparent',
-      border: `${bW}px solid transparent`,
-      color: active ? theme.ink : theme.ink2,
-      fontWeight: active ? OB_WEIGHT.emphasis : OB_WEIGHT.body,
-      fontFamily: bodyFont,
-      fontSize: OB_TEXT.card,
-      cursor: 'pointer',
-    };
-  };
+  /*
+   * `pillBtn`, `popupContainer` e `popupItem` non ci sono più: erano la ricetta
+   * dei bottoni-pillola di `lib/pixel-toolbar.ts` e una tendina ridisegnata a
+   * mano. La barra usa i primitivi condivisi (`.ob-tool`, `.ob-toolword`) e le
+   * tendine il `.ob-ctx`, lo stesso menu contestuale della sidebar dei tag.
+   */
 
   return (
     <div className={cn('flex flex-col h-full', 'flex-1 min-w-0')} style={{ background: theme.bg1 }}>
 
-      {/* Toolbar */}
-      <div
-        style={{
-          padding: '8px 16px',
-          background: theme.bg2,
-          borderBottom: `${bW}px solid ${theme.border}`,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          flexWrap: 'wrap',
-        }}
-      >
-        {/* Mode toggle (segmented) */}
-        <div style={obsidianSegmentedContainer(theme)}>
-          <button
-            onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
-            style={obsidianSegmentedBtn(theme, toolbarMode === 'navigate')}
-          >
-            <IconEye size={12} />
-            Navigate
-          </button>
-          <button
-            onClick={() => setToolbarMode('edit')}
-            style={obsidianSegmentedBtn(theme, toolbarMode === 'edit')}
-          >
-            <IconSettings2 size={12} />
-            Edit Tag
-          </button>
-        </div>
-
-        <div style={{ width: bW, height: 20, background: theme.border }} />
-
-        {toolbarMode === 'navigate' ? (
-          <>
-            {/* Filter dropdown */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => { setFilterDropdownOpen((p) => !p); setTagDropdownOpen(false); }}
-                className="px-press"
-                style={pillBtn(false)}
-              >
-                <IconFilter size={12} />
-                Filtri
-                {activeFilters.size < filterConfig.length && (
-                  <span
-                    style={{
-                      background: theme.accent,
-                      color: theme.onAccent,
-                      border: `${bW}px solid ${theme.border}`,
-                      padding: '1px 5px',
-                      fontFamily: headFont,
-                      fontSize: OB_TEXT.eyebrow,
-                    }}
-                  >
-                    {activeFilters.size}
+      {/* Toolbar — stessi pezzi di CHRONO, CANVAS e KANBAN, presi dai primitivi:
+          `.ob-tool` per i modi e i comandi, `.ob-toolword` per il tag aperto,
+          `.ob-toolsep` fra le famiglie, `.ob-ctx` per le tendine. */}
+      <div className="ob-graph__toolbar">
+        <div className="ob-tools">
+          {toolbarMode === 'navigate' ? (
+            <>
+              {/* Fin dove scende il grafo. Tre parole invece di una tendina da
+                  aprire: lo stato si legge senza cliccare, ed è il livello a cui
+                  stai guardando — l'informazione più importante della barra.
+                  Sono in scala, non in parallelo: «Sparks» è spento finché non
+                  ci sono i «Tiles», perché uno spark senza il suo tile sarebbe un
+                  figlio senza genitore. Vedi `GraphDepth`. */}
+              {DEPTH_CONFIG.map((lv, i) => {
+                const on = DEPTH_ORDER.indexOf(depth) >= i;
+                const reachable = DEPTH_ORDER.indexOf(depth) >= i - 1;
+                const narrowed = levelNarrowed(lv.depth);
+                return (
+                  /* Controllo SDOPPIATO: la parola sceglie il livello, il chevron
+                     apre il filtro di quel livello. Sono due gesti diversi — «fin
+                     dove scendo» e «di questo livello, cosa» — e su un bersaglio
+                     solo uno dei due sarebbe stato una sorpresa. Il chevron si
+                     accende quando quel filtro sta escludendo qualcosa: un grafo
+                     ridotto non può tacerlo. */
+                  <span className="ob-graph__level" key={lv.depth}>
+                    <ToolWord
+                      on={on}
+                      disabled={!reachable}
+                      onClick={() => selectDepth(lv.depth)}
+                      title={reachable ? lv.title : `Prima accendi «${DEPTH_CONFIG[i - 1].label}»`}
+                    >
+                      {/* La casella dice ACCESO/SPENTO; il colore da solo non
+                          bastava — tre parole tutte in accent si leggono come
+                          uno stile, non come uno stato, e per capire quali
+                          livelli fossero attivi bisognava confrontarle fra loro.
+                          È la stessa casella delle voci nelle tendine: qui la
+                          selezione è la stessa cosa, un gradino più su.
+                          C'è sempre, piena o vuota, così accendere un livello
+                          non cambia la larghezza e la fila non si sposta. */}
+                      <span className={cn('ob-graph__box', on && 'ob-graph__box--on')} />
+                      {lv.label}
+                    </ToolWord>
+                    <button
+                      type="button"
+                      className={cn('ob-graph__caret', narrowed && 'ob-graph__caret--on')}
+                      disabled={!reachable}
+                      aria-expanded={openPanel === lv.depth}
+                      aria-label={`Filtra ${lv.label}`}
+                      title={narrowed ? `${lv.label} — filtro attivo` : `Filtra ${lv.label}`}
+                      onClick={() => setOpenPanel((p) => (p === lv.depth ? null : lv.depth))}
+                    >
+                      <IconChevronDown size={12} stroke={1.8} />
+                    </button>
+                    {openPanel === lv.depth && (
+                      <div className="ob-ctx" style={{ minWidth: lv.depth === 'tags' ? 210 : 180 }}>
+                        {lv.depth === 'tags' ? (
+                          <>
+                            {/* Per nome, e in tempo reale: l'elenco dei tag lo
+                                hai già sul grafo, quello che manca è stringerlo. */}
+                            <input
+                              className="ob-toolinput"
+                              style={{ width: '100%', height: 28 }}
+                              placeholder="Filtra i tag per nome…"
+                              value={tagQuery}
+                              autoFocus
+                              onChange={(e) => setTagQuery(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Escape') setOpenPanel(null); }}
+                            />
+                            {!!tagQuery && (
+                              <>
+                                <div className="ob-ctx__sep" />
+                                <button
+                                  type="button"
+                                  className="ob-ctx__item"
+                                  style={{ color: 'var(--ob-accent)' }}
+                                  onClick={() => setTagQuery('')}
+                                >
+                                  Mostra tutti i tag
+                                </button>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <FilterList
+                            items={lv.depth === 'tiles' ? TILE_KIND_ITEMS : SPARK_KIND_ITEMS}
+                            selected={lv.depth === 'tiles' ? tileKinds : sparkKinds}
+                            onToggle={lv.depth === 'tiles' ? toggleTileKind : toggleSparkKind}
+                            onAll={() =>
+                              (lv.depth === 'tiles' ? setTileKinds : setSparkKinds)(
+                                new Set(lv.depth === 'tiles' ? ALL_TILE_KINDS : ALL_SPARK_KINDS),
+                              )
+                            }
+                          />
+                        )}
+                      </div>
+                    )}
                   </span>
-                )}
-                <IconChevronDown size={11} style={{ marginLeft: 2 }} />
-              </button>
-              {filterDropdownOpen && (
-                <div style={{ ...popupContainer, minWidth: 180 }}>
-                  {filterConfig.map((f) => {
-                    const active = activeFilters.has(f.key);
-                    const clr = filterColor(f.key);
-                    return (
-                      <button
-                        key={f.key}
-                        onClick={() => toggleFilter(f.key)}
-                        style={popupItem(active)}
-                      >
-                        <div
-                          style={{
-                            width: 12,
-                            height: 12,
-                            border: `1.5px solid ${clr}`,
-                            borderRadius: 'var(--ob-radius-sm)',
-                            background: active ? clr : 'transparent',
-                          }}
-                        />
-                        <span>{f.label}</span>
-                      </button>
-                    );
-                  })}
-                  <div style={{ borderTop: `${bW}px solid ${theme.border}`, marginTop: 4, paddingTop: 4 }}>
-                    <button
-                      onClick={() => setActiveFilters(new Set(filterConfig.map((f) => f.key)))}
-                      style={{
-                        width: '100%',
-                        padding: '6px 8px',
-                        textAlign: 'left',
-                        background: 'transparent',
-                        border: 'none',
-                        color: theme.accent,
-                        fontFamily: headFont,
-                        fontSize: OB_TEXT.micro,
-                        letterSpacing: '0.08em',
-                        textTransform: 'uppercase',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Mostra tutti
-                    </button>
-                  </div>
-                </div>
+                );
+              })}
+              {/* Il SELETTORE dei tag non c'è più: era una tendina con l'elenco
+                  completo, cioè una seconda via per fare quello che si fa già
+                  cliccando il tag sul grafo — e il grafo è lì apposta per essere
+                  cliccato. Un elenco a discesa dei nodi che hai già davanti è una
+                  copia della vista, non un comando.
+                  Resta la via d'uscita, che il click sul nodo da solo non
+                  garantisce: a fuoco stretto il tag può finire fuori schermo. */}
+              {selectedTagId && (
+                <>
+                  <div className="ob-toolsep" />
+                  <ToolButton
+                    icon={<IconX size={16} stroke={1.6} />}
+                    label="Togli il fuoco dal tag e mostra tutto il grafo"
+                    onClick={() => setSelectedTagId(null)}
+                  />
+                </>
               )}
-            </div>
-
-            {/* Tag dropdown */}
-            <div style={{ position: 'relative' }}>
-              <button
-                onClick={() => { setTagDropdownOpen((p) => !p); setFilterDropdownOpen(false); }}
-                className="px-press"
-                style={pillBtn(!!selectedTagId)}
-              >
-                <IconTag size={12} />
-                {selectedTagId
-                  ? graphData?.tags?.find((t) => t.id === selectedTagId)?.name || 'Tag'
-                  : 'Tag'}
-                <IconChevronDown size={11} style={{ marginLeft: 2 }} />
-              </button>
-              {tagDropdownOpen && (
-                <div style={{ ...popupContainer, minWidth: 200, maxHeight: 320, overflowY: 'auto' }}>
-                  <button
-                    onClick={() => { setSelectedTagId(null); setTagDropdownOpen(false); }}
-                    style={popupItem(!selectedTagId)}
-                  >
-                    Tutti i tag
-                  </button>
-                  <div style={{ borderTop: `${bW}px solid ${theme.border}`, margin: '4px 0' }} />
-                  {graphData?.tags?.map((tag) => (
-                    <button
-                      key={tag.id}
-                      onClick={() => { setSelectedTagId(tag.id); setTagDropdownOpen(false); }}
-                      style={popupItem(selectedTagId === tag.id)}
-                    >
-                      <div
-                        style={{
-                          width: 10,
-                          height: 10,
-                          background: TAG_NODE_COLOR_THEME,
-                          border: `${bW}px solid ${theme.border}`,
-                          flexShrink: 0,
-                        }}
-                      />
-                      {tag.name}
-                      <span style={{ marginLeft: 'auto', color: theme.ink3, fontFamily: headFont, fontSize: OB_TEXT.micro }}>
-                        {tag.tile_ids.length}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Clear tag selection */}
-            {selectedTagId && (
-              <button
-                onClick={() => setSelectedTagId(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: theme.ink3,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: 0,
-                }}
-              >
-                <IconX size={12} />
-              </button>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Edit mode: create tag */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            </>
+          ) : (
+            <>
               <input
-                placeholder="Nuovo tag..."
+                className="ob-toolinput"
+                placeholder="Nuovo tag…"
                 value={newTagName}
                 onChange={(e) => setNewTagName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleCreateTag()}
-                style={{
-                  width: 160,
-                  height: 28,
-                  background: theme.surfaceVariant,
-                  border: `${bW}px solid ${theme.border}`,
-                  padding: '0 8px',
-                  color: theme.ink,
-                  fontFamily: bodyFont,
-                  fontSize: OB_TEXT.card,
-                  outline: 'none',
-                }}
+                style={{ width: 160 }}
               />
-              <button
+              <ToolButton
+                icon={<IconPlus size={16} stroke={1.6} />}
+                label="Crea il tag"
                 onClick={handleCreateTag}
                 disabled={!newTagName.trim() || createMutation.isPending}
-                className="px-press"
-                style={{
-                  ...pillBtn(true),
-                  cursor: (!newTagName.trim() || createMutation.isPending) ? 'not-allowed' : 'pointer',
-                  opacity: (!newTagName.trim() || createMutation.isPending) ? 0.5 : 1,
-                }}
-              >
-                <IconPlus size={12} />
-                Crea
-              </button>
-            </div>
-
-            <div style={{ width: bW, height: 20, background: theme.border }} />
-
-            {/* Link mode toggle */}
-            <button
-              onClick={() => { setLinkMode((p) => !p); setLinkSource(null); }}
-              className="px-press"
-              style={pillBtn(linkMode)}
-            >
-              <IconLink size={12} />
-              {linkMode ? 'Collegamento attivo' : 'Collega tag'}
-            </button>
-
-            {/* Delete selected tag */}
-            {selectedTagForDelete && (
-              <button
-                onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
-                className="px-press"
-                style={{
-                  ...pillBtn(false),
-                  color: 'var(--ob-danger)',
-                  border: `${bW}px solid var(--ob-danger)`,
-                }}
-              >
-                <IconTrash size={12} />
-                Elimina &quot;{selectedTagForDelete.name}&quot;
-              </button>
-            )}
-          </>
-        )}
+              />
+              <div className="ob-toolsep" />
+              {/* Modo anche questo: armato, il click su due tag li collega. */}
+              <ToolButton
+                icon={<IconLink size={16} stroke={1.6} />}
+                label={linkMode ? 'Collegamento attivo — scegli i due tag (click per annullare)' : 'Collega due tag'}
+                active={linkMode}
+                onClick={() => { setLinkMode((p) => !p); setLinkSource(null); }}
+              />
+              {selectedTagForDelete && (
+                <ToolButton
+                  className="ob-tool--danger"
+                  icon={<IconTrash size={16} stroke={1.6} />}
+                  label={`Elimina il tag "${selectedTagForDelete.name}"`}
+                  onClick={() => deleteMutation.mutate(selectedTagForDelete.id)}
+                />
+              )}
+            </>
+          )}
+        </div>
 
         <div style={{ flex: 1 }} />
 
-        {/* Stats */}
-        <span
-          style={{
-            fontFamily: headFont,
-            fontSize: OB_TEXT.micro,
-            letterSpacing: '0.08em',
-            textTransform: 'uppercase',
-            color: theme.ink3,
-          }}
-        >
-          {tagGraph?.nodes ? (tagGraph.nodes as TagNode[]).filter((t) => !t.is_root).length : 0} tag
-          {' '}&middot;{' '}
-          {tagGraph?.edges ? Math.floor((tagGraph.edges as TagEdge[]).filter((e) => e.relation_type !== 'root-link').length / 2) : 0} relazioni
-        </span>
+        {/* I due MODI, all'estremo opposto rispetto ai comandi che governano.
+            Sono la domanda più grande della barra — «sto guardando o sto
+            rimaneggiando?» — e tenerli in testa alla fila li confondeva con gli
+            strumenti del modo corrente, che invece cambiano sotto di loro.
+
+            Sole PAROLE: due icone (un occhio e un ingranaggio) per una scelta
+            che riguarda l'intera vista chiedevano di essere indovinate.
+
+            E niente casella, a differenza dei livelli: quelli sono tre
+            interruttori che possono essere accesi tutti insieme, e col solo
+            colore non si capiva quali fossero attivi. Qui invece uno dei due è
+            sempre acceso e l'altro sempre spento, quindi il contrasto c'è per
+            costruzione e la casella non aggiungerebbe niente. */}
+        <div className="ob-tools">
+          <ToolWord
+            on={toolbarMode === 'navigate'}
+            onClick={() => { setToolbarMode('navigate'); setLinkMode(false); setLinkSource(null); }}
+            title="Esplora il grafo: filtra, metti a fuoco, apri i nodi"
+          >
+            Graph explorer
+          </ToolWord>
+          <ToolWord
+            on={toolbarMode === 'edit'}
+            onClick={() => setToolbarMode('edit')}
+            title="Modifica i collegamenti: crea tag, collegali fra loro, eliminali"
+          >
+            Edit link
+          </ToolWord>
+        </div>
       </div>
 
       {/* Graph area */}

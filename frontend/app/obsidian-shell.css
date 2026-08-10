@@ -280,6 +280,20 @@
 }
 .ob-view__title { font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-view__body { flex: 1; min-height: 0; }
+/* Fascia dei comandi dello SCHELETRO di caricamento (`(dashboard)/loading.tsx`).
+   Non riusa `.ob-view__toolbar` — quella è la barra opzionale del contenitore,
+   che nessuna vista adopera più (tutte passano `hideToolbar` e disegnano la
+   propria). Questa copia le misure di quelle vere: altezza dal token, fondo
+   `--ob-surface`, hairline `--ob-line`. Serve a una cosa sola: che il bordo
+   sotto la barra sia già alla quota giusta quando la vista prende il posto
+   dello scheletro, così la cornice non salta. */
+.ob-view__skel-bar {
+  height: var(--ob-toolbar-height); flex-shrink: 0;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  background: var(--ob-surface);
+  border-bottom: 1px solid var(--ob-line);
+}
 
 /* ── Inspector ── */
 /* È la STESSA sidebar destra di `TileSidebar`: l'Inspector si vede quando non

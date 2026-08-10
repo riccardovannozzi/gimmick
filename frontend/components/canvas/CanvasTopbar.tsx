@@ -1,42 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso } from '@tabler/icons-react';
+import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
+import { ToolButton, ToolWord } from '@/components/primitives';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
-import { OB_WEIGHT } from '@/lib/theme/ob-typography';
-
-/**
- * Uno dei quattro MODI di disegno (gruppo, tile, testo, immagine).
- *
- * Sola icona, senza fondo: quattro bottoni con etichetta occupavano mezza barra
- * e pesavano quanto il contenuto che stanno lì per creare. Sono strumenti, e uno
- * strumento si riconosce dalla sua forma — il nome sta nel tooltip.
- *
- * Il fondo compare solo al passaggio del puntatore, tranne quando il modo è
- * ACCESO: lì resta, perché armare un modo cambia cosa fa il click sulla lavagna
- * e non può essere uno stato che si scopre provando.
- */
-function ModeToggle({ icon, label, active, onClick }: {
-  icon: React.ReactNode;
-  label: string;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn('ob-tool', active && 'ob-tool--on')}
-      onClick={onClick}
-      title={label}
-      aria-label={label}
-      aria-pressed={active}
-    >
-      {icon}
-    </button>
-  );
-}
 
 interface CanvasTopbarProps {
   tag: Tag | null;
@@ -48,6 +17,13 @@ interface CanvasTopbarProps {
   onToggleTileMode: () => void;
   onToggleImageMode: () => void;
   onToggleSelectMode: () => void;
+  /**
+   * Modalità "Foglio": cerchia un'area e ne esce un PDF. Come Done, il pulsante
+   * compare solo se il callback c'è — senza un canvas aperto non c'è niente da
+   * stampare.
+   */
+  pdfMode?: boolean;
+  onTogglePdfMode?: () => void;
   /**
    * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
    * entrambi gli stati, cambia solo se si tingono.
@@ -63,7 +39,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -161,7 +137,7 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         {tag && !isCurrentPinned && (
           <div
             className="ob-lug ob-lug--active"
-            style={{ flex: '0 0 auto', cursor: 'default' }}
+            style={{ cursor: 'default' }}
             title={`Canvas corrente: ${tag.name}`}
           >
             {tag.name}
@@ -204,9 +180,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
               // Forma, misure, centraggio e colori vengono dalla classe
               // `.ob-lug`: qui restano solo le due cose che questa striscia ha in
               // piu' — lo spazio a destra per la crocetta di unpin e il gesto di
-              // riordino.
+              // riordino. (Anche il «larga quanto il nome» viene dal CSS ora:
+              // `.ob-lugs-scroll .ob-lug`, condiviso con la barra del Kanban.)
               paddingRight: 26,
-              flex: '0 0 auto',
               cursor: 'grab',
               opacity: isDragging ? 0.4 : 1,
             }}
@@ -280,14 +256,26 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
       </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <ModeToggle icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
-        <ModeToggle icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ModeToggle icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
-        <ModeToggle icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+      <div className="ob-tools">
+        {/* I quattro MODI di disegno. Armato, il fondo resta acceso: cambia cosa
+            fa il click sulla lavagna, e non può essere uno stato che si scopre
+            provando. */}
+        <ToolButton icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
+        <ToolButton icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ToolButton icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
+        <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onTogglePdfMode && (
+          <>
+            {/* Separato dai quattro qui sopra: quelli aggiungono qualcosa alla
+                lavagna, questo la porta fuori. Stesso gesto (cerchia un'area),
+                esito di natura diversa — e il divisore è quello che lo dice. */}
+            <div className="ob-toolsep" />
+            <ToolButton icon={<IconFileTypePdf size={16} stroke={1.6} />} label="PDF" active={pdfMode} onClick={onTogglePdfMode} />
+          </>
+        )}
         {onToggleDoneHighlight && (
           <>
-            <div style={{ width: chipBorderW, height: 18, background: theme.border, margin: '0 8px' }} />
+            <div className="ob-toolsep" />
             {/* Non e' una modalita' di disegno come i quattro qui sopra — quelli
                 cambiano cosa fa il click sulla lavagna, questo cambia solo come
                 la guardi. Il separatore lo tiene a parte, e la forma pure: una
@@ -295,20 +283,16 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
                 ACCESO si tinge di VERDE, cioè del colore che accende sui tile: il
                 comando mostra il suo effetto invece di descriverlo, e non serve
                 nessun'altra evidenziazione. */}
-            <button
-              type="button"
-              className="ob-toolword"
+            <ToolWord
+              on={doneHighlight}
+              tone="var(--ob-success)"
               onClick={onToggleDoneHighlight}
-              aria-pressed={doneHighlight}
-              style={doneHighlight
-                ? { color: 'var(--ob-success)', fontWeight: OB_WEIGHT.emphasis }
-                : undefined}
               title={doneHighlight
                 ? 'Togli il verde dalle attività completate'
                 : 'Evidenzia in verde le attività completate'}
             >
               Done
-            </button>
+            </ToolWord>
           </>
         )}
       </div>

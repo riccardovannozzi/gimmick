@@ -40,6 +40,88 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function 
   );
 });
 
+// ─── ToolButton / ToolWord ────────────────────────────────────────────────────
+/**
+ * I due comandi delle BARRE DEGLI STRUMENTI (canvas, kanban, chrono), pensati
+ * per non competere con le linguette che gli stanno accanto. Gli stili sono
+ * `.ob-tool` e `.ob-toolword`, che portano il ragionamento per esteso.
+ *
+ * Erano scritti a mano in ogni vista — `ModeToggle` nel canvas, `ToolBtn` nel
+ * kanban, e stava per nascere il terzo in chrono. Il CSS era già condiviso; le
+ * quindici righe di JSX che lo indossano no.
+ *
+ * `ToolButton` è sola icona: il nome sta nel tooltip e nell'etichetta
+ * accessibile, che è l'unico modo che un'icona nuda ha di dirsi.
+ */
+export interface ToolButtonProps extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'title' | 'aria-label'> {
+  icon: React.ReactNode;
+  /** Nome del comando: tooltip + etichetta accessibile. */
+  label: string;
+  /**
+   * Modo ARMATO. Il fondo resta acceso perché armare un modo cambia cosa fa il
+   * click altrove, e non può essere uno stato che si scopre provando. Va lasciato
+   * `undefined` sui comandi che fanno una cosa e finisce lì: non hanno uno stato,
+   * e con esso sparisce anche `aria-pressed`, che li annuncerebbe come toggle.
+   */
+  active?: boolean;
+}
+
+export const ToolButton = React.forwardRef<HTMLButtonElement, ToolButtonProps>(function ToolButton(
+  { icon, label, active, className, type = 'button', ...rest },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn('ob-tool', active && 'ob-tool--on', className)}
+      title={label}
+      aria-label={label}
+      aria-pressed={active}
+      {...rest}
+    >
+      {icon}
+    </button>
+  );
+});
+
+/**
+ * `ToolWord` è una parola nuda, senza fondo e senza icona: per i comandi che non
+ * creano niente e cambiano solo COME guardi quello che c'è. Sono i più leggeri
+ * di tutti e devono sembrarlo.
+ *
+ * ⚠️ Da accesa cambia COLORE e non PESO. Il grassetto allarga la parola, e in una
+ * fila di parole (le modalità di colorazione di Chrono) accendere la terza
+ * sposterebbe le due dopo: cliccare un comando non deve muovere i suoi vicini.
+ */
+export interface ToolWordProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+  on?: boolean;
+  /**
+   * Colore da accesa, come token. Default: l'accent. Quando il comando ha un
+   * colore PROPRIO lo si passa qui — «Done» usa il verde che accende sui tile, e
+   * così mostra il suo effetto invece di descriverlo.
+   */
+  tone?: string;
+}
+
+export const ToolWord = React.forwardRef<HTMLButtonElement, ToolWordProps>(function ToolWord(
+  { on, tone, className, style, children, type = 'button', ...rest },
+  ref,
+) {
+  return (
+    <button
+      ref={ref}
+      type={type}
+      className={cn('ob-toolword', on && 'ob-toolword--on', className)}
+      aria-pressed={on}
+      style={tone ? { ['--toolword-on' as string]: tone, ...style } : style}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+});
+
 // ─── IconButton ───────────────────────────────────────────────────────────────
 export interface IconButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   size?: 'sm' | 'md';

@@ -833,6 +833,11 @@
 .ob-tool:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
 .ob-tool--on,
 .ob-tool--on:hover { background: var(--ob-accent-soft); color: var(--ob-accent); }
+/* Spento perché il comando non è disponibile (anteprime senza dati, callback
+   assente). Niente fondo al passaggio: uno strumento che non risponde non deve
+   nemmeno accendersi. */
+.ob-tool:disabled { opacity: 0.4; cursor: default; }
+.ob-tool:disabled:hover { background: transparent; color: var(--ob-muted); }
 
 .ob-toolword {
   height: 30px; padding: 0 8px;
@@ -848,6 +853,45 @@
   transition: color 120ms ease-out;
 }
 .ob-toolword:hover { color: var(--ob-text); }
+/* Accesa. Il colore lo decide chi la usa, con `--toolword-on`: quando un comando
+   ha un colore proprio (il verde dei completati) mostrarlo vale più di qualunque
+   evidenziazione generica. Senza, prende l'accent.
+   ⚠️ Cambia il COLORE e non il PESO. Il grassetto allarga la parola, e in una
+   fila di parole accendere la terza sposterebbe le due dopo — lo stesso motivo
+   per cui l'ha perso la linguetta attiva. */
+.ob-toolword--on,
+.ob-toolword--on:hover { color: var(--toolword-on, var(--ob-accent)); }
+.ob-toolword:disabled { opacity: 0.4; cursor: default; }
+.ob-toolword:disabled:hover { color: var(--ob-subtle); }
+
+/* Il gruppo dei comandi in fondo alla barra, e il filo che ne separa le famiglie.
+   Due righe di CSS, e stavano scritte tre volte — inline nella topbar del canvas,
+   `.ob-kanban__div` nel kanban, `.ob-chrono__tbar-sep` in chrono — con tre
+   commenti che dicevano «identico a quello del canvas». Erano identici finché
+   qualcuno non toccava il primo. */
+.ob-tools { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.ob-toolsep { width: 1px; height: 18px; background: var(--ob-line); margin: 0 8px; flex-shrink: 0; }
+
+/* Comando DISTRUTTIVO in barra: stessa forma di `.ob-tool`, colore dell'errore.
+   Non ha uno stato acceso — si preme e basta. */
+.ob-tool--danger { color: var(--ob-error); }
+.ob-tool--danger:hover { background: color-mix(in srgb, var(--ob-error) 14%, transparent); color: var(--ob-error); }
+
+/* Campo di testo di una barra degli strumenti. È l'unico controllo con un
+   contorno, e deve esserlo: gli altri si premono, questo ci si SCRIVE dentro, e
+   un campo senza bordo non invita a farlo.
+   Alto 30 come `.ob-tool` e `.ob-toolword` — non `.ob-field`, che è il campo dei
+   moduli (38 coi suoi 9+9 di padding) e sfonderebbe la fascia da 44. */
+.ob-toolinput {
+  height: 30px; padding: 0 8px;
+  border: 1px solid var(--ob-line-2); border-radius: var(--ob-radius-sm);
+  background: var(--ob-field); color: var(--ob-text);
+  font-family: var(--ob-font-sans); font-size: var(--ob-text-control);
+  outline: none;
+  transition: border-color 140ms ease-out, color 140ms ease-out;
+}
+.ob-toolinput::placeholder { color: var(--ob-subtle); }
+.ob-toolinput:focus { border-color: var(--ob-accent); }
 
 /* Striscia di linguette che SCORRE (topbar del canvas: i tag pinnati possono
    essere tanti).
@@ -866,6 +910,12 @@
 }
 .ob-lugs-scroll::-webkit-scrollbar { display: none; }
 .ob-lugs-scroll > .ob-lugs { height: calc(100% - 1px); width: max-content; }
+/* In una striscia che scorre la linguetta è larga QUANTO IL SUO NOME, non una
+   frazione della barra: sono i tag che hai pinnato, un elenco che cresce e che
+   deve poter uscire dal bordo. È l'opposto delle strisce delle sidebar, dove le
+   linguette sono poche e note e si dividono la larghezza in parti uguali
+   (`flex: 1`, dal blocco condiviso). */
+.ob-lugs-scroll .ob-lug { flex: 0 0 auto; }
 
 /* ─── GRIGLIA A PUNTINI ───────────────────────────────────────────────────────
    La texture di fondo delle superfici di lavoro: la lavagna del canvas e la
@@ -881,8 +931,14 @@
    contenitore solo, non su ogni cella — il pattern riparte a ogni elemento su
    cui è dichiarato, e su celle di larghezza diversa i puntini si
    disallineerebbero da una colonna all'altra. */
+/* Il RAGGIO è un parametro e non un numero murato nel gradiente: compare due
+   volte nella stessa dichiarazione (il colore finisce dove comincia il
+   trasparente), e due numeri da tenere uguali a mano sono due numeri che prima o
+   poi divergono. Overridabile per superficie, se mai servisse — ma il valore di
+   partenza è uno solo, per la stessa ragione per cui lo è il passo. */
 .ob-dotgrid {
-  background-image: radial-gradient(var(--ob-dot) 1.4px, transparent 1.4px);
+  --ob-dot-r: 1px;
+  background-image: radial-gradient(var(--ob-dot) var(--ob-dot-r), transparent var(--ob-dot-r));
   background-size: 22px 22px;
   background-position: -1px -1px;
 }

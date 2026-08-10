@@ -18,6 +18,7 @@ import { useRouter } from 'next/navigation';
 import { SettingsView } from '@/components/views/settings';
 import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
 import { useAuthStore } from '@/store/auth-store';
+import { useViewPrefs } from '@/store/view-prefs-store';
 import type { ObsidianMode } from '@/lib/theme/obsidian';
 
 export function SettingsLive() {
@@ -25,6 +26,8 @@ export function SettingsLive() {
   const { mode, setMode } = useObsidianTheme();
   const user = useAuthStore((s) => s.user);
   const signOut = useAuthStore((s) => s.signOut);
+  const panopticon = useViewPrefs((s) => s.panopticon);
+  const setPanopticon = useViewPrefs((s) => s.setPanopticon);
 
   const onThemeMode = useCallback(
     (v: string) => {
@@ -50,6 +53,7 @@ export function SettingsLive() {
       themeMode={mode}
       onThemeMode={onThemeMode}
       account={{ email: user?.email, onLogout }}
+      views={{ panopticon, onPanopticon: setPanopticon }}
     />
   );
 }
