@@ -500,6 +500,54 @@
 }
 .ob-tstatus--shifted { left: 28px; }
 
+/* ─── SPARK ALLEGATI ─────────────────────────────────────────────────────────
+   Un pallino per TIPO di allegato, appeso al bordo inferiore. Stessa pillola
+   del badge d'azione — misura, bordo, fondo, raggio — perché è la stessa
+   grammatica: un segnale iconico che sborda dal rettangolo. Cambia solo il
+   bordo su cui sta appeso, e il lato.
+
+   IL LATO NON È UN GUSTO. Nelle colonne di Chrono e nelle corsie del Kanban le
+   card sono impilate con 9px di stacco e il badge sborda di 8: a destra questo
+   gruppo finirebbe nello stesso varco del badge d'azione della card SEGUENTE,
+   uno sopra l'altro. A sinistra il varco è libero.
+
+   ⚠️ Come i badge, richiede `overflow: visible` sul contenitore della card. */
+.ob-tsparks {
+  position: absolute; z-index: 2;
+  /* -9 e non -8: il disco è 18, quindi il suo bordo alto cade esatto a 9 dal
+     fondo — dove comincia lo status. Tangenti, non sovrapposti. E sotto sborda
+     di 9 × 0.8 = 7.2px reali, che stanno nei 9px di stacco fra due card. */
+  left: 10px; bottom: -9px;
+  display: inline-flex; align-items: center; gap: 3px;
+  pointer-events: none;
+}
+/* Con la strip presente il gruppo le finirebbe sopra con la sua metà alta:
+   slitta oltre, esattamente come lo status e il badge a sinistra. */
+.ob-tsparks--shifted { left: 26px; }
+
+/* SENZA CONTORNO, a differenza del badge d'azione. Quello ne ha bisogno: è un
+   glifo generico (una fiamma, un orologio) e l'anello lo isola dal fondo velato
+   della card. Questi no — sono glifi che l'utente riconosce già, e il contorno
+   rubava 2.4px di diametro al disegno per dire una cosa che il colore diceva
+   di suo. Tolto l'anello, il disco può restare della stessa misura e il glifo
+   crescere di un terzo: la fila di pallini occupa lo stesso spazio e si legge
+   da più lontano.
+   Il disco chiaro invece RESTA: metà pallino sta fuori dal rettangolo, sulla
+   lavagna, e senza un fondo suo quella metà si perderebbe. */
+.ob-tspark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  background: var(--ob-surface-2);
+  color: var(--sk, var(--ob-muted));
+}
+
+/* L'interruttore vive sulla RADICE del documento, non su ogni vista: gli spark
+   sono una proprietà del tile, e il tile è lo stesso componente in Chrono,
+   Kanban, Canvas e Staging. Spegnerli in una vista e ritrovarli nell'altra
+   sarebbe la stessa impostazione con quattro risposte diverse. */
+[data-sparks='off'] .ob-tsparks { display: none; }
+
 /* ─── IL TILE ───────────────────────────────────────────────────────────────
    150×80, la misura unica di tutte le superfici (canvas TILE_W/TILE_H, colonne
    di Chrono, corsie del Kanban, staging).
@@ -574,6 +622,18 @@
 /* `cancelled` attenua l'intero tile; `done` barra il titolo. */
 .ob-tile--cancelled { opacity: 0.5; }
 .ob-tile--done .ob-tile__title { text-decoration: line-through; }
+
+/* ── GHOST — il tile mentre nasce ────────────────────────────────────────────
+   Compare al doppio click su una cella e resta lì per i decimi di secondo che
+   servono al server a creare la riga davvero. Attenuato e col perimetro
+   tratteggiato: dice «questo posto è già tuo» senza spacciarsi per un dato
+   salvato. Non prende il puntatore — non c'è ancora niente da aprire, e un
+   click andrebbe su un id che non esiste.
+   ⚠️ Il tratteggio è scritto con l'attributo (`[data-border]`) e non sulla sola
+   classe: il bordo dell'action è `.ob-tile[data-border='solid']`, che a parità
+   di posizione vincerebbe per specificità e lo rimetterebbe pieno. */
+.ob-tile--ghost { opacity: 0.55; pointer-events: none; }
+.ob-tile--ghost[data-border] { border-style: dashed; }
 
 /* ── Evidenziazione verde dei COMPLETATI ─────────────────────────────────────
    NON è un default del tile: si accende da fuori. Sul canvas la accende il

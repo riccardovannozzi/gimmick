@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
+import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
 import { cn } from '@/lib/utils';
 import type { Tag } from '@/types';
 
@@ -273,13 +274,19 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
             <ToolButton icon={<IconFileTypePdf size={16} stroke={1.6} />} label="PDF" active={pdfMode} onClick={onTogglePdfMode} />
           </>
         )}
-        {onToggleDoneHighlight && (
+        {/* Di la' dal filo i MODI DI GUARDARE: non sono modalita' di disegno
+            come i quattro qui sopra — quelli cambiano cosa fa il click sulla
+            lavagna, questi cambiano solo come la guardi. Compaiono con la
+            lavagna: senza un canvas aperto non c'e' niente da guardare. */}
+        {tag && (
           <>
             <div className="ob-toolsep" />
-            {/* Non e' una modalita' di disegno come i quattro qui sopra — quelli
-                cambiano cosa fa il click sulla lavagna, questo cambia solo come
-                la guardi. Il separatore lo tiene a parte, e la forma pure: una
-                parola nuda, senza fondo e senza icona.
+            <SparkIconsToggle />
+          </>
+        )}
+        {onToggleDoneHighlight && (
+          <>
+            {/* La forma e' quella: una parola nuda, senza fondo e senza icona.
                 ACCESO si tinge di VERDE, cioè del colore che accende sui tile: il
                 comando mostra il suo effetto invece di descriverlo, e non serve
                 nessun'altra evidenziazione. */}

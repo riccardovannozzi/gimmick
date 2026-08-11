@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { subtasksApi } from '@/lib/api';
+import { invalidateTileCaches, patchTileCaches } from '@/lib/tile-cache';
 import type { Subtask } from '@/types';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
@@ -45,8 +46,29 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
 
   const subtasks: Subtask[] = data?.data || [];
 
+  /**
+   * La checklist non vive solo qui: le card la disegnano come barra di
+   * spuntini, e il footer come «3 di 5». Quel dato arriva dalla lista dei tile
+   * (`subtasks`, forma compatta: solo `is_done`, in ordine di `sort_order`), che
+   * è una cache diversa da questa.
+   *
+   * Senza questa proiezione, spuntare un passo nella sidebar destra lasciava la
+   * card del Kanban lì accanto con il vecchio conteggio — due numeri diversi
+   * sullo stesso schermo per lo stesso tile.
+   */
+  const projectToCards = useCallback((list: Subtask[]) => {
+    const compact = list
+      .slice()
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map((s) => ({ is_done: !!s.is_done }));
+    patchTileCaches(queryClient, tileId, { subtasks: compact });
+  }, [queryClient, tileId]);
+
   const invalidate = useCallback(() => {
     queryClient.invalidateQueries({ queryKey });
+    // Aggiungere o togliere un passo cambia il denominatore («3 di 5» → «3 di
+    // 4»): la forma nuova la conosce il server, quindi qui si rilegge.
+    invalidateTileCaches(queryClient);
   }, [queryClient, queryKey]);
 
   const addMutation = useMutation({
@@ -59,14 +81,20 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
       subtasksApi.update(id, updates),
     onMutate: async ({ id, updates }) => {
       await queryClient.cancelQueries({ queryKey });
-      const prev = queryClient.getQueryData(queryKey);
-      queryClient.setQueryData(queryKey, (old: any) => {
-        if (!old?.data) return old;
-        return { ...old, data: old.data.map((s: Subtask) => s.id === id ? { ...s, ...updates } : s) };
-      });
+      const prev = queryClient.getQueryData<{ data?: Subtask[] }>(queryKey);
+      if (!prev?.data) return { prev };
+      const data = prev.data.map((s) => (s.id === id ? { ...s, ...updates } : s));
+      queryClient.setQueryData(queryKey, { ...prev, data });
+      // Fuori dall'updater: scrive in ALTRE cache, e un updater di React Query
+      // deve restare una funzione pura del valore che riceve.
+      projectToCards(data);
       return { prev };
     },
-    onError: (_e, _v, ctx) => { if (ctx?.prev) queryClient.setQueryData(queryKey, ctx.prev); },
+    onError: (_e, _v, ctx) => {
+      if (!ctx?.prev) return;
+      queryClient.setQueryData(queryKey, ctx.prev);
+      projectToCards(((ctx.prev as { data?: Subtask[] })?.data) ?? []);
+    },
   });
 
   const deleteMutation = useMutation({
@@ -85,9 +113,13 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
     const [moved] = reordered.splice(from, 1);
     reordered.splice(to, 0, moved);
     const items = reordered.map((s, i) => ({ id: s.id, sort_order: i }));
-    queryClient.setQueryData(queryKey, { data: reordered.map((s, i) => ({ ...s, sort_order: i })) });
+    const next = reordered.map((s, i) => ({ ...s, sort_order: i }));
+    queryClient.setQueryData(queryKey, { data: next });
+    // La barra sulla card è in ordine di `sort_order`: riordinando qui, i
+    // quadratini pieni devono spostarsi anche là.
+    projectToCards(next);
     reorderMutation.mutate(items);
-  }, [subtasks, reorderMutation, queryClient, queryKey]);
+  }, [subtasks, reorderMutation, queryClient, queryKey, projectToCards]);
 
   const copy = useCallback(async (content: string) => {
     try { await navigator.clipboard.writeText(content); } catch { /* ignore */ }

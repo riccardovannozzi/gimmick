@@ -30,9 +30,10 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import {
   IconGripVertical, IconDots, IconArrowAutofitWidth,
-  IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid,
+  IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid, IconTransform,
 } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
+import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
 import { Icon } from '@/components/shell';
 import { Tile } from '@/components/tiles/Tile';
 import {
@@ -45,6 +46,7 @@ import {
  *  nel ripiano della seconda — vedi `RAIL_KEY`). */
 type ResizeKind = 'col' | 'row' | 'rail';
 import type { StepState, TileStatus, TileVisualKey } from '@/lib/tile-visual';
+import type { SparkType } from '@/types';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
 
@@ -67,8 +69,16 @@ export interface CardData {
   statusName?: TileStatus;
   /** Metadato del footer destro, già formattato (data, orario, progressione). */
   meta?: string;
+  /** I TIPI degli spark allegati (grezzi, con i doppioni) → pallini nel footer. */
+  sparks?: SparkType[];
   /** Colore che tinge fondo, bordo e badge. Dalle impostazioni, mai un hex qui. */
   accent?: string;
+  /**
+   * Card PROVVISORIA: la tile che il doppio click ha appena chiesto, disegnata
+   * mentre il server la crea. Non si trascina e non si apre — il suo `id` non
+   * esiste ancora da nessuna parte.
+   */
+  ghost?: boolean;
 }
 export interface Lane {
   /** Id colonna reale (target del drag-drop). */
@@ -136,8 +146,14 @@ const LANES: Lane[] = [
  * Il contenitore resta per il TRASCINAMENTO fra lane, che il Tile non fa apposta
  * per restare presentazionale, e per la gronda in cui sborda il badge d'angolo.
  */
-function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; active?: boolean }) {
-  const draggable = !!t.id;
+function TileCard({ t, onClick, onMenu, active }: {
+  t: CardData;
+  onClick?: () => void;
+  /** Tasto destro (o ctrl/cmd+click) sulla card → menu della tile. */
+  onMenu?: (e: React.MouseEvent) => void;
+  active?: boolean;
+}) {
+  const draggable = !!t.id && !t.ghost;
   const steps: StepState[] | undefined = t.checklist?.length
     ? t.checklist.map((d): StepState => (d ? 'done' : 'pending'))
     : undefined;
@@ -149,6 +165,18 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
       className="ob-kanban__cell"
       draggable={draggable}
       onDragStart={draggable ? (e) => { e.dataTransfer.setData('text/x-tile', t.id!); e.dataTransfer.effectAllowed = 'move'; } : undefined}
+      // Il menu sta sulla GRONDA e non sul tile: la ghost non prende il
+      // puntatore, e comunque è di qui che passano tutti gli eventi della card.
+      onContextMenu={onMenu}
+      // Ctrl/cmd+click apre lo stesso menu — è il tasto destro di chi ha un
+      // trackpad. In CATTURA e con la propagazione fermata: senza, il click
+      // arriverebbe anche al tile e selezionerebbe la card mentre apre il menu.
+      onClickCapture={onMenu ? (e) => {
+        if (!e.ctrlKey && !e.metaKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+        onMenu(e);
+      } : undefined}
     >
       <Tile
         title={t.title}
@@ -156,7 +184,9 @@ function TileCard({ t, onClick, active }: { t: CardData; onClick?: () => void; a
         status={status}
         steps={steps}
         meta={t.meta}
+        sparks={t.sparks}
         accent={t.accent ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        ghost={t.ghost}
         active={active}
         onClick={onClick}
       />
@@ -276,12 +306,14 @@ function LaneHead({
 
 /** Il corpo di una colonna: le card, e il bersaglio del drop di un tile. */
 function LaneBody({
-  lane, onCardClick, selectedId, onMoveTile, onReorder, collapsed, head, rowId, style,
+  lane, onCardClick, onCardMenu, selectedId, onMoveTile, onCreateInCell, onReorder, collapsed, head, rowId, style,
 }: {
   lane: Lane;
   onCardClick?: (id: string) => void;
+  onCardMenu?: (e: React.MouseEvent, tileId: string) => void;
   selectedId?: string;
   onMoveTile?: (tileId: string, colId: string, rowId?: string) => void;
+  onCreateInCell?: (colId: string, rowId?: string) => void;
   onReorder?: (fromId: string, toId: string) => void;
   collapsed: boolean;
   /** La testata, quando la colonna la porta con sé (board senza corsie). */
@@ -293,6 +325,7 @@ function LaneBody({
   const [dragOver, setDragOver] = React.useState(false);
   const [colOver, setColOver] = React.useState(false);
   const canDrop = !!onMoveTile && !!lane.id;
+  const canCreate = !!onCreateInCell && !!lane.id;
   const canReorder = !!onReorder && !!lane.id;
   return (
     <div
@@ -326,7 +359,23 @@ function LaneBody({
       }}
     >
       {head}
-      <div className="ob-kanban__lane-body ob-scroll" hidden={collapsed}>
+      <div
+        className="ob-kanban__lane-body ob-scroll"
+        hidden={collapsed}
+        // Doppio click sul VUOTO della cella → nasce una tile qui dentro. Sulle
+        // card no: lì il doppio click è due click sulla stessa tile, e creare
+        // qualcosa sarebbe l'ultima cosa che ti aspetti.
+        //
+        // Si guarda anche la GRONDA (`.ob-kanban__cell`) e non solo il tile: la
+        // ghost non prende il puntatore, quindi il bersaglio dell'evento è la
+        // sua gronda — e un secondo doppio click sulla tile appena chiesta
+        // avrebbe fatto nascere la seconda.
+        onDoubleClick={canCreate ? (e) => {
+          if ((e.target as HTMLElement).closest('.ob-tile, .ob-kanban__cell')) return;
+          onCreateInCell!(lane.id!, rowId);
+        } : undefined}
+        title={canCreate ? 'Doppio click per creare una tile qui' : undefined}
+      >
         {/* Una cella vuota resta vuota: niente scritta. Con una griglia le celle
             vuote sono la maggioranza, e ripetere "nessun tile" in ognuna riempie
             la board di rumore per dire una cosa che si vede da sola. Lo spazio
@@ -337,7 +386,10 @@ function LaneBody({
             key={t.id ?? ti}
             t={t}
             active={!!t.id && t.id === selectedId}
-            onClick={onCardClick && t.id ? () => onCardClick(t.id!) : undefined}
+            // La ghost non si apre e non ha menu: il suo id vive solo in questa
+            // cache, e ogni comando andrebbe su un tile che il server non ha.
+            onClick={onCardClick && t.id && !t.ghost ? () => onCardClick(t.id!) : undefined}
+            onMenu={onCardMenu && t.id && !t.ghost ? (e) => onCardMenu(e, t.id!) : undefined}
           />
         ))}
       </div>
@@ -346,13 +398,15 @@ function LaneBody({
 }
 
 function LaneCol({
-  lane, onCardClick, selectedId, onMoveTile, onLaneMenu, onReorder, onResizeStart, style,
+  lane, onCardClick, onCardMenu, selectedId, onMoveTile, onCreateInCell, onLaneMenu, onReorder, onResizeStart, style,
   collapsed, onToggleCollapse,
 }: {
   lane: Lane;
   onCardClick?: (id: string) => void;
+  onCardMenu?: (e: React.MouseEvent, tileId: string) => void;
   selectedId?: string;
   onMoveTile?: (tileId: string, colId: string, rowId?: string) => void;
+  onCreateInCell?: (colId: string, rowId?: string) => void;
   onLaneMenu?: (e: React.MouseEvent, laneId: string) => void;
   onReorder?: (fromId: string, toId: string) => void;
   onResizeStart?: (e: React.PointerEvent, from: number) => void;
@@ -367,8 +421,10 @@ function LaneCol({
     <LaneBody
       lane={lane}
       onCardClick={onCardClick}
+      onCardMenu={onCardMenu}
       selectedId={selectedId}
       onMoveTile={onMoveTile}
+      onCreateInCell={onCreateInCell}
       onReorder={onReorder}
       collapsed={collapsed}
       style={style}
@@ -389,10 +445,20 @@ function LaneCol({
 export interface KanbanViewProps {
   lanes?: Lane[];
   onCardClick?: (id: string) => void;
+  /**
+   * Tasto destro — o ctrl/cmd+click — su una card: il menu della tile. Assente
+   * il callback, il gesto non fa niente (anteprime senza dati veri).
+   */
+  onCardMenu?: (e: React.MouseEvent, tileId: string) => void;
   selectedId?: string;
   onAddTile?: () => void;
   /** Drop di un tile in una cella → applica i filtri di colonna E di corsia. */
   onMoveTile?: (tileId: string, colId: string, rowId?: string) => void;
+  /**
+   * Doppio click sul vuoto di una cella → crea lì una tile, con i valori che la
+   * cella impone (gli stessi che il drop applicherebbe a un tile trascinato).
+   */
+  onCreateInCell?: (colId: string, rowId?: string) => void;
   /** SOLO i tag pinnati, nell'ordine in cui l'utente li ha messi. La barra non
    *  e' un elenco di tag: e' la scorciatoia alle poche cose che tieni sott'occhio,
    *  esattamente come la tab-strip del canvas. Vuoto = nessuna linguetta. */
@@ -404,6 +470,17 @@ export interface KanbanViewProps {
   onTagChange?: (id: string, additive: boolean) => void;
   onAddColumn?: () => void;
   onAddLane?: () => void;
+  /**
+   * Ruota la board: quello che divideva in verticale passa in orizzontale e
+   * viceversa. Non è un riordino — è la stessa board guardata da un'altra parte.
+   */
+  onSwapAxes?: () => void;
+  /**
+   * Perché lo scambio non si può fare adesso. Presente = pulsante spento, e la
+   * frase finisce nel tooltip: un comando disattivato che non dice perché è un
+   * comando che sembra rotto.
+   */
+  swapBlockedReason?: string;
   /**
    * Le corsie orizzontali. Ognuna diventa una FASCIA che contiene la stessa
    * fila di colonne, con dentro solo i tile della corsia. Vuoto = board a una
@@ -437,9 +514,10 @@ export interface KanbanViewProps {
 }
 
 export function KanbanView({
-  lanes = LANES, onCardClick, selectedId, onAddTile, onMoveTile,
+  lanes = LANES, onCardClick, onCardMenu, selectedId, onAddTile, onMoveTile, onCreateInCell,
   tagPills, activeTags, onTagChange,
-  onAddColumn, onAddLane, onLaneMenu, onReorder, onReorderRow, bands, dateAxis, onGrowDates,
+  onAddColumn, onAddLane, onSwapAxes, swapBlockedReason,
+  onLaneMenu, onReorder, onReorderRow, bands, dateAxis, onGrowDates,
   colSize, rowSize, onResize, onReset, doneHighlight = false, onToggleDoneHighlight,
 }: KanbanViewProps) {
   /**
@@ -738,6 +816,24 @@ export function KanbanView({
             onClick={onAddLane}
             disabled={!onAddLane}
           />
+          {/* Dopo i due inserimenti perché appartiene allo stesso gruppo — la
+              STRUTTURA — ma non aggiunge niente: prende i due assi e li scambia.
+              Il tooltip dice cosa succede, non come si chiama: «scambia gli
+              assi» sarebbe il nome dell'operazione, non il suo effetto. */}
+          {onSwapAxes && (
+            <ToolButton
+              icon={<IconTransform size={16} stroke={1.6} />}
+              label={swapBlockedReason
+                ? `Scambia righe e colonne — ${swapBlockedReason}`
+                : 'Scambia righe e colonne: quello che divide in verticale passa in orizzontale e viceversa'}
+              // Le colonne chiuse a fisarmonica sono ricordate per id di colonna:
+              // dopo la rotazione quegli id stanno sull'altro asse, e resterebbero
+              // chiuse delle colonne che non esistono più. Stessa pulizia di
+              // «Adatta», per la stessa ragione.
+              onClick={() => { setCollapsedCols(new Set()); onSwapAxes(); }}
+              disabled={!!swapBlockedReason}
+            />
+          )}
           {onReset && (
             <ToolButton
               icon={<IconArrowAutofitWidth size={16} stroke={1.6} />}
@@ -745,15 +841,15 @@ export function KanbanView({
               onClick={() => { setCollapsedCols(new Set()); onReset(); }}
             />
           )}
+          {/* Dopo il separatore i MODI DI GUARDARE: non sono comandi di
+              struttura come quelli qui accanto, non creano niente e cambiano
+              solo COME guardi la board. Parole nude, senza fondo e senza icona. */}
+          <div className="ob-toolsep" />
+          <SparkIconsToggle />
           {onToggleDoneHighlight && (
             <>
-              {/* Ultimo a destra, dopo il separatore, esattamente come nella
-                  topbar del canvas: non e' un comando di struttura come quelli
-                  qui accanto, non crea niente e cambia solo COME guardi la board.
-                  Una parola nuda; accesa si tinge di VERDE, cioe' del colore che
-                  accende sulle card — mostra il suo effetto invece di
-                  descriverlo. */}
-              <div className="ob-toolsep" />
+              {/* Accesa si tinge di VERDE, cioe' del colore che accende sulle
+                  card — mostra il suo effetto invece di descriverlo. */}
               <ToolWord
                 on={doneHighlight}
                 tone="var(--ob-success)"
@@ -883,8 +979,10 @@ export function KanbanView({
                       lane={l}
                       rowId={b.id}
                       onCardClick={onCardClick}
+                      onCardMenu={onCardMenu}
                       selectedId={selectedId}
                       onMoveTile={onMoveTile}
+                      onCreateInCell={onCreateInCell}
                       onReorder={onReorder}
                       collapsed={collapsedCols.has(key)}
                       style={colStyle(key)}
@@ -904,8 +1002,10 @@ export function KanbanView({
                 key={key}
                 lane={l}
                 onCardClick={onCardClick}
+                onCardMenu={onCardMenu}
                 selectedId={selectedId}
                 onMoveTile={onMoveTile}
+                onCreateInCell={onCreateInCell}
                 onLaneMenu={onLaneMenu}
                 onReorder={onReorder}
                 onResizeStart={onResize ? beginResize('col', key) : undefined}

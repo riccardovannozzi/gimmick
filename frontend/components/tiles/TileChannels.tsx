@@ -13,9 +13,14 @@
  * stepper cambiano col tema, e un valore inline non può farlo.
  */
 import * as React from 'react';
-import { IconFlame, IconCalendarMonth, IconClock } from '@tabler/icons-react';
+import {
+  IconFlame, IconCalendarMonth, IconClock,
+  IconCamera, IconPhoto, IconVideo, IconMicrophone, IconAlignLeft, IconPaperclip,
+} from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { STEPPER_MAX_SEGMENTS, TILE_STATUS_LABEL, type StepState, type TileChannelSpec, type TileStatus } from '@/lib/tile-visual';
+import { typeLabels } from '@/lib/spark-utils';
+import type { SparkType } from '@/types';
 
 /** Glifi ammessi per il badge-icona. Chiavi = i `value` di TILE_VISUAL. */
 const BADGE_ICON = {
@@ -84,6 +89,79 @@ export function TileStepper({ steps }: { steps: StepState[] }) {
       ))}
       {overflow && <span className="ob-tstep ob-tstep--more" />}
     </div>
+  );
+}
+
+/**
+ * ─── SPARK ALLEGATI ──────────────────────────────────────────────────────────
+ *
+ * Glifo e colore di ogni tipo di spark. Non sono scelti qui: sono gli STESSI
+ * dell'icona di cattura e dei token `--ob-type-*` che l'app usa dappertutto per
+ * quel tipo. Un video è rosa in ogni schermata; se lo fosse solo qui, il
+ * puntino sulla card sarebbe un secondo linguaggio da imparare.
+ */
+const SPARK_CHANNEL: Record<SparkType, { Glyph: typeof IconCamera; color: string }> = {
+  photo: { Glyph: IconCamera, color: 'var(--ob-type-photo)' },
+  image: { Glyph: IconPhoto, color: 'var(--ob-type-gallery)' },
+  video: { Glyph: IconVideo, color: 'var(--ob-type-video)' },
+  audio_recording: { Glyph: IconMicrophone, color: 'var(--ob-type-voice)' },
+  text: { Glyph: IconAlignLeft, color: 'var(--ob-type-text)' },
+  file: { Glyph: IconPaperclip, color: 'var(--ob-type-file)' },
+};
+
+/**
+ * Ordine FISSO, uguale per tutte le card. Se seguisse l'ordine di allegamento,
+ * due tile con gli stessi allegati mostrerebbero due file diverse di pallini e
+ * non si potrebbero confrontare con un colpo d'occhio — che è l'unica cosa che
+ * questi pallini servono a permettere.
+ */
+const SPARK_ORDER: SparkType[] = ['photo', 'image', 'video', 'audio_recording', 'text', 'file'];
+
+/**
+ * Oltre tre, la fila esce dal footer e i pallini diventano una barra. Un tile
+ * con quattro tipi diversi di allegato è raro, e in quel caso il quarto si
+ * scopre aprendolo: la card dice CHE COSA c'è dentro, non l'inventario.
+ */
+const SPARKS_MAX = 3;
+
+/**
+ * Un pallino per ogni TIPO di spark allegato — non per ogni spark: cinque foto
+ * fanno un'icona sola. La card risponde a «che genere di roba c'è qui dentro»,
+ * e cinque copie dello stesso glifo non aggiungono niente a quella risposta.
+ *
+ * Sta in basso a SINISTRA, e non a destra sotto il badge dell'azione, per una
+ * ragione geometrica: nelle colonne di Chrono e nelle corsie del Kanban le card
+ * sono impilate con 9px di stacco, e il badge sborda di 8 dal bordo. Due badge a
+ * destra — questo sotto una card e quello dell'azione sopra la card seguente —
+ * finirebbero nello stesso varco, l'uno addosso all'altro. A sinistra il varco è
+ * libero, e i due canali si leggono come una diagonale invece che come una
+ * colonna sovrapposta.
+ */
+export function TileSparks({ types, shifted }: { types?: SparkType[]; shifted?: boolean }) {
+  const shown = React.useMemo(() => {
+    if (!types?.length) return [];
+    const present = new Set(types);
+    return SPARK_ORDER.filter((t) => present.has(t)).slice(0, SPARKS_MAX);
+  }, [types]);
+
+  if (!shown.length) return null;
+
+  return (
+    <span
+      className={cn('ob-tsparks', shifted && 'ob-tsparks--shifted')}
+      // Il tooltip è l'unico posto in cui questi glifi si spiegano: sono 17px e
+      // non hanno etichetta. Vale anche da nome accessibile.
+      title={shown.map((t) => typeLabels[t]).join(' · ')}
+    >
+      {shown.map((t) => {
+        const { Glyph, color } = SPARK_CHANNEL[t];
+        return (
+          <span key={t} className="ob-tspark" style={{ ['--sk' as string]: color }} aria-hidden>
+            <Glyph size={14} stroke={1.8} />
+          </span>
+        );
+      })}
+    </span>
   );
 }
 

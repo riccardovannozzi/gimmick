@@ -10,7 +10,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
 import * as TablerIcons from '@tabler/icons-react';
-import { IconPin, IconPinFilled, IconArchive, IconArchiveOff } from '@tabler/icons-react';
+import { IconPin, IconPinFilled, IconArchive, IconArchiveOff, IconPlus } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
 import { SegmentedControl } from '@/components/primitives';
 import { Icon, type ShellIconName } from './icons';
@@ -63,6 +63,11 @@ export interface SidebarProps {
   onToggleArchive?: (tagId: string, archived: boolean) => void;
   /** Apri il tag selezionato nel Canvas. */
   onOpenCanvas?: (tagId: string) => void;
+  /**
+   * Tasto destro sulla testata di un gruppo → «Aggiungi tag». Il parent apre la
+   * modale: la sidebar non sa creare niente, sa solo dire dove è stato chiesto.
+   */
+  onAddTag?: (group: SidebarGroup) => void;
 }
 
 export function Sidebar({
@@ -77,6 +82,7 @@ export function Sidebar({
   onTogglePin,
   onToggleArchive,
   onOpenCanvas,
+  onAddTag,
 }: SidebarProps) {
   const [open, setOpen] = React.useState<Record<string, boolean>>(() =>
     Object.fromEntries(groups.map((g) => [g.id, g.defaultOpen ?? false])),
@@ -95,7 +101,17 @@ export function Sidebar({
    * destro torna a fare quello che fa il browser (anteprime senza handler).
    */
   const hasActions = !!onTogglePin || !!onToggleArchive || !!onOpenCanvas;
-  const [menu, setMenu] = React.useState<{ x: number; y: number; child: SidebarChild } | null>(null);
+  /**
+   * Un solo menu per due bersagli: la RIGA di un tag e la TESTATA di un gruppo.
+   * Uno stato solo, perché due menu potrebbero restare aperti insieme — e
+   * perché la posizione, la chiusura con Escape, lo sfondo che intercetta il
+   * click e il ritaglio sui bordi della finestra sono gli stessi in entrambi i
+   * casi. Cambia solo cosa c'è dentro.
+   */
+  type SidebarMenu =
+    | { x: number; y: number; kind: 'child'; child: SidebarChild }
+    | { x: number; y: number; kind: 'group'; group: SidebarGroup };
+  const [menu, setMenu] = React.useState<SidebarMenu | null>(null);
   const closeMenu = React.useCallback(() => setMenu(null), []);
   React.useEffect(() => {
     if (!menu) return;
@@ -115,10 +131,13 @@ export function Sidebar({
   // Quante voci avrà il menu aperto, e quindi quanto è alto: 8 di padding, 29 per
   // voce, 9 per il separatore. STIMATA e non misurata: misurarla vorrebbe dire
   // disegnare il menu nel posto sbagliato e poi spostarlo, che si vede.
-  const ctxItems = menu
-    ? (onOpenCanvas ? 1 : 0) + (onTogglePin && !menu.child.archived ? 1 : 0) + (onToggleArchive ? 1 : 0)
-    : 0;
-  const ctxH = 8 + ctxItems * 29 + (onOpenCanvas && (onTogglePin || onToggleArchive) ? 9 : 0);
+  const ctxItems = !menu
+    ? 0
+    : menu.kind === 'group'
+      ? 1
+      : (onOpenCanvas ? 1 : 0) + (onTogglePin && !menu.child.archived ? 1 : 0) + (onToggleArchive ? 1 : 0);
+  const ctxSep = menu?.kind === 'child' && onOpenCanvas && (onTogglePin || onToggleArchive) ? 9 : 0;
+  const ctxH = 8 + ctxItems * 29 + ctxSep;
 
   return (
     <aside className="ob-sb">
@@ -182,7 +201,22 @@ export function Sidebar({
         const Glyph = g.emoji ? TablerMap[g.emoji] : undefined;
         return (
           <div key={g.id} className="ob-sb-group">
-            <button type="button" className="ob-sb-group__head" onClick={() => toggle(g.id)} aria-expanded={isOpen}>
+            <button
+              type="button"
+              className="ob-sb-group__head"
+              onClick={() => toggle(g.id)}
+              aria-expanded={isOpen}
+              // Tasto destro sulla testata → «Aggiungi tag». Il gruppo è già il
+              // tipo del tag che nascerà: il gesto porta con sé la risposta a
+              // una delle tre domande del modulo.
+              onContextMenu={(e) => {
+                if (!onAddTag) return;
+                e.preventDefault();
+                e.stopPropagation();
+                setMenu({ x: e.clientX, y: e.clientY, kind: 'group', group: g });
+              }}
+              title={onAddTag ? `${g.name}\nTasto destro per aggiungere un tag qui dentro` : g.name}
+            >
               <span className={cn('ob-sb-group__chev', isOpen && 'ob-sb-group__chev--open')}>
                 <Icon name="chevR" size={13} stroke={1.8} />
               </span>
@@ -211,7 +245,7 @@ export function Sidebar({
                         if (!hasActions) return;
                         e.preventDefault();
                         e.stopPropagation();
-                        setMenu({ x: e.clientX, y: e.clientY, child: c });
+                        setMenu({ x: e.clientX, y: e.clientY, kind: 'child', child: c });
                       }}
                     >
                       <button
@@ -259,39 +293,51 @@ export function Sidebar({
               left: Math.min(menu.x, window.innerWidth - 200),
             }}
           >
-            {onOpenCanvas && (
+            {menu.kind === 'group' ? (
+              <button
+                type="button"
+                className="ob-ctx__item"
+                onClick={() => { onAddTag?.(menu.group); closeMenu(); }}
+              >
+                <IconPlus size={14} />Aggiungi tag
+              </button>
+            ) : (
               <>
-                <button
-                  type="button"
-                  className="ob-ctx__item"
-                  onClick={() => { onOpenCanvas(menu.child.id); closeMenu(); }}
-                >
-                  <Icon name="canvas" size={14} />Apri nel Canvas
-                </button>
-                {(onTogglePin || onToggleArchive) && <div className="ob-ctx__sep" />}
+                {onOpenCanvas && (
+                  <>
+                    <button
+                      type="button"
+                      className="ob-ctx__item"
+                      onClick={() => { onOpenCanvas(menu.child.id); closeMenu(); }}
+                    >
+                      <Icon name="canvas" size={14} />Apri nel Canvas
+                    </button>
+                    {(onTogglePin || onToggleArchive) && <div className="ob-ctx__sep" />}
+                  </>
+                )}
+                {/* Un tag archiviato non si pinna: sta in Storage, e le linguette
+                    dei pinnati sono una scorciatoia a quello che tieni sott'occhio. */}
+                {onTogglePin && !menu.child.archived && (
+                  <button
+                    type="button"
+                    className="ob-ctx__item"
+                    onClick={() => { onTogglePin(menu.child.id, !menu.child.pinned); closeMenu(); }}
+                  >
+                    {menu.child.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
+                    {menu.child.pinned ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
+                  </button>
+                )}
+                {onToggleArchive && (
+                  <button
+                    type="button"
+                    className="ob-ctx__item"
+                    onClick={() => { onToggleArchive(menu.child.id, !menu.child.archived); closeMenu(); }}
+                  >
+                    {menu.child.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
+                    {menu.child.archived ? 'Ripristina in Tags' : 'Sposta in Storage'}
+                  </button>
+                )}
               </>
-            )}
-            {/* Un tag archiviato non si pinna: sta in Storage, e le linguette dei
-                pinnati sono una scorciatoia a quello che tieni sott'occhio. */}
-            {onTogglePin && !menu.child.archived && (
-              <button
-                type="button"
-                className="ob-ctx__item"
-                onClick={() => { onTogglePin(menu.child.id, !menu.child.pinned); closeMenu(); }}
-              >
-                {menu.child.pinned ? <IconPinFilled size={14} /> : <IconPin size={14} />}
-                {menu.child.pinned ? 'Rimuovi dai preferiti' : 'Aggiungi ai preferiti'}
-              </button>
-            )}
-            {onToggleArchive && (
-              <button
-                type="button"
-                className="ob-ctx__item"
-                onClick={() => { onToggleArchive(menu.child.id, !menu.child.archived); closeMenu(); }}
-              >
-                {menu.child.archived ? <IconArchiveOff size={14} /> : <IconArchive size={14} />}
-                {menu.child.archived ? 'Ripristina in Tags' : 'Sposta in Storage'}
-              </button>
             )}
           </div>
         </>,

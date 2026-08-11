@@ -20,7 +20,7 @@
 import * as React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AppShell, Sidebar, Inspector, DEFAULT_RIGHT_VIEWS, type ViewId } from '@/components/shell';
+import { AppShell, Sidebar, Inspector, NewTagModal, DEFAULT_RIGHT_VIEWS, type ViewId, type SidebarGroup } from '@/components/shell';
 import { useViewPrefs } from '@/store/view-prefs-store';
 import { tagsApi } from '@/lib/api';
 import { prefetchView } from '@/lib/view-prefetch';
@@ -208,6 +208,8 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // Filtro Sidebar (Tutti / Pinned).
   const [tagFilter, setTagFilter] = React.useState('all');
   const [contactsOpen, setContactsOpen] = React.useState(false);
+  /** Il gruppo su cui si è chiesto «Aggiungi tag». `null` = modale chiusa. */
+  const [addTagGroup, setAddTagGroup] = React.useState<SidebarGroup | null>(null);
 
   // Pin/unpin di un tag: aggiornamento ottimistico della cache ['tags'].
   const handleTogglePin = React.useCallback((tagId: string, pinned: boolean) => {
@@ -223,6 +225,11 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // aggiornamento ottimistico della cache ['tags']. Archiviare un tag lo
   // rimuove anche dai pinnati (uno stato archiviato non ha senso "in evidenza").
   const handleToggleArchive = React.useCallback((tagId: string, archived: boolean) => {
+    // Un tag archiviato sparisce dalla lista «Tags», ma restava selezionato: la
+    // board continuava a mostrare SOLO i suoi tile, e nella sidebar non c'era
+    // più niente di acceso a dire perché. Archiviare è anche smettere di
+    // guardarlo.
+    if (archived && selectedTagIds.has(tagId)) toggleTag(tagId);
     queryClient.setQueryData(['tags'], (old: { data?: Tag[] } | undefined) => {
       if (!old?.data) return old;
       return { ...old, data: old.data.map((t) => (t.id === tagId ? { ...t, is_archived: archived, is_pinned: archived ? false : t.is_pinned } : t)) };
@@ -230,7 +237,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     const updates = archived ? { is_archived: true, is_pinned: false } : { is_archived: false };
     tagsApi.update(tagId, updates)
       .finally(() => queryClient.invalidateQueries({ queryKey: ['tags'] }));
-  }, [queryClient]);
+  }, [queryClient, selectedTagIds, toggleTag]);
 
   // Apri il tag nel Canvas (con navigazione ottimistica come i tab).
   const handleOpenCanvas = React.useCallback((tagId: string) => {
@@ -322,8 +329,13 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
           onTogglePin={handleTogglePin}
           onToggleArchive={handleToggleArchive}
           onOpenCanvas={handleOpenCanvas}
+          onAddTag={setAddTagGroup}
         />
       }
+      // Niente `invalidateKeys` sulla sidebar: aggiorna da sé TUTTE le liste di
+      // tile (vedi `lib/tile-cache`). Qui ne dichiarava una sola — `tiles` — e
+      // per questo modificare un tile dal pannello destro non muoveva la card
+      // della board che si stava guardando accanto.
       inspector={
         inspector ??
         (pageOwnsInspector ? undefined : selectedTileId ? (
@@ -331,7 +343,6 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
             tileId={selectedTileId}
             open
             onToggle={clearTile}
-            invalidateKeys={['tiles']}
           />
         ) : (
           <Inspector><InspectorEmpty /></Inspector>
@@ -340,6 +351,14 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     >
       {children}
       <ContactsModal open={contactsOpen} onClose={() => setContactsOpen(false)} />
+      {/* Il tag nuovo si accende subito nella sidebar: hai appena detto che ti
+          interessa, e trovarlo già selezionato risparmia il passaggio di
+          cercarlo nella lista che si è appena riordinata sotto di te. */}
+      <NewTagModal
+        group={addTagGroup}
+        onClose={() => setAddTagGroup(null)}
+        onCreated={(id) => selectOnly(id)}
+      />
     </AppShell>
   );
 }

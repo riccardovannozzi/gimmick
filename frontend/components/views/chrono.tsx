@@ -21,10 +21,13 @@ import { Tile } from '@/components/tiles/Tile';
 import { tileVisualKey, type StepState, type TileStatus } from '@/lib/tile-visual';
 import { IconLayoutGrid } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
+import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
-import type { StatusShape, ActionType } from '@/types';
+// Alias: questo file ha già un `SparkType` locale suo (quattro valori, usato
+// solo dal mock), che non è quello del dominio.
+import type { StatusShape, ActionType, SparkType as SparkKind } from '@/types';
 
 /*
  * La COLORAZIONE dei tile (By Tag / By Type / By Status) non esiste più: tre
@@ -75,6 +78,9 @@ export interface ColTile {
   /** Numero di sparks del tile → contatore in basso a destra. */
   sparkCount?: number;
   spark?: SparkType;
+  /** I TIPI degli spark allegati (grezzi, con i doppioni) → pallini nel footer
+   *  del Tile. Distinto da `spark`, che è il solo primo e non viene reso. */
+  sparks?: SparkKind[];
   amber?: boolean;
   checklist?: boolean[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
@@ -114,6 +120,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         visualKey={tileVisualKey({ action_type: t.action })}
         status={status}
         steps={steps}
+        sparks={t.sparks}
         accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
         active={active}
         onClick={onClick}
@@ -947,12 +954,15 @@ export function ChronoView({
             onClick={onAddTile}
             disabled={!onAddTile}
           />
+          {/* Il separatore tiene i MODI DI GUARDARE a parte da «Tile», che
+              invece crea. Di là dal filo nessuno tocca i dati: cambia solo cosa
+              la board mostra di sé. */}
+          <div className="ob-toolsep" />
+          <SparkIconsToggle />
           {onToggleDoneHighlight && (
             <>
-              {/* Il separatore lo tiene a parte da «Tile», che invece crea. Il
-                  VERDE che prende da acceso è lo stesso che accende sui tile:
+              {/* Il VERDE che prende da acceso è lo stesso che accende sui tile:
                   mostra il suo effetto invece di descriverlo. */}
-              <div className="ob-toolsep" />
               <ToolWord
                 on={doneHighlight}
                 tone="var(--ob-success)"

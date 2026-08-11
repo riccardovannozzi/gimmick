@@ -119,6 +119,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
     actionColor: isFlow ? 'var(--ob-accent)' : isTodo ? 'var(--ob-subtle)' : 'var(--ob-muted)',
     action: t.action_type,
     spark: sp ? SPARK_MAP[sp.type] : undefined,
+    sparks: (t.sparks ?? []).map((s) => s.type),
     checklist: checklist.length ? checklist : undefined,
     createdAt: t.created_at,
     done: !!t.is_completed,

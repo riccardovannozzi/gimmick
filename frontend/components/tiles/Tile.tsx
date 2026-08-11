@@ -14,8 +14,9 @@
 import * as React from 'react';
 import { cn } from '@/lib/utils';
 import { TILE_VISUAL, type StepState, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
-import { TileBadge, TileStepper, TileStatusLabel } from './TileChannels';
+import { TileBadge, TileStepper, TileStatusLabel, TileSparks } from './TileChannels';
 import { TILE_STATUS_LABEL } from '@/lib/tile-visual';
+import type { SparkType } from '@/types';
 
 /**
  * Larghezza utile del footer e costo medio di un carattere a 11px nel sans.
@@ -45,8 +46,25 @@ export interface TileProps {
   steps?: StepState[];
   /** Metadato già formattato: data, orario, ricorrenza o progressione. */
   meta?: string;
+  /**
+   * I tipi degli spark allegati, grezzi e con i doppioni: la card ne ricava un
+   * pallino per tipo. Vuoto o assente = nessun pallino.
+   *
+   * ⚠️ È un SESTO canale, e i cinque erano dichiarati chiusi (vedi il commento
+   * in cima a kanban.tsx, dove le cap-chip degli spark erano state tolte proprio
+   * per questo). Ci rientra a una condizione: si può spegnere. Il pulsante nelle
+   * toolbar scrive `data-sparks="off"` sulla radice e il canale sparisce da
+   * tutte le viste insieme — senza di quello sarebbe rumore permanente.
+   */
+  sparks?: SparkType[];
   /** Colore dell'action, dalle impostazioni utente. Mai un hex scritto qui. */
   accent?: string;
+  /**
+   * Tile PROVVISORIO: il posto che il tile occuperà, disegnato mentre viene
+   * creato davvero. Non è un'anteprima decorativa e non è cliccabile — è la
+   * stessa card, attenuata, in attesa di diventare una riga.
+   */
+  ghost?: boolean;
   active?: boolean;
   onClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -54,7 +72,7 @@ export interface TileProps {
 }
 
 export function Tile({
-  title, visualKey, status = 'active', steps, meta, accent,
+  title, visualKey, status = 'active', steps, meta, sparks, accent, ghost,
   active, onClick, onContextMenu, className,
 }: TileProps) {
   const spec = TILE_VISUAL[visualKey];
@@ -74,6 +92,7 @@ export function Tile({
         'ob-tile',
         hasStrip && 'ob-tile--stripped',
         onClick && 'ob-tile--clickable',
+        ghost && 'ob-tile--ghost',
         active && 'ob-tile--active',
         status === 'done' && 'ob-tile--done',
         status === 'cancelled' && 'ob-tile--cancelled',
@@ -96,6 +115,7 @@ export function Tile({
 
       <TileStatusLabel status={status} shifted={hasStrip} />
       {showMeta && <span className="ob-tile__meta">{meta}</span>}
+      <TileSparks types={sparks} shifted={hasStrip} />
     </div>
   );
 }

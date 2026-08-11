@@ -10,6 +10,8 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useChatStore } from '@/store/chat-store';
 import { useCardRoster } from '@/store/card-roster-store';
 import { useViewPrefs } from '@/store/view-prefs-store';
+import { useSparkIcons } from '@/store/spark-icons-store';
+import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { settingsApi } from '@/lib/api';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -32,6 +34,7 @@ export default function DashboardLayout({
   const typeIconsLoaded = useTypeIcons((s) => s.loaded);
   const hydrateRoster = useCardRoster((s) => s.hydrateFromServer);
   const hydrateViewPrefs = useViewPrefs((s) => s.hydrateFromServer);
+  const hydrateSparkIcons = useSparkIcons((s) => s.hydrate);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
 
   useEffect(() => {
@@ -39,6 +42,11 @@ export default function DashboardLayout({
       router.push('/login');
     }
   }, [user, isLoading, isInitialized, router]);
+
+  // I pallini degli spark: in layout-effect, PRIMA del paint. Da spenti, con un
+  // effect normale la prima passata li disegnerebbe e la seconda li toglierebbe
+  // — un lampo di puntini colorati a ogni caricamento.
+  useIsomorphicLayoutEffect(() => { hydrateSparkIcons(); }, [hydrateSparkIcons]);
 
   // Load type icons from DB on first render
   useEffect(() => {

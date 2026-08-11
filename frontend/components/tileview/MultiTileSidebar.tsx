@@ -10,6 +10,7 @@ import {
 } from '@tabler/icons-react';
 import * as TablerIcons from '@tabler/icons-react';
 import { tilesApi } from '@/lib/api';
+import { invalidateTileCaches, patchTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useActionColors } from '@/store/action-colors-store';
 import { usePixelTheme } from '@/components/pixel';
@@ -77,32 +78,15 @@ export function MultiTileSidebar({ tiles, open, onToggle, invalidateKeys = ['til
   const allIconsSame = tiles.length > 0 && tiles.every((t) => (tileIcons[t.id] || '') === (tileIcons[tiles[0].id] || ''));
   const commonIconId: string | null = allIconsSame ? (tileIcons[tiles[0]?.id] || null) : null;
 
+  // Stessa regola della sidebar singola: una modifica raggiunge TUTTE le liste
+  // di tile, non solo quelle della vista che ha aperto il pannello.
   const patchCaches = useCallback((updates: Record<string, unknown>) => {
-    const idSet = new Set(ids);
-    const patch = (t: any) => (t && idSet.has(t.id) ? { ...t, ...updates } : t);
-    ids.forEach((id) => {
-      queryClient.setQueriesData({ queryKey: ['tile-detail', id] }, (old: any) => {
-        if (!old?.data) return old;
-        return { ...old, data: { ...old.data, ...updates } };
-      });
-    });
-    const patchList = (key: string) => {
-      queryClient.setQueriesData({ queryKey: [key] }, (old: any) => {
-        if (!old) return old;
-        if (old.pages) return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
-        if (Array.isArray(old.data)) return { ...old, data: old.data.map(patch) };
-        return old;
-      });
-    };
-    patchList('calendar-events');
-    patchList('tiles-calendar');
-    patchList('tiles');
-    invalidateKeys.forEach(patchList);
+    patchTileCaches(queryClient, ids, updates, invalidateKeys);
   }, [queryClient, ids, invalidateKeys]);
 
   const invalidateAll = useCallback(() => {
     ids.forEach((id) => queryClient.invalidateQueries({ queryKey: ['tile-detail', id] }));
-    invalidateKeys.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    invalidateTileCaches(queryClient, invalidateKeys);
   }, [queryClient, ids, invalidateKeys]);
 
   const [saving, setSaving] = useState(false);
