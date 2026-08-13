@@ -63,7 +63,7 @@ import { useTagFilterStore } from '@/store/tag-filter-store';
 import { tileMatchesFilters, sortTiles, dateRangeKind } from '@/lib/kanban-helpers';
 import { applyOrder } from '@/lib/kanban-layout';
 import { useStatuses } from '@/store/statuses-store';
-import { tileVisualKey, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
 import type { Tile, Tag, KanbanColumn, KanbanLane, KanbanFilter, Status } from '@/types';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -196,7 +196,7 @@ const isGhostId = (id: string) => id.startsWith(GHOST_PREFIX);
 
 function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): CardData {
   const tileTag = (t.tags ?? []).find((tg) => tg.id !== rootTagId) ?? t.tags?.[0];
-  const checklist = (t.subtasks ?? []).map((s) => s.is_done);
+  const steps = (t.subtasks ?? []).map(subtaskToStep);
   const ti = iconOf(t.id);
   const key = tileVisualKey({ action_type: t.action_type, all_day: t.all_day });
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
@@ -204,7 +204,7 @@ function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, 
     id: t.id,
     title: t.title || 'Senza titolo',
     tag: tileTag?.name ?? 'Gimmick',
-    checklist: checklist.length ? checklist : undefined,
+    steps: steps.length ? steps : undefined,
     done: !!t.is_completed,
     visualKey: key,
     statusName: st?.name as TileStatus | undefined,

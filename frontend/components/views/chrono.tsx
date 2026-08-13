@@ -82,7 +82,10 @@ export interface ColTile {
    *  del Tile. Distinto da `spark`, che è il solo primo e non viene reso. */
   sparks?: SparkKind[];
   amber?: boolean;
-  checklist?: boolean[];
+  /** I passi GIÀ tradotti in stati di segmento (`subtaskToStep`). Erano dei
+   *  booleani, e un booleano non sa dire «fermo»: il rosso non poteva arrivare
+   *  fin qui. */
+  steps?: StepState[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
   /** Nome grezzo dello status (`active`, `done`, `paused`…). Distinto da
@@ -108,7 +111,6 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
   // `is_completed` e lo status `done` sono tenuti allineati dal database
   // (migration 015), quindi qui valgono come la stessa cosa.
   const status: TileStatus = t.done ? 'done' : (t.statusName ?? 'active');
-  const steps = t.checklist?.map((d): StepState => (d ? 'done' : 'pending'));
   return (
     <div
       className="ob-chrono__cell"
@@ -119,7 +121,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         title={t.title}
         visualKey={tileVisualKey({ action_type: t.action })}
         status={status}
-        steps={steps}
+        steps={t.steps}
         sparks={t.sparks}
         accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
         active={active}
@@ -851,16 +853,16 @@ const NOTES: ColTile[] = [
   { title: 'Incontro con Bania Piccardi sul preventivo', actionLabel: 'Notes', actionColor: 'var(--ob-muted)', spark: 'voice' },
 ];
 const TODOS: ColTile[] = [
-  { title: 'Revoca certificato digitale Aruba', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'file', amber: true, checklist: [true, true, false] },
-  { title: 'Preparare brief Teleport per Marco', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'text', checklist: [true, false, false, false] },
-  { title: 'Lista materiali cucina Ortano', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', amber: true, checklist: [false, false] },
+  { title: 'Revoca certificato digitale Aruba', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'file', amber: true, steps: ['done', 'done', 'pending'] },
+  { title: 'Preparare brief Teleport per Marco', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'text', steps: ['done', 'pending', 'pending', 'pending'] },
+  { title: 'Lista materiali cucina Ortano', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', amber: true, steps: ['pending', 'pending'] },
 ];
 // I flow di esempio hanno tutti una checklist: senza passi un flow è un tile
 // come gli altri, ed è proprio la strip a raccontarlo.
 const FLOWS: ColTile[] = [
-  { title: 'Voltura contatore acqua', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, true, true, false] },
-  { title: 'Preventivo APE albergo', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false] },
-  { title: 'Concessione demaniale spiaggia', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false, false] },
+  { title: 'Voltura contatore acqua', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'done', 'done', 'pending'] },
+  { title: 'Preventivo APE albergo', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'pending'] },
+  { title: 'Concessione demaniale spiaggia', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'pending', 'pending'] },
 ];
 
 export interface ChronoViewProps {

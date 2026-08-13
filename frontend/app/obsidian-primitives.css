@@ -474,6 +474,13 @@
   border-right: 0.5px solid var(--ob-line);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
+  /* La colonna è tarata per riempirsi fino a `STEPPER_MAX_SEGMENTS` (10 × 3px
+     più 9 stacchi da 4 = 66 su 80). Il ritaglio è la rete di sicurezza per i
+     segmenti più alti — `blocked` è 5px invece di 3 — che a colonna piena
+     uscirebbero dal tile sopra e sotto, andando a finire sulla card vicina.
+     ⚠️ Vale SOLO per la strip: il tile non ritaglia niente, i badge d'angolo
+     sbordano per costruzione. */
+  overflow: hidden;
 }
 .ob-tstep { width: 10px; height: 3px; border-radius: 1px; flex-shrink: 0; }
 .ob-tstep--done { background: var(--ob-step-done); }

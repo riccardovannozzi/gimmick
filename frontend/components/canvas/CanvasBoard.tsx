@@ -14,7 +14,7 @@ import { usePixelTheme } from '@/components/pixel';
 // `Tile` è già il tipo di dominio importato qui sopra: la card si chiama
 // `TileCard` per non coprirlo.
 import { Tile as TileCard } from '@/components/tiles/Tile';
-import { tileVisualKey, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
 import { TextEditor } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
@@ -87,7 +87,7 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: { is_done: boolean }[]; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge {
@@ -1219,14 +1219,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     };
 
     /**
-     * Oltre cinque segmenti la strip diventa illeggibile e il Tile mostra un
-     * segmento riassuntivo: il conteggio pieno passa allora nel metadato, che
-     * è responsabilità di chi monta la card.
+     * Riempita la colonna (`STEPPER_MAX_SEGMENTS`), il Tile mostra un segmento
+     * riassuntivo e il conteggio pieno passa nel metadato, che è responsabilità
+     * di chi monta la card.
      */
     const stepsFor = (d: CanvasNode): StepState[] | undefined => {
       const items = d.subtasks ?? [];
       if (!items.length) return undefined;
-      return items.map((s): StepState => (s.is_done ? 'done' : 'pending'));
+      return items.map(subtaskToStep);
     };
 
     nodeGrps.each(function (d) {

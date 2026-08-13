@@ -69,7 +69,10 @@ tilesRouter.get(
         // `user_id` sui figli non serve alla UI: serve a poterli filtrare qui
         // sotto. I join seguono la sola FK tile_id, quindi una riga figlia di un
         // altro utente attaccata a un tile mio comparirebbe in questa lista.
-        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(user_id, is_done, sort_order)', { count: 'exact' })
+        // `state` sui subtask: è la differenza fra un passo non ancora fatto e
+        // un passo FERMO, e la barra di avanzamento della card la disegna in
+        // rosso. Senza, `is_done` da solo appiattisce i due casi su "pending".
+        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(user_id, is_done, sort_order, state)', { count: 'exact' })
         .eq('user_id', req.user!.id);
 
       if (action_type) {
@@ -105,7 +108,7 @@ tilesRouter.get(
       };
       type TileTag = { id: string; name: string; tag_type?: string };
       type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string } | null };
-      type SubtaskRow = { user_id: string; is_done: boolean | null; sort_order: number | null };
+      type SubtaskRow = { user_id: string; is_done: boolean | null; sort_order: number | null; state: 'blocked' | 'cancelled' | null };
       type TileListRow = Tile & {
         sparks?: SparkPreview[];
         tile_tags?: TileTagJoin[];
@@ -141,13 +144,14 @@ tilesRouter.get(
         if (tags.length === 0 && rootTag) {
           tags.push({ id: rootTag.id, name: rootTag.name });
         }
-        // Compact subtasks payload: sorted by sort_order, only is_done kept
+        // Compact subtasks payload: sorted by sort_order, only what the
+        // avanzamento bar needs — `is_done` e lo `state` che lo sovrascrive.
         const subtasksRaw = (Array.isArray(tile.tile_subtasks) ? tile.tile_subtasks : [])
           .filter((s) => s.user_id === req.user!.id);
         const subtasks = subtasksRaw
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((s) => ({ is_done: !!s.is_done }));
+          .map((s) => ({ is_done: !!s.is_done, state: s.state ?? null }));
         return {
           ...tile,
           spark_count: sparks.length,

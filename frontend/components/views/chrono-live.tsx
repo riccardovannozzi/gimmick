@@ -35,7 +35,7 @@ import {
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
-import type { TileStatus } from '@/lib/tile-visual';
+import { subtaskToStep, type TileStatus } from '@/lib/tile-visual';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -111,7 +111,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
   const isTodo = t.action_type === 'anytime';
   const isFlow = t.action_type === 'flow';
   const sp = t.sparks?.[0];
-  const checklist = (t.subtasks ?? []).map((s) => s.is_done);
+  const steps = (t.subtasks ?? []).map(subtaskToStep);
   return {
     id: t.id,
     title: deriveTitle(t),
@@ -120,7 +120,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
     action: t.action_type,
     spark: sp ? SPARK_MAP[sp.type] : undefined,
     sparks: (t.sparks ?? []).map((s) => s.type),
-    checklist: checklist.length ? checklist : undefined,
+    steps: steps.length ? steps : undefined,
     createdAt: t.created_at,
     done: !!t.is_completed,
     status: cardStatus(t, statusById),

@@ -72,9 +72,11 @@ export function TileBadge({ badge, shifted }: { badge: BadgeSpec; shifted?: bool
  * vuota: il Tile torna al suo padding normale. Per questo il componente
  * restituisce `null` e chi lo monta deve regolare il padding di conseguenza.
  *
- * Oltre il quinto segmento la colonna diventa illeggibile: si mostrano i primi
- * quattro più un segmento riassuntivo, e il conteggio completo passa nel
- * metadato del footer ("2 di 9"), che non è responsabilità di questo componente.
+ * La colonna si riempie fino a `STEPPER_MAX_SEGMENTS`, che è quanti segmenti
+ * stanno nell'altezza del tile: una lista che cresce si vede crescere. Solo
+ * oltre quella soglia si riassume — ultimi posti occupati da un segmento
+ * "altri" — e il conteggio esatto passa nel metadato del footer ("2 di 14"),
+ * che non è responsabilità di questo componente.
  */
 export function TileStepper({ steps }: { steps: StepState[] }) {
   if (!steps.length) return null;

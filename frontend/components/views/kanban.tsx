@@ -60,7 +60,10 @@ export interface CardData {
   tag: string;
   /** Ripiego d'accento per le scadenze quando `accent` non arriva. */
   amber?: boolean;
-  checklist?: boolean[];
+  /** I passi GIÀ tradotti in stati di segmento (`subtaskToStep`). Erano dei
+   *  booleani, e un booleano non sa dire «fermo»: il rosso non poteva arrivare
+   *  fin qui. */
+  steps?: StepState[];
   /** Tile completato (is_completed) → si legge come status `done`. */
   done?: boolean;
   /** Chiave grafica risolta con `tileVisualKey()`: bordo, badge e metadato. */
@@ -103,9 +106,9 @@ const LANES: Lane[] = [
   },
   {
     label: 'DA FARE', color: 'var(--ob-muted)', tiles: [
-      { title: 'Revoca certificato digitale Aruba', tag: 'OM', amber: true, checklist: [true, true, false] },
-      { title: 'Preparare brief Teleport per Marco', tag: 'GDS', checklist: [true, false, false, false] },
-      { title: 'Lista materiali cucina', tag: 'OM', amber: true, checklist: [false, false] },
+      { title: 'Revoca certificato digitale Aruba', tag: 'OM', amber: true, steps: ['done', 'done', 'pending'] },
+      { title: 'Preparare brief Teleport per Marco', tag: 'GDS', steps: ['done', 'pending', 'pending', 'pending'] },
+      { title: 'Lista materiali cucina', tag: 'OM', amber: true, steps: ['pending', 'pending'] },
     ],
   },
   {
@@ -122,7 +125,7 @@ const LANES: Lane[] = [
   },
   {
     label: 'FATTI', color: 'var(--ob-success)', tiles: [
-      { title: 'Itinerario Lisbona confermato', tag: 'Viaggio', checklist: [true, true, true] },
+      { title: 'Itinerario Lisbona confermato', tag: 'Viaggio', steps: ['done', 'done', 'done'] },
       { title: 'Demo prodotto v2 rivista', tag: 'GDS' },
     ],
   },
@@ -154,9 +157,6 @@ function TileCard({ t, onClick, onMenu, active }: {
   active?: boolean;
 }) {
   const draggable = !!t.id && !t.ghost;
-  const steps: StepState[] | undefined = t.checklist?.length
-    ? t.checklist.map((d): StepState => (d ? 'done' : 'pending'))
-    : undefined;
   // `is_completed` e lo status `done` sono tenuti allineati dal database
   // (migration 015): qui valgono come la stessa cosa.
   const status: TileStatus = t.done ? 'done' : (t.statusName ?? 'active');
@@ -182,7 +182,7 @@ function TileCard({ t, onClick, onMenu, active }: {
         title={t.title}
         visualKey={t.visualKey ?? 'none'}
         status={status}
-        steps={steps}
+        steps={t.steps}
         meta={t.meta}
         sparks={t.sparks}
         accent={t.accent ?? (t.amber ? 'var(--ob-warning)' : undefined)}

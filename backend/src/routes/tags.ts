@@ -471,12 +471,16 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
       // card), non il loro contenuto. Portarsi dietro `content` di ogni spark
       // moltiplicherebbe il peso della risposta per niente — è lo stesso motivo
       // per cui la lista dei tile ne manda una proiezione ridotta.
-      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order), sparks(user_id, type))')
+      // `state` sui subtask: stessa proiezione della lista dei tile. È quello
+      // che distingue un passo non ancora fatto da uno FERMO, e senza di lui la
+      // barra di avanzamento delle card del canvas resterebbe l'unica a non
+      // poter diventare rossa.
+      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order, state), sparks(user_id, type))')
       .eq('tag_id', tagId);
 
     if (error) throw error;
 
-    type SubtaskRow = { is_done: boolean | null; sort_order: number | null };
+    type SubtaskRow = { is_done: boolean | null; sort_order: number | null; state: 'blocked' | 'cancelled' | null };
     type SparkKindRow = { user_id: string; type: string };
     type TileWithSubtasks = Tile & { tile_subtasks?: SubtaskRow[]; sparks?: SparkKindRow[] };
     type TileTagRow = { tile_id: string; tiles: TileWithSubtasks | null };
@@ -494,7 +498,7 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
         const subtasks = subtasksRaw
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((s) => ({ is_done: !!s.is_done }));
+          .map((s) => ({ is_done: !!s.is_done, state: s.state ?? null }));
         // Stesso filtro per proprietario della lista dei tile: uno spark altrui
         // agganciato a un tile proprio non deve affiorare, nemmeno come tipo.
         const sparks = (Array.isArray(tile.sparks) ? tile.sparks : [])
