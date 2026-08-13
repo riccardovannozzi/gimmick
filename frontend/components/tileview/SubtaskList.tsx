@@ -184,6 +184,11 @@ export function SubtaskList({ tileId }: SubtaskListProps) {
           // lasciargli addosso `blocked` lo terrebbe rosso sulla card per
           // sempre (lo stato vince su `is_done`, vedi `subtaskToStep`).
           // Toglierne la spunta non tocca niente: era già senza stato.
+          //
+          // `state: null` è scritto qui ANCHE se il server lo imporrebbe da sé
+          // (vedi l'invariante nella PATCH): è quello che rende immediato
+          // l'aggiornamento ottimistico — lucchetto spento e segmento verde
+          // nello stesso fotogramma del click, senza aspettare la risposta.
           onToggle={() => updateMutation.mutate({
             id: s.id,
             updates: s.is_done ? { is_done: false } : { is_done: true, state: null },

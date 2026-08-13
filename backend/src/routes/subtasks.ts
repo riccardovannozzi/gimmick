@@ -99,6 +99,27 @@ subtasksRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, ne
       updates.state = s;
     }
 
+    /**
+     * ─── FATTO e FERMO non stanno insieme ────────────────────────────────────
+     *
+     * In lettura `state` vince su `is_done` (`StepState = state ?? (is_done ?
+     * 'done' : 'pending')`), quindi un passo spuntato che si porta dietro
+     * `blocked` resterebbe rosso per sempre sulla barra di avanzamento — e un
+     * passo fermo contato fra i fatti falserebbe il «X di Y» del footer, che
+     * conta `is_done`.
+     *
+     * La garanzia sta QUI e non nel pannello che oggi è l'unico a scrivere:
+     * un'invariante affidata a chi chiama regge finché chi chiama è uno solo.
+     *
+     * Chi vince quando la richiesta si contraddice: lo STATO. È la
+     * sovrastruttura, e dice la cosa più specifica delle due.
+     */
+    if (updates.state === 'blocked' || updates.state === 'cancelled') {
+      updates.is_done = false;
+    } else if (updates.is_done === true && req.body.state === undefined) {
+      updates.state = null;
+    }
+
     const { data, error } = await supabaseAdmin
       .from('tile_subtasks')
       .update(updates)

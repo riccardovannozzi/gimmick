@@ -6,13 +6,25 @@ import type { QueryClient } from '@tanstack/react-query';
  *   - `tiles-kanban`    → board Kanban
  *   - `tiles-calendar`  → colonne Chrono (Notes/Todo)
  *   - `calendar-events` → eventi schedulati nella griglia Chrono
+ *   - `canvas-tiles`    → tile del tag aperto nel Canvas (e nello Staging)
  *
  * Nessuna di queste si invalidava a vicenda: creando/eliminando una tile in una
  * vista, le altre restavano stale fino allo scadere di `staleTime`. Questo
  * helper invalida l'intero gruppo in un colpo solo, così ogni mutazione che
  * cambia l'insieme delle tile (create/delete/schedule) propaga ovunque.
+ *
+ * ⚠️ `canvas-tiles` è arrivato tardi, ed è il motivo per cui vale la pena
+ * ripetere il criterio: qui dentro sta OGNI cache che contiene righe di tile,
+ * anche quando il nome non lo dice e anche quando la lista è filtrata (quella
+ * del canvas porta i tile di UN tag). Finché ne mancava una, la sidebar destra
+ * aggiornava le card di tutte le viste tranne quella che avevi davanti — sul
+ * canvas la barra dei passi restava indietro proprio mentre la spuntavi.
+ *
+ * ⚠️ Le chiavi valgono come PREFISSI: `['canvas-tiles', tagId]` e
+ * `['calendar-events', start, end]` sono raggiunte dalla sola radice. È per
+ * questo che qui non compaiono i parametri.
  */
-export const TILE_LIST_KEYS = ['tiles', 'tiles-kanban', 'tiles-calendar', 'calendar-events'] as const;
+export const TILE_LIST_KEYS = ['tiles', 'tiles-kanban', 'tiles-calendar', 'calendar-events', 'canvas-tiles'] as const;
 
 export function invalidateTileCaches(qc: QueryClient, extra: string[] = []): void {
   for (const key of [...TILE_LIST_KEYS, ...extra]) {
