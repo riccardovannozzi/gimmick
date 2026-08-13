@@ -84,12 +84,33 @@ export function TileStepper({ steps }: { steps: StepState[] }) {
   const overflow = steps.length > STEPPER_MAX_SEGMENTS;
   const shown = overflow ? steps.slice(0, STEPPER_MAX_SEGMENTS - 1) : steps;
 
+  /**
+   * Di che colore è «gli altri».
+   *
+   * Il segmento riassuntivo era sempre GRIGIO, cioè vestito da passo pendente:
+   * su un tile con dodici passi tutti fatti la colonna finiva con due trattini
+   * grigi, e diceva «manca ancora qualcosa» accanto a un footer che diceva
+   * «12 di 12». Il riassunto non deve mentire su ciò che riassume.
+   *
+   * Il BLOCCATO ha la precedenza sul fatto: un passo fermo che finisce oltre la
+   * soglia non può sparire dentro un riassunto neutro, altrimenti la regola
+   * «se c'è del rosso, qualcosa si è fermato» varrebbe solo per i primi dieci.
+   * Misto (qualcuno fatto, qualcuno no) resta grigio: è esattamente quello che
+   * il grigio dice.
+   */
+  const hidden = overflow ? steps.slice(STEPPER_MAX_SEGMENTS - 1) : [];
+  const moreTone = hidden.some((s) => s === 'blocked')
+    ? 'blocked'
+    : hidden.length > 0 && hidden.every((s) => s === 'done')
+      ? 'done'
+      : null;
+
   return (
     <div className="ob-tstrip" aria-hidden>
       {shown.map((s, i) => (
         <span key={i} className={`ob-tstep ob-tstep--${s}`} />
       ))}
-      {overflow && <span className="ob-tstep ob-tstep--more" />}
+      {overflow && <span className={cn('ob-tstep', 'ob-tstep--more', moreTone && `ob-tstep--more-${moreTone}`)} />}
     </div>
   );
 }

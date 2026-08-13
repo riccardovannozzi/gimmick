@@ -110,7 +110,11 @@
      fondo chiaro, non testo: serve massa, non leggibilità tipografica. */
   --ob-step-done: #639922;
   --ob-step-pending: rgba(0, 0, 0, 0.18);
-  --ob-step-blocked: #E24B4A; /* = --ob-danger, ripetuto perché in dark diverge */
+  /* Il rosso pieno del comando distruttivo, IDENTICO nei due temi. Prima erano
+     due valori distinti, e in scuro il segmento bloccato era un #F09595 —
+     un rosa slavato che a 3px non si leggeva come un allarme. Un passo fermo è
+     il segnale più forte della colonna: non può essere il più tenue. */
+  --ob-step-blocked: var(--ob-danger);
   --ob-step-cancelled: rgba(0, 0, 0, 0.1);
 }
 
@@ -178,7 +182,8 @@
      ⚠️ `cancelled` in dark è derivato: la specifica dava solo il valore chiaro. */
   --ob-step-done: #97C459;
   --ob-step-pending: rgba(255, 255, 255, 0.22);
-  --ob-step-blocked: #F09595;
+  /* NON schiarito per il tema scuro: vedi la nota sul valore chiaro. */
+  --ob-step-blocked: var(--ob-danger);
   --ob-step-cancelled: rgba(255, 255, 255, 0.1);
 }
 
@@ -316,6 +321,16 @@
      serve al canvas per la geometria SVG (JavaScript non può leggere un token
      CSS). Sono le uniche due dichiarazioni: se ne cambi una, cambia l'altra. */
   --ob-tile-zoom: 0.8;
+
+  /* Corpo del TITOLO del tile — l'unico testo del tile che ha un token suo.
+     Prima era `--ob-text-card` (12px), ma quel token è finito per essere il
+     "12px generico" dell'app: lo usano un centinaio di punti fra sidebar,
+     modali, pagina dei tag, contatti ed editor markdown. Portarlo a 13 per far
+     crescere il titolo del tile avrebbe ingrossato tutti quelli insieme.
+     Resta dentro la scala canonica (8/9/11/12/13/16): è il 13, non un valore
+     inventato per l'occasione.
+     ⚠️ È un corpo NOMINALE: lo zoom del tile (0.8) lo riduce a 10,4px reali. */
+  --ob-tile-title: 13px;
 
   /* Rosso dell'azione distruttiva (elimina, conferma eliminazione).
      È DISTINTO da `--ob-error`, che segnala uno stato e cambia col tema

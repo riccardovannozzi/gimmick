@@ -475,9 +475,10 @@
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
   /* La colonna è tarata per riempirsi fino a `STEPPER_MAX_SEGMENTS` (10 × 3px
-     più 9 stacchi da 4 = 66 su 80). Il ritaglio è la rete di sicurezza per i
-     segmenti più alti — `blocked` è 5px invece di 3 — che a colonna piena
-     uscirebbero dal tile sopra e sotto, andando a finire sulla card vicina.
+     più 9 stacchi da 4 = 66 su 80). Il ritaglio è la rete di sicurezza: i
+     segmenti sono tutti della stessa misura e oggi non possono sbordare, ma
+     alzare la soglia o dare a uno stato un corpo diverso li porterebbe fuori dal
+     tile — sopra e sotto, cioè addosso alla card vicina.
      ⚠️ Vale SOLO per la strip: il tile non ritaglia niente, i badge d'angolo
      sbordano per costruzione. */
   overflow: hidden;
@@ -486,17 +487,26 @@
 .ob-tstep--done { background: var(--ob-step-done); }
 .ob-tstep--pending { background: var(--ob-step-pending); }
 .ob-tstep--cancelled { background: var(--ob-step-cancelled); }
-/* Il segmento bloccato è deliberatamente più grande: sporge dalla colonna e
-   aggiunge una ridondanza di FORMA a quella di colore, così resta leggibile
-   anche con un daltonismo rosso-verde. */
-.ob-tstep--blocked { width: 12px; height: 5px; background: var(--ob-step-blocked); }
-/* Segmento riassuntivo oltre il quinto: due trattini corti, non un colore in
-   più — dice "ce ne sono altri", non uno stato. */
+/* Il segmento bloccato ha la MISURA di tutti gli altri: la colonna è una fila di
+   segmenti uguali in cui cambia il colore, e un segmento più grosso la faceva
+   ballare.
+   ⚠️ Era 12×5 per aggiungere una ridondanza di FORMA a quella di colore (utile
+   con un daltonismo rosso-verde). Quella ridondanza non c'è più: adesso il rosso
+   è l'unico portatore del segnale, e per questo è il rosso PIENO — lo stesso in
+   chiaro e in scuro, vedi `--ob-step-blocked`. */
+.ob-tstep--blocked { background: var(--ob-step-blocked); }
+/* Segmento riassuntivo oltre la soglia: due trattini corti invece di un blocco
+   pieno — la FORMA dice "ce ne sono altri", ed è quello che lo distingue da un
+   passo vero. Il COLORE però non è neutro: è quello di ciò che sta riassumendo
+   (vedi `TileStepper`), altrimenti su un tile con tutti i passi fatti la colonna
+   finiva con due trattini grigi accanto a un footer che diceva "12 di 12". */
 .ob-tstep--more {
   width: 10px; height: 3px; border-radius: 1px; background: none;
   border-top: 1px solid var(--ob-step-pending);
   border-bottom: 1px solid var(--ob-step-pending);
 }
+.ob-tstep--more-done { border-top-color: var(--ob-step-done); border-bottom-color: var(--ob-step-done); }
+.ob-tstep--more-blocked { border-top-color: var(--ob-step-blocked); border-bottom-color: var(--ob-step-blocked); }
 
 /* STATUS testuale — footer sinistro. Tace quando lo stato è `active`. */
 .ob-tstatus {
@@ -662,19 +672,29 @@
    una scadenza o un evento. */
 .ob-done-hl .ob-tile--done { background: color-mix(in srgb, var(--ob-success) 30%, var(--ob-tile-bg)); }
 
-/* Corpo: il titolo in alto, spazio riservato in basso per la riga del footer
-   (status a sinistra, metadato a destra), che è posizionata in assoluto. */
-.ob-tile__body { height: 100%; padding: 10px 10px 26px; box-sizing: border-box; }
+/* Corpo: il titolo in alto, con 10 di respiro sopra e sotto e 6 ai lati.
+   I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
+   perde: il tile è largo 150 e il testo va a capo dopo due righe, quindi ogni
+   pixel orizzontale è una lettera in più prima dell'ellissi. In verticale
+   invece lo spazio avanza — due righe a 13px occupano 34 dei 77 disponibili.
+
+   Il padding basso NON è più lo spazio riservato al footer: la riga di footer
+   (status a sinistra, metadato a destra) è posizionata in assoluto a
+   `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
+   libero per costruzione; ora la separazione la garantisce il clamp a due
+   righe — 10 di padding + 34 di testo = 44, contro i 58 a cui comincia il
+   footer. ⚠️ Se il clamp salisse a tre righe quel margine sparirebbe. */
+.ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
 
 /* Peso BODY e non emphasis. Il 600 era tarato su un tile a grandezza naturale,
    dove il titolo rendeva 12px pieni; da quando il tile è scalato a 0.8 quel
-   testo rende 9,6px, e a quel corpo un tratto grasso chiude le contro-forme
+   testo rende 10,4px, e a quel corpo un tratto grasso chiude le contro-forme
    delle lettere — la parola diventa una macchia con la sagoma giusta.
    La gerarchia col metadato regge lo stesso: quello è più piccolo (8,8) e al
    60% di opacità, quindi il titolo resta primo senza bisogno del peso. */
 .ob-tile__title {
-  font-size: var(--ob-text-card);
+  font-size: var(--ob-tile-title);
   font-weight: var(--ob-weight-body);
   line-height: var(--ob-leading-tight);
   letter-spacing: -0.01em;
