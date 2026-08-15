@@ -466,13 +466,23 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
 
     const { data, error } = await supabaseAdmin
       .from('tile_tags')
-      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order))')
+      // `sparks(user_id, type)` e NON gli spark interi: al canvas serve sapere
+      // CHE GENERE di allegati ha un tile (un pallino per tipo nel footer della
+      // card), non il loro contenuto. Portarsi dietro `content` di ogni spark
+      // moltiplicherebbe il peso della risposta per niente — è lo stesso motivo
+      // per cui la lista dei tile ne manda una proiezione ridotta.
+      // `state` sui subtask: stessa proiezione della lista dei tile. È quello
+      // che distingue un passo non ancora fatto da uno FERMO, e senza di lui la
+      // barra di avanzamento delle card del canvas resterebbe l'unica a non
+      // poter diventare rossa.
+      .select('tile_id, tiles(*, tile_subtasks(is_done, sort_order, state), sparks(user_id, type))')
       .eq('tag_id', tagId);
 
     if (error) throw error;
 
-    type SubtaskRow = { is_done: boolean | null; sort_order: number | null };
-    type TileWithSubtasks = Tile & { tile_subtasks?: SubtaskRow[] };
+    type SubtaskRow = { is_done: boolean | null; sort_order: number | null; state: 'blocked' | 'cancelled' | null };
+    type SparkKindRow = { user_id: string; type: string };
+    type TileWithSubtasks = Tile & { tile_subtasks?: SubtaskRow[]; sparks?: SparkKindRow[] };
     type TileTagRow = { tile_id: string; tiles: TileWithSubtasks | null };
 
     const rows = (data ?? []) as unknown as TileTagRow[];
@@ -488,8 +498,13 @@ tagsRouter.get('/:id/tiles', async (req: AuthenticatedRequest, res: Response, ne
         const subtasks = subtasksRaw
           .slice()
           .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
-          .map((s) => ({ is_done: !!s.is_done }));
-        return { ...tile, subtasks, tile_subtasks: undefined };
+          .map((s) => ({ is_done: !!s.is_done, state: s.state ?? null }));
+        // Stesso filtro per proprietario della lista dei tile: uno spark altrui
+        // agganciato a un tile proprio non deve affiorare, nemmeno come tipo.
+        const sparks = (Array.isArray(tile.sparks) ? tile.sparks : [])
+          .filter((s) => s.user_id === req.user!.id)
+          .map((s) => ({ type: s.type }));
+        return { ...tile, subtasks, sparks, spark_count: sparks.length, tile_subtasks: undefined };
       });
     res.json({ success: true, data: tiles });
   } catch (error) {

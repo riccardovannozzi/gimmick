@@ -17,7 +17,7 @@ import { useStatuses } from '@/store/statuses-store';
 // `Tile` è già il tipo di dominio: la card si chiama `TileComponent`.
 import { Tile as TileComponent } from '@/components/tiles/Tile';
 import { TILE_W } from '@/lib/tile-visual';
-import { tileVisualKey, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { Tile } from '@/types';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -289,9 +289,7 @@ export function StagingPanel({
     // resta rossa invece di ridursi a una hairline. Entrambi dalle impostazioni.
     const accent = si?.color || (actionColors as Record<string, string>)[key] || undefined;
     const subs = t.subtasks ?? [];
-    const steps: StepState[] | undefined = subs.length
-      ? subs.map((s): StepState => (s.is_done ? 'done' : 'pending'))
-      : undefined;
+    const steps: StepState[] | undefined = subs.length ? subs.map(subtaskToStep) : undefined;
 
     const metaKind = TILE_VISUAL[key].meta;
     let meta: string | undefined;
@@ -331,6 +329,7 @@ export function StagingPanel({
           status={status}
           steps={steps}
           meta={meta}
+          sparks={(t.sparks ?? []).map((s) => s.type)}
           accent={accent}
           active={selectedTileId === t.id}
           onClick={onTileClick ? () => onTileClick(t.id) : undefined}

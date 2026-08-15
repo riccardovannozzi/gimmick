@@ -24,6 +24,12 @@ export type SparkType =
   | 'text'
   | 'file';
 
+/**
+ * Lo stato ECCEZIONALE di una voce di checklist. `null`/assente = voce
+ * ordinaria, e a dire dov'è resta `is_done`. Vedi `Subtask.state`.
+ */
+export type SubtaskState = 'blocked' | 'cancelled' | null;
+
 // Tile entity (group of sparks)
 export interface Tile {
   id: string;
@@ -50,7 +56,8 @@ export interface Tile {
   sparks?: Spark[];
   tags?: { id: string; name: string; tag_type?: string; is_root?: boolean }[];
   // Compact checklist payload (sorted by sort_order) for rendering the checklist bar.
-  subtasks?: { is_done: boolean }[];
+  // `state` sovrascrive `is_done`: vedi `subtaskToStep`.
+  subtasks?: { is_done: boolean; state?: SubtaskState }[];
 }
 
 // Spark entity
@@ -189,7 +196,7 @@ export interface Subtask {
   /** Quando il passo è avvenuto. Storia, non programma: non va in calendario. */
   occurred_at?: string | null;
   /** `null` = voce ordinaria (lo stato lo dice `is_done`). */
-  state?: 'blocked' | 'cancelled' | null;
+  state?: SubtaskState;
   created_at: string;
   updated_at: string;
 }

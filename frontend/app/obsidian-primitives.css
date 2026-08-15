@@ -474,22 +474,39 @@
   border-right: 0.5px solid var(--ob-line);
   display: flex; flex-direction: column;
   align-items: center; justify-content: center; gap: 4px;
+  /* La colonna è tarata per riempirsi fino a `STEPPER_MAX_SEGMENTS` (10 × 3px
+     più 9 stacchi da 4 = 66 su 80). Il ritaglio è la rete di sicurezza: i
+     segmenti sono tutti della stessa misura e oggi non possono sbordare, ma
+     alzare la soglia o dare a uno stato un corpo diverso li porterebbe fuori dal
+     tile — sopra e sotto, cioè addosso alla card vicina.
+     ⚠️ Vale SOLO per la strip: il tile non ritaglia niente, i badge d'angolo
+     sbordano per costruzione. */
+  overflow: hidden;
 }
 .ob-tstep { width: 10px; height: 3px; border-radius: 1px; flex-shrink: 0; }
 .ob-tstep--done { background: var(--ob-step-done); }
 .ob-tstep--pending { background: var(--ob-step-pending); }
 .ob-tstep--cancelled { background: var(--ob-step-cancelled); }
-/* Il segmento bloccato è deliberatamente più grande: sporge dalla colonna e
-   aggiunge una ridondanza di FORMA a quella di colore, così resta leggibile
-   anche con un daltonismo rosso-verde. */
-.ob-tstep--blocked { width: 12px; height: 5px; background: var(--ob-step-blocked); }
-/* Segmento riassuntivo oltre il quinto: due trattini corti, non un colore in
-   più — dice "ce ne sono altri", non uno stato. */
+/* Il segmento bloccato ha la MISURA di tutti gli altri: la colonna è una fila di
+   segmenti uguali in cui cambia il colore, e un segmento più grosso la faceva
+   ballare.
+   ⚠️ Era 12×5 per aggiungere una ridondanza di FORMA a quella di colore (utile
+   con un daltonismo rosso-verde). Quella ridondanza non c'è più: adesso il rosso
+   è l'unico portatore del segnale, e per questo è il rosso PIENO — lo stesso in
+   chiaro e in scuro, vedi `--ob-step-blocked`. */
+.ob-tstep--blocked { background: var(--ob-step-blocked); }
+/* Segmento riassuntivo oltre la soglia: due trattini corti invece di un blocco
+   pieno — la FORMA dice "ce ne sono altri", ed è quello che lo distingue da un
+   passo vero. Il COLORE però non è neutro: è quello di ciò che sta riassumendo
+   (vedi `TileStepper`), altrimenti su un tile con tutti i passi fatti la colonna
+   finiva con due trattini grigi accanto a un footer che diceva "12 di 12". */
 .ob-tstep--more {
   width: 10px; height: 3px; border-radius: 1px; background: none;
   border-top: 1px solid var(--ob-step-pending);
   border-bottom: 1px solid var(--ob-step-pending);
 }
+.ob-tstep--more-done { border-top-color: var(--ob-step-done); border-bottom-color: var(--ob-step-done); }
+.ob-tstep--more-blocked { border-top-color: var(--ob-step-blocked); border-bottom-color: var(--ob-step-blocked); }
 
 /* STATUS testuale — footer sinistro. Tace quando lo stato è `active`. */
 .ob-tstatus {
@@ -499,6 +516,54 @@
   white-space: nowrap; pointer-events: none;
 }
 .ob-tstatus--shifted { left: 28px; }
+
+/* ─── SPARK ALLEGATI ─────────────────────────────────────────────────────────
+   Un pallino per TIPO di allegato, appeso al bordo inferiore. Stessa pillola
+   del badge d'azione — misura, bordo, fondo, raggio — perché è la stessa
+   grammatica: un segnale iconico che sborda dal rettangolo. Cambia solo il
+   bordo su cui sta appeso, e il lato.
+
+   IL LATO NON È UN GUSTO. Nelle colonne di Chrono e nelle corsie del Kanban le
+   card sono impilate con 9px di stacco e il badge sborda di 8: a destra questo
+   gruppo finirebbe nello stesso varco del badge d'azione della card SEGUENTE,
+   uno sopra l'altro. A sinistra il varco è libero.
+
+   ⚠️ Come i badge, richiede `overflow: visible` sul contenitore della card. */
+.ob-tsparks {
+  position: absolute; z-index: 2;
+  /* -9 e non -8: il disco è 18, quindi il suo bordo alto cade esatto a 9 dal
+     fondo — dove comincia lo status. Tangenti, non sovrapposti. E sotto sborda
+     di 9 × 0.8 = 7.2px reali, che stanno nei 9px di stacco fra due card. */
+  left: 10px; bottom: -9px;
+  display: inline-flex; align-items: center; gap: 3px;
+  pointer-events: none;
+}
+/* Con la strip presente il gruppo le finirebbe sopra con la sua metà alta:
+   slitta oltre, esattamente come lo status e il badge a sinistra. */
+.ob-tsparks--shifted { left: 26px; }
+
+/* SENZA CONTORNO, a differenza del badge d'azione. Quello ne ha bisogno: è un
+   glifo generico (una fiamma, un orologio) e l'anello lo isola dal fondo velato
+   della card. Questi no — sono glifi che l'utente riconosce già, e il contorno
+   rubava 2.4px di diametro al disegno per dire una cosa che il colore diceva
+   di suo. Tolto l'anello, il disco può restare della stessa misura e il glifo
+   crescere di un terzo: la fila di pallini occupa lo stesso spazio e si legge
+   da più lontano.
+   Il disco chiaro invece RESTA: metà pallino sta fuori dal rettangolo, sulla
+   lavagna, e senza un fondo suo quella metà si perderebbe. */
+.ob-tspark {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 18px; height: 18px;
+  border-radius: 999px;
+  background: var(--ob-surface-2);
+  color: var(--sk, var(--ob-muted));
+}
+
+/* L'interruttore vive sulla RADICE del documento, non su ogni vista: gli spark
+   sono una proprietà del tile, e il tile è lo stesso componente in Chrono,
+   Kanban, Canvas e Staging. Spegnerli in una vista e ritrovarli nell'altra
+   sarebbe la stessa impostazione con quattro risposte diverse. */
+[data-sparks='off'] .ob-tsparks { display: none; }
 
 /* ─── IL TILE ───────────────────────────────────────────────────────────────
    150×80, la misura unica di tutte le superfici (canvas TILE_W/TILE_H, colonne
@@ -575,6 +640,18 @@
 .ob-tile--cancelled { opacity: 0.5; }
 .ob-tile--done .ob-tile__title { text-decoration: line-through; }
 
+/* ── GHOST — il tile mentre nasce ────────────────────────────────────────────
+   Compare al doppio click su una cella e resta lì per i decimi di secondo che
+   servono al server a creare la riga davvero. Attenuato e col perimetro
+   tratteggiato: dice «questo posto è già tuo» senza spacciarsi per un dato
+   salvato. Non prende il puntatore — non c'è ancora niente da aprire, e un
+   click andrebbe su un id che non esiste.
+   ⚠️ Il tratteggio è scritto con l'attributo (`[data-border]`) e non sulla sola
+   classe: il bordo dell'action è `.ob-tile[data-border='solid']`, che a parità
+   di posizione vincerebbe per specificità e lo rimetterebbe pieno. */
+.ob-tile--ghost { opacity: 0.55; pointer-events: none; }
+.ob-tile--ghost[data-border] { border-style: dashed; }
+
 /* ── Evidenziazione verde dei COMPLETATI ─────────────────────────────────────
    NON è un default del tile: si accende da fuori. Sul canvas la accende il
    pulsante "Done" della topbar, che mette questa classe sul contenitore della
@@ -595,19 +672,29 @@
    una scadenza o un evento. */
 .ob-done-hl .ob-tile--done { background: color-mix(in srgb, var(--ob-success) 30%, var(--ob-tile-bg)); }
 
-/* Corpo: il titolo in alto, spazio riservato in basso per la riga del footer
-   (status a sinistra, metadato a destra), che è posizionata in assoluto. */
-.ob-tile__body { height: 100%; padding: 10px 10px 26px; box-sizing: border-box; }
+/* Corpo: il titolo in alto, con 10 di respiro sopra e sotto e 6 ai lati.
+   I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
+   perde: il tile è largo 150 e il testo va a capo dopo due righe, quindi ogni
+   pixel orizzontale è una lettera in più prima dell'ellissi. In verticale
+   invece lo spazio avanza — due righe a 13px occupano 34 dei 77 disponibili.
+
+   Il padding basso NON è più lo spazio riservato al footer: la riga di footer
+   (status a sinistra, metadato a destra) è posizionata in assoluto a
+   `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
+   libero per costruzione; ora la separazione la garantisce il clamp a due
+   righe — 10 di padding + 34 di testo = 44, contro i 58 a cui comincia il
+   footer. ⚠️ Se il clamp salisse a tre righe quel margine sparirebbe. */
+.ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
 
 /* Peso BODY e non emphasis. Il 600 era tarato su un tile a grandezza naturale,
    dove il titolo rendeva 12px pieni; da quando il tile è scalato a 0.8 quel
-   testo rende 9,6px, e a quel corpo un tratto grasso chiude le contro-forme
+   testo rende 10,4px, e a quel corpo un tratto grasso chiude le contro-forme
    delle lettere — la parola diventa una macchia con la sagoma giusta.
    La gerarchia col metadato regge lo stesso: quello è più piccolo (8,8) e al
    60% di opacità, quindi il titolo resta primo senza bisogno del peso. */
 .ob-tile__title {
-  font-size: var(--ob-text-card);
+  font-size: var(--ob-tile-title);
   font-weight: var(--ob-weight-body);
   line-height: var(--ob-leading-tight);
   letter-spacing: -0.01em;

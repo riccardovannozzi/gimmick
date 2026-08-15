@@ -21,6 +21,8 @@ export type { ViewTabsProps, ViewTab, ViewId } from './ViewTabs';
 
 export { Sidebar } from './Sidebar';
 export type { SidebarProps, SidebarGroup, SidebarChild } from './Sidebar';
+export { NewTagModal } from './NewTagModal';
+export type { NewTagModalProps } from './NewTagModal';
 
 export {
   Inspector,

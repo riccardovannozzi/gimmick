@@ -60,10 +60,10 @@ export const PAPER_MARGIN_MM = 10;
 /**
  * Sotto questa scala il foglio va segnalato come poco leggibile.
  *
- * Il conto: il titolo del tile è `--ob-text-card` (12px) dentro una card che il
- * sistema rimpicciolisce con `zoom: var(--ob-tile-zoom)` = 0.8, quindi 9.6px
- * effettivi. A grandezza naturale sulla carta sono 2.54mm ≈ 7pt — piccolo ma
- * normale per una didascalia. A 0.6 scendono a 4.3pt, che è sotto il minimo
+ * Il conto: il titolo del tile è `--ob-tile-title` (13px) dentro una card che il
+ * sistema rimpicciolisce con `zoom: var(--ob-tile-zoom)` = 0.8, quindi 10.4px
+ * effettivi. A grandezza naturale sulla carta sono 2.75mm ≈ 7.8pt — piccolo ma
+ * normale per una didascalia. A 0.6 scendono a 4.7pt, che è sotto il minimo
  * tipografico per un testo che qualcuno deve leggere davvero.
  */
 export const PAPER_MIN_READABLE_SCALE = 0.6;

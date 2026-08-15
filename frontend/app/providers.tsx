@@ -30,6 +30,46 @@ function AuthInitializer({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/**
+ * ─── Il tasto destro è di Gimmick ───────────────────────────────────────────
+ *
+ * Il menu del browser — Indietro, Ricarica, Salva immagine, Ispeziona — parla
+ * del DOCUMENTO, e qui non c'è un documento: c'è un'app. Ogni volta che si
+ * apriva copriva i menu di Gimmick con comandi che non c'entrano niente con il
+ * tile o il tag che stavi puntando. Da qui in poi il tasto destro apre solo i
+ * menu dell'app; dove Gimmick non ne ha, non apre niente.
+ *
+ * ⚠️ In fase di CATTURA, non di bolla. I menu dell'app chiamano già
+ * `preventDefault()` per conto proprio, ma chi se ne dimentica — o chi ferma la
+ * propagazione prima che l'evento arrivi al documento — farebbe ricomparire
+ * quello del browser. In cattura l'evento passa di qui PRIMA di raggiungere il
+ * bersaglio: il menu nativo resta spento comunque, e il gestore del componente
+ * gira lo stesso (annullare l'azione predefinita non ferma la propagazione).
+ *
+ * ─── Come si riaccende, dove servisse ───────────────────────────────────────
+ * L'attributo `data-native-menu` restituisce il menu del browser a un elemento
+ * e a tutto quello che contiene:
+ *
+ *     <div data-native-menu> … </div>
+ *
+ * Serve dove il menu nativo È la funzione — un campo in cui vuoi taglia/incolla
+ * di sistema, un'immagine da salvare. Le scorciatoie da tastiera (copia,
+ * incolla, seleziona tutto) continuano a funzionare ovunque, menu o no: quello
+ * che è stato tolto è il menu, non i comandi.
+ */
+function NativeMenuGuard() {
+  useEffect(() => {
+    const onContextMenu = (e: MouseEvent) => {
+      const el = e.target as Element | null;
+      if (el?.closest?.('[data-native-menu]')) return;
+      e.preventDefault();
+    };
+    document.addEventListener('contextmenu', onContextMenu, true);
+    return () => document.removeEventListener('contextmenu', onContextMenu, true);
+  }, []);
+  return null;
+}
+
 function ActionColorsProvider({ children }: { children: React.ReactNode }) {
   const { actionColors } = useActionColorsQuery();
   return (
@@ -99,6 +139,7 @@ function PixelSettingsServerSync() {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
+      <NativeMenuGuard />
       <AuthInitializer>
         <ActionColorsProvider>
           <ObsidianThemeProvider>

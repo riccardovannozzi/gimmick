@@ -7,6 +7,7 @@ import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconCamer
 import * as TablerIcons from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { tilesApi, sparksApi, uploadApi, tagsApi } from '@/lib/api';
+import { invalidateTileCaches, patchTileCaches } from '@/lib/tile-cache';
 import type { Tag } from '@/types';
 import { cn } from '@/lib/utils';
 import { usePixelTheme } from '@/components/pixel';
@@ -500,30 +501,10 @@ function TagPicker({ tileId, tileTags, onChanged, queryClient, invalidateKeys = 
   // Optimistic update helper: patch tag in all cached tile queries
   const optimisticUpdateTag = (newTag: { id: string; name: string; tag_type?: string } | null) => {
     const newTags = newTag ? [{ id: newTag.id, name: newTag.name, tag_type: newTag.tag_type }] : [];
-    const patch = (t: any) => (t.id === tileId ? { ...t, tags: newTags } : t);
-    // tile-detail cache (single object)
-    queryClient.setQueriesData({ queryKey: ['tile-detail', tileId] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: { ...old.data, tags: newTags } };
-    });
-    const patchListCache = (key: string) => {
-      queryClient.setQueriesData({ queryKey: [key] }, (old: any) => {
-        if (!old) return old;
-        if (old.pages) {
-          return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
-        }
-        if (Array.isArray(old.data)) {
-          return { ...old, data: old.data.map(patch) };
-        }
-        return old;
-      });
-    };
-    // Built-in caches
-    patchListCache('calendar-events');
-    patchListCache('tiles-calendar');
-    patchListCache('tiles');
-    // Caller-specific caches (kanban, canvas, etc.)
-    invalidateKeys.forEach(patchListCache);
+    // Il tag non è solo un'etichetta sulla card: le viste che filtrano per tag
+    // (la board Kanban) devono vedere il tile ENTRARE o USCIRE dal filtro nello
+    // stesso istante in cui lo cambi qui.
+    patchTileCaches(queryClient, tileId, { tags: newTags }, invalidateKeys);
   };
 
   const handleSelect = async (tag: Tag) => {
@@ -1129,11 +1110,16 @@ export function TileSidebar({
   tileId,
   open,
   onToggle,
-  invalidateKeys = ['tiles-calendar'],
+  invalidateKeys = [],
 }: {
   tileId: string | null;
   open: boolean;
   onToggle: () => void;
+  /**
+   * Chiavi EXTRA da aggiornare oltre alle liste di tile (`TILE_LIST_KEYS`, che
+   * sono sempre coperte). Serve alle viste con cache proprie — il canvas e i
+   * suoi layout — non a ripetere qui `tiles` o `tiles-calendar`.
+   */
   invalidateKeys?: string[];
 }) {
   const theme = usePixelTheme();
@@ -1179,36 +1165,15 @@ export function TileSidebar({
 
   const invalidateAll = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['tile-detail', tileId] });
-    invalidateKeys.forEach((k) => queryClient.invalidateQueries({ queryKey: [k] }));
+    // TUTTE le liste di tile, non solo quelle che il chiamante ricorda: la
+    // sidebar è montata accanto alla vista, e la vista accanto può essere
+    // un'altra rispetto a quella che ha aperto il pannello.
+    invalidateTileCaches(queryClient, invalidateKeys);
   }, [queryClient, tileId, invalidateKeys]);
 
   // Optimistic: patch tile fields in all cached queries immediately
   const optimisticPatchTile = useCallback((updates: Record<string, unknown>) => {
-    const patch = (t: any) => (t.id === tileId ? { ...t, ...updates } : t);
-    queryClient.setQueriesData({ queryKey: ['tile-detail', tileId] }, (old: any) => {
-      if (!old?.data) return old;
-      return { ...old, data: { ...old.data, ...updates } };
-    });
-    const patchListCache = (key: string) => {
-      queryClient.setQueriesData({ queryKey: [key] }, (old: any) => {
-        if (!old) return old;
-        // Paginated (infinite) cache shape
-        if (old.pages) {
-          return { ...old, pages: old.pages.map((p: any) => ({ ...p, data: (p.data || []).map(patch) })) };
-        }
-        // Flat { data: Tile[] } cache shape
-        if (Array.isArray(old.data)) {
-          return { ...old, data: old.data.map(patch) };
-        }
-        return old;
-      });
-    };
-    // Built-in queries we always patch
-    patchListCache('calendar-events');
-    patchListCache('tiles-calendar');
-    patchListCache('tiles');
-    // Plus any caller-specific caches (kanban, canvas, etc.)
-    invalidateKeys.forEach(patchListCache);
+    if (tileId) patchTileCaches(queryClient, tileId, updates, invalidateKeys);
   }, [queryClient, tileId, invalidateKeys]);
 
   const updateTileMutation = useMutation({

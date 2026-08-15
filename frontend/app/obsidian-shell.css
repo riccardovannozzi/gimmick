@@ -378,3 +378,31 @@
 .ob-insp-cap { flex: 1; padding: 10px 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; border-left: 1px solid var(--ob-line); }
 .ob-insp-cap:first-child { border-left: none; }
 .ob-insp-cap__label { font-size: var(--ob-text-micro); font-weight: var(--ob-weight-emphasis); color: var(--ob-subtle); }
+
+/* ─── NUOVO TAG (modale dal tasto destro sul gruppo) ─────────────────────────
+   Il gruppo di destinazione in cima, come riquadro incassato: dice DOVE finirà
+   il tag senza offrirsi come campo modificabile. Il tipo non è una domanda —
+   l'hai già risposta col tasto destro. */
+.ob-newtag__parent {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 12px;
+  background: var(--ob-sunken);
+  border: 1px solid var(--ob-line);
+  border-radius: var(--ob-radius-sm);
+}
+.ob-newtag__parent-glyph { display: inline-flex; flex-shrink: 0; }
+.ob-newtag__parent-name {
+  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ob-newtag__parent-note {
+  margin-left: auto; flex-shrink: 0;
+  font-size: var(--ob-text-meta); color: var(--ob-subtle);
+}
+
+/* L'etichetta CONTIENE il campo: il `gap` sostituisce il margine, e cliccando
+   la parola si mette a fuoco l'input senza legarli con un `for`/`id`. */
+.ob-newtag__label {
+  display: flex; flex-direction: column; gap: 6px;
+  font-size: var(--ob-text-meta); color: var(--ob-muted);
+}

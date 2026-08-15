@@ -15,12 +15,13 @@
  * NON sono portati qui — restano nella pagina arcade. La toolbar (raggruppa/tag
  * pills/oggi/colonna) è decorativa in questa fase.
  */
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { KanbanView, type Lane, type CardData } from '@/components/views/kanban';
+import { Icon } from '@/components/shell';
 import { AxisModal } from '@/components/kanban/AxisModal';
 import {
   axisItems, DEFAULT_DATE_WINDOW, DATE_WINDOW_STEP,
@@ -55,14 +56,14 @@ type AxesSetting = {
   order?: PerAxis<string[]>;
 };
 import { kanbanApi, tilesApi, tagsApi, settingsApi } from '@/lib/api';
-import { invalidateTileCaches } from '@/lib/tile-cache';
+import { invalidateTileCaches, patchTileCaches } from '@/lib/tile-cache';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useTagFilterStore } from '@/store/tag-filter-store';
 import { tileMatchesFilters, sortTiles, dateRangeKind } from '@/lib/kanban-helpers';
 import { applyOrder } from '@/lib/kanban-layout';
 import { useStatuses } from '@/store/statuses-store';
-import { tileVisualKey, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
 import type { Tile, Tag, KanbanColumn, KanbanLane, KanbanFilter, Status } from '@/types';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -126,11 +127,76 @@ function datesForDay(tile: Tile, action: string, key: string): Record<string, st
   return { start_at: start.toISOString(), end_at: new Date(start.getTime() + span).toISOString() };
 }
 
+/**
+ * COSA SIGNIFICA UNA CELLA, letto dai filtri dei suoi due assi.
+ *
+ * È la stessa lettura per il drop e per la creazione: trascinare un tile in una
+ * cella e crearne uno lì dentro devono dare lo stesso tile, altrimenti la board
+ * direbbe due cose diverse per lo stesso posto.
+ *
+ * Torna i valori GREZZI e non li applica: chi trascina ha già un tile da
+ * modificare, chi crea deve prima farlo nascere, e i due percorsi hanno bisogno
+ * degli stessi numeri in momenti diversi.
+ */
+function cellValues(filters: KanbanFilter[]) {
+  const updates: Record<string, unknown> = {};
+  /** L'azione richiesta dalla cella, grezza: serve a risolvere le date. */
+  let action: string | null = null;
+  /** Il giorno (`YYYY-MM-DD`) quando la cella ne indica uno preciso. */
+  let day: string | null = null;
+  let tagId: string | null = null;
+  let iconId: string | null = null;
+
+  for (const f of filters) {
+    switch (f.type) {
+      case 'action_type':
+        action = f.value;
+        if (f.value === 'allday') {
+          updates.action_type = 'event'; updates.is_event = true; updates.all_day = true;
+        } else if (f.value === 'event') {
+          updates.action_type = 'event'; updates.is_event = true; updates.all_day = false;
+        } else if (f.value === 'deadline') {
+          updates.action_type = 'deadline'; updates.is_event = false; updates.all_day = false; updates.start_at = null;
+        } else if (f.value === 'none' || f.value === 'anytime') {
+          updates.action_type = f.value; updates.is_event = false; updates.all_day = false; updates.start_at = null; updates.end_at = null;
+        } else {
+          updates.action_type = f.value;
+        }
+        break;
+      case 'completion':
+        updates.is_completed = f.value === 'completed';
+        break;
+      case 'status':
+        updates.status_id = f.value;
+        break;
+      case 'type_icon':
+        // Il tipo non è un campo del tile: è un'associazione a parte, e vive nel
+        // suo store con la sua chiamata. Qui esce come id, non come update.
+        iconId = f.value;
+        break;
+      case 'date_range':
+        // Solo un giorno preciso si può applicare. `last:7` e `next:30` sono
+        // finestre relative: "spostare un tile negli ultimi 7 giorni" non indica
+        // una data, e non c'è niente da scrivere.
+        if (dateRangeKind(f.value) === 'absolute') day = f.value.split('|')[0] || null;
+        break;
+      case 'tag':
+        tagId = f.value;
+        break;
+    }
+  }
+  return { updates, action, day, tagId, iconId };
+}
+
 type IconOf = (tileId: string) => { icon: string; color?: string } | null;
+
+/** Prefisso degli id provvisori: vedi `handleCreateInCell`. */
+const GHOST_PREFIX = 'ghost:';
+const isGhostId = (id: string) => id.startsWith(GHOST_PREFIX);
 
 function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, Status>, iconOf: IconOf): CardData {
   const tileTag = (t.tags ?? []).find((tg) => tg.id !== rootTagId) ?? t.tags?.[0];
-  const checklist = (t.subtasks ?? []).map((s) => s.is_done);
+  const steps = (t.subtasks ?? []).map(subtaskToStep);
   const ti = iconOf(t.id);
   const key = tileVisualKey({ action_type: t.action_type, all_day: t.all_day });
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
@@ -138,15 +204,17 @@ function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, 
     id: t.id,
     title: t.title || 'Senza titolo',
     tag: tileTag?.name ?? 'Gimmick',
-    checklist: checklist.length ? checklist : undefined,
+    steps: steps.length ? steps : undefined,
     done: !!t.is_completed,
     visualKey: key,
     statusName: st?.name as TileStatus | undefined,
     meta: cardMeta(t, key),
+    sparks: (t.sparks ?? []).map((s) => s.type),
     // Stessa regola di canvas e staging: tinge il colore del TIPO, con ricaduta
     // sull'AZIONE quando il tipo manca — così una scadenza senza tipo resta
     // rossa invece di ridursi a una hairline.
     accent: ti?.color || undefined,
+    ghost: isGhostId(t.id),
   };
 }
 
@@ -158,6 +226,13 @@ export function KanbanLive() {
   const { statuses } = useStatuses();
   const selectedTileId = useTileSelectionStore((s) => s.selectedTileId);
   const selectTile = useTileSelectionStore((s) => s.select);
+  const clearTile = useTileSelectionStore((s) => s.clear);
+  /**
+   * La tile PROVVISORIA nata da un doppio click su una cella: il suo id finto e,
+   * quando la cella lo impone, il tipo che le tocca. `null` = nessuna in volo.
+   * Vedi `handleCreateInCell`.
+   */
+  const [ghost, setGhost] = useState<{ id: string; iconId: string | null } | null>(null);
 
   const { data: columnsData } = useQuery({ queryKey: ['kanban-columns'], queryFn: () => kanbanApi.listColumns() });
   const { data: lanesData } = useQuery({ queryKey: ['kanban-lanes'], queryFn: () => kanbanApi.listLanes() });
@@ -229,6 +304,19 @@ export function KanbanLive() {
     });
   }, []);
   const [laneMenu, setLaneMenu] = useState<{ x: number; y: number; laneId: string } | null>(null);
+  /** Il menu di una CARD: tasto destro o ctrl/cmd+click sulla tile. */
+  const [cardMenu, setCardMenu] = useState<{ x: number; y: number; tileId: string } | null>(null);
+  const openCardMenu = useCallback((e: React.MouseEvent, tileId: string) => {
+    e.preventDefault();
+    setCardMenu({ x: e.clientX, y: e.clientY, tileId });
+  }, []);
+  // Esc chiude, come in Chrono e nella sidebar dei tag.
+  useEffect(() => {
+    if (!cardMenu) return;
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === 'Escape') setCardMenu(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cardMenu]);
   const [axisOpen, setAxisOpen] = useState<'column' | 'lane' | null>(null);
 
   /**
@@ -318,11 +406,32 @@ export function KanbanLive() {
   const visibleTiles = useMemo(
     () => (selectedTagIds.size === 0
       ? allTiles
-      : allTiles.filter((t) => (t.tags ?? []).some((tg) => selectedTagIds.has(tg.id)))),
-    [allTiles, selectedTagIds],
+      // La ghost passa comunque: è la tile che hai appena chiesto, in quella
+      // cella. Farla sparire perché il tag non combacia sarebbe una risposta
+      // sbagliata a un doppio click — e se davvero non combacia lo si vede da
+      // sé un attimo dopo, quando diventa una riga vera.
+      : allTiles.filter((t) => t.id === ghost?.id || (t.tags ?? []).some((tg) => selectedTagIds.has(tg.id)))),
+    [allTiles, selectedTagIds, ghost],
   );
 
   const iconList = useTypeIcons((s) => s.icons);
+
+  /**
+   * Il TIPO della ghost non può stare nello store: `assignIcon` scrive su un id
+   * vero, e la ghost un id vero non ce l'ha ancora. Glielo si presta qui — sia
+   * per il colore della card, sia perché il filtro `type_icon` della cella la
+   * riconosca e la lasci dov'è nata invece di scartarla al primo render.
+   */
+  const matchIcons = useMemo(
+    () => (ghost?.iconId ? { ...typeTileIcons, [ghost.id]: ghost.iconId } : typeTileIcons),
+    [ghost, typeTileIcons],
+  );
+  const iconOf = useCallback<IconOf>(
+    (id) => (ghost?.iconId && id === ghost.id
+      ? iconList.find((i) => i.id === ghost.iconId) ?? null
+      : getIconForTile(id)),
+    [ghost, iconList, getIconForTile],
+  );
 
   /**
    * Le voci dell'asse COLONNE, derivate dalla modalita' scelta e poi rimesse
@@ -353,6 +462,51 @@ export function KanbanLive() {
     [laneMode, statuses, iconList, tags, laneRows, laneDays, axes],
   );
   const laneItems = useMemo(() => laneAll.filter((i) => !laneHidden.has(i.id)), [laneAll, laneHidden]);
+
+  /**
+   * SCAMBIA I DUE ASSI — la stessa board, guardata di traverso.
+   *
+   * Tutto quello che descrive un asse sta in `AxesSetting`, quindi la rotazione
+   * è una trasformazione di quell'oggetto e nient'altro: nessuna riga creata,
+   * nessuna cancellata, nessuna chiamata oltre al salvataggio della vista.
+   *
+   * ─── Cosa viaggia e cosa resta ──────────────────────────────────────────────
+   * `hidden` e `order` VIAGGIANO con la dimensione: sono «quali voci» e «in che
+   * sequenza», due proprietà dello status (o del tipo, o della data) che non
+   * cambiano perché lo status ora è in orizzontale. L'ordine che hai dato agli
+   * status te lo ritrovi ruotato, che è il punto dello scambio.
+   *
+   * `size` NO, e resta dov'è. Una larghezza non è un'altezza: una colonna da
+   * 320px diventerebbe una corsia alta 320px, cioè una fascia enorme che nessuno
+   * ha chiesto. Lasciandolo stare, ogni asse ritrova le misure che aveva dato
+   * ALLA SUA modalità — che è già la regola del resto del file — e le voci senza
+   * misura si adattano da sole.
+   *
+   * ⚠️ Con un asse su `custom`, la lista personalizzata NON attraversa: le
+   * colonne stanno in `kanban_columns` e le corsie in `kanban_lanes`, e sono
+   * tabelle diverse. Portarle di là vorrebbe dire cancellarle e ricrearle —
+   * perdendo per strada larghezza, colore e ordinamento, che le corsie non hanno
+   * dove tenere. Uno scambio di VISTA non distrugge dati: dopo la rotazione
+   * l'asse `custom` mostra la lista della sua nuova posizione.
+   */
+  const swapBlockedReason = useMemo(() => {
+    if (laneMode === 'none') return 'le corsie sono spente, non c\'è un secondo asse';
+    if (laneAll.length === 0) return 'l\'asse delle corsie è vuoto: resterebbe una board senza colonne';
+    return undefined;
+  }, [laneMode, laneAll]);
+
+  const swapAxes = useCallback(() => {
+    if (swapBlockedReason) return;
+    const rotate = <T,>(p: PerAxis<T> | undefined): PerAxis<T> | undefined =>
+      p ? { column: p.lane, lane: p.column } : undefined;
+    saveAxes({
+      ...axes,
+      column: laneMode,
+      lane: colMode,
+      hidden: rotate(axes.hidden),
+      order: rotate(axes.order),
+    });
+  }, [axes, colMode, laneMode, swapBlockedReason, saveAxes]);
 
   // ── Misure e ordine decisi a mano ──────────────────────────────────────────
   const colSize = useMemo(() => axes.size?.column?.[colMode] ?? {}, [axes, colMode]);
@@ -444,18 +598,18 @@ export function KanbanLive() {
   const buildLane = useCallback(
     (item: AxisItem, extra?: KanbanFilter[]): Lane => {
       const matched = visibleTiles.filter(
-        (t) => tileMatchesFilters(t, item.filters, typeTileIcons)
-          && (!extra || tileMatchesFilters(t, extra, typeTileIcons)),
+        (t) => tileMatchesFilters(t, item.filters, matchIcons)
+          && (!extra || tileMatchesFilters(t, extra, matchIcons)),
       );
       const { by, dir } = sortOf(item.id);
       return {
         id: item.id,
         label: item.title,
         color: 'var(--ob-muted)',
-        tiles: sortTiles(matched, by, dir).map((t) => toCard(t, rootTagId, statusById, getIconForTile)),
+        tiles: sortTiles(matched, by, dir).map((t) => toCard(t, rootTagId, statusById, iconOf)),
       };
     },
-    [visibleTiles, typeTileIcons, sortOf, rootTagId, statusById, getIconForTile],
+    [visibleTiles, matchIcons, sortOf, rootTagId, statusById, iconOf],
   );
 
   const lanes = useMemo<Lane[]>(() => colItems.map((c) => buildLane(c)), [colItems, buildLane]);
@@ -522,11 +676,33 @@ export function KanbanLive() {
     columnMutation.mutate(() => kanbanApi.updateColumn(id, { title: title.trim() }));
   }, [columns, columnMutation]);
 
+  /**
+   * Lo spostamento di una card.
+   *
+   * `onMutate` scrive subito nelle cache: la card si stacca dalla colonna
+   * vecchia e appare in quella nuova nel fotogramma del rilascio, invece di
+   * tornare al suo posto e saltare di là quando la rete risponde. La stessa
+   * scrittura raggiunge `tile-detail`, quindi la SIDEBAR DESTRA — se stava
+   * mostrando proprio quel tile — cambia status e date insieme alla board.
+   *
+   * `onError` rilegge tutto: un ottimismo non annullato lascerebbe la card in
+   * una colonna in cui il server non l'ha mai messa.
+   */
   const tileMutation = useMutation({
     mutationFn: (params: { id: string; updates: Record<string, unknown> }) =>
       tilesApi.update(params.id, params.updates),
-    onSuccess: () => invalidateTileCaches(queryClient, ['kanban-columns']),
-    onError: () => toast.error('Errore spostamento tile'),
+    onMutate: (params) => patchTileCaches(queryClient, params.id, params.updates),
+    onSuccess: (_res, params) => {
+      invalidateTileCaches(queryClient, ['kanban-columns']);
+      // `is_completed` e `completed_at` li deriva il server dallo status: il
+      // patch ottimistico non poteva conoscerli, e il dettaglio va riletto.
+      queryClient.invalidateQueries({ queryKey: ['tile-detail', params.id] });
+    },
+    onError: (_e, params) => {
+      toast.error('Errore spostamento tile');
+      invalidateTileCaches(queryClient);
+      queryClient.invalidateQueries({ queryKey: ['tile-detail', params.id] });
+    },
   });
 
   /**
@@ -537,11 +713,11 @@ export function KanbanLive() {
    * leggeva solo `columns`, cioe' funzionava sulle sole colonne personalizzate:
    * nelle altre quattro modalita' il tile tornava al suo posto senza spiegazioni.
    *
-   * Le date si risolvono DOPO il ciclo e non dentro: quando la colonna dice
-   * l'azione e la corsia dice il giorno (o viceversa), i due filtri parlano degli
-   * stessi campi, e l'azione azzera proprio le date che il giorno deve scrivere.
-   * Applicati in ordine di arrivo, l'esito dipendeva da quale asse capitava
-   * prima.
+   * Le date si risolvono DOPO la lettura dei filtri e non durante: quando la
+   * colonna dice l'azione e la corsia dice il giorno (o viceversa), i due filtri
+   * parlano degli stessi campi, e l'azione azzera proprio le date che il giorno
+   * deve scrivere. Applicati in ordine di arrivo, l'esito dipendeva da quale
+   * asse capitava prima.
    */
   const handleMoveTile = useCallback(
     async (tileId: string, colId: string, rowId?: string) => {
@@ -553,55 +729,21 @@ export function KanbanLive() {
       ];
       if (!filters.length) return;
 
-      const updates: Record<string, unknown> = {};
+      const { updates, action, day, tagId, iconId } = cellValues(filters);
       let tagChanged = false;
       let iconChanged = false;
-      let action: string | null = null;
-      let day: string | null = null;
 
-      for (const f of filters) {
-        switch (f.type) {
-          case 'action_type':
-            action = f.value;
-            if (f.value === 'allday') {
-              updates.action_type = 'event'; updates.is_event = true; updates.all_day = true;
-            } else if (f.value === 'event') {
-              updates.action_type = 'event'; updates.is_event = true; updates.all_day = false;
-            } else if (f.value === 'deadline') {
-              updates.action_type = 'deadline'; updates.is_event = false; updates.all_day = false; updates.start_at = null;
-            } else if (f.value === 'none' || f.value === 'anytime') {
-              updates.action_type = f.value; updates.is_event = false; updates.all_day = false; updates.start_at = null; updates.end_at = null;
-            } else {
-              updates.action_type = f.value;
-            }
-            break;
-          case 'completion':
-            updates.is_completed = f.value === 'completed';
-            break;
-          case 'status':
-            updates.status_id = f.value;
-            break;
-          case 'type_icon':
-            // Il tipo non e' un campo del tile: e' un'associazione a parte, e
-            // vive nel suo store con la sua chiamata.
-            if (typeTileIcons[tile.id] !== f.value) { assignIcon(tile.id, f.value); iconChanged = true; }
-            break;
-          case 'date_range':
-            // Solo un giorno preciso si puo' applicare. `last:7` e `next:30` sono
-            // finestre relative: "spostare un tile negli ultimi 7 giorni" non
-            // indica una data, e il drop non ha niente da scrivere.
-            if (dateRangeKind(f.value) === 'absolute') day = f.value.split('|')[0] || null;
-            break;
-          case 'tag':
-            if (!tile.tags?.some((t) => t.id === f.value)) {
-              // Transazionale: se il tagging fallisce non spostiamo la card,
-              // così non "salta" colonna senza che il tag sia stato applicato.
-              const r = await tagsApi.tagTiles(f.value, [tile.id]);
-              if (!r.success) { toast.error('Errore applicazione tag'); return; }
-              tagChanged = true;
-            }
-            break;
-        }
+      if (iconId && typeTileIcons[tile.id] !== iconId) {
+        assignIcon(tile.id, iconId);
+        iconChanged = true;
+      }
+
+      if (tagId && !tile.tags?.some((t) => t.id === tagId)) {
+        // Transazionale: se il tagging fallisce non spostiamo la card, così non
+        // "salta" colonna senza che il tag sia stato applicato.
+        const r = await tagsApi.tagTiles(tagId, [tile.id]);
+        if (!r.success) { toast.error('Errore applicazione tag'); return; }
+        tagChanged = true;
       }
 
       if (day) {
@@ -617,7 +759,12 @@ export function KanbanLive() {
       }
 
       if (Object.keys(updates).length > 0) tileMutation.mutate({ id: tile.id, updates });
-      if (tagChanged || iconChanged) invalidateTileCaches(queryClient, ['tags', 'kanban-columns']);
+      if (tagChanged || iconChanged) {
+        invalidateTileCaches(queryClient, ['tags', 'kanban-columns']);
+        // Il tag è un campo della sidebar destra: se sta mostrando questo tile,
+        // il selettore deve dire il tag che il drop ha appena applicato.
+        queryClient.invalidateQueries({ queryKey: ['tile-detail', tile.id] });
+      }
     },
     [allTiles, colAll, laneAll, typeTileIcons, assignIcon, queryClient, tileMutation],
   );
@@ -634,6 +781,154 @@ export function KanbanLive() {
       toast.error('Errore creazione tile');
     }
   }, [queryClient, rootTagId, selectTile]);
+
+  /**
+   * Il TAG di una tile nuova, in ordine di precedenza:
+   *   1. quello che la cella impone (colonna o corsia filtrata per tag)
+   *   2. quello che la board sta guardando, se ne stai guardando UNO SOLO —
+   *      creare dentro la board di un tag significa creare in quel tag
+   *   3. il root GIMMICK
+   * Con più tag accesi insieme non c'è una risposta sola, e si resta sul root.
+   */
+  const tagForNewTile = useCallback((cellTagId: string | null): Tag | null => {
+    if (cellTagId) return tags.find((t) => t.id === cellTagId) ?? null;
+    if (selectedTagIds.size === 1) {
+      const [only] = [...selectedTagIds];
+      return tags.find((t) => t.id === only) ?? null;
+    }
+    return tags.find((t) => t.is_root) ?? null;
+  }, [tags, selectedTagIds]);
+
+  /**
+   * Mette, sostituisce o toglie UNA riga dalla cache della board (`row: null`).
+   * Serve alla ghost — che nasce e cambia id — e all'eliminazione, che deve far
+   * sparire la card nell'istante in cui la chiedi e non quando il server
+   * risponde.
+   */
+  const writeBoardRow = useCallback((rowId: string, row: Tile | null) => {
+    queryClient.setQueryData(['tiles-kanban'], (old: { data?: Tile[] } | undefined) => {
+      if (!old?.data) return old;
+      const rest = old.data.filter((t) => t.id !== rowId);
+      return { ...old, data: row ? [...rest, row] : rest };
+    });
+  }, [queryClient]);
+
+  /**
+   * ELIMINA — dal menu della card (tasto destro o ctrl/cmd+click).
+   *
+   * Cancella il TILE, cioè anche gli spark che contiene: è l'operazione che il
+   * server fa a cascata, e qui non si può fare finta che sia meno di così.
+   *
+   * La card sparisce subito e non alla risposta del server. Un'eliminazione che
+   * ci mette mezzo secondo a vedersi è un'eliminazione che sembra non riuscita,
+   * e la si chiede due volte. Se la chiamata fallisce la board viene riletta e
+   * la card torna al suo posto, col messaggio d'errore accanto.
+   */
+  const handleDeleteTile = useCallback(async (tileId: string) => {
+    setCardMenu(null);
+    writeBoardRow(tileId, null);
+    try {
+      const res = await tilesApi.delete(tileId);
+      if (!res.success) throw new Error('delete');
+      if (selectedTileId === tileId) clearTile();
+      // `tags`: gli usage_count della sidebar sinistra cambiano insieme.
+      // `flow-hub`: stesso corredo che usano Chrono e la lista Tiles quando
+      // eliminano — un flow cancellato deve sparire anche di là.
+      invalidateTileCaches(queryClient, ['tags', 'flow-hub']);
+      toast.success('Tile eliminata');
+    } catch {
+      invalidateTileCaches(queryClient);
+      toast.error('Errore eliminazione');
+    }
+  }, [writeBoardRow, selectedTileId, clearTile, queryClient]);
+
+  /**
+   * DOPPIO CLICK SUL VUOTO DI UNA CELLA — nasce lì una tile, coi valori che la
+   * cella impone. Gli stessi che il drop applicherebbe a un tile trascinato:
+   * `cellValues` è uno solo apposta.
+   *
+   * ─── La ghost ───────────────────────────────────────────────────────────────
+   * Creare costa tre chiamate — crea, applica i valori, applica il tag — e per
+   * tutto quel tempo la cella restava vuota: il doppio click sembrava non aver
+   * fatto niente, e il secondo doppio click creava la seconda tile. Adesso una
+   * tile PROVVISORIA compare subito nella cella, tratteggiata e attenuata,
+   * con gli stessi valori che troverai nella sidebar destra quando si apre.
+   *
+   * La ghost viene infilata nella cache della board come un tile qualunque, e
+   * NON disegnata a parte: così passa dagli stessi filtri delle altre e finisce
+   * nella cella per costruzione. Se i valori di base non corrispondessero alla
+   * cella la ghost andrebbe a finire altrove — che è esattamente l'errore che
+   * si vorrebbe vedere.
+   *
+   * Alla risposta del server la ghost non viene tolta e rimessa: le si cambia
+   * l'id. La card che stai guardando è già quella giusta, e da quel momento
+   * esiste — le modifiche nella sidebar la raggiungono in tempo reale come
+   * qualunque altra (vedi `lib/tile-cache`).
+   */
+  const handleCreateInCell = useCallback(async (colId: string, rowId?: string) => {
+    const filters = [
+      ...(colAll.find((i) => i.id === colId)?.filters ?? []),
+      ...(rowId ? laneAll.find((i) => i.id === rowId)?.filters ?? [] : []),
+    ];
+    const { updates, action, day, tagId, iconId } = cellValues(filters);
+
+    // Il giorno si può scrivere solo su chi ha un campo data. In una cella
+    // "nota di martedì" non c'è niente da scrivere: la nota starebbe nella
+    // colonna del giorno in cui l'hai creata, cioè da un'altra parte rispetto a
+    // dove hai fatto doppio click. Meglio non crearla che crearla altrove.
+    if (day) {
+      const dates = datesForDay({ created_at: '', updated_at: '' } as Tile, action ?? 'event', day);
+      if (!dates) {
+        toast.error('Note e to-do non hanno una data: in questa cella non si può creare.');
+        return;
+      }
+      // Nessun asse dice l'azione, ma uno dice il GIORNO: quello che nasce in
+      // una colonna-giorno è un evento di quel giorno. Senza dirlo la tile
+      // resterebbe una nota con sopra una data — starebbe nella cella giusta,
+      // ma la sidebar non avrebbe dove mostrarla né come modificarla.
+      if (!action) { updates.action_type = 'event'; updates.is_event = true; updates.all_day = false; }
+      Object.assign(updates, dates);
+    }
+
+    const tag = tagForNewTile(tagId);
+    const ghostId = `${GHOST_PREFIX}${Date.now()}`;
+    const now = new Date().toISOString();
+    const ghostRow = {
+      id: ghostId,
+      user_id: '',
+      title: 'New tile',
+      created_at: now,
+      updated_at: now,
+      sparks: [],
+      subtasks: [],
+      tags: tag ? [{ id: tag.id, name: tag.name }] : [],
+      ...updates,
+    } as Tile;
+
+    setGhost({ id: ghostId, iconId });
+    writeBoardRow(ghostId, ghostRow);
+
+    try {
+      const res = await tilesApi.create({ title: 'New tile' });
+      if (!res.success || !res.data) throw new Error('create');
+      const newId = res.data.id;
+      if (Object.keys(updates).length > 0) {
+        await tilesApi.update(newId, updates as Parameters<typeof tilesApi.update>[1]);
+      }
+      if (tag) await tagsApi.tagTiles(tag.id, [newId]);
+      if (iconId) assignIcon(newId, iconId);
+      writeBoardRow(ghostId, { ...ghostRow, id: newId });
+      // Solo se è ancora la MIA: con due doppi click ravvicinati la seconda
+      // ghost è già subentrata, e azzerarla qui le toglierebbe il tipo.
+      setGhost((g) => (g?.id === ghostId ? null : g));
+      selectTile(newId);
+      invalidateTileCaches(queryClient, ['tags']);
+    } catch {
+      writeBoardRow(ghostId, null);
+      setGhost((g) => (g?.id === ghostId ? null : g));
+      toast.error('Errore creazione tile');
+    }
+  }, [colAll, laneAll, tagForNewTile, writeBoardRow, assignIcon, selectTile, queryClient]);
 
   if (isLoading) {
     return (
@@ -659,13 +954,17 @@ export function KanbanLive() {
         lanes={lanes}
         selectedId={selectedTileId ?? undefined}
         onCardClick={(id) => selectTile(id)}
+        onCardMenu={openCardMenu}
         onAddTile={handleAddTile}
         onMoveTile={handleMoveTile}
+        onCreateInCell={handleCreateInCell}
         tagPills={tagPills}
         activeTags={activeTags}
         onTagChange={handleTagChange}
         onAddColumn={() => setAxisOpen('column')}
         onAddLane={() => setAxisOpen('lane')}
+        onSwapAxes={swapAxes}
+        swapBlockedReason={swapBlockedReason}
         bands={bands}
         dateAxis={{ column: colMode === 'date', lane: laneMode === 'date' }}
         onGrowDates={growDays}
@@ -723,6 +1022,37 @@ export function KanbanLive() {
             >Sposta a destra</button>
             <div className="ob-ctx__sep" />
             <button type="button" className="ob-ctx__item ob-ctx__item--danger" onClick={() => { deleteColumn(laneMenu.laneId); setLaneMenu(null); }}>Elimina colonna</button>
+          </div>
+        </>,
+        document.body,
+      )}
+      {/* Il menu della CARD. Una voce sola per ora — la stessa della lista Tiles,
+          che è l'analogo più vicino: un elenco di tile in cui il tasto destro
+          serve a toglierne uno. */}
+      {cardMenu && typeof document !== 'undefined' && createPortal(
+        <>
+          {/* Sfondo che intercetta il click (e il tasto destro) fuori dal menu. */}
+          <div
+            style={{ position: 'fixed', inset: 0, zIndex: 9998 }}
+            onClick={() => setCardMenu(null)}
+            onContextMenu={(e) => { e.preventDefault(); setCardMenu(null); }}
+          />
+          <div
+            className="ob-ctx"
+            // Clampato sui bordi: aperto in fondo alla board, un menu ancorato al
+            // puntatore uscirebbe sotto la finestra.
+            style={{
+              top: Math.min(cardMenu.y, window.innerHeight - 48),
+              left: Math.min(cardMenu.x, window.innerWidth - 196),
+            }}
+          >
+            <button
+              type="button"
+              className="ob-ctx__item ob-ctx__item--danger"
+              onClick={() => handleDeleteTile(cardMenu.tileId)}
+            >
+              <Icon name="trash" size={14} /> Elimina
+            </button>
           </div>
         </>,
         document.body,

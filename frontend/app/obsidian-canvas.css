@@ -180,8 +180,10 @@
 .ob-canvas-svg--lod .ob-tbadge,
 .ob-canvas-svg--lod .ob-tstrip { display: none; }
 /* Senza la strip il corpo riprende il padding pieno, altrimenti il titolo
-   resterebbe rientrato di 28px per una colonna che non c'è più. */
-.ob-canvas-svg--lod .ob-tile--stripped .ob-tile__body { padding-left: 10px; }
+   resterebbe rientrato di 28px per una colonna che non c'è più.
+   ⚠️ Deve valere quanto il `padding` di `.ob-tile__body` — vanno cambiati
+   insieme, o in LOD il titolo rientra di una misura che non esiste altrove. */
+.ob-canvas-svg--lod .ob-tile--stripped .ob-tile__body { padding-left: 6px; }
 /* Anche le etichette del footer sono sotto i 6px reali: illeggibili. */
 .ob-canvas-svg--lod .ob-tstatus,
 .ob-canvas-svg--lod .ob-tile__meta { display: none; }

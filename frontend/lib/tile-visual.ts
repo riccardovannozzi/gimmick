@@ -138,15 +138,18 @@ export type StepState = 'done' | 'pending' | 'blocked' | 'cancelled';
  * subtask), e costruirci sopra significherebbe appoggiarsi al tavolo che stiamo
  * smontando.
  *
- * ⚠️ Conseguenza da tenere presente: `tile_subtasks` ha SOLO `is_done`, quindi
- * oggi esprimibili sono due stati su quattro. `blocked` e `cancelled` non hanno
- * sorgente — il segmento rosso, e con esso la regola "se c'è del rosso qualcosa
- * si è fermato", non può ancora accendersi. Perché possa farlo serve una
- * colonna di stato su `tile_subtasks`; finché non c'è, non inventiamo un
- * ripiego.
+ * `state` VINCE su `is_done`, e non è una gerarchia arbitraria: è una
+ * sovrastruttura sul booleano, che copre i due casi che «fatto sì/no» non sa
+ * dire. Un passo bloccato non è "non ancora fatto": è fermo, e la differenza è
+ * tutto il punto del segmento rosso.
+ *
+ * ⚠️ Questa funzione è l'UNICO posto in cui la regola è scritta. Le quattro
+ * viste che disegnano una card — Kanban, Chrono, Staging, Canvas — passano di
+ * qui: ognuna aveva la sua copia di `is_done ? 'done' : 'pending'`, e quelle
+ * copie sono il motivo per cui il rosso non si è mai acceso in nessuna.
  */
-export function subtaskToStep(s: { is_done: boolean }): StepState {
-  return s.is_done ? 'done' : 'pending';
+export function subtaskToStep(s: { is_done?: boolean | null; state?: 'blocked' | 'cancelled' | null }): StepState {
+  return s.state ?? (s.is_done ? 'done' : 'pending');
 }
 
 /**
@@ -169,11 +172,21 @@ export const FLOW_NODE_TO_STEP: Record<'active' | 'wait' | 'done' | 'undo' | 'st
 };
 
 /**
- * Oltre questa soglia i segmenti diventano illeggibili: si mostrano i primi 4
- * più un segmento riassuntivo, e il conteggio completo passa nel metadato
- * ("2 di 9").
+ * Quanti segmenti stanno nella strip prima di doverli riassumere.
+ *
+ * Il numero viene dalla GEOMETRIA, non dal gusto: la strip è alta quanto il tile
+ * (80) e ogni segmento occupa 3px più 4 di stacco. Dieci segmenti fanno
+ * 10×3 + 9×4 = 66px e lasciano 7px di respiro sopra e sotto — la colonna si
+ * riempie tutta senza arrivare agli angoli arrotondati. Undici la porterebbero a
+ * 73, dodici a 80: attaccati al bordo.
+ *
+ * ⚠️ Era 5, cioè mezza colonna. Una lista da otto voci veniva riassunta in
+ * «4 + altri» mentre lo spazio per mostrarle tutte c'era, e la strip diceva
+ * "tante" là dove poteva dire quante. Oltre il decimo si mostrano i primi 9 più
+ * un segmento riassuntivo, e il conteggio esatto resta nel metadato del footer
+ * ("2 di 14").
  */
-export const STEPPER_MAX_SEGMENTS = 5;
+export const STEPPER_MAX_SEGMENTS = 10;
 
 // ─── MISURE ──────────────────────────────────────────────────────────────────
 

@@ -21,10 +21,13 @@ import { Tile } from '@/components/tiles/Tile';
 import { tileVisualKey, type StepState, type TileStatus } from '@/lib/tile-visual';
 import { IconLayoutGrid } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
+import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { TileMeta, type TileMetaType } from '@/components/tileview/TileMeta';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
-import type { StatusShape, ActionType } from '@/types';
+// Alias: questo file ha già un `SparkType` locale suo (quattro valori, usato
+// solo dal mock), che non è quello del dominio.
+import type { StatusShape, ActionType, SparkType as SparkKind } from '@/types';
 
 /*
  * La COLORAZIONE dei tile (By Tag / By Type / By Status) non esiste più: tre
@@ -75,8 +78,14 @@ export interface ColTile {
   /** Numero di sparks del tile → contatore in basso a destra. */
   sparkCount?: number;
   spark?: SparkType;
+  /** I TIPI degli spark allegati (grezzi, con i doppioni) → pallini nel footer
+   *  del Tile. Distinto da `spark`, che è il solo primo e non viene reso. */
+  sparks?: SparkKind[];
   amber?: boolean;
-  checklist?: boolean[];
+  /** I passi GIÀ tradotti in stati di segmento (`subtaskToStep`). Erano dei
+   *  booleani, e un booleano non sa dire «fermo»: il rosso non poteva arrivare
+   *  fin qui. */
+  steps?: StepState[];
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
   /** Nome grezzo dello status (`active`, `done`, `paused`…). Distinto da
@@ -102,7 +111,6 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
   // `is_completed` e lo status `done` sono tenuti allineati dal database
   // (migration 015), quindi qui valgono come la stessa cosa.
   const status: TileStatus = t.done ? 'done' : (t.statusName ?? 'active');
-  const steps = t.checklist?.map((d): StepState => (d ? 'done' : 'pending'));
   return (
     <div
       className="ob-chrono__cell"
@@ -113,7 +121,8 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         title={t.title}
         visualKey={tileVisualKey({ action_type: t.action })}
         status={status}
-        steps={steps}
+        steps={t.steps}
+        sparks={t.sparks}
         accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
         active={active}
         onClick={onClick}
@@ -844,16 +853,16 @@ const NOTES: ColTile[] = [
   { title: 'Incontro con Bania Piccardi sul preventivo', actionLabel: 'Notes', actionColor: 'var(--ob-muted)', spark: 'voice' },
 ];
 const TODOS: ColTile[] = [
-  { title: 'Revoca certificato digitale Aruba', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'file', amber: true, checklist: [true, true, false] },
-  { title: 'Preparare brief Teleport per Marco', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'text', checklist: [true, false, false, false] },
-  { title: 'Lista materiali cucina Ortano', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', amber: true, checklist: [false, false] },
+  { title: 'Revoca certificato digitale Aruba', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'file', amber: true, steps: ['done', 'done', 'pending'] },
+  { title: 'Preparare brief Teleport per Marco', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', spark: 'text', steps: ['done', 'pending', 'pending', 'pending'] },
+  { title: 'Lista materiali cucina Ortano', actionLabel: 'To do', actionColor: 'var(--ob-subtle)', amber: true, steps: ['pending', 'pending'] },
 ];
 // I flow di esempio hanno tutti una checklist: senza passi un flow è un tile
 // come gli altri, ed è proprio la strip a raccontarlo.
 const FLOWS: ColTile[] = [
-  { title: 'Voltura contatore acqua', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, true, true, false] },
-  { title: 'Preventivo APE albergo', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false] },
-  { title: 'Concessione demaniale spiaggia', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', checklist: [true, false, false] },
+  { title: 'Voltura contatore acqua', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'done', 'done', 'pending'] },
+  { title: 'Preventivo APE albergo', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'pending'] },
+  { title: 'Concessione demaniale spiaggia', actionLabel: 'Flow', actionColor: 'var(--ob-accent)', action: 'flow', steps: ['done', 'pending', 'pending'] },
 ];
 
 export interface ChronoViewProps {
@@ -947,12 +956,15 @@ export function ChronoView({
             onClick={onAddTile}
             disabled={!onAddTile}
           />
+          {/* Il separatore tiene i MODI DI GUARDARE a parte da «Tile», che
+              invece crea. Di là dal filo nessuno tocca i dati: cambia solo cosa
+              la board mostra di sé. */}
+          <div className="ob-toolsep" />
+          <SparkIconsToggle />
           {onToggleDoneHighlight && (
             <>
-              {/* Il separatore lo tiene a parte da «Tile», che invece crea. Il
-                  VERDE che prende da acceso è lo stesso che accende sui tile:
+              {/* Il VERDE che prende da acceso è lo stesso che accende sui tile:
                   mostra il suo effetto invece di descriverlo. */}
-              <div className="ob-toolsep" />
               <ToolWord
                 on={doneHighlight}
                 tone="var(--ob-success)"
