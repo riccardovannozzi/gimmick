@@ -21,7 +21,7 @@ import {
   IconLayoutGrid, IconLayoutDashboard, IconLayoutKanban, IconEye,
   IconArrowsSort, IconFilter, IconCategory,
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
-  IconSend,
+  IconSend, IconPlayerStopFilled, IconVolume, IconVolumeOff, IconX,
   IconCopy, IconClipboard, IconTrash,
   type IconProps as TablerIconProps,
 } from '@tabler/icons-react';
@@ -38,7 +38,7 @@ export type ShellIconName =
   | 'tiles' | 'canvas' | 'kanban' | 'panopticon'
   | 'sort' | 'filter' | 'group'
   | 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file'
-  | 'send'
+  | 'send' | 'stop' | 'speaker' | 'speakerOff' | 'x'
   | 'copy' | 'paste' | 'trash';
 
 const MAP: Record<ShellIconName, React.ComponentType<TablerIconProps>> = {
@@ -53,7 +53,7 @@ const MAP: Record<ShellIconName, React.ComponentType<TablerIconProps>> = {
   tiles: IconLayoutGrid, canvas: IconLayoutDashboard, kanban: IconLayoutKanban, panopticon: IconEye,
   sort: IconArrowsSort, filter: IconFilter, group: IconCategory,
   photo: IconCamera, video: IconVideo, gallery: IconPhoto, text: IconAlignLeft, voice: IconMicrophone, file: IconPaperclip,
-  send: IconSend,
+  send: IconSend, stop: IconPlayerStopFilled, speaker: IconVolume, speakerOff: IconVolumeOff, x: IconX,
   copy: IconCopy, paste: IconClipboard, trash: IconTrash,
 };
 
