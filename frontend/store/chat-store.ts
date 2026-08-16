@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import type { ChatTile } from '@/lib/api';
 
 /**
  * Gimmick · Obsidian — Stato della chat "Ask Gimmick".
@@ -31,6 +32,8 @@ export interface AskMessage {
   content: string;
   foundSparkIds?: string[];
   foundTileIds?: string[];
+  /** Tile trovate in QUESTO turno, disegnate come card cliccabili. */
+  tiles?: ChatTile[];
   /** Nome del file allegato a QUESTO turno (solo messaggi utente). */
   attachmentName?: string;
 }

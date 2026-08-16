@@ -72,7 +72,11 @@ tilesRouter.get(
         // `state` sui subtask: è la differenza fra un passo non ancora fatto e
         // un passo FERMO, e la barra di avanzamento della card la disegna in
         // rosso. Senza, `is_done` da solo appiattisce i due casi su "pending".
-        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(user_id, is_done, sort_order, state)', { count: 'exact' })
+        // `is_root` sui tag NON è decorativo: la lista mostra UN tag per riga e
+        // lo sceglie scartando il root GIMMICK. Senza questo campo il filtro
+        // `!is_root` passa sempre e la riga finisce per mostrare "Gimmick"
+        // invece del tag vero (mismatch con il dettaglio nella sidebar).
+        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type, is_root)), tile_subtasks(user_id, is_done, sort_order, state)', { count: 'exact' })
         .eq('user_id', req.user!.id);
 
       if (action_type) {
@@ -106,8 +110,8 @@ tilesRouter.get(
         mime_type: string | null;
         file_name: string | null;
       };
-      type TileTag = { id: string; name: string; tag_type?: string };
-      type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string } | null };
+      type TileTag = { id: string; name: string; tag_type?: string; is_root?: boolean };
+      type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string; is_root: boolean } | null };
       type SubtaskRow = { user_id: string; is_done: boolean | null; sort_order: number | null; state: 'blocked' | 'cancelled' | null };
       type TileListRow = Tile & {
         sparks?: SparkPreview[];
@@ -139,10 +143,10 @@ tilesRouter.get(
           .filter((s) => s.user_id === req.user!.id);
         const tags: TileTag[] = (tile.tile_tags || [])
           .map((tt) => tt.tags)
-          .filter((t): t is { id: string; name: string; tag_type: string } => Boolean(t));
+          .filter((t): t is { id: string; name: string; tag_type: string; is_root: boolean } => Boolean(t));
         // If no tags, inject root tag
         if (tags.length === 0 && rootTag) {
-          tags.push({ id: rootTag.id, name: rootTag.name });
+          tags.push({ id: rootTag.id, name: rootTag.name, is_root: true });
         }
         // Compact subtasks payload: sorted by sort_order, only what the
         // avanzamento bar needs — `is_done` e lo `state` che lo sovrascrive.

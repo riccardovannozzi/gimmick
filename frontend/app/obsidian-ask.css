@@ -64,13 +64,29 @@
 .ob-ask__act { width: 28px; height: 28px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--ob-line); color: var(--ob-subtle); cursor: pointer; flex-shrink: 0; transition: color 0.12s ease, background 0.12s ease; }
 .ob-ask__act:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
 
-/* tile result card */
-.ob-ask__result { background: var(--ob-surface); border: 1px solid var(--ob-line); border-left: 2.5px solid var(--ob-success); border-radius: var(--ob-radius-md); padding: 13px 14px; width: 320px; max-width: 100%; }
+/* tile result card
+   Il bordo sinistro prende il colore dell'AZIONE (`--res-c`, da lib/tile-action):
+   timed, all-day e notes si riconoscono a colpo d'occhio come nella vista Tiles.
+   Il fallback tiene il verde del thread di design, che azione non ne ha. */
+.ob-ask__result { background: var(--ob-surface); border: 1px solid var(--ob-line); border-left: 2.5px solid var(--res-c, var(--ob-success)); border-radius: var(--ob-radius-md); padding: 13px 14px; width: 320px; max-width: 100%; }
+
+/* Variante cliccabile (tile vere trovate dalla chat). È un <button>, quindi va
+   prima disfatto l'aspetto da pulsante: allineamento, font e cursore. */
+.ob-ask__result--live { display: block; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease; }
+.ob-ask__result--live:hover { background: var(--ob-hover-strong); border-color: var(--ob-line-2); border-left-color: var(--res-c, var(--ob-success)); }
+.ob-ask__result--live:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: 2px; }
+
 .ob-ask__result-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .ob-ask__result-time { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); background: var(--ob-accent-soft); padding: 2px 8px; border-radius: var(--ob-radius-sm); }
-.ob-ask__result-title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
-.ob-ask__result-desc { font-size: var(--ob-text-control); color: var(--ob-muted); line-height: var(--ob-leading-text); margin-bottom: 11px; }
+/* Il titolo non manda a capo la card: una tile senza data ha tutta la riga, una
+   con data prende quel che resta e tronca. */
+.ob-ask__result-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
+/* La descrizione è di due righe: è un'anteprima per riconoscere la tile, non il
+   suo contenuto — che sta a un click di distanza, nella sidebar. */
+.ob-ask__result-desc { font-size: var(--ob-text-control); color: var(--ob-muted); line-height: var(--ob-leading-text); margin-bottom: 11px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-ask__result-foot { display: flex; align-items: center; gap: 8px; }
+.ob-ask__result-action { display: flex; align-items: center; gap: 5px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--res-c, var(--ob-muted)); }
+.ob-ask__result-done { display: flex; align-items: center; gap: 4px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-success); }
 .ob-ask__result-caps { display: flex; gap: 5px; }
 .ob-ask__cap { width: 18px; height: 18px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--cap-c) 16%, transparent); color: var(--cap-c); }
 .ob-ask__result-tag { display: flex; align-items: center; gap: 5px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); }

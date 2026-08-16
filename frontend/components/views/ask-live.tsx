@@ -19,6 +19,7 @@ import { Icon } from '@/components/shell';
 import { useObsidianTheme } from '@/lib/theme/obsidian-provider';
 import { useFilterStore } from '@/store/filter-store';
 import { useChatStore, type AskMessage } from '@/store/chat-store';
+import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useVoiceRecorder } from '@/hooks/use-voice-recorder';
 import { chatApi } from '@/lib/api';
 
@@ -42,6 +43,7 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const setSparkFilter = useFilterStore((s) => s.setSparkFilter);
   const setTileFilter = useFilterStore((s) => s.setTileFilter);
+  const selectTile = useTileSelectionStore((s) => s.select);
 
   const messages = useChatStore((s) => s.messages);
   const setMessages = useChatStore((s) => s.setMessages);
@@ -105,6 +107,7 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
               content: res.data.reply,
               foundSparkIds: res.data.foundSparkIds?.length ? res.data.foundSparkIds : undefined,
               foundTileIds: res.data.foundTileIds?.length ? res.data.foundTileIds : undefined,
+              tiles: res.data.foundTiles?.length ? res.data.foundTiles : undefined,
             },
           ]);
         } else {
@@ -149,6 +152,7 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
             content: res.data.reply,
             foundSparkIds: res.data.foundSparkIds?.length ? res.data.foundSparkIds : undefined,
             foundTileIds: res.data.foundTileIds?.length ? res.data.foundTileIds : undefined,
+            tiles: res.data.foundTiles?.length ? res.data.foundTiles : undefined,
           },
         ]);
       } else {
@@ -226,6 +230,26 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
     [setTileFilter, pathname, router, onClose, stopSpeaking],
   );
 
+  /**
+   * Click su una card: si va nella vista Tiles con quel tile SELEZIONATO, cioè
+   * evidenziato nella lista e aperto nella sidebar destra (`TileSidebar` lo
+   * carica per id, quindi si vede anche se non è ancora fra le pagine caricate).
+   *
+   * La lista resta filtrata sul gruppo del turno e non sul solo tile scelto:
+   * dopo aver aperto il primo risultato la domanda successiva è quasi sempre
+   * "e gli altri?", e restringere a uno costringerebbe a tornare in chat.
+   */
+  const onOpenTile = useCallback(
+    (id: string, groupIds: string[]) => {
+      stopSpeaking();
+      setTileFilter(groupIds.length ? groupIds : [id]);
+      selectTile(id);
+      if (pathname !== '/tiles') router.push('/tiles');
+      onClose?.();
+    },
+    [setTileFilter, selectTile, pathname, router, onClose, stopSpeaking],
+  );
+
   return (
     <AskView
       messages={messages}
@@ -236,6 +260,7 @@ export function AskLive({ onClose }: { onClose?: () => void }) {
       onSuggestion={(s) => send(s)}
       onSparkFilter={onSparkFilter}
       onTileFilter={onTileFilter}
+      onOpenTile={onOpenTile}
       attachmentName={attachment?.name ?? null}
       onAttach={setAttachment}
       onRemoveAttachment={() => setAttachment(null)}

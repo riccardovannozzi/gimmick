@@ -1,3 +1,11 @@
+// ⚠️ PRIMO IMPORT, e deve restarlo. Inizializza Sentry prima che express e i
+// router vengano caricati: gli import sono valutati prima di ogni istruzione,
+// quindi questo è l'unico punto in cui l'instrumentation arriva in tempo.
+// Dettagli in `observability/sentry.ts`.
+import './observability/sentry.js';
+import * as Sentry from '@sentry/node';
+import { isSentryEnabled } from './observability/sentry.js';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
@@ -128,8 +136,27 @@ app.use('/api/subtasks', subtasksRouter);
 app.use('/api/kanban', kanbanRouter);
 app.use('/api/contacts', contactsRouter);
 
-// Error handling
+// ⚠️ ROTTA TEMPORANEA — DA RIMUOVERE DOPO LA VERIFICA DI SENTRY.
+// Lancia un errore vero per controllare che l'evento arrivi al progetto
+// gimmick-api. Non è protetta da autenticazione, quindi in produzione è
+// un modo gratuito per far scrivere righe nei log: va tolta appena il test
+// è passato.
+app.get('/debug-sentry', () => {
+  throw new Error('Sentry test error — rotta di verifica, va rimossa');
+});
+
+// Error handling.
+//
+// `notFoundHandler` risponde 404 da sé e non chiama `next`, quindi le rotte
+// inesistenti non passano di qui: Sentry non vedrà rumore da 404.
 app.use(notFoundHandler);
+// Handler di Sentry PRIMA di quello custom: cattura e rilancia, lasciando che
+// sia `errorHandler` a rispondere al client esattamente come oggi. Montato solo
+// quando Sentry è attivo, così in sviluppo la catena dei middleware resta
+// identica a prima.
+if (isSentryEnabled()) {
+  Sentry.setupExpressErrorHandler(app);
+}
 app.use(errorHandler);
 
 app.listen(Number(PORT), '0.0.0.0', () => {

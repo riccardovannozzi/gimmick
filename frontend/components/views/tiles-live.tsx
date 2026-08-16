@@ -25,33 +25,11 @@ import { useFilterStore } from '@/store/filter-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
 import { useStatuses } from '@/store/statuses-store';
 import { statusMeta } from '@/lib/status-meta';
+import { tileActionKind, tileSchedule } from '@/lib/tile-action';
 import { tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
 import type { Spark, Status, Tile } from '@/types';
 import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
-
-function toAction(t: Tile): 'timed' | 'allday' | 'notes' {
-  if (t.action_type === 'event') return t.all_day ? 'allday' : 'timed';
-  if (t.action_type === 'deadline') return 'allday';
-  return 'notes'; // none / anytime
-}
-
-function toSchedule(t: Tile): { date?: string; time?: string } {
-  if (t.action_type === 'event' && t.start_at) {
-    const d = new Date(t.start_at);
-    const date = d.toLocaleDateString('it-IT');
-    if (t.all_day) return { date };
-    const start = d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
-    const end = t.end_at
-      ? new Date(t.end_at).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })
-      : null;
-    return { date, time: end ? `${start} – ${end}` : start };
-  }
-  if (t.action_type === 'deadline' && t.end_at) {
-    return { date: new Date(t.end_at).toLocaleDateString('it-IT') };
-  }
-  return {};
-}
 
 /** Tipi reali → i 4 accenti spark supportati dalla TileRow Obsidian. */
 const SPARK_KIND: Record<string, 'photo' | 'voice' | 'text' | 'file'> = {
@@ -64,7 +42,11 @@ const SPARK_KIND: Record<string, 'photo' | 'voice' | 'text' | 'file'> = {
 };
 
 function toTileRow(t: Tile, statusById: Map<string, Status>): TileRow {
-  const tag = (t.tags ?? []).find((tg) => !tg.is_root);
+  // Stessa scelta del TileSidebar: il primo tag non-root, e se il tile ha SOLO
+  // il root si mostra quello. Il fallback deve restare l'ultimo tag disponibile,
+  // non una stringa fissa, altrimenti la riga mente sul tag del tile.
+  const tileTags = t.tags ?? [];
+  const tag = tileTags.find((tg) => !tg.is_root) ?? tileTags[0];
   // 'active' è lo stato di default/prevalente → non si segnala (colonna vuota).
   const st = t.status_id ? statusById.get(t.status_id) : undefined;
   const showStatus = st && st.name !== 'active';
@@ -72,11 +54,11 @@ function toTileRow(t: Tile, statusById: Map<string, Status>): TileRow {
   return {
     id: t.id,
     title: t.title || 'Senza titolo',
-    action: toAction(t),
-    ...toSchedule(t),
+    action: tileActionKind(t),
+    ...tileSchedule(t),
     done: !!t.is_completed,
     status: st && stMeta ? { label: stMeta.label, color: stMeta.color, shape: st.shape } : undefined,
-    tags: tag?.name ?? 'Gimmick',
+    tags: tag?.name ?? '—',
     sparks: (t.sparks ?? []).map((s: Spark) => {
       const kind = SPARK_KIND[s.type] ?? 'file';
       const x = kind === 'text' ? s.content?.slice(0, 40) : kind === 'file' ? s.file_name : undefined;
@@ -122,11 +104,43 @@ export function TilesLive() {
   const allTiles = useMemo(() => data?.pages.flatMap((p) => p.data) ?? [], [data]);
   const total = data?.pages[0]?.pagination?.total;
 
+  /**
+   * Id del filtro AI che NON sono fra le pagine già caricate.
+   *
+   * La lista parte dalle 50 tile più recenti, mentre una ricerca pesca
+   * volentieri roba vecchia: il filtro, che lavorava per sola intersezione,
+   * lasciava fuori proprio quelle. Da quando la chat disegna le tile trovate
+   * come card, il caso si vede subito — si clicca una card e la vista si apre
+   * VUOTA mentre la sidebar mostra il tile giusto.
+   */
+  const missingIds = useMemo(() => {
+    if (!aiFilterIds?.length) return [];
+    const loaded = new Set(allTiles.map((t) => t.id));
+    return aiFilterIds.filter((id) => !loaded.has(id));
+  }, [aiFilterIds, allTiles]);
+
+  // Si chiedono uno a uno invece di rincorrere le pagine: gli id sono pochi (i
+  // tool di ricerca ne restituiscono al massimo una ventina) e `GET /tiles/:id`
+  // porta sparks e tags, quindi la riga esce identica a quelle della lista.
+  const { data: recoveredTiles } = useQuery({
+    queryKey: ['tiles-by-id', missingIds],
+    queryFn: async () => {
+      const results = await Promise.all(missingIds.map((id) => tilesApi.get(id)));
+      return results.filter((r) => r.success && r.data).map((r) => r.data!);
+    },
+    enabled: missingIds.length > 0,
+  });
+
   const visibleTiles = useMemo(() => {
     if (!aiFilterIds) return allTiles;
     const idSet = new Set(aiFilterIds);
-    return allTiles.filter((t) => idSet.has(t.id));
-  }, [allTiles, aiFilterIds]);
+    const byId = new Map<string, Tile>();
+    for (const t of allTiles) if (idSet.has(t.id)) byId.set(t.id, t);
+    for (const t of recoveredTiles ?? []) byId.set(t.id, t);
+    // Nell'ordine in cui l'AI le ha elencate — che è rilevanza, non data.
+    // Riordinarle per created_at butterebbe via il senso della risposta.
+    return aiFilterIds.map((id) => byId.get(id)).filter((t): t is Tile => !!t);
+  }, [allTiles, aiFilterIds, recoveredTiles]);
 
   const statusById = useMemo(() => new Map(statuses.map((s) => [s.id, s])), [statuses]);
   const rows = useMemo(() => visibleTiles.map((t) => toTileRow(t, statusById)), [visibleTiles, statusById]);

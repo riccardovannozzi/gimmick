@@ -17,6 +17,8 @@ import { IconCheck } from '@tabler/icons-react';
 import { Button } from '@/components/primitives';
 import { Beniamino } from '@/components/mascot';
 import { Icon } from '@/components/shell';
+import { actionMeta, tileActionKind, tileSchedule } from '@/lib/tile-action';
+import type { ChatTile } from '@/lib/api';
 import type { AskMessage } from '@/store/chat-store';
 
 export type { AskMessage };
@@ -66,6 +68,50 @@ function fmtElapsed(s: number) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+/**
+ * Tile trovata dalla chat, resa come card a sé e cliccabile.
+ *
+ * Una per tile, non un pulsante cumulativo: "Tile (4)" diceva quante ma non
+ * QUALI, e per vederle bisognava andarsele a cercare nella lista filtrata.
+ * Azione, data e colore passano da `lib/tile-action`, gli stessi della vista
+ * Tiles — la stessa tile non può avere due facce a seconda di dove la incontri.
+ *
+ * È un `<button>` e non un div con onClick: si raggiunge con il tab e risponde
+ * a Invio senza doverlo riscrivere a mano.
+ */
+function ChatTileCard({ tile, onOpen }: { tile: ChatTile; onOpen?: (id: string) => void }) {
+  const meta = actionMeta(tileActionKind(tile));
+  const { date, time } = tileSchedule(tile);
+  const when = date && time ? `${date} · ${time}` : date;
+  const title = tile.title?.trim() || 'Senza titolo';
+  return (
+    <button
+      type="button"
+      className="ob-ask__result ob-ask__result--live"
+      style={{ ['--res-c' as string]: meta.color }}
+      onClick={() => onOpen?.(tile.id)}
+      title={`Apri "${title}" nella vista Tiles`}
+    >
+      <div className="ob-ask__result-top">
+        {when && <span className="ob-ask__result-time">{when}</span>}
+        <span className="ob-ask__result-title">{title}</span>
+      </div>
+      {tile.description?.trim() && (
+        <div className="ob-ask__result-desc">{tile.description}</div>
+      )}
+      <div className="ob-ask__result-foot">
+        <span className="ob-ask__result-action">
+          <Icon name={meta.icon} size={11} />{meta.label}
+        </span>
+        <div style={{ flex: 1 }} />
+        {tile.is_completed && (
+          <span className="ob-ask__result-done"><Icon name="check" size={12} />Fatto</span>
+        )}
+      </div>
+    </button>
+  );
+}
+
 // ─── Static demo blocks (preview route, no props) ─────────────────────────────
 function TileResult() {
   return (
@@ -100,6 +146,17 @@ function ConfirmRow() {
 
 const DEFAULT_SUGGESTIONS = ['Riepilogo di oggi', 'Cosa scade?', 'Spark non smistati', 'Crea evento'];
 
+/**
+ * Tile citate dalla risposta ma senza dati per disegnarne una card. Se non ce ne
+ * sono, il pulsante "Tile (n)" non aggiunge nulla alle card già in elenco.
+ */
+function extraTileIds(m: AskMessage): string[] {
+  const ids = m.foundTileIds ?? [];
+  if (ids.length === 0) return [];
+  const drawn = new Set((m.tiles ?? []).map((t) => t.id));
+  return ids.filter((id) => !drawn.has(id));
+}
+
 export interface AskViewProps {
   /** Quando presente, rende il thread reale; altrimenti il demo di design. */
   messages?: AskMessage[];
@@ -111,6 +168,9 @@ export interface AskViewProps {
   onSuggestion?: (s: string) => void;
   onSparkFilter?: (ids: string[]) => void;
   onTileFilter?: (ids: string[]) => void;
+  /** Click su una card: apre la vista Tiles con quel tile in focus, filtrata
+   *  sul gruppo di tile trovate nello stesso turno. */
+  onOpenTile?: (id: string, groupIds: string[]) => void;
 
   /** Allegato in attesa: parte col prossimo messaggio, uno per turno. */
   attachmentName?: string | null;
@@ -134,7 +194,7 @@ export interface AskViewProps {
 
 export function AskView({
   messages, input, onInput, onSend, isLoading, suggestions = DEFAULT_SUGGESTIONS,
-  onSuggestion, onSparkFilter, onTileFilter,
+  onSuggestion, onSparkFilter, onTileFilter, onOpenTile,
   attachmentName, onAttach, onRemoveAttachment,
   recording, recordingElapsed = 0, voiceError, onStartRecording, onStopRecording, onCancelRecording,
   onSpeak, speakingIndex,
@@ -182,18 +242,33 @@ export function AskView({
                 ) : (
                   <BotMsg key={i}>
                     <Bubble><BotMarkdown>{m.content}</BotMarkdown></Bubble>
+
+                    {m.tiles?.map((t) => (
+                      <ChatTileCard
+                        key={t.id}
+                        tile={t}
+                        // Insieme all'id cliccato viaggia il gruppo del turno:
+                        // la lista si apre sui risultati di QUESTA risposta, non
+                        // sull'archivio intero, con dentro quello scelto.
+                        onOpen={(id) => onOpenTile?.(id, m.foundTileIds ?? m.tiles!.map((x) => x.id))}
+                      />
+                    ))}
+
                     {/* Senza azioni la riga resterebbe un vuoto sotto la bolla:
                         `.ob-ask__bot-col` ha un gap fisso. */}
-                    {(m.foundSparkIds?.length || m.foundTileIds?.length || onSpeak) ? (
+                    {(m.foundSparkIds?.length || extraTileIds(m).length || onSpeak) ? (
                       <div className="ob-ask__confirm">
                         {m.foundSparkIds?.length ? (
                           <Button variant="secondary" size="sm" icon={<Icon name="sparkles" size={13} />} onClick={() => onSparkFilter?.(m.foundSparkIds!)}>
                             Spark ({m.foundSparkIds.length})
                           </Button>
                         ) : null}
-                        {m.foundTileIds?.length ? (
+                        {/* Il filtro cumulativo resta SOLO per le tile che non
+                            hanno una card: sono quelle note al backend per solo
+                            id, e senza questo pulsante sparirebbero del tutto. */}
+                        {extraTileIds(m).length ? (
                           <Button variant="secondary" size="sm" icon={<Icon name="tiles" size={13} />} onClick={() => onTileFilter?.(m.foundTileIds!)}>
-                            Tile ({m.foundTileIds.length})
+                            Tile ({m.foundTileIds!.length})
                           </Button>
                         ) : null}
                         {onSpeak && (

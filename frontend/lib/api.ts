@@ -365,10 +365,35 @@ export const aiApi = {
 
 // ============ Chat API ============
 
+/**
+ * Tile trovata dalla chat, con abbastanza colonne per DISEGNARLA.
+ *
+ * Il backend le manda già così (`ChatTileSummary` in services/ai.ts); il web
+ * usava i soli `foundTileIds`, quindi una risposta poteva solo offrire un
+ * filtro cumulativo — "Tile (4)" — e non mostrare QUALI. `end_at`/`all_day` non
+ * li porta ogni tool: la card deve reggere senza.
+ */
+export interface ChatTile {
+  id: string;
+  title: string | null;
+  description: string | null;
+  action_type: string | null;
+  start_at: string | null;
+  end_at?: string | null;
+  all_day?: boolean | null;
+  is_completed?: boolean | null;
+  is_cta?: boolean | null;
+}
+
 export interface ChatReply {
   reply: string;
   foundSparkIds?: string[];
   foundTileIds?: string[];
+  /**
+   * Sottoinsieme di `foundTileIds` per cui il backend ha i dati. Non coincide
+   * sempre: un tile pescato dal `tile_id` di uno spark è noto solo per id.
+   */
+  foundTiles?: ChatTile[];
 }
 
 type ChatHistory = { role: 'user' | 'assistant'; content: string }[];

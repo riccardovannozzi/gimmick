@@ -198,6 +198,9 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
   const groupTiles = group.nodeIds
     .map((id) => tiles.find((t) => t.id === id))
     .filter((t): t is { id: string; title?: string } => !!t);
+  // Le immagini stanno nei gruppi come i tile, ma sono identificate da `tb:<id>`
+  // e non hanno un titolo da elencare: se ne dichiara il numero.
+  const groupImageCount = group.nodeIds.filter((id) => id.startsWith('tb:')).length;
 
   const eyebrow = eyebrowStyle(theme);
   // Stesso default del disegno (`gBw` in CanvasBoard.tsx): un gruppo nasce con
@@ -330,6 +333,12 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
               ))}
             </div>
           </div>
+
+          {groupImageCount > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={eyebrow}>Immagini ({groupImageCount})</span>
+            </div>
+          )}
 
           {/* Azioni */}
           <button

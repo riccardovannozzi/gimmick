@@ -87,6 +87,13 @@ const PORT_R = 5;
 const GROUP_PAD = 12;
 const LABEL_H = 20;
 
+/** I box (testo/immagine) viaggiano con un id PREFISSATO ovunque convivano con
+ *  i tile: endpoint degli edge, multi-selezione e — da ora — membri dei gruppi.
+ *  Un id nudo è sempre un tile. */
+const BOX_ID_PREFIX = 'tb:';
+const isBoxId = (id: string) => id.startsWith(BOX_ID_PREFIX);
+const boxIdOf = (id: string) => id.slice(BOX_ID_PREFIX.length);
+
 export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
@@ -108,6 +115,9 @@ export interface GroupBounds { x: number; y: number; w: number; h: number }
 export interface CanvasGroup {
   id: string;
   label: string;
+  /** Membri del gruppo: id nudo = tile, `tb:<id>` = box immagine. Le immagini
+   *  entrano nei gruppi esattamente come i tile (contorno, drag dentro, il
+   *  gruppo che le trascina con sé); i box di TESTO restano fuori. */
   nodeIds: string[];
   /** Stile opzionale: sfondo, colore/spessore/tipologia del bordo. */
   bgColor?: string | null;
@@ -162,19 +172,22 @@ interface CanvasBoardProps {
   onGroupsChange: (groups: CanvasGroup[]) => void;
   onAddTextBox: (x: number, y: number, w: number, h: number) => void;
   onUpdateTextBox: (id: string, updates: { type?: 'text' | 'image'; content?: CanvasBoxTextContent | CanvasBoxImageContent; x?: number; y?: number; w?: number; h?: number }) => void;
-  onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string }) => void;
+  /** `inGroup`: il box è membro di un gruppo (solo le immagini possono esserlo)
+   *  → il parent mostra la voce "Ungroup", come per i tile. */
+  onTextBoxContextMenu: (e: { x: number; y: number; textBoxId: string; inGroup: boolean }) => void;
   /** Image mode: when true, drag on empty canvas draws a rectangle, then a file
       picker opens; the picked image fills the rectangle. */
   imageMode?: boolean;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
   /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
-   *  SENZA bisogno di modificatori e i tile catturati formano subito un gruppo.
-   *  Sinistra→destra cattura i tile INTERAMENTE contenuti; destra→sinistra
-   *  anche quelli solo INTERSECATI dal contorno. */
+   *  SENZA bisogno di modificatori e gli elementi catturati formano subito un
+   *  gruppo. Sinistra→destra cattura quelli INTERAMENTE contenuti;
+   *  destra→sinistra anche quelli solo INTERSECATI dal contorno. */
   selectMode?: boolean;
-  /** Chiamata a fine contorno (modalità Raggruppa) con gli id dei tile catturati
-   *  (≥2). Il parent crea il CanvasGroup. I box di testo non entrano nei gruppi. */
-  onGroupTiles?: (tileIds: string[]) => void;
+  /** Chiamata a fine contorno (modalità Raggruppa) con gli id catturati (≥2):
+   *  id nudo = tile, `tb:<id>` = immagine. Il parent crea il CanvasGroup. I box
+   *  di TESTO non entrano nei gruppi. */
+  onGroupTiles?: (memberIds: string[]) => void;
   /** Modalità "Foglio": il drag sullo sfondo cerchia l'area da stampare. Stesso
    *  gesto del contorno, altro esito — il parent apre il pannello del PDF. */
   pdfMode?: boolean;
@@ -457,17 +470,31 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
   }, [tiles, layout, allStatuses, typeIcons, typeTileIcons]);
 
+  /** Box (immagini) membri del gruppo, nell'ordine in cui compaiono. */
+  const getGroupBoxes = (g: CanvasGroup, tbs: CanvasBox[]) =>
+    g.nodeIds
+      .filter(isBoxId)
+      .map((id) => tbs.find((tb) => tb.id === boxIdOf(id)))
+      .filter((tb): tb is CanvasBox => !!tb);
+
+  /** Rettangoli di TUTTI i membri (tile + immagini): è su questi che il gruppo
+   *  si auto-dimensiona. */
+  const getGroupRects = (g: CanvasGroup, ns: CanvasNode[], tbs: CanvasBox[]) => [
+    ...ns.filter((n) => g.nodeIds.includes(n.id)).map((n) => ({ x: n.x, y: n.y, w: TILE_W, h: TILE_H })),
+    ...getGroupBoxes(g, tbs).map((tb) => ({ x: tb.x, y: tb.y, w: tb.w, h: tb.h })),
+  ];
+
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
-    const gn = ns.filter((n) => g.nodeIds.includes(n.id));
+    const gn = getGroupRects(g, ns, textBoxes);
     if (!gn.length) return null;
     const ax = Math.min(...gn.map((n) => n.x)) - GROUP_PAD;
     const ay = Math.min(...gn.map((n) => n.y)) - GROUP_PAD;
-    const aw = Math.max(...gn.map((n) => n.x + TILE_W)) + GROUP_PAD - ax;
-    const ah = Math.max(...gn.map((n) => n.y + TILE_H)) + GROUP_PAD - ay;
-    // Senza dimensione manuale: auto-fit sui soli tile.
+    const aw = Math.max(...gn.map((n) => n.x + n.w)) + GROUP_PAD - ax;
+    const ah = Math.max(...gn.map((n) => n.y + n.h)) + GROUP_PAD - ay;
+    // Senza dimensione manuale: auto-fit sul contenuto.
     if (!g.bounds) return { x: ax, y: ay, w: aw, h: ah };
-    // Con dimensione manuale: UNIONE col box dei tile, così il gruppo continua
-    // a contenerli anche se le maniglie lo rimpiccioliscono sotto il contenuto.
+    // Con dimensione manuale: UNIONE col box del contenuto, così il gruppo
+    // continua a contenerlo anche se le maniglie lo rimpiccioliscono sotto.
     const x = Math.min(ax, g.bounds.x);
     const y = Math.min(ay, g.bounds.y);
     const r = Math.max(ax + aw, g.bounds.x + g.bounds.w);
@@ -493,8 +520,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const b = getGroupBounds(g, ns);
         if (!b) continue;
         if (bx >= b.x - TOL && bx <= b.x + b.w + TOL && by >= b.y - LABEL_H - TOL && by <= b.y + b.h + TOL) {
+          // Ancora dell'edge: un membro QUALSIASI del gruppo (tile o immagine) —
+          // un gruppo di sole immagini resta comunque collegabile.
           const first = ns.find((n) => g.nodeIds.includes(n.id) && n.id !== excludeId);
           if (first) return { nodeId: first.id, groupId: g.id };
+          const firstBox = getGroupBoxes(g, textBoxes).find((tb) => `${BOX_ID_PREFIX}${tb.id}` !== excludeId);
+          if (firstBox) return { nodeId: `${BOX_ID_PREFIX}${firstBox.id}`, groupId: g.id };
         }
       }
       return null;
@@ -714,11 +745,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           : (bx >= x1 && by >= y1 && bx + bw <= x2 && by + bh <= y2);
       const insideTiles = nodes.filter((n) => hit(n.x, n.y, TILE_W, TILE_H));
       // Modalità "Group" (pulsante toolbar): ogni contorno valido chiude
-      // l'operazione — il parent disattiva il pulsante. I tile catturati (≥2,
-      // guardia lato parent) formano un gruppo; i box di testo restano fuori
-      // (i gruppi sono solo di tile).
+      // l'operazione — il parent disattiva il pulsante. Entrano nel gruppo i
+      // tile E le immagini catturate (≥2 in tutto, guardia lato parent); i box
+      // di TESTO restano fuori.
       if (selectModeRef.current) {
-        onGroupTilesRef.current?.(insideTiles.map((n) => n.id));
+        const insideImgs = textBoxes.filter((tb) => tb.type === 'image' && hit(tb.x, tb.y, tb.w, tb.h));
+        onGroupTilesRef.current?.([
+          ...insideTiles.map((n) => n.id),
+          ...insideImgs.map((tb) => `${BOX_ID_PREFIX}${tb.id}`),
+        ]);
         return;
       }
       const insideTbs = textBoxes.filter((tb) => hit(tb.x, tb.y, tb.w, tb.h));
@@ -889,8 +924,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           .on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); openGroupMenu(ev, grp.id); })
           .call((() => {
             let prev: [number, number] | null = null;
+            // Immagini membri: si spostano col gruppo come i tile. Risolte allo
+            // start (non alla costruzione) così un'immagine appena entrata nel
+            // gruppo viene comunque trascinata.
+            let mBoxes: CanvasBox[] = [];
             return d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
-              .on('start', (ev) => { prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number]; })
+              .on('start', (ev) => {
+                prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
+                mBoxes = getGroupBoxes(grp, textBoxes);
+              })
               .on('drag', (ev) => {
                 const cur = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
                 if (!prev) { prev = cur; return; }
@@ -901,11 +943,23 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 // gruppo, altrimenti resterebbe ancorata alla posizione precedente.
                 if (grp.bounds) grp.bounds = { ...grp.bounds, x: grp.bounds.x + dx, y: grp.bounds.y + dy };
                 nodeGrps.filter((d: any) => grp.nodeIds.includes(d.id)).attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+                if (mBoxes.length) {
+                  const ids = new Set(mBoxes.map((tb) => tb.id));
+                  for (const tb of mBoxes) { tb.x += dx; tb.y += dy; }
+                  tbG.selectAll<SVGGElement, unknown>('g.tb-node').each(function () {
+                    const id = (this as SVGGElement).getAttribute('data-tb-id');
+                    if (!id || !ids.has(id)) return;
+                    const tb = mBoxes.find((t) => t.id === id);
+                    if (tb) { d3.select(this).attr('transform', `translate(${tb.x},${tb.y})`); syncOverlayBox(tb); }
+                  });
+                }
                 drawEdges(); drawGroups();
               })
               .on('end', () => {
                 prev = null;
                 onPositionChangeRef.current(nodes.map((n) => ({ tile_id: n.id, x: n.x, y: n.y })));
+                for (const tb of mBoxes) onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y });
+                mBoxes = [];
                 // Persiste anche la dimensione manuale traslata (se presente).
                 if (grp.bounds) onGroupsChangeRef.current?.(groupsRef.current.map((gg) => ({ ...gg })));
               });
@@ -935,7 +989,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           gPcs.push({ pc, cx, cy });
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
-            .on('start', (ev) => { const fn = nodes.find((n) => grp.nodeIds.includes(n.id)); if (fn) startLink(fn.id, cx, cy, `g:${pk}`, ev); pc.attr('opacity', 1); })
+            // L'edge del gruppo è ancorato a un suo membro: il primo tile, o —
+            // se il gruppo è di sole immagini — il primo box.
+            .on('start', (ev) => {
+              const fn = nodes.find((n) => grp.nodeIds.includes(n.id));
+              const fb = fn ? null : getGroupBoxes(grp, textBoxes)[0];
+              const anchor = fn ? fn.id : (fb ? `${BOX_ID_PREFIX}${fb.id}` : null);
+              if (anchor) startLink(anchor, cx, cy, `g:${pk}`, ev);
+              pc.attr('opacity', 1);
+            })
             .on('drag', dragLink)
             .on('end', () => { endLink(); gPcs.forEach((p) => p.pc.attr('opacity', 0)); }) as any);
         });
@@ -1014,6 +1076,20 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const edgesG = board.append('g');
     // Get all ports for an endpoint (tile, group, or textbox)
     const getEndpointPorts = (nodeId: string, port: string | undefined): { x: number; y: number }[] => {
+      // Group ports — PRIMA dei box: l'ancora di un gruppo può essere un tile o
+      // un'immagine, e con la porta `g:` è il gruppo a dettare i punti.
+      if (port && port.startsWith('g:')) {
+        const grp = groupsRef.current.find((g) => g.nodeIds.includes(nodeId));
+        if (grp) {
+          const b = getGroupBounds(grp, nodes);
+          if (b) return [
+            { x: b.x + b.w / 2, y: b.y - LABEL_H },
+            { x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
+            { x: b.x + b.w / 2, y: b.y + b.h },
+            { x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
+          ];
+        }
+      }
       // Text box ports
       if (nodeId.startsWith('tb:') || (port && port.startsWith('t:'))) {
         const tbId = nodeId.startsWith('tb:') ? nodeId.slice(3) : nodeId;
@@ -1025,22 +1101,6 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             { x: tb.x + tb.w / 2, y: tb.y + tb.h },
             { x: tb.x, y: tb.y + tb.h / 2 },
           ];
-        }
-      }
-      // Group ports
-      if (port && port.startsWith('g:')) {
-        const nd = nodes.find((n) => n.id === nodeId);
-        if (nd) {
-          const grp = groupsRef.current.find((g) => g.nodeIds.includes(nd.id));
-          if (grp) {
-            const b = getGroupBounds(grp, nodes);
-            if (b) return [
-              { x: b.x + b.w / 2, y: b.y - LABEL_H },
-              { x: b.x + b.w, y: b.y + (b.h - LABEL_H) / 2 },
-              { x: b.x + b.w / 2, y: b.y + b.h },
-              { x: b.x, y: b.y + (b.h - LABEL_H) / 2 },
-            ];
-          }
         }
       }
       // Tile ports
@@ -1617,7 +1677,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 g.attr('transform', `translate(${tb.x},${tb.y})`);
                 syncOverlay(tb.id, tb.x, tb.y);
               }
-              drawEdges();
+              // Un'immagine può essere membro di un gruppo: il contorno del
+              // gruppo la segue mentre la si sposta, come per i tile.
+              drawEdges(); drawGroups();
             })
             .on('end', () => {
               prev = null;
@@ -1635,7 +1697,27 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                   onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y });
                 }
               }
+              const wasMulti = multi;
               multi = false; mTiles = []; mTbs = [];
+              // ── Drop-into-group ──
+              // Stesso gesto dei tile: un'IMMAGINE lasciata cadere dentro un
+              // gruppo (drag singolo, centro del box dentro il riquadro) ne
+              // diventa membro. I box di testo restano fuori dai gruppi.
+              if (wasMulti || tb.type !== 'image') return;
+              const memberId = `${BOX_ID_PREFIX}${tb.id}`;
+              const currentGroups = groupsRef.current;
+              if (currentGroups.some((gr) => gr.nodeIds.includes(memberId))) return;
+              const cx = tb.x + tb.w / 2, cy = tb.y + tb.h / 2;
+              for (const gr of currentGroups) {
+                const b = getGroupBounds(gr, nodes);
+                if (!b) continue;
+                if (cx >= b.x && cx <= b.x + b.w && cy >= b.y - LABEL_H && cy <= b.y + b.h) {
+                  onGroupsChangeRef.current(currentGroups.map((gg) =>
+                    gg.id === gr.id ? { ...gg, nodeIds: [...gg.nodeIds, memberId] } : gg
+                  ));
+                  break;
+                }
+              }
             });
         })() as any);
 
@@ -1690,9 +1772,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 tb.y = resizeStart.oy + resizeStart.oh - newH;
                 tb.h = newH;
               }
-              // Redraw this text box
+              // Redraw this text box (+ il gruppo, se il box ne fa parte: il
+              // riquadro si auto-dimensiona sul contenuto).
               drawTextBoxes();
               drawEdges();
+              drawGroups();
               syncOverlayBox();
             })
             .on('end', () => {
@@ -1730,6 +1814,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               tb.h = Math.max(TB_MIN_H, tb.w / aspect);
               drawTextBoxes();
               drawEdges();
+              drawGroups();
             }
             cornerStart = { mx, my, ow: tb.w, oh: tb.h, aspect };
           })
@@ -1752,6 +1837,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }
             drawTextBoxes();
             drawEdges();
+            drawGroups();
             syncOverlayBox();
           })
           .on('end', () => {
@@ -1772,7 +1858,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Context menu
         g.on('contextmenu', (ev: MouseEvent) => {
           ev.preventDefault(); ev.stopPropagation();
-          onTextBoxContextMenuRef.current({ x: ev.clientX, y: ev.clientY, textBoxId: tb.id });
+          onTextBoxContextMenuRef.current({
+            x: ev.clientX, y: ev.clientY, textBoxId: tb.id,
+            inGroup: groupsRef.current.some((gr) => gr.nodeIds.includes(`${BOX_ID_PREFIX}${tb.id}`)),
+          });
         });
 
         // Doppio click su un box di testo → entra in inserimento testo. Con
@@ -1990,7 +2079,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               onContextMenu={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onTextBoxContextMenuRef.current({ x: e.clientX, y: e.clientY, textBoxId: tb.id });
+                // L'overlay ospita solo box di TESTO, che nei gruppi non entrano.
+                onTextBoxContextMenuRef.current({ x: e.clientX, y: e.clientY, textBoxId: tb.id, inGroup: false });
               }}
             >
               <TextEditor
