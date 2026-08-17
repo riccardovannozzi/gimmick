@@ -132,9 +132,18 @@ export interface CanvasGroup {
 }
 // Polymorphic canvas box: shared geometry (x/y/w/h) + per-type content payload.
 //   type 'text'  → content = { html: string; bgColor?: string; fontSize?: number }
-//   type 'image' → content = { src: string; alt?: string }
+//   type 'image' → content = { src: string; alt?: string; title?, notes?, showTitle? }
 export type CanvasBoxTextContent = { html: string; bgColor?: string | null; fontSize?: number };
-export type CanvasBoxImageContent = { src: string; alt?: string };
+/** `title` e `notes` (HTML dell'editor) sono i campi editabili dalla
+ *  ImageSidebar. `showTitle` decide se il titolo compare come didascalia sul
+ *  canvas: il titolo esiste comunque, il flag riguarda solo il vederlo. */
+export type CanvasBoxImageContent = {
+  src: string;
+  alt?: string;
+  title?: string;
+  notes?: string;
+  showTitle?: boolean;
+};
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
   | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number };
@@ -144,6 +153,12 @@ export type CanvasTextBox = CanvasBox;
 const TB_MIN_W = 100;
 const TB_MIN_H = 40;
 const TB_PAD = 8;
+
+/** Titolo dell'immagine mostrato sul canvas: sta FUORI dal box, appoggiato
+ *  sopra il bordo e allineato a sinistra (come l'etichetta di un gruppo).
+ *  `CAPTION_H` è lo spazio che occupa: serve ai gruppi per non tagliarlo. */
+const CAPTION_H = 16;
+const CAPTION_FS = 10;
 
 const PORTS = [
   { key: 'top', cx: TILE_W / 2, cy: 0 },
@@ -478,10 +493,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       .filter((tb): tb is CanvasBox => !!tb);
 
   /** Rettangoli di TUTTI i membri (tile + immagini): è su questi che il gruppo
-   *  si auto-dimensiona. */
+   *  si auto-dimensiona. Il titolo di un'immagine sta FUORI dal suo box, sopra
+   *  il bordo: l'ingombro del membro comincia lì, altrimenti il riquadro del
+   *  gruppo lo taglierebbe. */
   const getGroupRects = (g: CanvasGroup, ns: CanvasNode[], tbs: CanvasBox[]) => [
     ...ns.filter((n) => g.nodeIds.includes(n.id)).map((n) => ({ x: n.x, y: n.y, w: TILE_W, h: TILE_H })),
-    ...getGroupBoxes(g, tbs).map((tb) => ({ x: tb.x, y: tb.y, w: tb.w, h: tb.h })),
+    ...getGroupBoxes(g, tbs).map((tb) => {
+      const cap = tb.type === 'image' && tb.content.showTitle && (tb.content.title || '').trim() ? CAPTION_H : 0;
+      return { x: tb.x, y: tb.y - cap, w: tb.w, h: tb.h + cap };
+    }),
   ];
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
@@ -929,6 +949,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             // gruppo viene comunque trascinata.
             let mBoxes: CanvasBox[] = [];
             return d3.drag<SVGRectElement, unknown>().filter(() => moveRef.current)
+              // Come per tile e box: senza tolleranza il click che seleziona il
+              // gruppo (e apre la sua sidebar) viene soppresso da D3 al primo
+              // pixel di tremolio.
+              .clickDistance(12)
               .on('start', (ev) => {
                 prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
                 mBoxes = getGroupBoxes(grp, textBoxes);
@@ -1552,14 +1576,35 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           // look). page.tsx adds 2*IMG_PAD to the box dimensions so the inner
           // image area still matches the picture's natural aspect ratio.
           const IMG_PAD = 2;
+          const title = (tb.content.title || '').trim();
           const fo = g.append('foreignObject')
             .attr('x', IMG_PAD).attr('y', IMG_PAD)
             .attr('width', tw - IMG_PAD * 2).attr('height', th - IMG_PAD * 2)
             .style('pointer-events', 'none');
           fo.append('xhtml:img')
             .attr('src', tb.content.src)
-            .attr('alt', tb.content.alt || '')
+            .attr('alt', tb.content.alt || title)
             .attr('style', 'display:block;width:100%;height:100%;object-fit:fill;pointer-events:none;user-select:none;-webkit-user-drag:none;');
+          if (tb.content.showTitle && title) {
+            // Titolo FUORI dal box, appoggiato sopra il bordo e allineato a
+            // sinistra — come l'etichetta di un gruppo. La foto si riprende
+            // tutto il riquadro (e con esso le sue proporzioni).
+            // Il riquadro dei gruppi tiene conto di questa fascia: vedi
+            // getGroupRects, che alza di CAPTION_H il rettangolo di
+            // un'immagine col titolo acceso.
+            const maxChars = Math.max(3, Math.floor(tw / (CAPTION_FS * 0.55)));
+            const label = title.length > maxChars ? `${title.slice(0, maxChars - 1)}…` : title;
+            g.append('text')
+              .attr('x', 0).attr('y', -6)
+              .attr('fill', theme.ink)
+              .attr('font-size', CAPTION_FS)
+              .attr('font-weight', OB_WEIGHT.emphasis)
+              .style('pointer-events', 'none')
+              .text(label);
+          }
+          // Il titolo si legge anche col flag spento, passandoci sopra: il
+          // tooltip nativo non occupa spazio sulla lavagna.
+          if (title) g.append('title').text(title);
         }
 
         // CTRL/CMD/SHIFT + click → toggle nella multi-selezione. Click semplice →
@@ -1633,6 +1678,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               if ((el as HTMLElement)?.getAttribute?.('contenteditable')) return false;
               return moveRef.current;
             })
+            // Stessa tolleranza dei tile (`clickDistance(12)` sopra), e per lo
+            // stesso motivo: senza, il default di D3 è ZERO px — un pixel di
+            // tremolio fra mousedown e mouseup e il click che segue viene
+            // soppresso. Il click sul box è quello che lo mette in selezione,
+            // quindi un CTRL+click su un'immagine "non faceva niente": la
+            // selezione restava col solo tile e "Crea gruppo" restava grigio.
+            .clickDistance(12)
             .on('start', (ev) => {
               prev = d3.pointer(ev.sourceEvent, boardNode) as [number, number];
               const sel = selectedIdsRef.current;
@@ -1733,6 +1785,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           el.style.height = `${tb.h - 2 * TB_PAD}px`;
         };
 
+        // ── Maniglie di ridimensionamento ──────────────────────────────────
+        // Ci sono sempre state, ma trasparenti: un'affordance che non si vede
+        // non esiste. Ora, quando il box è selezionato, compaiono i quadratini
+        // — quattro sui bordi (stirano) e quattro sugli ANGOLI (scala uniforme,
+        // e per un'immagine riporta il box alle proporzioni vere della foto).
+        // `tb-handle` è la classe che l'effect di selezione accende e spegne
+        // senza ridisegnare l'SVG.
+        const HS = 8;
+        const tbSelected = selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id;
         // Resize handles on edges (not on ports)
         const RESIZE_W = 6;
         const resizeEdges = [
@@ -1759,18 +1820,38 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               if (!resizeStart) return;
               const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
               const dx = mx - resizeStart.mx, dy = my - resizeStart.my;
+              // Un'IMMAGINE non si stira: il bordo che trascini SCALA il box,
+              // l'altra dimensione lo segue e il rapporto resta quello che era
+              // a inizio gesto. Il box è il ritaglio della foto, stirarlo la
+              // deformava. Un box di TESTO invece è un contenitore: lì
+              // larghezza e altezza restano indipendenti.
+              //
+              // Per l'immagine il limite minimo si applica alla SCALA, non alle
+              // due dimensioni separatamente: clampare w e h ognuna per conto
+              // suo è proprio il modo in cui il rapporto si rompe.
+              const isImg = tb.type === 'image';
+              const minScale = Math.max(TB_MIN_W / resizeStart.ow, TB_MIN_H / resizeStart.oh);
+              const scaled = (s: number) => {
+                const k = Math.max(s, minScale);
+                tb.w = resizeStart!.ow * k;
+                tb.h = resizeStart!.oh * k;
+              };
               if (rk === 'right') {
-                tb.w = Math.max(TB_MIN_W, resizeStart.ow + dx);
+                if (isImg) scaled((resizeStart.ow + dx) / resizeStart.ow);
+                else tb.w = Math.max(TB_MIN_W, resizeStart.ow + dx);
               } else if (rk === 'bottom') {
-                tb.h = Math.max(TB_MIN_H, resizeStart.oh + dy);
+                if (isImg) scaled((resizeStart.oh + dy) / resizeStart.oh);
+                else tb.h = Math.max(TB_MIN_H, resizeStart.oh + dy);
               } else if (rk === 'left') {
-                const newW = Math.max(TB_MIN_W, resizeStart.ow - dx);
-                tb.x = resizeStart.ox + resizeStart.ow - newW;
-                tb.w = newW;
+                if (isImg) scaled((resizeStart.ow - dx) / resizeStart.ow);
+                else tb.w = Math.max(TB_MIN_W, resizeStart.ow - dx);
+                // Il bordo destro resta fermo.
+                tb.x = resizeStart.ox + resizeStart.ow - tb.w;
               } else if (rk === 'top') {
-                const newH = Math.max(TB_MIN_H, resizeStart.oh - dy);
-                tb.y = resizeStart.oy + resizeStart.oh - newH;
-                tb.h = newH;
+                if (isImg) scaled((resizeStart.oh - dy) / resizeStart.oh);
+                else tb.h = Math.max(TB_MIN_H, resizeStart.oh - dy);
+                // Il bordo inferiore resta fermo.
+                tb.y = resizeStart.oy + resizeStart.oh - tb.h;
               }
               // Redraw this text box (+ il gruppo, se il box ne fa parte: il
               // riquadro si auto-dimensiona sul contenuto).
@@ -1789,65 +1870,95 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             }) as any);
         });
 
-        // Corner resize (bottom-right)
-        const cornerHandle = g.append('rect')
-          .attr('class', 'tb-resize')
-          .attr('x', tw - 8).attr('y', th - 8).attr('width', 8).attr('height', 8)
-          .attr('fill', 'transparent').style('cursor', 'nwse-resize');
+        // Pallini visibili a metà bordo: la presa è la striscia invisibile qui
+        // sopra, questi sono solo il suo segno (pointer-events: none, così non
+        // rubano il drag alla striscia né il click alla porta).
+        [
+          { hx: tw, hy: th / 2 }, { hx: tw / 2, hy: th },
+          { hx: 0, hy: th / 2 }, { hx: tw / 2, hy: 0 },
+        ].forEach(({ hx, hy }) => {
+          g.append('rect').attr('class', 'tb-handle')
+            .attr('x', hx - HS / 2).attr('y', hy - HS / 2).attr('width', HS).attr('height', HS).attr('rx', 2)
+            .attr('fill', selAccent).attr('stroke', theme.ink3).attr('stroke-width', 1)
+            .attr('opacity', tbSelected ? 1 : 0)
+            .style('pointer-events', 'none');
+        });
 
-        let cornerStart: { mx: number; my: number; ow: number; oh: number; aspect: number } | null = null;
-        cornerHandle.call(d3.drag<SVGRectElement, unknown>()
-          .on('start', (ev) => {
-            ev.sourceEvent.stopPropagation();
-            const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
-            let aspect = tb.w / tb.h;
-            if (tb.type === 'image') {
-              // Read the picture's natural aspect ratio from the rendered <img>.
-              // This way a box that was previously stretched via edge handles
-              // snaps back to the picture's true proportions on corner drag.
-              const imgEl = (g.node() as SVGGElement | null)?.querySelector('img') as HTMLImageElement | null;
-              if (imgEl && imgEl.naturalWidth > 0 && imgEl.naturalHeight > 0) {
-                aspect = imgEl.naturalWidth / imgEl.naturalHeight;
+        // Angoli: scala tenendo fermo l'angolo OPPOSTO. Prima ce n'era uno solo
+        // (in basso a destra) e invisibile.
+        const corners = [
+          { key: 'br', hx: tw, hy: th, cursor: 'nwse-resize' },
+          { key: 'bl', hx: 0, hy: th, cursor: 'nesw-resize' },
+          { key: 'tr', hx: tw, hy: 0, cursor: 'nesw-resize' },
+          { key: 'tl', hx: 0, hy: 0, cursor: 'nwse-resize' },
+        ];
+        corners.forEach(({ key: ck, hx, hy, cursor }) => {
+          const cornerHandle = g.append('rect')
+            .attr('class', 'tb-resize tb-handle')
+            .attr('x', hx - HS / 2).attr('y', hy - HS / 2).attr('width', HS).attr('height', HS).attr('rx', 2)
+            .attr('fill', selAccent).attr('stroke', theme.ink3).attr('stroke-width', 1)
+            // Invisibile finché il box non è selezionato, ma sempre afferrabile
+            // (l'opacità non toglie gli eventi): il gesto di prima non si perde.
+            .attr('opacity', tbSelected ? 1 : 0)
+            .style('cursor', cursor);
+
+          // Verso in cui l'angolo "cresce": +1 se allontanandosi dall'ancora si
+          // allarga, -1 se il bordo che si trascina è quello opposto.
+          const sx = (ck === 'br' || ck === 'tr') ? 1 : -1;
+          const sy = (ck === 'br' || ck === 'bl') ? 1 : -1;
+
+          let cornerStart: { mx: number; my: number; ow: number; oh: number; ax: number; ay: number } | null = null;
+          cornerHandle.call(d3.drag<SVGRectElement, unknown>()
+            .on('start', (ev) => {
+              ev.sourceEvent.stopPropagation();
+              const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+              // Nessuno scatto iniziale: il box conserva il rapporto che ha.
+              // (Per rimettere in squadra una foto già deformata c'è
+              // "Ripristina proporzioni" nella sidebar dell'immagine: è una
+              // decisione, non un effetto collaterale del ridimensionare.)
+              const ax = sx === 1 ? tb.x : tb.x + tb.w;
+              const ay = sy === 1 ? tb.y : tb.y + tb.h;
+              cornerStart = { mx, my, ow: tb.w, oh: tb.h, ax, ay };
+            })
+            .on('drag', (ev) => {
+              if (!cornerStart) return;
+              const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
+              const dx = (mx - cornerStart.mx) * sx;
+              const dy = (my - cornerStart.my) * sy;
+              if (tb.type === 'image') {
+                // Scala uniforme: la foto non si deforma mai. Il minimo è sulla
+                // scala (vedi le maniglie dei bordi): clampare w e h separate
+                // romperebbe il rapporto proprio al limite.
+                const scale = Math.max(
+                  (cornerStart.ow + dx) / cornerStart.ow,
+                  (cornerStart.oh + dy) / cornerStart.oh,
+                  TB_MIN_W / cornerStart.ow,
+                  TB_MIN_H / cornerStart.oh,
+                );
+                tb.w = cornerStart.ow * scale;
+                tb.h = cornerStart.oh * scale;
+              } else {
+                tb.w = Math.max(TB_MIN_W, cornerStart.ow + dx);
+                tb.h = Math.max(TB_MIN_H, cornerStart.oh + dy);
               }
-              // Snap the box to the natural aspect immediately, anchoring on
-              // current width so the visible size doesn't jump dramatically.
-              tb.h = Math.max(TB_MIN_H, tb.w / aspect);
+              // L'angolo opposto resta dov'è.
+              tb.x = sx === 1 ? cornerStart.ax : cornerStart.ax - tb.w;
+              tb.y = sy === 1 ? cornerStart.ay : cornerStart.ay - tb.h;
               drawTextBoxes();
               drawEdges();
               drawGroups();
-            }
-            cornerStart = { mx, my, ow: tb.w, oh: tb.h, aspect };
-          })
-          .on('drag', (ev) => {
-            if (!cornerStart) return;
-            const [mx, my] = d3.pointer(ev.sourceEvent, boardNode);
-            const dx = mx - cornerStart.mx;
-            const dy = my - cornerStart.my;
-            if (tb.type === 'image') {
-              // Uniform scale preserves the (now-snapped) natural aspect ratio.
-              const scale = Math.max(
-                (cornerStart.ow + dx) / cornerStart.ow,
-                (cornerStart.oh + dy) / cornerStart.oh,
-              );
-              tb.w = Math.max(TB_MIN_W, cornerStart.ow * scale);
-              tb.h = Math.max(TB_MIN_H, cornerStart.oh * scale);
-            } else {
-              tb.w = Math.max(TB_MIN_W, cornerStart.ow + dx);
-              tb.h = Math.max(TB_MIN_H, cornerStart.oh + dy);
-            }
-            drawTextBoxes();
-            drawEdges();
-            drawGroups();
-            syncOverlayBox();
-          })
-          .on('end', () => {
-            cornerStart = null;
-            if (tb.type === 'text') {
-              onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h, content: { html: tb.content.html ?? '' } });
-            } else {
-              onUpdateTextBoxRef.current(tb.id, { w: tb.w, h: tb.h });
-            }
-          }) as any);
+              syncOverlayBox();
+            })
+            .on('end', () => {
+              cornerStart = null;
+              // x/y vanno salvate: da tre angoli su quattro l'origine si sposta.
+              if (tb.type === 'text') {
+                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h, content: { html: tb.content.html ?? '' } });
+              } else {
+                onUpdateTextBoxRef.current(tb.id, { x: tb.x, y: tb.y, w: tb.w, h: tb.h });
+              }
+            }) as any);
+        });
 
         // Le porte (nodi di aggancio) stanno al centro dei bordi, dove passano
         // anche le maniglie di resize. Portandole in cima vincono l'interazione
@@ -2005,6 +2116,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const id = (this as SVGGElement).getAttribute('data-tb-id');
       const sel = !!id && (ids.has(`tb:${id}`) || selectedTextBoxId === id);
       d3.select(this).select('.sel-ring').attr('opacity', sel ? 1 : 0);
+      // Le maniglie di ridimensionamento si vedono solo sul box selezionato
+      // (restano afferrabili anche spente: l'opacità non toglie gli eventi).
+      d3.select(this).selectAll('.tb-handle').attr('opacity', sel ? 1 : 0);
       if (sel) d3.select(this).selectAll('.port').attr('opacity', 0);
     });
     // Edges: ridisegno completo del layer così colore/spessore/tipologia/etichetta

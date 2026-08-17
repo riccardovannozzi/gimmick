@@ -1,5 +1,31 @@
 const IS_DEV = process.env.APP_VARIANT === 'development';
 
+/**
+ * Plugin Sentry, aggiunto SOLO quando org e progetto sono noti.
+ *
+ * Serve al caricamento delle source map durante la build EAS: senza, gli errori
+ * arrivano lo stesso ma con stack trace illeggibili (nomi di funzione di una
+ * lettera, righe del bundle). Non c'entra col DSN, che è a runtime.
+ *
+ * È condizionale perché `expo start` in locale non ha queste variabili, e un
+ * plugin che pretende una configurazione assente farebbe fallire l'avvio a chi
+ * sta solo sviluppando. `SENTRY_AUTH_TOKEN` non compare qui: lo legge il plugin
+ * dall'ambiente della build, e va messo fra i secret EAS — mai in un file
+ * versionato.
+ */
+const sentryPlugin =
+  process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
+    ? [
+        [
+          '@sentry/react-native',
+          {
+            organization: process.env.SENTRY_ORG,
+            project: process.env.SENTRY_PROJECT,
+          },
+        ],
+      ]
+    : [];
+
 export default {
   expo: {
     name: IS_DEV ? "Gimmick Dev" : "Gimmick",
@@ -89,7 +115,8 @@ export default {
             "./assets/fonts/JetBrainsMono-Bold.ttf"
           ]
         }
-      ]
+      ],
+      ...sentryPlugin
     ],
     experiments: {
       typedRoutes: true

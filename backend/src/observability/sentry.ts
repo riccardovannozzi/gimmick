@@ -48,6 +48,22 @@ const KEY_PATTERNS: readonly RegExp[] = [
 /** Header che non devono mai lasciare il processo. */
 const STRIPPED_HEADERS = ['authorization', 'cookie', 'set-cookie', 'apikey', 'x-api-key'];
 
+/**
+ * Toglie query string e frammento da un URL, lasciando il percorso.
+ *
+ * ⚠️ Non è ridondante rispetto a `delete event.request.query_string`, è LA cosa
+ * che conta: l'SDK manda l'URL completo di `?…`, e il server di Sentry lo
+ * riparsa ricostruendo `query_string` da sé. Cancellare solo il campo non serve
+ * a nulla — la query rientra dalla porta dell'URL. Verificato sul campo: un
+ * `?q=frase-di-prova-riservata` è arrivato integro nonostante il `delete`.
+ *
+ * Il percorso resta perché senza non si sa più quale endpoint è esploso.
+ */
+function stripQuery(url: string): string {
+  const cut = url.search(/[?#]/);
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
 let started = false;
 
 /** Vero quando Sentry è davvero attivo: lo usa `index.ts` per montare l'handler. */
@@ -98,8 +114,13 @@ export function initSentry(): void {
         // Il corpo: è qui che vivono `message` e `history` della chat, il
         // `content` degli Spark, il testo passato a /api/ai/rewrite.
         delete event.request.data;
-        // La query string: `GET /api/sparks/search?q=…`.
+        // La query string: `GET /api/sparks/search?q=…`, cioè la ricerca
+        // semantica. Va tolta da ENTRAMBI i posti in cui vive — vedi
+        // `stripQuery`: il solo `delete` qui sotto non basta.
         delete event.request.query_string;
+        if (typeof event.request.url === 'string') {
+          event.request.url = stripQuery(event.request.url);
+        }
         delete event.request.cookies;
 
         if (event.request.headers) {
@@ -108,6 +129,15 @@ export function initSentry(): void {
               delete event.request.headers[name];
             }
           }
+        }
+      }
+
+      // Stessa perdita, porta diversa: i breadcrumb delle chiamate in USCITA
+      // portano l'URL completo, e PostgREST mette i filtri nella query string
+      // (`?content=ilike.*…`), quindi lì passerebbe il testo cercato.
+      for (const crumb of event.breadcrumbs ?? []) {
+        if (crumb.data && typeof crumb.data.url === 'string') {
+          crumb.data.url = stripQuery(crumb.data.url);
         }
       }
 
