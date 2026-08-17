@@ -136,15 +136,6 @@ app.use('/api/subtasks', subtasksRouter);
 app.use('/api/kanban', kanbanRouter);
 app.use('/api/contacts', contactsRouter);
 
-// ⚠️ ROTTA TEMPORANEA — DA RIMUOVERE DOPO LA VERIFICA DI SENTRY.
-// Lancia un errore vero per controllare che l'evento arrivi al progetto
-// gimmick-api. Non è protetta da autenticazione, quindi in produzione è
-// un modo gratuito per far scrivere righe nei log: va tolta appena il test
-// è passato.
-app.get('/debug-sentry', () => {
-  throw new Error('Sentry test error — rotta di verifica, va rimossa');
-});
-
 // Error handling.
 //
 // `notFoundHandler` risponde 404 da sé e non chiama `next`, quindi le rotte
