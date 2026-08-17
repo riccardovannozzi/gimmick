@@ -1794,9 +1794,15 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // senza ridisegnare l'SVG.
         const HS = 8;
         const tbSelected = selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id;
-        // Resize handles on edges (not on ports)
+        // Maniglie sui BORDI: solo per i box di testo. Su un'immagine stiravano
+        // una dimensione sola — cioè l'unica cosa che il ridimensionamento di
+        // una foto non deve fare. Restare come scorciatoia per una scala
+        // uniforme sarebbe stato peggio che toglierle: quattro prese che
+        // promettono "allarga in orizzontale" e ne fanno un'altra. Sull'immagine
+        // il ridimensionamento sta tutto negli angoli, e i punti a metà bordo
+        // tornano a essere quello che sembrano: i nodi di aggancio degli archi.
         const RESIZE_W = 6;
-        const resizeEdges = [
+        const resizeEdges = tb.type === 'image' ? [] : [
           { key: 'right', x: tw - RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
           { key: 'bottom', x: PORT_R + 4, y: th - RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
           { key: 'left', x: -RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
@@ -1872,11 +1878,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Pallini visibili a metà bordo: la presa è la striscia invisibile qui
         // sopra, questi sono solo il suo segno (pointer-events: none, così non
-        // rubano il drag alla striscia né il click alla porta).
-        [
+        // rubano il drag alla striscia né il click alla porta). Niente sulle
+        // immagini: là quelle strisce non esistono più.
+        (tb.type === 'image' ? [] : [
           { hx: tw, hy: th / 2 }, { hx: tw / 2, hy: th },
           { hx: 0, hy: th / 2 }, { hx: tw / 2, hy: 0 },
-        ].forEach(({ hx, hy }) => {
+        ]).forEach(({ hx, hy }) => {
           g.append('rect').attr('class', 'tb-handle')
             .attr('x', hx - HS / 2).attr('y', hy - HS / 2).attr('width', HS).attr('height', HS).attr('rx', 2)
             .attr('fill', selAccent).attr('stroke', theme.ink3).attr('stroke-width', 1)

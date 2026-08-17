@@ -16,6 +16,11 @@
  * Per questo le funzioni qui sotto SOLLEVANO invece di restituire un booleano:
  * ignorarne l'esito richiede di ignorare un'eccezione, che è molto più difficile
  * da fare per distrazione.
+ *
+ * La regola non è più affidata alla sola buona volontà: `npm run check` lancia
+ * `scripts/audit-ownership.ts`, che passa in rassegna ogni query con un id e
+ * fallisce se ne trova una senza filtro `user_id`, senza `assert*Owned()` nella
+ * stessa funzione e senza un `// ownership-audit: <motivo>` che la giustifichi.
  */
 import { supabaseAdmin } from '../config/supabase.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
@@ -25,7 +30,7 @@ import { NotFoundError } from '../middleware/errorHandler.js';
  *
  * Solleva 404 e non 403: un 403 confermerebbe che l'id esiste, e per chi sonda
  * a tentativi la differenza fra "non esiste" e "esiste ma non è tuo" è già
- * un'informazione. Stesso criterio già adottato in `routes/flow.ts`.
+ * un'informazione.
  */
 export async function assertTileOwned(userId: string, tileId: string): Promise<void> {
   const { data, error } = await supabaseAdmin

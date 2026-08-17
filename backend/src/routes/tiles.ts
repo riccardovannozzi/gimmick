@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { upsertTileEmbedding } from '../services/indexing.js';
 import { getActiveStatusId } from '../services/statuses.js';
+import { assertTileOwned } from '../utils/ownership.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event', 'flow'] as const;
@@ -364,7 +365,7 @@ tilesRouter.post(
 
       // Fire-and-forget: generate semantic embedding for the new tile so the
       // unified `find` tool can match it. Errors are swallowed inside.
-      void upsertTileEmbedding(data.id);
+      void upsertTileEmbedding(data.id, req.user!.id);
 
       res.status(201).json({
         success: true,
@@ -473,7 +474,7 @@ tilesRouter.patch(
       // changed — avoids a wasted OpenAI call on every status / date / tag
       // tweak.
       if ('title' in req.body || 'description' in req.body) {
-        void upsertTileEmbedding(data.id as string);
+        void upsertTileEmbedding(data.id as string, req.user!.id);
       }
 
       res.json({
@@ -494,6 +495,15 @@ tilesRouter.patch(
 tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+
+    // La proprietà si accerta PRIMA di qualunque cancellazione, non dopo.
+    // L'ordine contava davvero: la delete del tile in fondo filtra per
+    // `user_id` e su un id altrui non toccava niente, ma la delete di
+    // `tile_tags` qui sotto NON può filtrare (la junction non ha `user_id`) e
+    // veniva eseguita comunque. Con l'id di un tile altrui l'operazione
+    // falliva sul tile e riusciva sui suoi tag: bastava indovinare un id per
+    // spogliare dai tag il tile di un altro utente.
+    await assertTileOwned(req.user!.id, id as string);
 
     // First get all sparks for this tile to delete their files
     const { data: sparks, error: fetchError } = await supabaseAdmin

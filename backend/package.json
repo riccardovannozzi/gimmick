@@ -9,8 +9,9 @@
     "start": "node dist/index.js",
     "type": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "check": "run-p type lint",
-    "check:ci": "tsc --noEmit && eslint src --ext .ts"
+    "audit": "tsx src/scripts/audit-ownership.ts",
+    "check": "run-p type lint audit",
+    "check:ci": "tsc --noEmit && eslint src --ext .ts && tsx src/scripts/audit-ownership.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

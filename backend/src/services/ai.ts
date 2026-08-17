@@ -627,7 +627,8 @@ async function listTiles(userId: string): Promise<string> {
       const { count } = await supabaseAdmin
         .from('sparks')
         .select('*', { count: 'exact', head: true })
-        .eq('tile_id', tile.id);
+        .eq('tile_id', tile.id)
+        .eq('user_id', userId);
       return { ...tile, spark_count: count ?? 0 };
     })
   );

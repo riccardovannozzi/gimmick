@@ -13,6 +13,19 @@
  * `data-theme="dark"` è fissato perché il tema vero vive nel provider, che qui
  * non c'è: si sceglie il default dell'app (il layout radice monta `dark`), che
  * è meglio di un lampo bianco a chi usa Gimmick di sera.
+ *
+ * ⚠️ IL `captureException` QUI SOTTO NON È RIDONDANTE: è l'UNICA via di
+ * cattura per gli errori che finiscono in questo boundary.
+ *
+ * Lo avevo tolto credendo che duplicasse il reporting automatico di React 19,
+ * perché una prova aveva prodotto due eventi. Rileggendo il payload, i due
+ * eventi erano separati da 27 secondi e da un breadcrumb `ui.click` sul
+ * pulsante "Riprova": non era lo stesso errore contato due volte, erano due
+ * errori distinti — il primo al caricamento, il secondo dopo il retry. La
+ * conferma sta in `handled: true` su entrambi e in "Unhandled 0" nell'elenco
+ * degli issue: React non stava segnalando niente per conto suo.
+ *
+ * Tolto questo, a Sentry non arrivava più nulla. Non rimuoverlo.
  */
 import { useEffect } from 'react';
 import * as Sentry from '@sentry/nextjs';

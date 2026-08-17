@@ -236,10 +236,13 @@ sparksRouter.post('/:id/reindex', async (req: AuthenticatedRequest, res: Respons
       throw new NotFoundError('Spark not found');
     }
 
+    // Il filtro sta nella query e non solo nel controllo qui sopra: una verifica
+    // a distanza protegge finché nessuno sposta le righe in mezzo.
     await supabaseAdmin
       .from('sparks')
       .update({ ai_status: 'pending' })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', req.user!.id);
 
     processNewSpark(id).catch((err) => {
       console.error(`[Sparks] Reindex failed for ${id}:`, err);
