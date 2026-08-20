@@ -47,7 +47,7 @@ const aiFilterSchema = z.object({
 });
 
 // Row shapes for the Supabase joins used in this module
-type CalendarTag = { id: string; name: string; tag_type: string };
+type CalendarTag = { id: string; name: string; tag_type: string; is_root: boolean };
 type CalendarTileRow = Tile & {
   sparks?: { count: number }[];
   tile_tags?: { tag_id: string; tags: CalendarTag | null }[];
@@ -87,7 +87,9 @@ calendarRouter.get(
 
       // Events live on start_at; deadlines live on end_at. Query both independently
       // and merge — a single OR doesn't work because each branch needs its own date column.
-      const select = '*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type))';
+      // `is_root` serve a chi mostra UN solo tag per evento: senza, il filtro
+      // `!is_root` lato client passa sempre e vince il root GIMMICK.
+      const select = '*, sparks(count), tile_tags(tag_id, tags(id, name, tag_type, is_root))';
       const [eventsRes, deadlinesRes] = await Promise.all([
         supabaseAdmin
           .from('tiles')

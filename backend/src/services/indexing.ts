@@ -82,9 +82,25 @@ function computeMaxTags(wordCount: number): number {
 /**
  * Main entry point — process a newly created spark for AI indexing.
  * Fire-and-forget: never throws.
+ *
+ * ownership-audit-fn: `sparkId` non arriva mai dal client — la verifica sta al
+ * bordo, e i quattro punti d'ingresso sono stati controllati uno per uno:
+ * `POST /sparks` (id di una riga appena inserita con user_id dell'utente, e
+ * `tile_id` passato dal client verificato con assertTileOwned), `POST
+ * /sparks/batch` (idem), `POST /sparks/:id/reindex` (spark riletto con
+ * `user_id`), `POST /sparks/reindex-all` e lo script omonimo (query filtrata
+ * per utente). Da qui in giù si lavora sullo spark caricato in cima e sul suo
+ * tile: gli id sono derivati da quel record, non ricevuti.
+ *
+ * ⚠️ Chi aggiunge un chiamante nuovo si prende questo contratto: verificare
+ * PRIMA di chiamare. Dentro non c'è nessuna rete.
  */
 export async function processNewSpark(sparkId: string): Promise<void> {
   await acquireSlot();
+  // Serve anche al `catch`, che scrive `ai_status: failed` quando `spark` è
+  // ormai fuori portata: senza, quella sola riga resterebbe l'unica scrittura
+  // dell'indicizzazione a non dire di chi è.
+  let ownerId: string | null = null;
   try {
     const { data: spark, error } = await supabaseAdmin
       .from('sparks')
@@ -96,11 +112,13 @@ export async function processNewSpark(sparkId: string): Promise<void> {
       console.error(`[Indexing] Spark ${sparkId} not found:`, error);
       return;
     }
+    ownerId = spark.user_id;
 
     await supabaseAdmin
       .from('sparks')
       .update({ ai_status: 'processing' })
-      .eq('id', sparkId);
+      .eq('id', sparkId)
+      .eq('user_id', spark.user_id);
 
     let textForAnalysis = '';
 
@@ -160,35 +178,39 @@ export async function processNewSpark(sparkId: string): Promise<void> {
         embedding: JSON.stringify(embedding),
         ai_status: 'completed',
       })
-      .eq('id', sparkId);
+      .eq('id', sparkId)
+      .eq('user_id', spark.user_id);
 
     console.log(`[Indexing] Completed spark ${sparkId} (${spark.type}): ${tags.length} tags`);
 
     // Try to update tile metadata + detect dates for calendar
     if (spark.tile_id) {
-      await tryUpdateTileMetadata(spark.tile_id).catch((err) => {
+      await tryUpdateTileMetadata(spark.tile_id, spark.user_id).catch((err) => {
         console.error(`[Indexing] Tile update failed for ${spark.tile_id}:`, err);
       });
 
       // Date extraction for text and audio sparks
       if (spark.type === 'text' || spark.type === 'audio_recording') {
-        await tryExtractEventDate(spark.tile_id, textForAnalysis).catch((err) => {
+        await tryExtractEventDate(spark.tile_id, textForAnalysis, spark.user_id).catch((err) => {
           console.error(`[Indexing] Date extraction failed for tile ${spark.tile_id}:`, err);
         });
       }
 
       // GTD action type classification
-      await classifyActionType(spark.tile_id).catch((err) => {
+      await classifyActionType(spark.tile_id, spark.user_id).catch((err) => {
         console.error(`[Indexing] Action type classification failed for tile ${spark.tile_id}:`, err);
       });
     }
   } catch (err) {
     console.error(`[Indexing] Failed for spark ${sparkId}:`, err);
     try {
-      await supabaseAdmin
-        .from('sparks')
-        .update({ ai_status: 'failed' })
-        .eq('id', sparkId);
+      if (ownerId) {
+        await supabaseAdmin
+          .from('sparks')
+          .update({ ai_status: 'failed' })
+          .eq('id', sparkId)
+          .eq('user_id', ownerId);
+      }
     } catch {
       // ignore
     }
@@ -224,7 +246,8 @@ async function analyzeAudio(spark: Spark): Promise<string> {
   await supabaseAdmin
     .from('sparks')
     .update({ metadata: { ...existingMetadata, transcript } })
-    .eq('id', spark.id);
+    .eq('id', spark.id)
+    .eq('user_id', spark.user_id);
 
   return transcript;
 }
@@ -286,7 +309,8 @@ Sii specifico e usa aggettivi precisi. Questa descrizione serve per trovare l'im
   await supabaseAdmin
     .from('sparks')
     .update({ metadata: { ...existingMetadata, ai_description: description } })
-    .eq('id', spark.id);
+    .eq('id', spark.id)
+    .eq('user_id', spark.user_id);
 
   return description;
 }
@@ -329,7 +353,8 @@ async function analyzeVideo(spark: Spark): Promise<string> {
   await supabaseAdmin
     .from('sparks')
     .update({ metadata: { ...existingMetadata, ai_description: description } })
-    .eq('id', spark.id);
+    .eq('id', spark.id)
+    .eq('user_id', spark.user_id);
 
   return description;
 }
@@ -466,13 +491,18 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  *
  * Failures are logged but never propagated — embeddings are a search aid, not
  * a critical write path.
+ *
+ * ownership-audit-fn: `tileId` viene dai due soli chiamanti in `routes/tiles.ts`
+ * — la POST (id di un tile appena creato dall'utente) e la PATCH (tile riletto
+ * con `user_id`, 404 se non è suo). Scrive solo l'embedding di quel tile.
  */
-export async function upsertTileEmbedding(tileId: string): Promise<void> {
+export async function upsertTileEmbedding(tileId: string, userId: string): Promise<void> {
   try {
     const { data: tile, error } = await supabaseAdmin
       .from('tiles')
       .select('title, description')
       .eq('id', tileId)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error || !tile) {
@@ -490,7 +520,8 @@ export async function upsertTileEmbedding(tileId: string): Promise<void> {
         embedding,
         embedding_updated_at: new Date().toISOString(),
       })
-      .eq('id', tileId);
+      .eq('id', tileId)
+      .eq('user_id', userId);
 
     if (updateError) {
       console.error('[upsertTileEmbedding] update failed:', updateError);
@@ -527,11 +558,12 @@ function firstWords(text: string, n: number): string {
   return text.trim().split(/\s+/).slice(0, n).join(' ');
 }
 
-async function tryUpdateTileMetadata(tileId: string): Promise<void> {
+async function tryUpdateTileMetadata(tileId: string, userId: string): Promise<void> {
   const { data: tile } = await supabaseAdmin
     .from('tiles')
     .select('title')
     .eq('id', tileId)
+    .eq('user_id', userId)
     .single();
 
   if (tile?.title) return;
@@ -539,12 +571,14 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
   const { count: total } = await supabaseAdmin
     .from('sparks')
     .select('*', { count: 'exact', head: true })
-    .eq('tile_id', tileId);
+    .eq('tile_id', tileId)
+    .eq('user_id', userId);
 
   const { count: completed } = await supabaseAdmin
     .from('sparks')
     .select('*', { count: 'exact', head: true })
     .eq('tile_id', tileId)
+    .eq('user_id', userId)
     .eq('ai_status', 'completed');
 
   if (!total || !completed || completed < total) return;
@@ -553,6 +587,7 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     .from('sparks')
     .select('content, metadata, type, created_at')
     .eq('tile_id', tileId)
+    .eq('user_id', userId)
     .order('created_at', { ascending: true });
 
   if (!sparks || sparks.length === 0) return;
@@ -573,7 +608,8 @@ async function tryUpdateTileMetadata(tileId: string): Promise<void> {
     await supabaseAdmin
       .from('tiles')
       .update({ title, updated_at: new Date().toISOString() })
-      .eq('id', tileId);
+      .eq('id', tileId)
+      .eq('user_id', userId);
     console.log(`[Indexing] Tile ${tileId} titled from recorded text: "${title}"`);
     return;
   }
@@ -617,7 +653,8 @@ ${summaries.slice(0, 2000)}`,
           title: parsed.title,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', tileId);
+        .eq('id', tileId)
+        .eq('user_id', userId);
 
       console.log(`[Indexing] Tile ${tileId} auto-titled: "${parsed.title}"`);
     }
@@ -634,11 +671,12 @@ ${summaries.slice(0, 2000)}`,
  * Classify tile action type using GTD methodology.
  * Called after tile metadata and date extraction are complete.
  */
-async function classifyActionType(tileId: string): Promise<void> {
+async function classifyActionType(tileId: string, userId: string): Promise<void> {
   const { data: tile } = await supabaseAdmin
     .from('tiles')
     .select('id, title, action_type_reviewed, action_type, start_at, is_event')
     .eq('id', tileId)
+    .eq('user_id', userId)
     .single();
 
   if (!tile) return;
@@ -649,6 +687,7 @@ async function classifyActionType(tileId: string): Promise<void> {
     .from('sparks')
     .select('metadata, content, type')
     .eq('tile_id', tileId)
+    .eq('user_id', userId)
     .eq('ai_status', 'completed');
 
   const textParts: string[] = [];
@@ -727,7 +766,8 @@ ${content}`,
     await supabaseAdmin
       .from('tiles')
       .update(updates)
-      .eq('id', tileId);
+      .eq('id', tileId)
+      .eq('user_id', userId);
 
     console.log(`[Indexing] Action type for tile ${tileId}: ${actionType} (confidence: ${confidence})`);
   } catch (err) {
@@ -739,12 +779,13 @@ ${content}`,
  * Extract date/time from spark content and save to tile if confidence is high.
  * Called after indexing text and audio_recording sparks.
  */
-async function tryExtractEventDate(tileId: string, textContent: string): Promise<void> {
+async function tryExtractEventDate(tileId: string, textContent: string, userId: string): Promise<void> {
   // Skip if tile already has dates
   const { data: tile } = await supabaseAdmin
     .from('tiles')
     .select('start_at, is_event')
     .eq('id', tileId)
+    .eq('user_id', userId)
     .single();
 
   if (tile?.start_at || tile?.is_event) return;
@@ -808,7 +849,8 @@ Regole:
           action_type: 'event',
           updated_at: new Date().toISOString(),
         })
-        .eq('id', tileId);
+        .eq('id', tileId)
+        .eq('user_id', userId);
 
       console.log(`[Indexing] Auto-scheduled tile ${tileId} (confidence: ${confidence})`);
     } else if (confidence >= 0.3) {
@@ -818,6 +860,7 @@ Regole:
         .from('sparks')
         .select('id, metadata')
         .eq('tile_id', tileId)
+        .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -832,7 +875,8 @@ Regole:
               pending_event: { start_at: startAt, end_at: endAt, confidence },
             },
           })
-          .eq('id', latestSpark.id);
+          .eq('id', latestSpark.id)
+          .eq('user_id', userId);
 
         console.log(`[Indexing] Pending event for tile ${tileId} (confidence: ${confidence})`);
       }
@@ -914,7 +958,8 @@ async function saveThumbnail(
   const { error: updateError } = await supabaseAdmin
     .from('sparks')
     .update({ thumbnail_path: thumbnailPath })
-    .eq('id', spark.id);
+    .eq('id', spark.id)
+    .eq('user_id', spark.user_id);
   if (updateError) {
     console.warn(`[Indexing] ${label} thumbnail_path update failed:`, updateError);
     return;

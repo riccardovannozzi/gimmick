@@ -5,13 +5,13 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent } from '@/components/canvas/CanvasBoard';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
 import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
@@ -19,6 +19,7 @@ import { planPaper, type PaperFormat, type PaperOrientation } from '@/lib/paper'
 import { TILE_W, TILE_H } from '@/lib/tile-visual';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
+import { ImageSidebar } from '@/components/canvas/ImageSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
@@ -348,6 +349,18 @@ export default function CanvasPage() {
     }, 800);
   }, [tagId, queryClient]);
 
+  /** Sfila dei membri (tile o `tb:<id>` per le immagini) da ogni gruppo; i
+   *  gruppi che restano con meno di 2 membri si sciolgono. Serve sia all'azione
+   *  "Ungroup" sia alla cancellazione, che altrimenti lascerebbe id fantasma
+   *  dentro i gruppi. */
+  const removeFromGroups = useCallback((memberIds: string[]) => {
+    const idSet = new Set(memberIds);
+    const stripped = canvasGroups.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }));
+    // Niente giro in rete se nessun gruppo era coinvolto.
+    if (!stripped.some((g, i) => g.nodeIds.length !== canvasGroups[i].nodeIds.length)) return;
+    handleGroupsChange(stripped.filter((g) => g.nodeIds.length >= 2));
+  }, [canvasGroups, handleGroupsChange]);
+
   // Save positions (debounced) + optimistic cache update
   const handlePositionChange = useCallback((positions: { tile_id: string; x: number; y: number }[]) => {
     if (!tagId) return;
@@ -402,6 +415,11 @@ export default function CanvasPage() {
       queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
         data: (old?.data || []).filter((e: any) => e.id !== tempId),
       }));
+      // Un errore qui era MUTO: l'edge compariva e spariva, e sembrava un
+      // collegamento "che non resta" invece di un salvataggio fallito. È così
+      // che il rifiuto del database sugli endpoint non-tile (immagini, note,
+      // gruppi) è passato inosservato — vedi migration 041.
+      toast.error('Collegamento non salvato');
     }
   }, [tagId, queryClient]);
 
@@ -444,6 +462,11 @@ export default function CanvasPage() {
   // Box di TESTO attualmente selezionato → alimenta la TextSidebar destra.
   const selectedTextBox = useMemo(
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
+    [textBoxes, selectedTextBoxId],
+  );
+  // Box IMMAGINE selezionato → ImageSidebar (titolo, note, mostra titolo).
+  const selectedImageBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'image') || null,
     [textBoxes, selectedTextBoxId],
   );
 
@@ -490,8 +513,11 @@ export default function CanvasPage() {
     queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
       data: (old?.data || []).filter((tb: any) => tb.id !== id),
     }));
+    // Un'immagine può essere membro di un gruppo: va sfilata, altrimenti il
+    // gruppo resta con un id che non corrisponde a niente.
+    removeFromGroups([`tb:${id}`]);
     await canvasApi.deleteBox(id);
-  }, [tagId, queryClient]);
+  }, [tagId, queryClient, removeFromGroups]);
 
   // ── Modifica di un box di testo dalla SIDEBAR destra ──
   // Il backend RIMPIAZZA la colonna `content` (JSON), non la fonde: ogni save
@@ -524,15 +550,55 @@ export default function CanvasPage() {
     scheduleBoxSave(id);
   }, [tagId, queryClient, scheduleBoxSave]);
 
-  // Stile (colore sfondo / dimensione font): azioni discrete → specchio in
-  // cache immediato (aggiornamento istantaneo sul canvas) + save debounced.
-  const handleTextBoxStylePatch = useCallback((id: string, patch: { bgColor?: string | null; fontSize?: number }) => {
+  // Stile (colore sfondo / dimensione font) e flag: azioni discrete → specchio
+  // in cache immediato (aggiornamento istantaneo sul canvas) + save debounced.
+  const handleTextBoxStylePatch = useCallback((id: string, patch: Record<string, unknown>) => {
     if (!tagId) return;
     queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
       data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, content: { ...(tb.content || {}), ...patch } } : tb),
     }));
     scheduleBoxSave(id);
   }, [tagId, queryClient, scheduleBoxSave]);
+
+  // ── Campi che si DIGITANO (titolo e note dell'immagine) ───────────────────
+  // Ogni scrittura in cache ricostruisce l'SVG del canvas: si aspetta la fine
+  // della digitazione. Specchio e salvataggio sono UN SOLO commit, non due
+  // timer separati: con due, il debounce condiviso fra box diversi poteva
+  // salvare il contenuto vecchio di un box e buttare via le sue ultime battute.
+  const tbFieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tbFieldPending = useRef<{ id: string; patch: Record<string, unknown> } | null>(null);
+
+  /** Scrive in cache la patch in attesa e la salva. */
+  const flushBoxField = useCallback(() => {
+    if (tbFieldTimer.current) { clearTimeout(tbFieldTimer.current); tbFieldTimer.current = null; }
+    const pending = tbFieldPending.current;
+    tbFieldPending.current = null;
+    if (!pending || !tagId) return;
+    let merged: Record<string, unknown> | null = null;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: (old?.data || []).map((tb: any) => {
+        if (tb.id !== pending.id) return tb;
+        merged = { ...(tb.content || {}), ...pending.patch };
+        return { ...tb, content: merged };
+      }),
+    }));
+    // Il PATCH rimpiazza `content` per intero: si manda quello fuso, mai la
+    // sola patch.
+    if (merged) canvasApi.updateBox(pending.id, { content: merged });
+  }, [tagId, queryClient]);
+
+  const handleBoxFieldChange = useCallback((id: string, patch: Record<string, unknown>) => {
+    if (!tagId) return;
+    // Altro box rispetto a quello in attesa → prima si chiude il conto col
+    // precedente, così non perde l'ultima riga scritta.
+    if (tbFieldPending.current && tbFieldPending.current.id !== id) flushBoxField();
+    tbFieldPending.current = { id, patch: { ...(tbFieldPending.current?.patch || {}), ...patch } };
+    if (tbFieldTimer.current) clearTimeout(tbFieldTimer.current);
+    tbFieldTimer.current = setTimeout(flushBoxField, 400);
+  }, [tagId, flushBoxField]);
+
+  // Uscire dal canvas mentre si scrive non deve costare l'ultima modifica.
+  useEffect(() => () => { flushBoxField(); }, [flushBoxField]);
 
   // Image box: drag a rectangle (w,h) → file picker → measure the image LOCALLY
   // from the File (so CORS / CDN delays can't cause a fallback) → upload to
@@ -602,7 +668,7 @@ export default function CanvasPage() {
   }, [tagId, queryClient]);
 
   // Text box context menu
-  const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string } | null>(null);
+  const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string; inGroup: boolean } | null>(null);
 
   // Add new tile at position — SOLO in modalità +Tile. Un click "nudo" sullo
   // sfondo non deve mai aggiungere un tile. (L'incolla di una copia avviene col
@@ -824,6 +890,8 @@ export default function CanvasPage() {
     const edgesToDelete = currentEdges.filter((e) => allEndpoints.has(e.source_id) || allEndpoints.has(e.target_id));
 
     clearSelection();
+    // Gli elementi cancellati escono anche dai gruppi che li contenevano.
+    removeFromGroups([...allEndpoints]);
     try {
       await Promise.all([
         ...tileIds.map((id) => tilesApi.delete(id).catch(() => null)),
@@ -836,27 +904,53 @@ export default function CanvasPage() {
       queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
       queryClient.invalidateQueries({ queryKey: ['tags'] });
     } catch { /* ignore */ }
-  }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection]);
+  }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection, removeFromGroups]);
+
+  // Immagini selezionate (i box di TESTO restano fuori dai gruppi).
+  const selectedImageBoxIds = useMemo(
+    () => selectedTextBoxIds.filter((id) => textBoxes.find((b) => b.id === id)?.type === 'image'),
+    [selectedTextBoxIds, textBoxes],
+  );
+  /** Un gruppo si può creare da tile e immagini (≥2 in tutto), mai da testi. */
+  const groupFromSelectionAllowed =
+    selectedTileIds.length + selectedImageBoxIds.length >= 2 &&
+    selectedImageBoxIds.length === selectedTextBoxIds.length;
 
   const handleCreateGroupFromSelection = useCallback(() => {
-    // Groups are tile-only; require ≥2 tiles AND no text boxes in selection.
-    if (selectedTileIds.length < 2 || selectedTextBoxIds.length > 0) return;
-    const ids = selectedTileIds;
+    // Dirlo, invece di non fare niente: da tastiera (CTRL+G) non c'è un pulsante
+    // grigio a spiegare perché il gruppo non nasce.
+    if (!groupFromSelectionAllowed) {
+      if (selectedTileIds.length + selectedImageBoxIds.length < 2) {
+        toast.info('Seleziona almeno due elementi (tile o immagini) per creare un gruppo');
+      } else {
+        toast.info('I box di testo non entrano nei gruppi: togli il testo dalla selezione');
+      }
+      return;
+    }
+    const ids = [...selectedTileIds, ...selectedImageBoxIds.map((id) => `tb:${id}`)];
+    const idSet = new Set(ids);
     const ng = canvasGroups
-      .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !ids.includes(nid)) }))
+      .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
       .filter((g) => g.nodeIds.length >= 2);
     ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
     clearSelection();
-  }, [selectedTileIds, selectedTextBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
+  }, [groupFromSelectionAllowed, selectedTileIds, selectedImageBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
 
-  // Modalità "Raggruppa a contorno": i tile catturati dal rettangolo formano
-  // subito un nuovo gruppo. Rimuove gli id dai gruppi esistenti (un tile sta in
-  // un solo gruppo) e scarta i gruppi rimasti con <2 tile.
+  // Modalità "Raggruppa a contorno": tile e immagini catturati dal rettangolo
+  // formano subito un nuovo gruppo (id nudo = tile, `tb:<id>` = immagine).
+  // Rimuove gli id dai gruppi esistenti (un elemento sta in un solo gruppo) e
+  // scarta i gruppi rimasti con <2 membri.
   const handleGroupTiles = useCallback((ids: string[]) => {
     // Il pulsante Group si disattiva dopo ogni uso (come Tile/Text/Image).
     setSelectMode(false);
-    if (ids.length < 2) return;
+    // Contorno che cattura 0 o 1 elemento: senza un messaggio è un gesto che
+    // sembra non aver funzionato (e i box di testo, esclusi per scelta, sono la
+    // ragione più frequente per cui il conto non torna).
+    if (ids.length < 2) {
+      toast.info('Il contorno deve contenere almeno due elementi fra tile e immagini');
+      return;
+    }
     const idSet = new Set(ids);
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
@@ -931,9 +1025,9 @@ export default function CanvasPage() {
     setSidebarOpen(true);
   }, []);
 
-  // Click singolo su un box: selezione esclusiva → contorno obsidian. Per i box
-  // di TESTO apriamo anche la sidebar destra con l'editor (come per i gruppi);
-  // per le immagini resta solo il contorno.
+  // Click singolo su un box: selezione esclusiva → contorno obsidian + sidebar
+  // destra. Testo → editor della nota; immagine → titolo, note e flag della
+  // didascalia (ImageSidebar).
   const handleTextBoxClick = useCallback((id: string) => {
     setSelectedTextBoxId(id);
     setSelectedTileId(null);
@@ -941,9 +1035,8 @@ export default function CanvasPage() {
     setSelectedEdgeId(null);
     setSelectedIds([]);
     setSelectionBbox(null);
-    const box = textBoxes.find((b) => b.id === id);
-    if (box?.type === 'text') setSidebarOpen(true);
-  }, [textBoxes]);
+    setSidebarOpen(true);
+  }, []);
 
   // Click singolo su un edge: selezione esclusiva → apre la EdgeSidebar.
   const handleEdgeClick = useCallback((id: string) => {
@@ -987,23 +1080,58 @@ export default function CanvasPage() {
     if (!tileCtx) return;
     const id = tileCtx.tileId;
     setTileCtx(null);
-    const newGroups = canvasGroups
-      .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => nid !== id) }))
-      .filter((g) => g.nodeIds.length >= 2);
-    handleGroupsChange(newGroups);
-  }, [tileCtx, canvasGroups, handleGroupsChange]);
+    removeFromGroups([id]);
+  }, [tileCtx, removeFromGroups]);
+
+  // Stessa azione per un'immagine dentro un gruppo.
+  const handleUngroupBox = useCallback(() => {
+    if (!tbCtx) return;
+    const id = tbCtx.textBoxId;
+    setTbCtx(null);
+    removeFromGroups([`tb:${id}`]);
+  }, [tbCtx, removeFromGroups]);
+
+  /** Sciogli: sul gruppo selezionato (via sidebar/click) toglie il contenitore;
+   *  altrimenti sfila dai rispettivi gruppi gli elementi selezionati — tile e
+   *  immagini insieme, che è il caso di una selezione mista. */
+  const handleUngroupSelection = useCallback(() => {
+    if (selectedGroupId) {
+      handleDeleteGroup(selectedGroupId);
+      return;
+    }
+    // `selectedIds` è già nel formato dei membri: id nudo = tile, `tb:<id>` = box.
+    if (selectedIds.length) removeFromGroups(selectedIds);
+  }, [selectedGroupId, handleDeleteGroup, selectedIds, removeFromGroups]);
+
+  // Scorciatoie standard da editor di canvas: CTRL/⌘+G raggruppa la selezione,
+  // CTRL/⌘+SHIFT+G scioglie. Ignorate mentre si scrive (input o box di testo in
+  // editing), altrimenti ruberebbero i tasti all'editor.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== 'g' || !(e.ctrlKey || e.metaKey)) return;
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      e.preventDefault();
+      if (e.shiftKey) handleUngroupSelection();
+      else handleCreateGroupFromSelection();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [handleUngroupSelection, handleCreateGroupFromSelection]);
 
   const handleConfirmDeleteTile = useCallback(async () => {
     if (!tileCtx) return;
     const id = tileCtx.tileId;
     setTileCtx(null);
+    removeFromGroups([id]);
     try {
       await tilesApi.delete(id);
       queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] });
       queryClient.invalidateQueries({ queryKey: ['canvas-layout', tagId] });
       queryClient.invalidateQueries({ queryKey: ['canvas-edges', tagId] });
     } catch { /* ignore */ }
-  }, [tileCtx, tagId, queryClient]);
+  }, [tileCtx, tagId, queryClient, removeFromGroups]);
 
   // "Copia": memorizza il tile negli appunti. L'incolla avviene col tasto
   // destro sul punto target (menu "Incolla"), vedi handlePasteAt.
@@ -1193,7 +1321,10 @@ export default function CanvasPage() {
               onAddTextBox={handleAddTextBox}
               onUpdateTextBox={handleUpdateTextBox}
               onTextBoxContextMenu={(e) => setTbCtx(e)}
-              selectedIds={selectedTileIds}
+              // Selezione MISTA (id nudo = tile, `tb:<id>` = box): passandone
+              // solo la parte tile, le immagini selezionate perdevano contorno e
+              // multi-drag — e con esse la possibilità di raggrupparle a vista.
+              selectedIds={selectedIds}
               onSelectionChange={handleSelectionChange}
               fitTrigger={fitTrigger}
               zoom100Trigger={zoom100Trigger}
@@ -1279,11 +1410,17 @@ export default function CanvasPage() {
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
               tiles={tiles}
+              // Le immagini sono membri a pieno titolo: il pannello le elenca
+              // come i tile (miniatura) e permette di sfilarle una per una.
+              images={textBoxes
+                .filter((b) => b.type === 'image')
+                .map((b) => ({ id: b.id, src: (b.content as { src?: string }).src || '' }))}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
               onDelete={() => handleDeleteGroup(selectedGroupId)}
               onSelectTile={(id) => { setSelectedGroupId(null); setSelectedTileId(id); setSidebarOpen(true); }}
+              onUngroupMember={(memberId) => removeFromGroups([memberId])}
             />
           ) : selectedEdge ? (
             <EdgeSidebar
@@ -1307,6 +1444,28 @@ export default function CanvasPage() {
               onStyleChange={(patch) => handleTextBoxStylePatch(selectedTextBox.id, patch)}
               onDelete={() => { handleDeleteTextBox(selectedTextBox.id); setSelectedTextBoxId(null); }}
             />
+          ) : selectedImageBox ? (
+            <ImageSidebar
+              key={selectedImageBox.id}
+              boxId={selectedImageBox.id}
+              src={(selectedImageBox.content as CanvasBoxImageContent).src}
+              initialTitle={(selectedImageBox.content as CanvasBoxImageContent).title || ''}
+              initialNotes={(selectedImageBox.content as CanvasBoxImageContent).notes || ''}
+              showTitle={!!(selectedImageBox.content as CanvasBoxImageContent).showTitle}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              onTitleChange={(title) => handleBoxFieldChange(selectedImageBox.id, { title })}
+              onNotesChange={(notes) => handleBoxFieldChange(selectedImageBox.id, { notes })}
+              // Flag discreto → effetto immediato sulla didascalia del canvas.
+              onShowTitleChange={(showTitle) => handleTextBoxStylePatch(selectedImageBox.id, { showTitle })}
+              // Rimette il box in squadra: larghezza invariata, altezza dedotta
+              // dal rapporto naturale della foto.
+              onFitAspect={(aspect) => {
+                if (!(aspect > 0)) return;
+                handleUpdateTextBox(selectedImageBox.id, { h: Math.max(40, selectedImageBox.w / aspect) });
+              }}
+              onDelete={() => { handleDeleteTextBox(selectedImageBox.id); setSelectedTextBoxId(null); }}
+            />
           ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar
               tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
@@ -1325,7 +1484,8 @@ export default function CanvasPage() {
           )}
 
           {/* Selection action menu (CTRL/SHIFT + drag/click → multi-select).
-              Selection may include tiles and text boxes; "Crea gruppo" is gated to tiles-only. */}
+              La selezione può contenere tile, immagini e box di testo; "Crea
+              gruppo" è abilitato per tile + immagini (i testi restano fuori). */}
           {selectedIds.length > 0 && selectionBbox && createPortal(
             (() => {
               const menuW = 200;
@@ -1373,7 +1533,7 @@ export default function CanvasPage() {
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
-                    title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
+                    title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1423,7 +1583,7 @@ export default function CanvasPage() {
           {tileCtx && createPortal(
             (() => {
               const inMultiSel = selectedIds.length > 1 && selectedTileIds.includes(tileCtx.tileId);
-              const groupAllowed = selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0;
+              const groupAllowed = groupFromSelectionAllowed;
               const menuItem: React.CSSProperties = {
                 display: 'flex',
                 alignItems: 'center',
@@ -1473,7 +1633,7 @@ export default function CanvasPage() {
                         <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'I gruppi possono contenere solo tile' : undefined}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -1488,7 +1648,7 @@ export default function CanvasPage() {
                     )}
                     {tileCtx.inGroup && (
                       <button onClick={handleUngroupTile} style={menuItem}>
-                        <svg width={14} height={14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+                        <IconBoxOff size={14} />
                         Ungroup
                       </button>
                     )}
@@ -1523,66 +1683,97 @@ export default function CanvasPage() {
             document.body
           )}
 
-          {/* Text box context menu */}
+          {/* Box (testo/immagine) context menu — specchio di quello del tile:
+              con più elementi selezionati offre le stesse azioni di insieme
+              (Crea gruppo / Elimina), perché un'immagine nel gruppo vale un
+              tile e il tasto destro va a finire sull'elemento che si ha sotto
+              il cursore, non necessariamente su un tile. */}
           {tbCtx && createPortal(
-            <>
-              <div className="fixed inset-0 z-[9998]" onClick={() => setTbCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTbCtx(null); }} />
-              <div
-                className="fixed"
-                style={{
-                  top: tbCtx.y,
-                  left: tbCtx.x,
-                  zIndex: 9999,
-                  width: 168,
-                  background: theme.surface,
-                  border: `1px solid ${theme.border}`,
-                  boxShadow: 'var(--ob-shadow-card)',
-                  borderRadius: 'var(--ob-radius-md)',
-                  padding: 4,
-                }}
-              >
-                <button
-                  onClick={handleCopyBox}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    width: '100%',
-                    padding: '6px 10px',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: theme.ink2,
-                    fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: OB_TEXT.card,
-                  }}
-                >
-                  <IconCopy size={14} />
-                  Copia
-                </button>
-                <button
-                  onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 8,
-                    width: '100%',
-                    padding: '6px 10px',
-                    textAlign: 'left',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--ob-danger)',
-                    fontFamily: ('var(--ob-font-sans)'),
-                    fontSize: OB_TEXT.card,
-                  }}
-                >
-                  <IconTrash size={14} />
-                  Elimina
-                </button>
-              </div>
-            </>,
+            (() => {
+              const inMultiSel = selectedIds.length > 1 && selectedTextBoxIds.includes(tbCtx.textBoxId);
+              const groupAllowed = groupFromSelectionAllowed;
+              const menuItem: React.CSSProperties = {
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                width: '100%',
+                padding: '6px 10px',
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.ink2,
+                fontFamily: ('var(--ob-font-sans)'),
+                fontSize: OB_TEXT.card,
+              };
+              const dangerItem: React.CSSProperties = { ...menuItem, color: 'var(--ob-danger)' };
+              return (
+                <>
+                  <div className="fixed inset-0 z-[9998]" onClick={() => setTbCtx(null)} onContextMenu={(e) => { e.preventDefault(); setTbCtx(null); }} />
+                  <div
+                    className="fixed"
+                    style={{
+                      top: tbCtx.y,
+                      left: tbCtx.x,
+                      zIndex: 9999,
+                      width: 184,
+                      background: theme.surface,
+                      border: `1px solid ${theme.border}`,
+                      boxShadow: 'var(--ob-shadow-card)',
+                      borderRadius: 'var(--ob-radius-md)',
+                      padding: 4,
+                    }}
+                  >
+                    {inMultiSel && (
+                      <>
+                        <div
+                          style={{
+                            padding: '6px 10px',
+                            fontFamily: 'var(--ob-font-mono)',
+                            fontSize: OB_TEXT.micro,
+                            letterSpacing: '0.08em',
+                            textTransform: 'uppercase',
+                            color: theme.ink3,
+                            borderBottom: `1px solid ${theme.border}`,
+                          }}
+                        >
+                          {selectedIds.length} selezionati
+                        </div>
+                        <button
+                          onClick={() => { setTbCtx(null); handleCreateGroupFromSelection(); }}
+                          disabled={!groupAllowed}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                          style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
+                        >
+                          <IconBoxMultiple size={14} />
+                          Crea gruppo
+                        </button>
+                        <button onClick={() => { setTbCtx(null); handleBulkDeleteSelected(); }} style={dangerItem}>
+                          <IconTrash size={14} />
+                          Elimina {selectedIds.length} elementi
+                        </button>
+                        <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
+                      </>
+                    )}
+                    {/* Un'immagine dentro un gruppo si sfila come un tile. */}
+                    {tbCtx.inGroup && (
+                      <button onClick={handleUngroupBox} style={menuItem}>
+                        <IconBoxOff size={14} />
+                        Ungroup
+                      </button>
+                    )}
+                    <button onClick={handleCopyBox} style={menuItem}>
+                      <IconCopy size={14} />
+                      Copia
+                    </button>
+                    <button onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }} style={dangerItem}>
+                      <IconTrash size={14} />
+                      Elimina
+                    </button>
+                  </div>
+                </>
+              );
+            })(),
             document.body
           )}
 
@@ -1671,12 +1862,18 @@ export default function CanvasPage() {
                       <IconPencil size={14} />
                       Rinomina gruppo
                     </button>
+                    {/* Sciogliere un gruppo NON cancella niente: toglie solo il
+                        contenitore e lascia tile e immagini dove sono. Era
+                        etichettato "Elimina gruppo" in rosso col cestino —
+                        l'azione giusta con il nome di quella sbagliata, e quindi
+                        un ungroup che nessuno osava premere. */}
                     <button
                       onClick={() => { handleDeleteGroup(groupCtx.groupId); setGroupCtx(null); }}
-                      style={{ ...menuItem, color: 'var(--ob-danger)' }}
+                      style={menuItem}
+                      title="Toglie il gruppo: tile e immagini restano sul canvas"
                     >
-                      <IconTrash size={14} />
-                      Elimina gruppo
+                      <IconBoxOff size={14} />
+                      Sciogli gruppo (Ungroup)
                     </button>
                   </div>
                 </>

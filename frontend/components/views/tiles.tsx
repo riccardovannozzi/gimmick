@@ -17,6 +17,7 @@ import { cn } from '@/lib/utils';
 import { Button } from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
+import { actionMeta, type ActionKind } from '@/lib/tile-action';
 import type { StatusShape } from '@/types';
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
@@ -33,7 +34,6 @@ const COLS: Col[] = [
 ];
 
 // ─── Data model ───────────────────────────────────────────────────────────────
-type ActionKind = 'timed' | 'allday' | 'notes';
 type SparkType = 'photo' | 'voice' | 'text' | 'file';
 interface RowSpark { t: SparkType; x?: string }
 export interface TileRow {
@@ -69,12 +69,8 @@ const ROWS: TileRow[] = [
 ];
 
 // ─── Mappings (semantic → tokens) ─────────────────────────────────────────────
-interface ActionMeta { label: string; icon: ShellIconName; color: string }
-function actionMeta(a: ActionKind): ActionMeta {
-  if (a === 'timed') return { label: 'Timed', icon: 'clock', color: 'var(--ob-info)' };
-  if (a === 'allday') return { label: 'All Day', icon: 'calendar', color: 'var(--ob-warning)' };
-  return { label: 'Notes', icon: 'note', color: 'var(--ob-muted)' };
-}
+// `actionMeta` vive in `lib/tile-action`: la usa anche Ask Gimmick per disegnare
+// le tile trovate, e devono venire uguali.
 
 const SPARK_META: Record<SparkType, { color: string; icon: ShellIconName }> = {
   voice: { color: 'var(--ob-type-voice)', icon: 'voice' },

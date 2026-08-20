@@ -308,6 +308,13 @@ tagsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next)
     }
 
     // Find tiles that will become orphans after deletion
+    // ownership-audit: tag già verificato qui sopra (select con user_id + 404).
+    // `tile_tags` non ha una colonna user_id — è una junction, e la sua integrità
+    // dipende interamente da chi ci scrive: TUTTE le scritture su questa tabella
+    // verificano la proprietà di entrambi i capi (assertTagOwned/assertTilesOwned
+    // in POST /:id/tiles, assertTileOwned nella DELETE di un tile, oppure id
+    // nati da liste già filtrate). Perciò da un tag dell'utente si arriva solo a
+    // tile dell'utente, e questa lettura non può attraversare il confine.
     const { data: affectedTileTags } = await supabaseAdmin
       .from('tile_tags')
       .select('tile_id')
@@ -335,6 +342,8 @@ tagsRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next)
 
       if (rootTag) {
         for (const tileId of affectedTileIds) {
+          // ownership-audit: `tileId` viene da `affectedTileIds`, cioè dalla
+          // junction del tag appena verificato — non dal client.
           const { count } = await supabaseAdmin
             .from('tile_tags')
             .select('*', { count: 'exact', head: true })

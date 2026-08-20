@@ -364,34 +364,101 @@ export const aiApi = {
 };
 
 // ============ Chat API ============
+
+/**
+ * Tile trovata dalla chat, con abbastanza colonne per DISEGNARLA.
+ *
+ * Il backend le manda già così (`ChatTileSummary` in services/ai.ts); il web
+ * usava i soli `foundTileIds`, quindi una risposta poteva solo offrire un
+ * filtro cumulativo — "Tile (4)" — e non mostrare QUALI. `end_at`/`all_day` non
+ * li porta ogni tool: la card deve reggere senza.
+ */
+export interface ChatTile {
+  id: string;
+  title: string | null;
+  description: string | null;
+  action_type: string | null;
+  start_at: string | null;
+  end_at?: string | null;
+  all_day?: boolean | null;
+  is_completed?: boolean | null;
+  is_cta?: boolean | null;
+}
+
+export interface ChatReply {
+  reply: string;
+  foundSparkIds?: string[];
+  foundTileIds?: string[];
+  /**
+   * Sottoinsieme di `foundTileIds` per cui il backend ha i dati. Non coincide
+   * sempre: un tile pescato dal `tile_id` di uno spark è noto solo per id.
+   */
+  foundTiles?: ChatTile[];
+}
+
+type ChatHistory = { role: 'user' | 'assistant'; content: string }[];
+
+/**
+ * POST multipart autenticata verso la chat. Le rotte `/attach` e `/voice` non
+ * possono passare da `apiRequest`, che forza `Content-Type: application/json`:
+ * su multipart serve che sia il browser a scrivere l'header, boundary incluso.
+ * In cambio perdiamo il retry-su-401, quindi almeno l'errore va reso nella
+ * stessa forma di `ApiResponse` — il backend risponde 400 con un motivo
+ * leggibile (formato non supportato, file troppo grande) e il pannello lo mostra
+ * così com'è.
+ */
+async function chatMultipart<T>(path: string, formData: FormData): Promise<ApiResponse<T>> {
+  loadTokens();
+  const token = getAccessToken();
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    // Un 413 del proxy o un 500 non gestito possono tornare HTML: senza questo
+    // guscio il `json()` esploderebbe e l'utente vedrebbe "errore di rete".
+    const data = await response.json().catch(() => null);
+    if (!data) {
+      return { success: false, error: `Errore del server (${response.status})` } as ApiResponse<T>;
+    }
+    return data as ApiResponse<T>;
+  } catch {
+    return { success: false, error: 'Errore di connessione.' } as ApiResponse<T>;
+  }
+}
+
 export const chatApi = {
-  async send(
-    message: string,
-    history: { role: 'user' | 'assistant'; content: string }[] = []
-  ) {
-    return apiRequest<{ reply: string; foundSparkIds?: string[]; foundTileIds?: string[] }>('/api/chat', {
+  async send(message: string, history: ChatHistory = []) {
+    return apiRequest<ChatReply>('/api/chat', {
       method: 'POST',
       body: JSON.stringify({ message, history }),
     });
   },
 
-  async sendVoice(
-    audioBlob: Blob,
-    history: { role: 'user' | 'assistant'; content: string }[] = []
-  ) {
+  /**
+   * Messaggio con un allegato (immagine, PDF, Word, testo). Il file viaggia
+   * NELLA STESSA richiesta della domanda: Claude lo legge insieme, e non resta
+   * salvato da nessuna parte — è allegato alla conversazione, non catturato
+   * come spark.
+   */
+  async sendWithFile(message: string, file: File, history: ChatHistory = []) {
     const formData = new FormData();
-    formData.append('audio', audioBlob, 'audio.webm');
+    formData.append('file', file, file.name);
+    formData.append('message', message);
     formData.append('history', JSON.stringify(history));
+    return chatMultipart<ChatReply>('/api/chat/attach', formData);
+  },
 
-    loadTokens();
-    const token = getAccessToken();
-    const response = await fetch(`${API_URL}/api/chat/voice`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
-
-    return response.json() as Promise<ApiResponse<{ transcript: string; reply: string; foundSparkIds?: string[]; foundTileIds?: string[] }>>;
+  async sendVoice(audioBlob: Blob, history: ChatHistory = []) {
+    const formData = new FormData();
+    // L'estensione deve rispecchiare il formato reale: Whisper sceglie il
+    // decoder dal nome del file, e MediaRecorder produce webm su Chrome/Firefox
+    // ma mp4 su Safari.
+    const ext = audioBlob.type.includes('mp4') || audioBlob.type.includes('mpeg') ? 'mp4' : 'webm';
+    formData.append('audio', audioBlob, `audio.${ext}`);
+    formData.append('history', JSON.stringify(history));
+    return chatMultipart<ChatReply & { transcript: string }>('/api/chat/voice', formData);
   },
 
   async speak(text: string): Promise<HTMLAudioElement | null> {

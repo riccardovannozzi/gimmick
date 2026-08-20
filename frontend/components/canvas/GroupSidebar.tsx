@@ -9,7 +9,7 @@
  * (GIMMICK_PALETTE). La selezione evidenzia anche i punti di aggancio sul canvas.
  */
 import { useState, useEffect, useRef } from 'react';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconTrash, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOff, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -35,11 +35,18 @@ export const GROUP_BG_PALETTE = [
 interface GroupSidebarProps {
   group: CanvasGroup;
   tiles: { id: string; title?: string }[];
+  /** Tutte le immagini del canvas: il pannello ne pesca quelle del gruppo
+   *  (membri `tb:<id>`) e le elenca accanto ai tile. */
+  images?: { id: string; src: string }[];
   open: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<CanvasGroup>) => void;
+  /** Scioglie il gruppo: toglie il contenitore, i membri restano sul canvas. */
   onDelete: () => void;
   onSelectTile: (id: string) => void;
+  /** Sfila un singolo membro dal gruppo. Id nel formato dei membri: id nudo =
+   *  tile, `tb:<id>` = immagine. */
+  onUngroupMember?: (memberId: string) => void;
 }
 
 /** Eyebrow di sezione — alias locale della ricetta condivisa, per non toccare
@@ -189,7 +196,29 @@ export function Segmented<T extends string | number>({ label, value, options, on
   );
 }
 
-export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete, onSelectTile }: GroupSidebarProps) {
+/** Sfila un singolo membro dal gruppo (tile o immagine). Sta accanto alla riga
+ *  del membro: l'ungroup di uno solo non è un'azione da menu contestuale
+ *  soltanto — se il pannello elenca i membri, deve poterli anche far uscire. */
+function UngroupButton({ onClick }: { onClick: () => void }) {
+  const theme = usePixelTheme();
+  return (
+    <button
+      onClick={onClick}
+      title="Sfila dal gruppo"
+      aria-label="Sfila dal gruppo"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 28, flexShrink: 0,
+        background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`,
+        borderRadius: 'var(--ob-radius-sm)', color: theme.ink3, cursor: 'pointer',
+      }}
+    >
+      <IconBoxOff size={14} />
+    </button>
+  );
+}
+
+export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpdate, onDelete, onSelectTile, onUngroupMember }: GroupSidebarProps) {
   const theme = usePixelTheme();
   const [name, setName] = useState(group.label || '');
 
@@ -198,6 +227,12 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
   const groupTiles = group.nodeIds
     .map((id) => tiles.find((t) => t.id === id))
     .filter((t): t is { id: string; title?: string } => !!t);
+  // Le immagini stanno nei gruppi come i tile, solo identificate da `tb:<id>`.
+  // Non hanno un titolo: si elencano per miniatura.
+  const groupImages = group.nodeIds
+    .filter((id) => id.startsWith('tb:'))
+    .map((id) => images.find((im) => im.id === id.slice(3)))
+    .filter((im): im is { id: string; src: string } => !!im);
 
   const eyebrow = eyebrowStyle(theme);
   // Stesso default del disegno (`gBw` in CanvasBoard.tsx): un gruppo nasce con
@@ -314,36 +349,75 @@ export function GroupSidebar({ group, tiles, open, onToggle, onUpdate, onDelete,
             <span style={eyebrow}>Tile ({groupTiles.length})</span>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {groupTiles.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => onSelectTile(t.id)}
-                  title={t.title || 'Senza titolo'}
-                  style={{
-                    display: 'flex', alignItems: 'center', width: '100%', padding: '7px 10px',
-                    textAlign: 'left', background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`,
-                    borderRadius: 'var(--ob-radius-sm)', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
-                    cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}
-                >
-                  {t.title || 'Senza titolo'}
-                </button>
+                <div key={t.id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+                  <button
+                    onClick={() => onSelectTile(t.id)}
+                    title={t.title || 'Senza titolo'}
+                    style={{
+                      display: 'flex', alignItems: 'center', flex: 1, minWidth: 0, padding: '7px 10px',
+                      textAlign: 'left', background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`,
+                      borderRadius: 'var(--ob-radius-sm)', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
+                      cursor: 'pointer', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {t.title || 'Senza titolo'}
+                  </button>
+                  {onUngroupMember && <UngroupButton onClick={() => onUngroupMember(t.id)} />}
+                </div>
               ))}
             </div>
           </div>
 
-          {/* Azioni */}
-          <button
-            onClick={onDelete}
-            style={{
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              width: '100%', padding: '9px 12px', background: 'transparent',
-              border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: 'var(--ob-danger)',
-              fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer',
-            }}
-          >
-            <IconTrash size={14} />
-            Elimina gruppo
-          </button>
+          {/* Immagini contenute — membri come i tile, elencate per miniatura. */}
+          {groupImages.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <span style={eyebrow}>Immagini ({groupImages.length})</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {groupImages.map((im) => (
+                  <div key={im.id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+                    <div
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, padding: '5px 8px',
+                        background: 'var(--ob-rail-field)', border: `1px solid ${theme.border}`,
+                        borderRadius: 'var(--ob-radius-sm)', color: theme.ink2,
+                        fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
+                      }}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={im.src}
+                        alt=""
+                        style={{ width: 36, height: 24, objectFit: 'cover', borderRadius: 2, flexShrink: 0, background: theme.bg1 }}
+                      />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Immagine</span>
+                    </div>
+                    {onUngroupMember && <UngroupButton onClick={() => onUngroupMember(`tb:${im.id}`)} />}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Azioni — sciogliere NON cancella: il contenitore va via, tile e
+              immagini restano dove sono. Per questo non è un'azione rossa. */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <button
+              onClick={onDelete}
+              title="Toglie il gruppo: tile e immagini restano sul canvas"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                width: '100%', padding: '9px 12px', background: 'transparent',
+                border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)', color: theme.ink2,
+                fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, cursor: 'pointer',
+              }}
+            >
+              <IconBoxOff size={14} />
+              Sciogli gruppo (Ungroup)
+            </button>
+            <span style={{ color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta }}>
+              I tile e le immagini restano sul canvas.
+            </span>
+          </div>
         </div>
       )}
     </div>

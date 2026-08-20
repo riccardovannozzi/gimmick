@@ -32,13 +32,61 @@
 .ob-ask__bot-col { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
 .ob-ask__bubble { background: var(--ob-surface); border: 1px solid var(--ob-line); border-radius: 14px 14px 14px 4px; padding: 11px 14px; font-size: var(--ob-text-title); line-height: var(--ob-leading-text); color: var(--ob-text); }
 
-/* tile result card */
-.ob-ask__result { background: var(--ob-surface); border: 1px solid var(--ob-line); border-left: 2.5px solid var(--ob-success); border-radius: var(--ob-radius-md); padding: 13px 14px; width: 320px; max-width: 100%; }
+/* Allegato citato nella bolla dell'utente: dice COSA è partito con la domanda,
+   che dopo l'invio non è più visibile da nessun'altra parte. */
+.ob-ask__user-attach { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); opacity: 0.85; }
+
+/* ── Markdown nelle risposte ──
+   Claude risponde in Markdown. La bolla è stretta e alta poco: i blocchi qui
+   dentro perdono i margini di default del browser (che sfonderebbero il padding)
+   e si distanziano con un gap uniforme. */
+.ob-ask__md > :first-child { margin-top: 0; }
+.ob-ask__md > :last-child { margin-bottom: 0; }
+.ob-ask__md p, .ob-ask__md ul, .ob-ask__md ol, .ob-ask__md pre, .ob-ask__md blockquote, .ob-ask__md table { margin: 0 0 8px; }
+.ob-ask__md h1, .ob-ask__md h2, .ob-ask__md h3, .ob-ask__md h4 { margin: 12px 0 6px; font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); line-height: var(--ob-leading-tight); }
+.ob-ask__md ul, .ob-ask__md ol { padding-left: 20px; }
+.ob-ask__md li { margin-bottom: 3px; }
+.ob-ask__md li::marker { color: var(--ob-subtle); }
+.ob-ask__md a { color: var(--ob-accent); text-decoration: underline; text-underline-offset: 2px; }
+.ob-ask__md strong { font-weight: var(--ob-weight-emphasis); }
+.ob-ask__md code { font-family: var(--ob-font-mono); font-size: 0.92em; background: var(--ob-surface-2); border-radius: 4px; padding: 1px 5px; }
+.ob-ask__md pre { background: var(--ob-surface-2); border-radius: var(--ob-radius-sm); padding: 10px 12px; overflow-x: auto; }
+.ob-ask__md pre code { background: none; padding: 0; }
+.ob-ask__md blockquote { border-left: 2px solid var(--ob-line-2); padding-left: 10px; color: var(--ob-muted); }
+.ob-ask__md hr { border: none; border-top: 1px solid var(--ob-line); margin: 10px 0; }
+/* Una tabella larga deve scorrere DENTRO la bolla: senza, allarga il pannello. */
+.ob-ask__md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: var(--ob-text-control); }
+.ob-ask__md th, .ob-ask__md td { border: 1px solid var(--ob-line); padding: 5px 9px; text-align: left; }
+.ob-ask__md th { background: var(--ob-surface-2); font-weight: var(--ob-weight-emphasis); }
+
+/* Azione secondaria sotto la risposta (lettura ad alta voce): un'icona, per non
+   competere con i pulsanti Spark/Tile che le stanno accanto. */
+.ob-ask__act { width: 28px; height: 28px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; background: transparent; border: 1px solid var(--ob-line); color: var(--ob-subtle); cursor: pointer; flex-shrink: 0; transition: color 0.12s ease, background 0.12s ease; }
+.ob-ask__act:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
+
+/* tile result card
+   Il bordo sinistro prende il colore dell'AZIONE (`--res-c`, da lib/tile-action):
+   timed, all-day e notes si riconoscono a colpo d'occhio come nella vista Tiles.
+   Il fallback tiene il verde del thread di design, che azione non ne ha. */
+.ob-ask__result { background: var(--ob-surface); border: 1px solid var(--ob-line); border-left: 2.5px solid var(--res-c, var(--ob-success)); border-radius: var(--ob-radius-md); padding: 13px 14px; width: 320px; max-width: 100%; }
+
+/* Variante cliccabile (tile vere trovate dalla chat). È un <button>, quindi va
+   prima disfatto l'aspetto da pulsante: allineamento, font e cursore. */
+.ob-ask__result--live { display: block; text-align: left; font: inherit; color: inherit; cursor: pointer; transition: border-color 0.12s ease, background 0.12s ease; }
+.ob-ask__result--live:hover { background: var(--ob-hover-strong); border-color: var(--ob-line-2); border-left-color: var(--res-c, var(--ob-success)); }
+.ob-ask__result--live:focus-visible { outline: 2px solid var(--ob-accent); outline-offset: 2px; }
+
 .ob-ask__result-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .ob-ask__result-time { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); background: var(--ob-accent-soft); padding: 2px 8px; border-radius: var(--ob-radius-sm); }
-.ob-ask__result-title { font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
-.ob-ask__result-desc { font-size: var(--ob-text-control); color: var(--ob-muted); line-height: var(--ob-leading-text); margin-bottom: 11px; }
+/* Il titolo non manda a capo la card: una tile senza data ha tutta la riga, una
+   con data prende quel che resta e tronca. */
+.ob-ask__result-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--ob-text-title); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
+/* La descrizione è di due righe: è un'anteprima per riconoscere la tile, non il
+   suo contenuto — che sta a un click di distanza, nella sidebar. */
+.ob-ask__result-desc { font-size: var(--ob-text-control); color: var(--ob-muted); line-height: var(--ob-leading-text); margin-bottom: 11px; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .ob-ask__result-foot { display: flex; align-items: center; gap: 8px; }
+.ob-ask__result-action { display: flex; align-items: center; gap: 5px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--res-c, var(--ob-muted)); }
+.ob-ask__result-done { display: flex; align-items: center; gap: 4px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-success); }
 .ob-ask__result-caps { display: flex; gap: 5px; }
 .ob-ask__cap { width: 18px; height: 18px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; background: color-mix(in srgb, var(--cap-c) 16%, transparent); color: var(--cap-c); }
 .ob-ask__result-tag { display: flex; align-items: center; gap: 5px; font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted); }
@@ -49,14 +97,36 @@
 .ob-ask__suggestions { display: flex; gap: 8px; padding: 0 24px 12px; flex-wrap: wrap; max-width: 808px; margin: 0 auto; width: 100%; }
 .ob-ask__sugg { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: var(--ob-radius-sm); background: var(--ob-accent-soft); border: 1px solid var(--ob-line); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); cursor: pointer; }
 .ob-ask__sugg-icon { display: inline-flex; }
+.ob-ask__sugg:disabled { opacity: 0.45; cursor: default; }
 
 /* ── Composer ── */
 .ob-ask__input { padding: 4px 24px 20px; }
+
+/* Allegato in attesa: sta SOPRA la barra, non dentro, perché il nome di un file
+   è lungo quanto vuole e nella riga ruberebbe tutto lo spazio alla domanda. */
+.ob-ask__attach { max-width: 760px; margin: 0 auto 8px; display: flex; align-items: center; gap: 7px; padding: 6px 8px 6px 10px; border-radius: var(--ob-radius-sm); background: var(--ob-accent-soft); border: 1px solid var(--ob-line); font-size: var(--ob-text-control); color: var(--ob-text); }
+.ob-ask__attach-icon { display: inline-flex; color: var(--ob-accent); flex-shrink: 0; }
+.ob-ask__attach-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-ask__attach-x { width: 20px; height: 20px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; background: transparent; border: none; color: var(--ob-muted); cursor: pointer; flex-shrink: 0; }
+.ob-ask__attach-x:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
+
+/* Permesso microfono negato, TTS fallito: un guasto del compositore si dice nel
+   compositore, non come messaggio di Bito — non è lui a rispondere. */
+.ob-ask__voice-error { max-width: 760px; margin: 0 auto 8px; font-size: var(--ob-text-meta); color: var(--ob-error); }
+
+/* Registrazione in corso: la barra cambia mestiere — annulla a sinistra,
+   contatore al centro, stop-e-invia al posto dell'aeroplanino. */
+.ob-ask__rec { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; font-family: var(--ob-font-mono); font-size: var(--ob-text-control); color: var(--ob-text); }
+.ob-ask__rec-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ob-error); flex-shrink: 0; animation: ob-ask-pulse 1.2s ease-in-out infinite; }
+@keyframes ob-ask-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .ob-ask__rec-dot { animation: none; } }
 .ob-ask__input-bar { max-width: 760px; margin: 0 auto; display: flex; align-items: center; gap: 10px; background: var(--ob-field); border: 1px solid var(--ob-line-2); border-radius: var(--ob-radius-md); padding: 10px 12px; transition: border-color 140ms ease-out; }
 .ob-ask__input-bar:focus-within { border-color: var(--ob-accent); }
 .ob-ask__input-icon { width: 32px; height: 32px; border-radius: var(--ob-radius-sm); display: flex; align-items: center; justify-content: center; color: var(--ob-subtle); background: transparent; border: none; cursor: pointer; flex-shrink: 0; }
-.ob-ask__input-icon:hover { color: var(--ob-text); background: var(--ob-hover-strong); }
+.ob-ask__input-icon:hover:not(:disabled) { color: var(--ob-text); background: var(--ob-hover-strong); }
+.ob-ask__input-icon:disabled { opacity: 0.4; cursor: default; }
 .ob-ask__input-field { flex: 1; min-width: 0; border: none; outline: none; background: transparent; font-family: var(--ob-font-sans); font-size: var(--ob-text-title); color: var(--ob-text); }
 .ob-ask__input-field::placeholder { color: var(--ob-subtle); }
 .ob-ask__send { width: 38px; height: 38px; border-radius: var(--ob-radius-sm); background: var(--ob-accent); color: var(--ob-accent-ink); display: flex; align-items: center; justify-content: center; border: none; cursor: pointer; flex-shrink: 0; }
-.ob-ask__send:hover { filter: brightness(0.94); }
+.ob-ask__send:hover:not(:disabled) { filter: brightness(0.94); }
+.ob-ask__send:disabled { opacity: 0.45; cursor: default; }

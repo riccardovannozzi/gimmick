@@ -9,12 +9,14 @@
     "start": "node dist/index.js",
     "type": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "check": "run-p type lint",
-    "check:ci": "tsc --noEmit && eslint src --ext .ts"
+    "audit": "tsx src/scripts/audit-ownership.ts",
+    "check": "run-p type lint audit",
+    "check:ci": "tsc --noEmit && eslint src --ext .ts && tsx src/scripts/audit-ownership.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",
     "@napi-rs/canvas": "^1.0.0",
+    "@sentry/node": "^10.70.0",
     "@supabase/supabase-js": "^2.90.0",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.0",

@@ -6,6 +6,7 @@ import { validate } from '../middleware/validate.js';
 import { NotFoundError } from '../middleware/errorHandler.js';
 import { upsertTileEmbedding } from '../services/indexing.js';
 import { getActiveStatusId } from '../services/statuses.js';
+import { assertTileOwned } from '../utils/ownership.js';
 import type { AuthenticatedRequest, Tile } from '../types/index.js';
 
 const ACTION_TYPES = ['none', 'anytime', 'deadline', 'event', 'flow'] as const;
@@ -72,7 +73,11 @@ tilesRouter.get(
         // `state` sui subtask: è la differenza fra un passo non ancora fatto e
         // un passo FERMO, e la barra di avanzamento della card la disegna in
         // rosso. Senza, `is_done` da solo appiattisce i due casi su "pending".
-        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type)), tile_subtasks(user_id, is_done, sort_order, state)', { count: 'exact' })
+        // `is_root` sui tag NON è decorativo: la lista mostra UN tag per riga e
+        // lo sceglie scartando il root GIMMICK. Senza questo campo il filtro
+        // `!is_root` passa sempre e la riga finisce per mostrare "Gimmick"
+        // invece del tag vero (mismatch con il dettaglio nella sidebar).
+        .select('*, sparks(id, user_id, type, content, storage_path, thumbnail_path, mime_type, file_name), tile_tags(tag_id, tags(id, name, tag_type, is_root)), tile_subtasks(user_id, is_done, sort_order, state)', { count: 'exact' })
         .eq('user_id', req.user!.id);
 
       if (action_type) {
@@ -106,8 +111,8 @@ tilesRouter.get(
         mime_type: string | null;
         file_name: string | null;
       };
-      type TileTag = { id: string; name: string; tag_type?: string };
-      type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string } | null };
+      type TileTag = { id: string; name: string; tag_type?: string; is_root?: boolean };
+      type TileTagJoin = { tag_id: string; tags: { id: string; name: string; tag_type: string; is_root: boolean } | null };
       type SubtaskRow = { user_id: string; is_done: boolean | null; sort_order: number | null; state: 'blocked' | 'cancelled' | null };
       type TileListRow = Tile & {
         sparks?: SparkPreview[];
@@ -139,10 +144,10 @@ tilesRouter.get(
           .filter((s) => s.user_id === req.user!.id);
         const tags: TileTag[] = (tile.tile_tags || [])
           .map((tt) => tt.tags)
-          .filter((t): t is { id: string; name: string; tag_type: string } => Boolean(t));
+          .filter((t): t is { id: string; name: string; tag_type: string; is_root: boolean } => Boolean(t));
         // If no tags, inject root tag
         if (tags.length === 0 && rootTag) {
-          tags.push({ id: rootTag.id, name: rootTag.name });
+          tags.push({ id: rootTag.id, name: rootTag.name, is_root: true });
         }
         // Compact subtasks payload: sorted by sort_order, only what the
         // avanzamento bar needs — `is_done` e lo `state` che lo sovrascrive.
@@ -360,7 +365,7 @@ tilesRouter.post(
 
       // Fire-and-forget: generate semantic embedding for the new tile so the
       // unified `find` tool can match it. Errors are swallowed inside.
-      void upsertTileEmbedding(data.id);
+      void upsertTileEmbedding(data.id, req.user!.id);
 
       res.status(201).json({
         success: true,
@@ -469,7 +474,7 @@ tilesRouter.patch(
       // changed — avoids a wasted OpenAI call on every status / date / tag
       // tweak.
       if ('title' in req.body || 'description' in req.body) {
-        void upsertTileEmbedding(data.id as string);
+        void upsertTileEmbedding(data.id as string, req.user!.id);
       }
 
       res.json({
@@ -490,6 +495,15 @@ tilesRouter.patch(
 tilesRouter.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { id } = req.params;
+
+    // La proprietà si accerta PRIMA di qualunque cancellazione, non dopo.
+    // L'ordine contava davvero: la delete del tile in fondo filtra per
+    // `user_id` e su un id altrui non toccava niente, ma la delete di
+    // `tile_tags` qui sotto NON può filtrare (la junction non ha `user_id`) e
+    // veniva eseguita comunque. Con l'id di un tile altrui l'operazione
+    // falliva sul tile e riusciva sui suoi tag: bastava indovinare un id per
+    // spogliare dai tag il tile di un altro utente.
+    await assertTileOwned(req.user!.id, id as string);
 
     // First get all sparks for this tile to delete their files
     const { data: sparks, error: fetchError } = await supabaseAdmin

@@ -30,6 +30,14 @@ export interface TagGraph {
  * Call this AFTER inserting/removing tile_tags for a tile.
  *
  * Strategy: recalculate all pairs for the given tile.
+ *
+ * ownership-audit-fn: le letture su `tile_tags` non possono filtrare per utente
+ * — la junction non ha quella colonna. Non ne hanno bisogno: si parte SEMPRE da
+ * un tag dell'utente (i tag sono per-utente, e le scritture su `tile_tags`
+ * verificano entrambi i capi), quindi le righe raggiungibili da lì sono solo
+ * sue. Vale anche per il conteggio di co-occorrenza: sembra globale, ma
+ * `tag_from`/`tag_to` sono id di tag suoi, e nessun altro utente li possiede.
+ * Le query su `tags`, che invece la colonna ce l'ha, filtrano.
  */
 export async function updateTagWeights(userId: string, tileId: string): Promise<void> {
   // Get all tag_ids currently on this tile
@@ -52,7 +60,8 @@ export async function updateTagWeights(userId: string, tileId: string): Promise<
     await supabaseAdmin
       .from('tags')
       .update({ usage_count: count || 0 })
-      .eq('id', tagId);
+      .eq('id', tagId)
+      .eq('user_id', userId);
   }
 
   // Need at least 2 tags on the tile for co-occurrence
@@ -160,7 +169,8 @@ export async function getRelatedTags(
   const { data: tags } = await supabaseAdmin
     .from('tags')
     .select('id, name, slug, usage_count')
-    .in('id', relatedIds);
+    .in('id', relatedIds)
+    .eq('user_id', userId);
 
   if (!tags) return [];
 
