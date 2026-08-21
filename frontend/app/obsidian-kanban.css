@@ -126,13 +126,13 @@
    `scrollbar-gutter`: riservava lo spazio di una barra che ora non si disegna
    mai, spostando i tile fuori centro di qualche pixel. */
 /* I tile si dispongono a GRIGLIA dentro la cella, non in colonna singola.
-   Il tile e' largo 120 (vedi `TILE_SCALE`), quindi due ci stanno affiancati in
-   243 e la colonna si calibra su quello:
+   Il tile e' largo 144 (vedi `TILE_SCALE`), quindi due ci stanno affiancati in
+   291 e la colonna si calibra su quello:
 
-     256 = 243 di due tile + 6+6 di padding + 1 di bordo
+     304 = 291 di due tile + 6+6 di padding + 1 di bordo
 
    Le colonne sono `flex: 1`, quindi quando c'e' spazio si allargano e il numero
-   per riga sale da solo — a 379px ne entrano tre — senza che nessuno debba
+   per riga sale da solo — a 451px ne entrano tre — senza che nessuno debba
    deciderlo. La larghezza vera la calcola `colWidth()`: qui sotto c'e' solo il
    ripiego per la board di esempio.
 
@@ -152,16 +152,16 @@
 .ob-kanban__lane-body::-webkit-scrollbar { display: none; }
 .ob-kanban__group { width: 150px; display: flex; flex-direction: column; gap: 3px; }
 /* Cella della lane: la GRONDA di 9px in cui sborda il badge d'angolo del tile.
-   Sta qui e non come margine sul tile perché il rettangolo deve restare 150×80 e
-   l'allineamento nella lane non deve spostarsi. La distanza fra due card è
+   Sta qui e non come margine sul tile perché il rettangolo deve restare 180×100
+   e l'allineamento nella lane non deve spostarsi. La distanza fra due card è
    quindi 3 (gap del gruppo) + 9 = 12px, la stessa delle colonne di CHRONO.
    `overflow: visible` esplicito: il contenitore non deve mai ritagliare. */
 /* La cella e' solo la GRONDA in cui sborda il badge d'angolo, piu' la presa per
    il trascinamento. Nessuno zoom: il tile si rimpicciolisce da solo, ovunque
    nell'app, e da qui non si scala piu' niente.
    Qui c'era `zoom: 0.8`, quando il Kanban era l'unica vista a mostrare i tile
-   piu' piccoli. Ora 120×64 e' lo standard (`--ob-tile-zoom`) e un secondo
-   fattore si sarebbe moltiplicato col primo, riducendo i tile a 96×51. */
+   piu' piccoli. Ora 144×80 e' lo standard (`--ob-tile-zoom`) e un secondo
+   fattore si sarebbe moltiplicato col primo, riducendo i tile a 115×64. */
 .ob-kanban__cell { padding-top: 9px; flex-shrink: 0; overflow: visible; }
 
 /* ── Date pill ── */

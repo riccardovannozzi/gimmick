@@ -136,7 +136,7 @@ const LANES: Lane[] = [
 
 /**
  * La card della lane è il `Tile` del sistema visivo, come in Chrono, nel canvas
- * e nello staging. Misura già 150×80 come il Tile, quindi l'ingombro nella lane
+ * e nello staging. Misura già 180×100 come il Tile, quindi l'ingombro nella lane
  * non cambia: cambia cosa la card dice.
  *
  * ⚠️ Quattro segnali che la card del Kanban aveva e che il Tile NON ha:

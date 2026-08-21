@@ -86,7 +86,9 @@
 }
 [data-theme='light'] .ob-canvas__card { box-shadow: 0 1px 2px rgba(24, 20, 38, 0.04); }
 .ob-canvas__card--sel { border: 2px solid var(--ob-accent); }
-/* Titolo del tile 150×80. Identico in CANVAS, KANBAN, CHRONO e STAGING: è lo
+/* Titolo della card statica delle ANTEPRIME (non il tile vero, che è
+   `.ob-tile__title` e ora vive su 180×100 con corpo/peso propri). Era allineato
+   fra CANVAS, KANBAN, CHRONO e STAGING quando lo era anche la card: è lo
    stesso oggetto, e prima ognuna delle quattro viste lo scriveva a modo suo
    (12.5/600 qui, 12/300 in kanban e staging, 12/400 in chrono). */
 .ob-canvas__card-title { font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
@@ -167,7 +169,7 @@
 
 /* ── LIVELLO DI DETTAGLIO DEL TILE SUL CANVAS ─────────────────────────────────
    Il canvas è l'unica vista con uno zoom, quindi l'unica in cui il tile può
-   diventare una scheggia: il rettangolo resta 150×80 nello spazio della board
+   diventare una scheggia: il rettangolo resta 180×100 nello spazio della board
    ma sullo schermo si rimpicciolisce. Sotto `TILE_LOD_MIN_SCALE` (0.6) il
    segmento dello stepper — alto 3px — scende sotto i 2px reali e il bordo del
    badge sotto il pixel fisico: a quel punto non sono più simboli attenuati, sono

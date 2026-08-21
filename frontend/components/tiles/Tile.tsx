@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Gimmick — Il Tile, 150×80, con i cinque canali visivi montati.
+ * Gimmick — Il Tile, 180×100 disegnati e 144×80 mostrati, con i cinque canali
+ * visivi montati.
  *
  * Presentazionale: riceve la chiave grafica già risolta (`tileVisualKey()`) e
  * il metadato già formattato. Non legge il dominio, non formatta date, non
@@ -24,11 +25,14 @@ import type { SparkType } from '@/types';
  * La regola "se il metadato non entra in almeno 6 caratteri non renderizzarlo"
  * richiede di sapere quanto spazio resta accanto allo status. Misurarlo davvero
  * significherebbe un passaggio di layout per ogni tile; qui non serve, perché
- * la larghezza del tile è FISSA a 150 e il corpo tipografico è fisso: la stima
+ * la larghezza del tile è FISSA a 180 e il corpo tipografico è fisso: la stima
  * è deterministica, non un'approssimazione che cambia da caso a caso.
+ *
+ * ⚠️ Vanno rifatti se cambia `TILE_BASE_W` (lib/tile-visual.ts): sono la sua
+ * larghezza meno il footer, non due numeri indipendenti.
  */
-const FOOTER_W = 130;        // 150 − 10 di padding per lato
-const FOOTER_W_STRIP = 112;  // con la strip il padding sinistro diventa 28
+const FOOTER_W = 160;        // 180 − 10 di padding per lato
+const FOOTER_W_STRIP = 142;  // con la strip il padding sinistro diventa 28
 const CHAR_W = 5.4;          // larghezza media a var(--ob-text-meta)
 const MIN_META_CHARS = 6;
 

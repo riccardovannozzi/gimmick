@@ -2,7 +2,7 @@
  * Gimmick — Sistema visivo dei Tile a canali indipendenti.
  *
  * Un Tile si legge senza leggerne il contenuto. Cinque canali, cinque zone del
- * rettangolo 150×80, che non possono collidere fra loro:
+ * rettangolo 180×100, che non possono collidere fra loro:
  *
  *   bordo           perimetro                    tipo, famiglia "senza tempo"
  *   badge d'angolo  spigoli superiori (esterni)  tipo, famiglia "con tempo"
@@ -192,14 +192,19 @@ export const STEPPER_MAX_SEGMENTS = 10;
 
 /**
  * Il rettangolo su cui il tile è DISEGNATO. Tutte le misure interne — padding
- * 10, strip 20, corpi 11/12 — sono tarate su questo, ed è il 150×80 di cui parla
- * l'intestazione di questo file.
+ * 10/6, strip 20, corpi 11/15 — sono tarate su questo.
+ *
+ * ⚠️ Non è la misura che si vede: è 180×100 perché a valle c'è `TILE_SCALE`.
+ * Era 150×80 quando il tile si mostrava a 120×64; il rettangolo è cresciuto
+ * insieme all'ingombro, non al posto suo. Il rapporto è cambiato (1.875 → 1.8),
+ * quindi non è un semplice riscalamento del vecchio: il tile è ora
+ * proporzionalmente un po' più alto.
  */
-export const TILE_BASE_W = 150;
-export const TILE_BASE_H = 80;
+export const TILE_BASE_W = 180;
+export const TILE_BASE_H = 100;
 
 /**
- * La scala a cui il tile è MOSTRATO. 0.8 → 120×64, misura standard in canvas,
+ * La scala a cui il tile è MOSTRATO. 0.8 → 144×80, misura standard in canvas,
  * staging, colonne di CHRONO (Notes/Todo/Flow) e Kanban.
  *
  * ⚠️ Il gemello di questo numero è il token `--ob-tile-zoom` in app/obsidian.css,
@@ -227,7 +232,7 @@ export const TILE_H = TILE_BASE_H * TILE_SCALE;
  * c'è nessuna card.
  *
  * Il posto dove il problema esiste davvero è il CANVAS, che ha uno zoom: a
- * scale ridotte il rettangolo resta 150×80 nello spazio del board ma sullo
+ * scale ridotte il rettangolo resta 180×100 nello spazio del board ma sullo
  * schermo diventa una scheggia.
  *
  * 0.6 viene dalle misure, non dal gusto: il segmento dello stepper è alto 3px e

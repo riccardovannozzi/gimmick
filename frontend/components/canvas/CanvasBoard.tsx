@@ -43,8 +43,8 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
 }
 
 /**
- * ⚠️ `TILE_W`/`TILE_H` arrivano ora da lib/tile-visual (120×64) e NON sono più
- * dichiarati qui a 150×80. È l'ingombro che il tile occupa davvero: il
+ * ⚠️ `TILE_W`/`TILE_H` arrivano da lib/tile-visual (144×80) e NON sono
+ * dichiarati qui. È l'ingombro che il tile occupa davvero: il
  * rettangolo di presa, l'anello di selezione e gli agganci degli edge devono
  * combaciare col disegno, e il disegno è scalato da `--ob-tile-zoom`.
  * Le posizioni salvate non cambiano: i tile restano dove sono, più piccoli.
@@ -54,9 +54,9 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
  *
  * Il badge d'angolo sborda di 8px sopra il bordo superiore, per costruzione. Un
  * `<foreignObject>` RITAGLIA il proprio contenuto al proprio rettangolo, quindi
- * se lo dimensionassimo 120×64 il badge verrebbe tagliato a metà. Il riquadro è
+ * se lo dimensionassimo 144×80 il badge verrebbe tagliato a metà. Il riquadro è
  * perciò più grande su tutti i lati e la card viene rimessa in posizione con un
- * margine interno di pari valore: il tile resta 120×64 e allineato alla griglia,
+ * margine interno di pari valore: il tile resta 144×80 e allineato alla griglia,
  * cambia solo la finestra in cui è disegnato.
  */
 /**

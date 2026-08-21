@@ -104,7 +104,7 @@ export interface ColTile {
  * presentazionale: il trascinamento verso la griglia del calendario, e la
  * GRONDA di 9px. La gronda sta sulla cella e non sul tile — un margine sul tile
  * ne sposterebbe l'allineamento; un padding sulla cella lascia il rettangolo
- * intatto a 150×80 e riserva sopra lo spazio in cui i badge sbordano.
+ * intatto a 180×100 e riserva sopra lo spazio in cui i badge sbordano.
  */
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const canDrag = !!schedulable && !!t.id;

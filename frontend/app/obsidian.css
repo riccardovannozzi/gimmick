@@ -307,15 +307,20 @@
   --ob-toolbar-height: 44px;
 
   /* ── Scala del TILE ──────────────────────────────────────────────────────
-     Il tile è disegnato su un rettangolo di 150×80 e mostrato a 0.8, cioè
-     120×64. È la misura STANDARD: canvas, staging, colonne di CHRONO
+     Il tile è disegnato su un rettangolo di 180×100 e mostrato a 0.8, cioè
+     144×80. È la misura STANDARD: canvas, staging, colonne di CHRONO
      (Notes/Todo/Flow) e Kanban lo mostrano tutti così.
 
-     Perché una scala e non un rettangolo da 120×64 ridisegnato: `zoom` riduce
+     Perché una scala e non un rettangolo da 144×80 ridisegnato: `zoom` riduce
      ANCHE l'interno — testo, spaziature, strip, badge — mantenendo le
-     proporzioni che rendono il tile leggibile. Ridisegnarlo a 120×64 avrebbe
+     proporzioni che rendono il tile leggibile. Ridisegnarlo a 144×80 avrebbe
      voluto dire ricalcolare a mano ogni misura interna, e i corpi tipografici
      sarebbero caduti fuori dalla scala canonica (8/9/11/12/13/16).
+
+     ⚠️ Per cambiare l'ingombro si tocca il RETTANGOLO (`TILE_BASE_W/H` in
+     lib/tile-visual.ts + `width`/`height` di `.ob-tile`), non questa scala:
+     lo zoom governa anche il corpo del testo, e ritoccarlo rimpicciolirebbe o
+     ingrosserebbe tutto l'interno insieme al rettangolo.
 
      ⚠️ Il gemello di questo numero è `TILE_SCALE` in lib/tile-visual.ts, che
      serve al canvas per la geometria SVG (JavaScript non può leggere un token
@@ -327,10 +332,22 @@
      "12px generico" dell'app: lo usano un centinaio di punti fra sidebar,
      modali, pagina dei tag, contatti ed editor markdown. Portarlo a 13 per far
      crescere il titolo del tile avrebbe ingrossato tutti quelli insieme.
-     Resta dentro la scala canonica (8/9/11/12/13/16): è il 13, non un valore
-     inventato per l'occasione.
-     ⚠️ È un corpo NOMINALE: lo zoom del tile (0.8) lo riduce a 10,4px reali. */
-  --ob-tile-title: 13px;
+     ⚠️ È un corpo NOMINALE: lo zoom del tile (0.8) lo riduce a 12px reali —
+     che è poi il motivo per cui 15 non stona pur essendo fuori dalla scala
+     canonica (8/9/11/12/13/16). Sullo schermo il titolo rende esattamente il
+     12 della scala; il 15 è solo il numero che serve a monte dello zoom. */
+  --ob-tile-title: 15px;
+
+  /* Peso del titolo del tile.
+     ⚠️ Il 500 NON è nella scala dei pesi (400 body / 600 emphasis / 700 mono):
+     è un peso che il sistema aveva deliberatamente ritirato. Vive qui, in un
+     token tutto suo, e non come `--ob-weight-medium`, proprio per non
+     riaprirlo a tutta l'app: è una calibratura del solo titolo del tile, che
+     è l'unico testo che il browser disegna dopo uno zoom.
+     Regge perché Geist è caricato come variable font (nessun `weight` fissato
+     in layout.tsx), quindi l'asse 100–900 è continuo e il 500 è un peso vero,
+     non un'approssimazione al 400 più vicino. */
+  --ob-tile-title-weight: 500;
 
   /* Rosso dell'azione distruttiva (elimina, conferma eliminazione).
      È DISTINTO da `--ob-error`, che segnala uno stato e cambia col tema

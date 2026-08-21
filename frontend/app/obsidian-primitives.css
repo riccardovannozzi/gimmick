@@ -566,8 +566,8 @@
 [data-sparks='off'] .ob-tsparks { display: none; }
 
 /* ─── IL TILE ───────────────────────────────────────────────────────────────
-   150×80, la misura unica di tutte le superfici (canvas TILE_W/TILE_H, colonne
-   di Chrono, corsie del Kanban, staging).
+   180×100 disegnati, 144×80 mostrati: la misura unica di tutte le superfici
+   (canvas TILE_W/TILE_H, colonne di Chrono, corsie del Kanban, staging).
 
    ⚠️ NIENTE `overflow: hidden`. È deliberato: i badge sbordano dal rettangolo
    per costruzione. Il contenimento è ottenuto dando a ogni figlio che tocca il
@@ -577,15 +577,18 @@
    ────────────────────────────────────────────────────────────────────────── */
 .ob-tile {
   position: relative;
-  /* Il rettangolo di DISEGNO resta 150×80: tutte le misure interne (padding 10,
-     strip 20, corpi 11/12) sono tarate su questo, ed è il sistema descritto in
-     lib/tile-visual.ts. Quello che si VEDE è 120×64, perché `zoom` scala il
+  /* Il rettangolo di DISEGNO è 180×100: tutte le misure interne (padding 10/6,
+     strip 20, corpi 11/15) sono tarate su questo, ed è il sistema descritto in
+     lib/tile-visual.ts. Quello che si VEDE è 144×80, perché `zoom` scala il
      rettangolo e tutto quello che contiene.
      `zoom` e non `transform: scale()`: lo zoom entra nel calcolo del layout,
-     quindi il tile OCCUPA davvero 120×64 e le colonne che lo contengono si
-     stringono di conseguenza. Con `transform` sarebbe rimasta in piedi una
-     scatola da 150×80 con dentro un tile più piccolo. */
-  width: 150px; height: 80px; flex-shrink: 0;
+     quindi il tile OCCUPA davvero 144×80 e le colonne che lo contengono si
+     allargano di conseguenza. Con `transform` sarebbe rimasta in piedi una
+     scatola da 180×100 con dentro un tile più piccolo.
+     ⚠️ Gemello di `TILE_BASE_W`/`TILE_BASE_H` in lib/tile-visual.ts, da cui il
+     canvas ricava la geometria SVG: vanno cambiati INSIEME, o i tile finiscono
+     disegnati in un posto e cliccabili in un altro. */
+  width: 180px; height: 100px; flex-shrink: 0;
   zoom: var(--ob-tile-zoom, 0.8);
   border-radius: var(--ob-radius-sm);
   /* Velatura del colore dell'action sul fondo unico dei tile — la STESSA
@@ -595,7 +598,7 @@
      velatura: e' la variante che le viste chiamano `--plain`. */
   background: color-mix(in srgb, var(--ac, var(--ob-tile-bg)) 14%, var(--ob-tile-bg));
   /* Hairline strutturale: definisce il rettangolo, non porta significato.
-     Con box-sizing border-box l'ingombro resta 150×80 anche quando il bordo
+     Con box-sizing border-box l'ingombro resta 180×100 anche quando il bordo
      action lo ingrossa a 1.5px.
      ⚠️ È `--ob-tile-border` e non la hairline generica `--ob-line`: da quando in
      light l'area di lavoro è il bianco pieno, il tile senza colorazione è una
@@ -674,28 +677,34 @@
 
 /* Corpo: il titolo in alto, con 10 di respiro sopra e sotto e 6 ai lati.
    I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
-   perde: il tile è largo 150 e il testo va a capo dopo due righe, quindi ogni
-   pixel orizzontale è una lettera in più prima dell'ellissi. In verticale
-   invece lo spazio avanza — due righe a 13px occupano 34 dei 77 disponibili.
+   perde: il testo va a capo dopo due righe, quindi ogni pixel orizzontale è
+   una lettera in più prima dell'ellissi. In verticale invece lo spazio avanza —
+   due righe a 15px occupano 39 dei 97 disponibili.
 
-   Il padding basso NON è più lo spazio riservato al footer: la riga di footer
+   Il padding basso NON è lo spazio riservato al footer: la riga di footer
    (status a sinistra, metadato a destra) è posizionata in assoluto a
    `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
    libero per costruzione; ora la separazione la garantisce il clamp a due
-   righe — 10 di padding + 34 di testo = 44, contro i 58 a cui comincia il
-   footer. ⚠️ Se il clamp salisse a tre righe quel margine sparirebbe. */
+   righe — 10 di padding + 39 di testo = 49, contro i 78 a cui comincia il
+   footer. ⚠️ Se il clamp salisse a tre righe il margine si dimezzerebbe. */
 .ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
 
-/* Peso BODY e non emphasis. Il 600 era tarato su un tile a grandezza naturale,
-   dove il titolo rendeva 12px pieni; da quando il tile è scalato a 0.8 quel
-   testo rende 10,4px, e a quel corpo un tratto grasso chiude le contro-forme
-   delle lettere — la parola diventa una macchia con la sagoma giusta.
-   La gerarchia col metadato regge lo stesso: quello è più piccolo (8,8) e al
-   60% di opacità, quindi il titolo resta primo senza bisogno del peso. */
+/* Corpo e peso hanno un token TUTTO LORO (`--ob-tile-title`, 15px, e
+   `--ob-tile-title-weight`, 500) e non pescano dalla scala generale. Il motivo
+   è lo zoom: questo è l'unico testo dell'app che il browser disegna dopo una
+   riduzione a 0.8, quindi va calibrato sul rendering — 15/500 qui valgono
+   12px sullo schermo.
+
+   Il 500 sta in mezzo ai due pesi della scala, e la ragione è quella di prima
+   letta al contrario: il 600 chiudeva le contro-forme quando il titolo rendeva
+   9,6px, ma ora ne rende 12 e quel rischio è rientrato; il 400 a 12px, su un
+   tile diventato più grande, lasciava il titolo troppo timido rispetto al
+   rettangolo che lo contiene.
+   ⚠️ Il 500 è un peso che la scala aveva ritirato — vedi la nota sul token. */
 .ob-tile__title {
   font-size: var(--ob-tile-title);
-  font-weight: var(--ob-weight-body);
+  font-weight: var(--ob-tile-title-weight);
   line-height: var(--ob-leading-tight);
   letter-spacing: -0.01em;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
@@ -706,7 +715,7 @@
    sei caratteri non viene renderizzato affatto (decisione presa nel componente,
    dove le misure sono note), altrimenti tronca con ellissi. */
 .ob-tile__meta {
-  position: absolute; right: 10px; bottom: 9px; max-width: 96px;
+  position: absolute; right: 10px; bottom: 9px; max-width: 118px;
   font-size: var(--ob-text-meta); line-height: var(--ob-leading-none);
   opacity: 0.6;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
