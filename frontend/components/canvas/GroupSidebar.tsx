@@ -15,22 +15,11 @@ import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
 import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBoard';
 
-// Palette per lo SFONDO del gruppo: toni scuri e DESATURATI (charcoal tinti).
-// I pastelli chiari facevano "sparire" i tile, la riga "Bright"/"Dark1" della
-// GIMMICK_PALETTE era ancora troppo satura → qui usiamo colori scuri e spenti,
-// che fanno da sfondo neutro dietro i tile senza risultare accesi.
-export const GROUP_BG_PALETTE = [
-  { id: 'g-gray',   hex: '#3A3A3E', name: 'Grigio' },
-  { id: 'g-blue',   hex: '#2E3A4C', name: 'Blu' },
-  { id: 'g-cyan',   hex: '#264049', name: 'Ciano' },
-  { id: 'g-teal',   hex: '#25413C', name: 'Verde acqua' },
-  { id: 'g-green',  hex: '#2E3E2C', name: 'Verde' },
-  { id: 'g-olive',  hex: '#3F3A28', name: 'Oliva' },
-  { id: 'g-orange', hex: '#43352A', name: 'Arancio' },
-  { id: 'g-red',    hex: '#432C30', name: 'Rosso' },
-  { id: 'g-pink',   hex: '#3E2C3A', name: 'Rosa' },
-  { id: 'g-purple', hex: '#332C43', name: 'Viola' },
-];
+// C'era qui `GROUP_BG_PALETTE`: dieci toni scuri e desaturati, scelti perché
+// un pastello chiaro dietro i tile li faceva "sparire". È stata ritirata — il
+// gruppo usa ora la palette generale dell'app come ogni altro campo colore,
+// così la scelta è la stessa ovunque. Il vecchio motivo però non è sparito con
+// lei: vedi l'avvertenza sul campo "Colore sfondo", più in basso.
 
 interface GroupSidebarProps {
   group: CanvasGroup;
@@ -55,7 +44,8 @@ const eyebrowStyle = obLabel;
 
 /** Campo colore: swatch cliccabile che apre una palette (GIMMICK_PALETTE). */
 export function ColorField({ label, value, onChange, allowNone, palette = GIMMICK_PALETTE }: {
-  label: string;
+  /** Omessa sotto un'intestazione di sezione — vedi `Segmented`. */
+  label?: string;
   value: string | null | undefined;
   onChange: (hex: string | null) => void;
   allowNone?: boolean;
@@ -74,7 +64,7 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={eyebrowStyle(theme)}>{label}</span>
+      {label && <span style={eyebrowStyle(theme)}>{label}</span>}
       <div ref={ref} style={{ position: 'relative' }}>
         <button
           onClick={() => setOpen((o) => !o)}
@@ -100,18 +90,36 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
               }),
             }}
           />
-          {value ? value.toUpperCase() : 'Nessuno'}
+          {/* "Default" e non "Nessuno": l'assenza di un colore scelto non
+              lascia l'oggetto senza colore, gli fa prendere quello di sistema —
+              `EDGE_COLOR_DEFAULT` per un collegamento, `--ob-group-bg` per un
+              gruppo, la superficie per un box di testo. "Nessuno" prometteva
+              una trasparenza che non c'è mai stata.
+              La scacchiera resta: dice che qui non c'è una SCELTA, ed è vero.
+              Mostrare il colore effettivo vorrebbe dire che questo campo sappia
+              qual è il default di chi lo ospita, e non lo sa. */}
+          {value ? value.toUpperCase() : 'Default'}
         </button>
         {open && (
           <div
             style={{
-              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, zIndex: 50, width: 'max-content',
               background: theme.surface, border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-md)',
               boxShadow: 'var(--ob-shadow-card)', padding: 8,
               display: 'flex', flexDirection: 'column', gap: 6,
             }}
           >
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 1fr)', gap: 3 }}>
+            {/* Colonne a misura FISSA e non `1fr`: con `1fr` la swatch valeva
+                quanto il campo che apre il menu, e nella TextSidebar quel campo
+                divide la riga con "Dimensione" — restavano poco più di 8px per
+                colore, illeggibili. Ora la misura la decide la swatch e il menu
+                si dimensiona di conseguenza (`width: max-content`).
+                20 × 10 + 4 di gap + 8+8 di padding = 252, che sta nei 256 utili
+                della sidebar (280 meno 12+12): è il massimo possibile senza far
+                uscire il menu dal pannello, che lo ritaglierebbe — il corpo ha
+                `overflowY: auto`, e basta un asse non-visible a ritagliare
+                anche l'altro. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(10, 20px)', gap: 4 }}>
               {palette.map((c) => {
                 const on = (value || '').toLowerCase() === c.hex.toLowerCase();
                 return (
@@ -140,10 +148,10 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
                   cursor: 'pointer', color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card,
                 }}
               >
-                <span style={{ width: 16, height: 16, borderRadius: 'var(--ob-radius-sm)', border: `1px solid ${theme.border}`, position: 'relative', overflow: 'hidden' }}>
+                <span style={{ width: 20, height: 20, borderRadius: 'var(--ob-radius-sm)', border: `1px solid ${theme.border}`, position: 'relative', overflow: 'hidden' }}>
                   <span style={{ position: 'absolute', inset: 0, background: `linear-gradient(to top right, transparent 46%, #E24B4A 46%, #E24B4A 54%, transparent 54%)` }} />
                 </span>
-                Nessuno
+                Default
               </button>
             )}
           </div>
@@ -155,7 +163,9 @@ export function ColorField({ label, value, onChange, allowNone, palette = GIMMIC
 
 /** Gruppo di pulsanti segmentati. */
 export function Segmented<T extends string | number>({ label, value, options, onChange }: {
-  label: string;
+  /** Omessa quando il controllo sta sotto un'intestazione di sezione che dice
+   *  già la stessa parola: ripeterla è rumore. */
+  label?: string;
   value: T;
   options: { value: T; content: React.ReactNode; title?: string }[];
   onChange: (v: T) => void;
@@ -163,7 +173,7 @@ export function Segmented<T extends string | number>({ label, value, options, on
   const theme = usePixelTheme();
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={eyebrowStyle(theme)}>{label}</span>
+      {label && <span style={eyebrowStyle(theme)}>{label}</span>}
       <div style={{ display: 'flex', gap: 4 }}>
         {options.map((o) => {
           const active = o.value === value;
@@ -309,11 +319,15 @@ export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpda
           </div>
 
           {/* Stile: sfondo / bordo / spessore / tipologia */}
+          {/* ⚠️ Palette GENERALE (default di `ColorField`), come i box di testo.
+              Da sapere: il fondo del gruppo è pieno, non velato, e i tile che ci
+              stanno sopra hanno il loro fondo chiaro. Con un colore della riga
+              Light2 in tema chiaro il gruppo e i tile finiscono quasi dello
+              stesso valore, e a separarli resta solo la hairline del tile. */}
           <ColorField
             label="Colore sfondo"
             value={group.bgColor}
             allowNone
-            palette={GROUP_BG_PALETTE}
             onChange={(hex) => onUpdate({ bgColor: hex })}
           />
           <ColorField

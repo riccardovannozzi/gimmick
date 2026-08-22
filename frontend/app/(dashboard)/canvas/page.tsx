@@ -11,7 +11,7 @@ import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent } from '@/components/canvas/CanvasBoard';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
 import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
@@ -46,10 +46,15 @@ export default function CanvasPage() {
   // Appunti canvas (copia/incolla). Copiando un elemento (tile/testo/immagine)
   // si memorizza qui; l'incolla avviene SOLO col tasto destro sul punto target
   // (menu "Incolla"), non più col click sinistro.
-  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image'; id: string } | null>(null);
+  // I marcatori rientrano qui come qualunque altro box: il ramo di incollaggio
+  // dei box è già generico (tipo, contenuto e misure del sorgente), quindi non
+  // ha avuto bisogno di sapere che esistono.
+  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker'; id: string } | null>(null);
   // Menu contestuale "Incolla" sullo sfondo del canvas (posizione + coord locali).
   const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; localX: number; localY: number } | null>(null);
   const [imageMode, setImageMode] = useState(false);
+  /** Tipo di marcatore armato dalla barra, o null. */
+  const [markerMode, setMarkerMode] = useState<MarkerKind | null>(null);
   // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
@@ -302,6 +307,9 @@ export default function CanvasPage() {
     lineStyle: e.line_style ?? null,
     lineWidth: e.line_width ?? null,
     label: e.label ?? null,
+    arrow: e.arrow ?? null,
+    arrowSize: e.arrow_size ?? null,
+    labelAlign: e.label_align ?? null,
   })), [edgesData]);
   const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) || null, [edges, selectedEdgeId]);
 
@@ -423,6 +431,82 @@ export default function CanvasPage() {
     }
   }, [tagId, queryClient]);
 
+  /**
+   * INNESTO — A→B diventa A→X e X→B, con X l'oggetto lasciato cadere sopra.
+   *
+   * I due mezzi EREDITANO lo stile del collegamento spezzato (colore, tratto,
+   * spessore, freccia, misura della punta, disposizione del testo): quello che
+   * si sta facendo è infilare una tappa in un percorso, non sostituirlo con due
+   * collegamenti nuovi che ricominciano dai valori di fabbrica.
+   *
+   * L'ETICHETTA no: resta sul primo mezzo. Duplicarla avrebbe scritto due volte
+   * la stessa parola a pochi pixel di distanza, e cancellarla avrebbe perso un
+   * testo che l'utente aveva battuto a mano.
+   *
+   * Le porte esterne si conservano (A tiene la sua, B la sua); quelle nuove, sui
+   * due capi che toccano l'oggetto, restano libere: il marcatore è tondo e la
+   * scelta migliore la fa già `findBestPorts` in base a dove si trova.
+   */
+  const handleSplitEdge = useCallback(async (edgeId: string, nodeId: string) => {
+    if (!tagId) return;
+    const list = ((queryClient.getQueryData(['canvas-edges', tagId]) as any)?.data || []) as any[];
+    const e = list.find((x) => x.id === edgeId);
+    if (!e) return;
+    // Lo stile viaggia in snake_case: è la forma in cui la cache tiene gli edge
+    // (arrivano così dall'API) ed è quella che la PATCH si aspetta.
+    const style = {
+      color: e.color ?? null,
+      line_style: e.line_style ?? null,
+      line_width: e.line_width ?? null,
+      arrow: e.arrow ?? null,
+      arrow_size: e.arrow_size ?? null,
+      label_align: e.label_align ?? null,
+    };
+    const stamp = Date.now();
+    const tempA = `temp-split-a-${stamp}`;
+    const tempB = `temp-split-b-${stamp}`;
+    queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+      data: [
+        ...(old?.data || []).filter((x: any) => x.id !== edgeId),
+        { id: tempA, source_id: e.source_id, target_id: nodeId, source_port: e.source_port, ...style, label: e.label ?? null },
+        { id: tempB, source_id: nodeId, target_id: e.target_id, target_port: e.target_port, ...style, label: null },
+      ],
+    }));
+
+    const [ra, rb] = await Promise.all([
+      canvasApi.addEdge(tagId, e.source_id, nodeId, e.source_port, undefined),
+      canvasApi.addEdge(tagId, nodeId, e.target_id, undefined, e.target_port),
+    ]);
+    const a = ra?.success ? (ra.data as any) : null;
+    const b = rb?.success ? (rb.data as any) : null;
+
+    if (!a || !b) {
+      // Rimettiamo l'edge com'era. Un mezzo che fosse passato va tolto anche dal
+      // server: lasciarlo darebbe un collegamento che nessuno ha chiesto, in più
+      // a un edge che è ancora intero.
+      queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+        data: [...(old?.data || []).filter((x: any) => x.id !== tempA && x.id !== tempB), e],
+      }));
+      if (a) canvasApi.deleteEdge(a.id);
+      if (b) canvasApi.deleteEdge(b.id);
+      toast.error(ra?.error || rb?.error || 'Innesto non riuscito');
+      return;
+    }
+
+    queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+      data: (old?.data || []).map((x: any) =>
+        x.id === tempA ? { ...x, id: a.id } : x.id === tempB ? { ...x, id: b.id } : x),
+    }));
+    // Lo stile non viaggia con la POST (che porta solo gli estremi): si scrive
+    // subito dopo, e senza debounce — qui non c'è una mano che continua a
+    // muovere un cursore, è una scrittura sola.
+    canvasApi.updateEdge(a.id, { ...style, label: e.label ?? null });
+    canvasApi.updateEdge(b.id, style);
+    // Il vecchio se ne va per ULTIMO: fin qui, se qualcosa fosse andato storto,
+    // il collegamento originale esisteva ancora sul server e si poteva rimettere.
+    await canvasApi.deleteEdge(edgeId);
+  }, [tagId, queryClient]);
+
   // Delete edge
   const handleDeleteEdge = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -436,19 +520,40 @@ export default function CanvasPage() {
   // Aggiorna lo stile di un edge (colore/tipologia/spessore/testo). La cache
   // tiene i dati in snake_case (come dall'API): mappiamo il patch camelCase e
   // salviamo in modo debounced.
-  const edgeUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleUpdateEdge = useCallback((id: string, patch: { color?: string | null; lineStyle?: 'solid' | 'dashed' | 'dotted' | null; lineWidth?: number | null; label?: string | null }) => {
+  /**
+   * Salvataggi degli edge, rimandati di 500ms — UNO SPORTELLO PER EDGE, e con
+   * gli aggiornamenti dello stesso edge che si SOMMANO.
+   *
+   * Stessa correzione fatta per i box: era un timer solo per tutti, quindi
+   * scegliere il colore e poi la freccia entro mezzo secondo mandava al server
+   * la sola freccia. Sullo schermo si vedeva tutto giusto — la cache si scrive
+   * subito — e la perdita saltava fuori solo al ricaricamento.
+   */
+  const edgeUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const edgePending = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const handleUpdateEdge = useCallback((id: string, patch: { color?: string | null; lineStyle?: 'solid' | 'dashed' | 'dotted' | null; lineWidth?: number | null; label?: string | null; arrow?: EdgeArrow | null; arrowSize?: number | null; labelAlign?: EdgeLabelAlign | null }) => {
     if (!tagId) return;
     const snake: Record<string, unknown> = {};
     if ('color' in patch) snake.color = patch.color ?? null;
     if ('lineStyle' in patch) snake.line_style = patch.lineStyle ?? null;
     if ('lineWidth' in patch) snake.line_width = patch.lineWidth ?? null;
     if ('label' in patch) snake.label = patch.label ?? null;
+    if ('arrow' in patch) snake.arrow = patch.arrow ?? null;
+    if ('arrowSize' in patch) snake.arrow_size = patch.arrowSize ?? null;
+    if ('labelAlign' in patch) snake.label_align = patch.labelAlign ?? null;
     queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
       data: (old?.data || []).map((e: any) => e.id === id ? { ...e, ...snake } : e),
     }));
-    if (edgeUpdateTimer.current) clearTimeout(edgeUpdateTimer.current);
-    edgeUpdateTimer.current = setTimeout(() => { canvasApi.updateEdge(id, snake); }, 500);
+    const merged = { ...(edgePending.current.get(id) ?? {}), ...snake };
+    edgePending.current.set(id, merged);
+    const running = edgeUpdateTimers.current.get(id);
+    if (running) clearTimeout(running);
+    edgeUpdateTimers.current.set(id, setTimeout(() => {
+      const payload = edgePending.current.get(id);
+      edgePending.current.delete(id);
+      edgeUpdateTimers.current.delete(id);
+      if (payload) canvasApi.updateEdge(id, payload);
+    }, 500));
   }, [tagId, queryClient]);
 
   // ── Boxes (text/image, polymorphic) ──
@@ -470,6 +575,38 @@ export default function CanvasPage() {
     [textBoxes, selectedTextBoxId],
   );
 
+  /**
+   * Chiude una scrittura ottimistica: la riga provvisoria diventa quella vera,
+   * oppure sparisce E DICE PERCHÉ.
+   *
+   * ⚠️ Esiste per una ragione precisa: `apiRequest` (lib/api.ts) NON LANCIA
+   * MAI. Gli errori del server — e anche quelli di rete — tornano come valore,
+   * `{ success: false, error }`. I quattro punti che posano un box si
+   * affidavano tutti a un `catch` che quindi non scattava mai, e a un
+   * `if (res?.data)` senza ramo else: quando l'insert falliva, la riga
+   * provvisoria restava sullo schermo con il suo id finto, senza un avviso, e
+   * spariva al primo reload. Da fuori è indistinguibile da «l'oggetto non è
+   * persistente», ed è esattamente come si è presentato.
+   */
+  const commitBox = useCallback((
+    tempId: string,
+    res: { success?: boolean; data?: unknown; error?: string } | undefined,
+    fallback: string,
+  ) => {
+    if (res?.success && res.data) {
+      const d = res.data as any;
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+        data: (old?.data || []).map((b: any) => (b.id === tempId ? d : b)),
+      }));
+      return true;
+    }
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: (old?.data || []).filter((b: any) => b.id !== tempId),
+    }));
+    toast.error(res?.error || fallback);
+    return false;
+  }, [tagId, queryClient]);
+
   const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;
     setTextMode(false);
@@ -477,22 +614,26 @@ export default function CanvasPage() {
     queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
       data: [...(old?.data || []), { id: tempId, type: 'text', content: { html: '' }, x, y, w, h }],
     }));
-    try {
-      const res = await canvasApi.addBox(tagId, { type: 'text', content: { html: '' }, x, y, w, h });
-      if (res?.data) {
-        const d = res.data as any;
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
-        }));
-      }
-    } catch {
-      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-        data: (old?.data || []).filter((tb: any) => tb.id !== tempId),
-      }));
-    }
-  }, [tagId, queryClient]);
+    commitBox(tempId, await canvasApi.addBox(tagId, { type: 'text', content: { html: '' }, x, y, w, h }), 'Box di testo non salvato');
+  }, [tagId, queryClient, commitBox]);
 
-  const tbUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Salvataggi dei box, rimandati di 800ms — UNO SPORTELLO PER BOX.
+   *
+   * Era un timer solo per tutti: ogni chiamata azzerava quella prima, quindi di
+   * due box toccati nello stesso secondo ne arrivava al server uno soltanto, e
+   * dello stesso box una PATCH di posizione cancellava quella di testo. Con
+   * l'espansione dei box il caso è diventato ordinario: si espande, il
+   * salvataggio del testo che era già in coda porta via l’altezza, e al
+   * ricaricamento la nota torna piccola.
+   *
+   * Gli aggiornamenti dello stesso box si SOMMANO invece di sostituirsi: due
+   * chiamate ravvicinate (`{ h }` e poi `{ content }`) devono partire come una
+   * PATCH sola con dentro entrambi i campi, o il secondo campo va perso.
+   */
+  type BoxUpdate = { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number };
+  const tbUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const tbPending = useRef<Map<string, BoxUpdate>>(new Map());
   const handleUpdateTextBox = useCallback((id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) => {
     if (!tagId) return;
     // For content-only updates, skip cache write: the contenteditable DOM already reflects
@@ -504,9 +645,44 @@ export default function CanvasPage() {
         data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
       }));
     }
-    if (tbUpdateTimer.current) clearTimeout(tbUpdateTimer.current);
-    tbUpdateTimer.current = setTimeout(() => { canvasApi.updateBox(id, updates); }, 800);
+    const merged: BoxUpdate = { ...(tbPending.current.get(id) ?? {}), ...updates };
+    tbPending.current.set(id, merged);
+    const running = tbUpdateTimers.current.get(id);
+    if (running) clearTimeout(running);
+    tbUpdateTimers.current.set(id, setTimeout(() => {
+      const payload = tbPending.current.get(id);
+      tbPending.current.delete(id);
+      tbUpdateTimers.current.delete(id);
+      if (payload) canvasApi.updateBox(id, payload);
+    }, 800));
   }, [tagId, queryClient]);
+
+  /**
+   * Posa un marcatore. Scrittura ottimistica come per gli altri box: compare
+   * subito con un id provvisorio, che viene sostituito da quello vero appena il
+   * server risponde — e tolto se rifiuta.
+   *
+   * Lo strumento NON si disarma dopo la posa: resta armato finché non chiudi il
+   * menu degli oggetti, così se ne mettono tre di fila senza riaprirlo ogni
+   * volta. Che sia ancora armato lo dice il menu, che resta aperto con la voce
+   * accesa — prima si disarmava da solo proprio perché, a menu chiuso, non
+   * c'era niente a dirlo.
+   */
+  const handleAddMarkerAt = useCallback(async (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => {
+    if (!tagId) return;
+    const payload = { type: 'marker' as const, content: { kind }, x, y, w: MARKER_SIZE, h: MARKER_SIZE };
+    const tempId = `temp-marker-${Date.now()}`;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, ...payload }],
+    }));
+    const res = await canvasApi.addBox(tagId, payload);
+    if (!commitBox(tempId, res, 'Marcatore non salvato')) return;
+    // INNESTO al volo: l'oggetto è stato posato su un edge armato. Si spezza
+    // ADESSO e non prima, perché l'id con cui i due mezzi si aggancieranno nasce
+    // qui — la lavagna, al momento del click, aveva solo un ghost.
+    const newId = (res?.data as any)?.id;
+    if (splitEdgeId && newId) handleSplitEdge(splitEdgeId, `tb:${newId}`);
+  }, [tagId, queryClient, commitBox, handleSplitEdge]);
 
   const handleDeleteTextBox = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -655,17 +831,13 @@ export default function CanvasPage() {
       queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: [...(old?.data || []), { id: tempId, type: 'image', content: { src }, x, y, w: finalW, h: finalH }],
       }));
-      const res = await canvasApi.addBox(tagId, { type: 'image', content: { src }, x, y, w: finalW, h: finalH });
-      if (res?.data) {
-        const d = res.data as any;
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
-        }));
-      }
+      commitBox(tempId, await canvasApi.addBox(tagId, { type: 'image', content: { src }, x, y, w: finalW, h: finalH }), 'Immagine non salvata');
     } catch (err: any) {
+      // Resta un `catch` vero: qui dentro c'è anche l'UPLOAD del file, che
+      // passa da un'altra strada e può lanciare davvero.
       toast.error(err?.message || 'Errore inserimento immagine');
     }
-  }, [tagId, queryClient]);
+  }, [tagId, queryClient, commitBox]);
 
   // Text box context menu
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string; inGroup: boolean } | null>(null);
@@ -751,21 +923,9 @@ export default function CanvasPage() {
       queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: [...(old?.data || []), { id: tempId, ...payload }],
       }));
-      try {
-        const res = await canvasApi.addBox(tagId, payload);
-        if (res?.data) {
-          const d = res.data as any;
-          queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-            data: (old?.data || []).map((b: any) => (b.id === tempId ? d : b)),
-          }));
-        }
-      } catch {
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).filter((b: any) => b.id !== tempId),
-        }));
-      }
+      commitBox(tempId, await canvasApi.addBox(tagId, payload), 'Copia non salvata');
     }
-  }, [tagId, clipboard, tiles, tags, textBoxes, typeTileIcons, assignTypeIcon, queryClient]);
+  }, [tagId, clipboard, tiles, tags, textBoxes, typeTileIcons, assignTypeIcon, queryClient, commitBox]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -873,7 +1033,7 @@ export default function CanvasPage() {
   useEffect(() => {
     if (!tileMode && !clipboard && !pasteMenu) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setTileMode(false); setClipboard(null); setPasteMenu(null); }
+      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setClipboard(null); setPasteMenu(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
@@ -1199,6 +1359,8 @@ export default function CanvasPage() {
             textMode={textMode}
             tileMode={tileMode}
             imageMode={imageMode}
+            markerMode={markerMode}
+            onPickMarker={setMarkerMode}
             selectMode={selectMode}
             onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
@@ -1233,7 +1395,7 @@ export default function CanvasPage() {
             // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
             // sproporzionato — qui cambia solo una regola CSS.
             className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
-            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
             // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
@@ -1284,6 +1446,8 @@ export default function CanvasPage() {
               textMode={textMode}
               tileMode={tileMode}
               imageMode={imageMode}
+              markerMode={markerMode}
+              onAddMarkerAt={handleAddMarkerAt}
               selectMode={selectMode}
               pdfMode={pdfMode}
               onPdfArea={handlePdfArea}
@@ -1303,6 +1467,7 @@ export default function CanvasPage() {
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
               onDeleteEdge={handleDeleteEdge}
+              onSplitEdge={handleSplitEdge}
               onEdgeContextMenu={handleEdgeContextMenu}
               onTileContextMenu={handleTileContextMenu}
               onTileClick={(id) => {
@@ -1813,7 +1978,10 @@ export default function CanvasPage() {
                   }}
                 >
                   <IconClipboard size={14} />
-                  Incolla {clipboard?.kind === 'tile' ? 'tile' : clipboard?.kind === 'image' ? 'immagine' : 'testo'}
+                  Incolla {clipboard?.kind === 'tile' ? 'tile'
+                    : clipboard?.kind === 'image' ? 'immagine'
+                    : clipboard?.kind === 'marker' ? 'marcatore'
+                    : 'testo'}
                 </button>
               </div>
             </>,

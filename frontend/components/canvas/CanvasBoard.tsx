@@ -16,7 +16,8 @@ import { usePixelTheme } from '@/components/pixel';
 import { Tile as TileCard } from '@/components/tiles/Tile';
 import { tileVisualKey, subtaskToStep, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
-import { TextEditor } from './TextEditor';
+import { IconChevronsDown, IconFlag, IconBan, IconTargetArrow, IconCircle } from '@tabler/icons-react';
+import { TextEditor, BOX_FONT_SIZE } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
 /** Vista (pan + zoom) persistita per canvas: `canvas_view_<tagId>`. */
@@ -43,7 +44,7 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
 }
 
 /**
- * ⚠️ `TILE_W`/`TILE_H` arrivano da lib/tile-visual (144×80) e NON sono
+ * ⚠️ `TILE_W`/`TILE_H` arrivano da lib/tile-visual (128×72) e NON sono
  * dichiarati qui. È l'ingombro che il tile occupa davvero: il
  * rettangolo di presa, l'anello di selezione e gli agganci degli edge devono
  * combaciare col disegno, e il disegno è scalato da `--ob-tile-zoom`.
@@ -54,9 +55,9 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
  *
  * Il badge d'angolo sborda di 8px sopra il bordo superiore, per costruzione. Un
  * `<foreignObject>` RITAGLIA il proprio contenuto al proprio rettangolo, quindi
- * se lo dimensionassimo 144×80 il badge verrebbe tagliato a metà. Il riquadro è
+ * se lo dimensionassimo 128×72 il badge verrebbe tagliato a metà. Il riquadro è
  * perciò più grande su tutti i lati e la card viene rimessa in posizione con un
- * margine interno di pari valore: il tile resta 144×80 e allineato alla griglia,
+ * margine interno di pari valore: il tile resta 128×72 e allineato alla griglia,
  * cambia solo la finestra in cui è disegnato.
  */
 /**
@@ -109,7 +110,184 @@ export interface CanvasEdge {
   lineWidth?: number | null;
   /** Testo mostrato al centro dell'edge. */
   label?: string | null;
+  /**
+   * Verso della freccia. A è `source_id`, B è `target_id` — cioè l'ordine in
+   * cui il collegamento è stato tirato. Assente/null = nessuna freccia, che è
+   * l'aspetto storico e resta il default.
+   */
+  arrow?: EdgeArrow | null;
+  /** Misura della punta, 1..4. Assente = `ARROW_SIZE_DEFAULT`. */
+  arrowSize?: number | null;
+  /** Come si dispone l'etichetta rispetto alla linea. Assente = 'center'. */
+  labelAlign?: EdgeLabelAlign | null;
 }
+
+/** A→B, B→A, A↔B. L'assenza (null) è il quarto stato e non sta qui. */
+export type EdgeArrow = 'forward' | 'backward' | 'both';
+
+/**
+ * Lunghezza della punta per ciascuno dei quattro scatti, in px di lavagna.
+ *
+ * Non è una scala lineare: a punte piccole un pixel si vede, a punte grandi no,
+ * quindi i passi si allargano man mano. Il primo scatto è il 7 che la punta
+ * aveva prima di questo controllo, così "piccola" resta l'aspetto di partenza.
+ */
+export const ARROW_HEAD = [7, 11, 15, 20] as const;
+/** Lo scatto usato quando l'edge non ne ha uno suo. */
+export const ARROW_SIZE_DEFAULT = 2;
+
+/**
+ * Disposizione dell'etichetta di un collegamento.
+ *
+ *   center      ruotata lungo l'edge, centrata sulla linea — la pillola la
+ *               interrompe, ed è il modo in cui l'etichetta si legge come
+ *               PARTE del collegamento invece che come un cartellino appoggiato
+ *   above       ruotata lungo l'edge ma spostata di lato: la linea resta intera
+ *   horizontal  sempre dritta, qualunque sia l'inclinazione dell'edge
+ */
+export type EdgeLabelAlign = 'center' | 'above' | 'horizontal';
+export const EDGE_LABEL_ALIGN_DEFAULT: EdgeLabelAlign = 'center';
+
+/** Interlinea dell'etichetta quando va a capo. */
+const LABEL_LINE_H = Math.round(OB_TEXT.meta * 1.3);
+/**
+ * Sotto questa soglia mandare a capo non aiuta più: su un collegamento cortissimo
+ * l'etichetta diventerebbe una colonna di due lettere per riga, che è meno
+ * leggibile del testo che sborda. A quel punto sbordare è il male minore.
+ */
+const LABEL_MIN_CHARS = 8;
+/** Respiro orizzontale della pillola, 5 per lato più un paio di margine. */
+const LABEL_PAD = 12;
+
+/**
+ * Manda a capo l'etichetta di un collegamento in righe da al massimo `max`
+ * caratteri, spezzando fra le PAROLE.
+ *
+ * Contare i caratteri e non i pixel è esatto, non approssimato: l'etichetta è
+ * scritta in monospaziato (`labelFont`), quindi ogni carattere occupa la stessa
+ * larghezza e una misura sola del testo intero le dà tutte.
+ *
+ * Una parola più lunga della riga viene spezzata a forza: lasciarla intera
+ * significherebbe che una singola parola lunga vanifica tutto l'a capo.
+ */
+function wrapLabel(text: string, max: number): string[] {
+  const words = text.split(/s+/).filter(Boolean);
+  const lines: string[] = [];
+  let cur = '';
+  for (const w of words) {
+    if (w.length > max) {
+      if (cur) { lines.push(cur); cur = ''; }
+      for (let i = 0; i < w.length; i += max) lines.push(w.slice(i, i + max));
+      cur = lines.pop() ?? '';
+      continue;
+    }
+    const next = cur ? `${cur} ${w}` : w;
+    if (next.length <= max) cur = next;
+    else { lines.push(cur); cur = w; }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [text];
+}
+
+/**
+ * Stacco fra l'aggancio e il VERTICE della punta.
+ *
+ * Con la punta appoggiata sull'aggancio finiva sopra il pallino (r 3) e sul
+ * bordo del nodo, e i tre segni si leggevano come una macchia sola.
+ *
+ * Il conto: 3 di raggio del pallino + 6 di ARIA PULITA = 9. È l'aria che si
+ * misura, non lo stacco — cambiando il raggio del pallino va rifatto questo
+ * numero, o i sei pixel diventano altro. La freccia PUNTA al nodo invece di
+ * toccarlo, che è anche il modo in cui si capisce dove finisce.
+ *
+ * ⚠️ Accorcia anche la linea VISIBILE, non solo la punta: la linea arriva
+ * all'aggancio, e senza il taglio sbucherebbe oltre il vertice come uno spillo.
+ * L'alone di selezione e la corsia invisibile del click restano interi — quelli
+ * sono superficie di interazione, non disegno.
+ */
+const ARROW_GAP = 9;
+
+/**
+ * INNESTO — quanto un oggetto deve stare fermo sopra un edge prima che l'edge
+ * si offra di spezzarsi.
+ *
+ * L'attesa è la sostanza del gesto, non un ritardo tecnico: attraversare un
+ * collegamento mentre si trascina qualcosa dall'altra parte della lavagna è
+ * normalissimo, e senza una soglia di tempo ogni passaggio spezzerebbe quello
+ * che tocca. Mezzo secondo distingue il passare dal fermarsi lì.
+ */
+const SPLIT_DWELL = 500;
+
+/**
+ * Disegna un marcatore — disco pieno e glifo al centro — dentro un gruppo SVG.
+ *
+ * Sta fuori dal ciclo di disegno perché lo usano in DUE: il marcatore posato e
+ * il suo ghost, che deve essere lo stesso oggetto e non una sua imitazione —
+ * altrimenti quello che si vede sotto il cursore non è quello che si posa.
+ *
+ * Prende il nodo DOM e non la selezione: i due punti di chiamata hanno selezioni
+ * con dati diversi, e farle combaciare nei generici di D3 sarebbe stato un
+ * costo di tipi senza alcun ritorno.
+ */
+function paintMarker(node: SVGGElement, kind: MarkerKind, w: number, h: number) {
+  const spec = MARKER_SPEC[kind];
+  const g = d3.select(node);
+  g.append('circle')
+    .attr('cx', w / 2).attr('cy', h / 2).attr('r', Math.min(w, h) / 2)
+    .style('fill', spec.color)
+    .style('stroke', 'none');
+  // Il glifo è un'icona vera, quindi passa da `foreignObject` +
+  // `renderToString` — la stessa tecnica con cui la board monta la card del
+  // tile. Disegnarne il tracciato a mano avrebbe voluto dire tenere quattro
+  // copie di path allineate alla libreria.
+  const GS = Math.round(Math.min(w, h) * 0.5);
+  const fo = g.append('foreignObject')
+    .attr('x', (w - GS) / 2).attr('y', (h - GS) / 2)
+    .attr('width', GS).attr('height', GS)
+    .style('pointer-events', 'none')
+    .style('overflow', 'visible');
+  const host = document.createElement('div');
+  // `color` e non `fill`: le icone Tabler tracciano con `currentColor`,
+  // quindi basta dare il colore al contenitore.
+  host.style.cssText = `width:${GS}px;height:${GS}px;display:flex;align-items:center;justify-content:center;color:var(--ob-marker-ink);`;
+  try {
+    host.innerHTML = renderToString(React.createElement(spec.Glyph, { size: GS, stroke: 2 }));
+  } catch {
+    // Un glifo che non si renderizza non deve togliere il marcatore: il disco
+    // resta, e con lui posizione, aggancio e menu contestuale.
+  }
+  (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+}
+
+/** Opacità del ghost: si deve vedere COSA si sta posando e ANCHE cosa c'è
+ *  sotto — se copre l'edge che si sta per innestare, non serve a niente. */
+const GHOST_OPACITY = 0.55;
+
+/** Distanza di un punto da un SEGMENTO (non dalla retta che lo contiene). */
+function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len2 = dx * dx + dy * dy;
+  // Il parametro proiettato, tenuto dentro il segmento: fuori dai capi la
+  // distanza è quella dal capo. Sulla retta infinita, il prolungamento
+  // immaginario di un edge corto avrebbe armato l'innesto a mezza lavagna.
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+/**
+ * Colore di un collegamento che non ne ha uno scelto.
+ *
+ * È `grayLight1` della GIMMICK_PALETTE, quindi non è un grigio inventato qui:
+ * è una delle quaranta caselle che il picker offre, e sceglierlo a mano dà
+ * esattamente questo. Il default era `theme.border` — la hairline dei
+ * contorni — che cambia col tema ed è tarata per DELIMITARE una superficie,
+ * non per tracciare un segno che deve leggersi da solo sulla lavagna.
+ *
+ * ⚠️ Fisso nei due temi, come il rosso dell'azione distruttiva: un
+ * collegamento senza colore è un segno neutro, non un elemento di chrome che
+ * segue il fondo.
+ */
+const EDGE_COLOR_DEFAULT = '#CCCCCC';
 export type GroupBorderStyle = 'solid' | 'dashed' | 'dotted';
 export interface GroupBounds { x: number; y: number; w: number; h: number }
 export interface CanvasGroup {
@@ -144,9 +322,63 @@ export type CanvasBoxImageContent = {
   notes?: string;
   showTitle?: boolean;
 };
+/**
+ * MARCATORI — i punti notevoli di un percorso disegnato sulla lavagna.
+ *
+ * Sono box a tutti gli effetti, non un'entità nuova: così si trascinano, si
+ * eliminano, si copiano, entrano nei gruppi e fanno da capo a un edge senza
+ * che una riga di quel codice sappia della loro esistenza. Quello che cambia è
+ * solo il disegno — un disco invece di un rettangolo.
+ */
+export type MarkerKind = 'start' | 'stop' | 'goal' | 'milestone';
+
+/**
+ * I quattro marcatori: colore e glifo di ciascuno.
+ *
+ * Il colore arriva dai token `--ob-marker-*`, non da valori scritti qui: tre dei
+ * quattro sono alias di token semantici già esistenti (errore, successo,
+ * inchiostro) e seguono il tema da soli. Per questo il colore si posa con
+ * `.style()` e non con `.attr()` — un attributo di presentazione SVG non
+ * risolve le custom properties.
+ */
+export const MARKER_SPEC: Record<MarkerKind, { color: string; label: string; Glyph: typeof IconFlag }> = {
+  start: { color: 'var(--ob-marker-start)', label: 'Start', Glyph: IconFlag },
+  stop: { color: 'var(--ob-marker-stop)', label: 'Stop', Glyph: IconBan },
+  goal: { color: 'var(--ob-marker-goal)', label: 'Goal', Glyph: IconTargetArrow },
+  milestone: { color: 'var(--ob-marker-milestone)', label: 'Milestone', Glyph: IconCircle },
+};
+/** L'ordine in cui compaiono nel menu dello strumento. */
+export const MARKER_KINDS: MarkerKind[] = ['start', 'stop', 'goal', 'milestone'];
+/**
+ * I nomi VECCHI di un marcatore, e in cosa vanno letti oggi.
+ *
+ * Le righe già posate portano il nome che avevano quando sono state salvate: il
+ * codice cambia con un deploy, il database no. La migrazione 044 li riscrive,
+ * ma questa tabella resta comunque la rete di sicurezza — senza, un marcatore
+ * salvato prima del rename ricadrebbe sul tipo di ripiego e cambierebbe faccia
+ * da solo, che è il modo peggiore di accorgersi che una migrazione non è girata.
+ */
+const MARKER_LEGACY: Record<string, MarkerKind> = { end: 'stop', node: 'milestone' };
+export type CanvasBoxMarkerContent = { kind: MarkerKind };
+/**
+ * Lato del riquadro di un marcatore. Quadrato, quindi è anche il diametro.
+ *
+ * ⚠️ Vale per i marcatori NUOVI: la misura di quelli già posati sta in `w`/`h`
+ * sulla riga, come per ogni altro box, e non cambia da sola. In coda alla
+ * migrazione 044 c'è la UPDATE che riallinea quelli esistenti.
+ */
+export const MARKER_SIZE = 36;
+/**
+ * Quanto vicino deve passare la linea perché conti come intercettata: il raggio
+ * del disco, cioè il marcatore la deve TOCCARE. Una soglia più larga avrebbe
+ * armato l'innesto con l'oggetto ancora visibilmente staccato dalla linea.
+ */
+const SPLIT_HIT = MARKER_SIZE / 2;
+
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
-  | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number };
+  | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number }
+  | { id: string; type: 'marker'; content: CanvasBoxMarkerContent; x: number; y: number; w: number; h: number };
 // Backward-compat alias (kept until all consumers are migrated).
 export type CanvasTextBox = CanvasBox;
 
@@ -181,6 +413,11 @@ interface CanvasBoardProps {
   onPositionChange: (positions: { tile_id: string; x: number; y: number }[]) => void;
   onAddEdge: (source_id: string, target_id: string, source_port?: string, target_port?: string) => void;
   onDeleteEdge: (id: string) => void;
+  /**
+   * Spezza un edge e ci infila in mezzo un oggetto: A→B diventa A→X e X→B.
+   * Assente il callback, l'innesto non si arma nemmeno.
+   */
+  onSplitEdge?: (edgeId: string, nodeId: string) => void;
   onEdgeContextMenu: (e: { x: number; y: number; edgeId: string }) => void;
   onTileContextMenu: (e: { x: number; y: number; tileId: string; inGroup: boolean }) => void;
   onTileClick: (tileId: string) => void;
@@ -193,6 +430,15 @@ interface CanvasBoardProps {
   /** Image mode: when true, drag on empty canvas draws a rectangle, then a file
       picker opens; the picked image fills the rectangle. */
   imageMode?: boolean;
+  /** Armato con un tipo di marcatore: il prossimo click sulla lavagna lo posa. */
+  markerMode?: MarkerKind | null;
+  /**
+   * Posa un oggetto. `splitEdgeId` arriva valorizzato quando l'oggetto è stato
+   * lasciato su un edge armato: chi lo riceve deve prima crearlo e poi spezzare
+   * quell'edge attorno a lui — l'id vero dell'oggetto esiste solo dopo la
+   * creazione, quindi l'innesto non può essere deciso qui.
+   */
+  onAddMarkerAt?: (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => void;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
   /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
    *  SENZA bisogno di modificatori e gli elementi catturati formano subito un
@@ -267,11 +513,11 @@ interface CanvasBoardProps {
 export const CanvasBoard = React.memo(function CanvasBoard({
   tiles, layout, edges, groups, textBoxes,
   moveEnabled, linkEnabled, textMode, tileMode, imageMode, selectMode, onAddTileAt,
-  onPositionChange, onAddEdge, onDeleteEdge,
+  onPositionChange, onAddEdge, onDeleteEdge, onSplitEdge,
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
-  pdfMode, onPdfArea, pdfPreview, boardRootRef,
+  pdfMode, onPdfArea, pdfPreview, boardRootRef, markerMode, onAddMarkerAt,
   onEdgeClick, selectedEdgeId,
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
@@ -282,10 +528,25 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   viewKey,
 }: CanvasBoardProps) {
   const theme = usePixelTheme();
-  // Colore delle SELEZIONI: viola scuro (accent-soft) invece del lavanda acceso.
-  // Le affordance di link/creazione (porte, linea temporanea, marquee) restano
-  // sull'accent pieno per non perdere visibilità durante l'azione.
-  const selAccent = theme.accentSoft ?? theme.accent;
+  /**
+   * Colore di OGNI selezione sulla lavagna: contorni di tile, box, immagini e
+   * gruppi, maniglie di ridimensionamento, alone dei collegamenti.
+   *
+   * Era `accentSoft`, descritto come "viola scuro invece del lavanda acceso".
+   * Vale in SCURO, dove quel token è #2e2747; in CHIARO è #efeafb, cioè un
+   * lavanda quasi bianco — è una velatura di FONDO (la usano i tab attivi), non
+   * un colore da tratto. Su lavagna bianca il contorno di selezione rendeva
+   * 1.18:1, praticamente invisibile, e in scuro sul #161616 non andava meglio
+   * (1.29:1). Il token era stato scelto guardando un tema solo.
+   *
+   * Con l'accent pieno: 4.9:1 in chiaro, 7.7:1 in scuro.
+   *
+   * ⚠️ Cade così la distinzione fra selezione e affordance d'azione (porte,
+   * linea temporanea, marquee), che erano già sull'accent pieno. Era una
+   * distinzione costruita su un colore che non si vedeva: se la si rivuole, va
+   * fatta su spessore o opacità, non sulla tinta.
+   */
+  const selAccent = theme.accent;
   // Obsidian: card/box arrotondati + hairline 1px + font Geist. Costanti riusate
   // nel codice D3 sotto.
   const RX = 5;         // card / group / clip corner radius (tile + gruppi + box)
@@ -327,6 +588,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const imageModeRef = useRef(imageMode); imageModeRef.current = imageMode;
   const selectModeRef = useRef(selectMode); selectModeRef.current = selectMode;
   const pdfModeRef = useRef(pdfMode); pdfModeRef.current = pdfMode;
+  const markerModeRef = useRef(markerMode); markerModeRef.current = markerMode;
+  const onAddMarkerAtRef = useRef(onAddMarkerAt); onAddMarkerAtRef.current = onAddMarkerAt;
   const onPdfAreaRef = useRef(onPdfArea); onPdfAreaRef.current = onPdfArea;
   const pdfPreviewRef = useRef(pdfPreview); pdfPreviewRef.current = pdfPreview;
   /** Come drawGroupsRef: ridisegna SOLO l'anteprima del foglio quando cambia il
@@ -351,12 +614,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const onEdgeContextMenuRef = useRef(onEdgeContextMenu); onEdgeContextMenuRef.current = onEdgeContextMenu;
   const onEdgeClickRef = useRef(onEdgeClick); onEdgeClickRef.current = onEdgeClick;
   const selectedEdgeIdRef = useRef(selectedEdgeId); selectedEdgeIdRef.current = selectedEdgeId;
+
+  /**
+   * C'è qualcosa di selezionato, di qualunque tipo?
+   *
+   * Esiste come funzione perché la domanda si faceva a mano, elencando i tipi
+   * uno per uno — e l'elenco si era già sfasato: mancavano gli EDGE, quindi con
+   * un solo collegamento selezionato il clic sul vuoto usciva subito e non
+   * deselezionava niente. Un tipo nuovo di oggetto selezionabile va aggiunto
+   * qui e da nessun'altra parte.
+   */
+  const hasAnySelection = useCallback(() => (
+    selectedIdsRef.current.length > 0
+    || !!selectedGroupIdRef.current
+    || !!selectedTileIdRef.current
+    || !!selectedTextBoxIdRef.current
+    || !!selectedEdgeIdRef.current
+  ), []);
   const onTextBoxContextMenuRef = useRef(onTextBoxContextMenu); onTextBoxContextMenuRef.current = onTextBoxContextMenu;
   const onAddTileAtRef = useRef(onAddTileAt); onAddTileAtRef.current = onAddTileAt;
   const onPositionChangeRef = useRef(onPositionChange); onPositionChangeRef.current = onPositionChange;
   const onGroupsChangeRef = useRef(onGroupsChange); onGroupsChangeRef.current = onGroupsChange;
   const onAddEdgeRef = useRef(onAddEdge); onAddEdgeRef.current = onAddEdge;
   const onDeleteEdgeRef = useRef(onDeleteEdge); onDeleteEdgeRef.current = onDeleteEdge;
+  const onSplitEdgeRef = useRef(onSplitEdge); onSplitEdgeRef.current = onSplitEdge;
   const onAddTextBoxRef = useRef(onAddTextBox); onAddTextBoxRef.current = onAddTextBox;
   const onUpdateTextBoxRef = useRef(onUpdateTextBox); onUpdateTextBoxRef.current = onUpdateTextBox;
   const onSelectionChangeRef = useRef(onSelectionChange); onSelectionChangeRef.current = onSelectionChange;
@@ -417,6 +698,52 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   // hanno già del testo → restano in modalità "sposta" (cursore move), non in
   // inserimento. Evita anche di dover fare doppio click dopo aver disegnato una
   // casella nuova.
+  /**
+   * Box di testo il cui contenuto NON ci sta: id → altezza che servirebbe.
+   * Assente = il testo entra. Lo riempie `TextEditor` misurando il proprio DOM
+   * di ProseMirror; qui serve solo a decidere se mostrare il badge.
+   */
+  const [boxOverflow, setBoxOverflow] = useState<Record<string, number>>({});
+
+  /** Registra la misura di un box, senza rirenderizzare se non è cambiata. */
+  const reportBoxMeasure = useCallback((id: string, m: { overflowing: boolean; contentHeight: number }) => {
+    setBoxOverflow((prev) => {
+      const cur = prev[id];
+      const next = m.overflowing ? Math.ceil(m.contentHeight) : undefined;
+      // Il confronto NON è un'ottimizzazione: la misura si riporta anche a ogni
+      // ridisegno, e senza questa uscita lo stato si riscriverebbe identico in
+      // un ciclo continuo di render.
+      if (cur === next) return prev;
+      const copy = { ...prev };
+      if (next === undefined) delete copy[id]; else copy[id] = next;
+      return copy;
+    });
+  }, []);
+
+  /**
+   * Porta il box all'altezza che serve a mostrare tutto il testo.
+   *
+   * Cresce solo verso il BASSO — `y` non si tocca — perché il box è ancorato
+   * dove l'hai messo: alzarne il bordo superiore lo farebbe scappare da sotto
+   * il puntatore e scavalcare quello che ha sopra.
+   */
+  const expandBoxToFit = useCallback((tb: CanvasTextBox, contentH: number) => {
+    const h = Math.ceil(contentH) + 2 * TB_PAD;
+    if (h <= tb.h) return;
+    // ⚠️ NON scrivere anche `tb.h = h` qui, per quanto sembri prudente.
+    //
+    // `tb` è l'oggetto che sta DENTRO la cache di React Query: `textBoxes` è
+    // `boxesData.data` senza copie. Chi riceve questo aggiornamento fa
+    // `{ ...tb, ...updates }` e riscrive la cache — ma React Query ha
+    // `structuralSharing` attivo per default, quindi confronta il risultato
+    // con quello di prima e, se è profondamente uguale, RESTITUISCE IL
+    // VECCHIO RIFERIMENTO. Mutando qui, l'oggetto in cache ha già l'altezza
+    // nuova: il confronto non trova differenze, l'identità non cambia, il
+    // `useMemo` a monte non ricalcola e il componente non si ridisegna mai.
+    // La cornice e il testo restavano fermi finché non li smuoveva altro.
+    onUpdateTextBoxRef.current(tb.id, { h });
+  }, []);
+
   const knownTextBoxIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
     const known = knownTextBoxIdsRef.current;
@@ -638,7 +965,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current) && ev.type === 'mousedown') return false; // block pan in text/tile/image/select/pdf mode
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -783,12 +1110,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       onSelectionChangeRef.current?.(ids, computeSelectionScreenBbox());
     });
 
-    // Clear selection on plain click on empty canvas (tile/multi E gruppo).
+    // Clic semplice sul vuoto → azzera QUALUNQUE selezione: tile, multi-
+    // selezione, gruppi, box di testo, immagini e collegamenti. Il parent le
+    // spegne tutte in `handleSelectionChange`, quindi basta chiamarlo con una
+    // selezione vuota. `e.target !== svg` è ciò che distingue il vuoto: un
+    // clic su un oggetto ha come bersaglio l'oggetto, e quelli fermano comunque
+    // la propagazione.
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
-      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current) return;
-      if (selectedIdsRef.current.length === 0 && !selectedGroupIdRef.current && !selectedTileIdRef.current && !selectedTextBoxIdRef.current) return;
+      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current || markerModeRef.current) return;
+      if (!hasAnySelection()) return;
       selectedIdsRef.current = [];
       // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
       onSelectionChangeRef.current?.([], null);
@@ -1154,8 +1486,59 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (style === 'dotted') return `${Math.max(1, w)},${Math.max(3, w * 2)}`;
       return `${Math.max(4, w * 3)},${Math.max(3, w * 2)}`;
     };
+    /**
+     * Dove passa ogni edge DISEGNATO, in coordinate della lavagna.
+     *
+     * La riempie `drawEdges` mentre disegna, e la legge la sonda dell'innesto.
+     * Rifare il conto nella sonda avrebbe voluto dire ricopiare le guardie sugli
+     * estremi mancanti e la scelta delle porte: due calcoli da tenere allineati
+     * per sempre, e la possibilità di innestare su un edge che sullo schermo non
+     * c'è.
+     */
+    const edgeGeom = new Map<string, { x1: number; y1: number; x2: number; y2: number; s: string; t: string }>();
+    // Stato del gesto d'innesto. Variabili di chiusura e non ref: vivono quanto
+    // un trascinamento, e un ridisegno dell'intera board lo interrompe comunque.
+    let splitArmedId: string | null = null;   // edge acceso: al rilascio si spezza
+    let splitHoverId: string | null = null;   // edge attualmente sotto l'oggetto
+    let splitTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /** Spegne tutto e restituisce l'edge che era armato, se c'era. */
+    const clearSplit = (): string | null => {
+      if (splitTimer) { clearTimeout(splitTimer); splitTimer = null; }
+      const wasArmed = splitArmedId;
+      splitArmedId = null; splitHoverId = null;
+      return wasArmed;
+    };
+
+    /**
+     * Sonda: l'oggetto trascinato sta sopra un edge? Se ci resta, lo arma.
+     *
+     * Gli edge di cui l'oggetto è già un capo sono esclusi: un marcatore non
+     * può spezzare il collegamento che parte da lui.
+     */
+    const probeSplit = (cx: number, cy: number, selfId: string) => {
+      let hit: string | null = null;
+      for (const [id, ge] of edgeGeom) {
+        if (ge.s === selfId || ge.t === selfId) continue;
+        if (distToSegment(cx, cy, ge.x1, ge.y1, ge.x2, ge.y2) <= SPLIT_HIT) { hit = id; break; }
+      }
+      if (hit === splitHoverId) return;   // stesso stato: l'attesa in corso prosegue
+      const wasArmed = clearSplit();
+      splitHoverId = hit;
+      if (wasArmed) drawEdges();          // si è usciti da un edge già acceso: spegnilo
+      if (!hit) return;
+      splitTimer = setTimeout(() => {
+        splitArmedId = hit;
+        // Il ridisegno va chiesto QUI: se l'oggetto è fermo non arrivano altri
+        // mousemove, e senza questo l'edge si accenderebbe solo al movimento
+        // successivo — cioè proprio quando si è smesso di aspettare.
+        drawEdges();
+      }, SPLIT_DWELL);
+    };
+
     const drawEdges = () => {
       edgesG.selectAll('*').remove();
+      edgeGeom.clear();
       edges.forEach((edge) => {
         // Check endpoints exist (could be tile or textbox)
         const sIsTb = edge.source_id.startsWith('tb:');
@@ -1168,6 +1551,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (!t && !tTb) return;
 
         const { sx: x1, sy: y1, tx: x2, ty: y2 } = findBestPorts(edge.source_id, edge.target_id, edge.source_port, edge.target_port);
+        edgeGeom.set(edge.id, { x1, y1, x2, y2, s: edge.source_id, t: edge.target_id });
 
         const sColor = s ? getColor(s.actionType) : theme.border;
         const tColor = t ? getColor(t.actionType) : theme.border;
@@ -1176,11 +1560,33 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const isEdgeSel = selectedEdgeIdRef.current === edge.id;
         // Stile editabile (EdgeSidebar): colore / spessore / tipologia linea.
         // Default = look storico (neutro, tratteggiato, sottile).
-        const edgeColor = edge.color || theme.border;
+        const edgeColor = edge.color || EDGE_COLOR_DEFAULT;
         const edgeWidth = edge.lineWidth ?? 1.5;
-        const baseStroke = isMultiSel ? selAccent : edgeColor;
-        const baseWidth = isMultiSel ? Math.max(edgeWidth, 2.5) : edgeWidth;
+        // ARMATO PER L'INNESTO: la linea si accende come una selezione. È la
+        // sola cosa che dice «se molli qui, questo edge si spezza» — senza,
+        // l'attesa di mezzo secondo sarebbe indistinguibile da un ritardo.
+        const isSplitArmed = splitArmedId === edge.id;
+        const baseStroke = isMultiSel || isSplitArmed ? selAccent : edgeColor;
+        const baseWidth = isSplitArmed ? Math.max(edgeWidth, 3) : isMultiSel ? Math.max(edgeWidth, 2.5) : edgeWidth;
         const baseDash = edgeDash(edge.lineStyle, baseWidth);
+        // Geometria della freccia, che serve già alla linea: dove c'è una punta
+        // la linea visibile si ferma prima.
+        const aStep = Math.min(4, Math.max(1, Math.round(edge.arrowSize ?? ARROW_SIZE_DEFAULT)));
+        // La misura la sceglie l'utente; il pavimento legato allo spessore resta
+        // perché su una linea da 4px la punta più piccola sarebbe larga quanto
+        // la linea e si leggerebbe come un ispessimento, non come una freccia.
+        const ah = Math.max(ARROW_HEAD[aStep - 1], baseWidth * 3);
+        const aw = ah * 0.62;
+        const edx = x2 - x1, edy = y2 - y1;
+        const elen = Math.hypot(edx, edy) || 1;
+        const ux = edx / elen, uy = edy / elen;              // verso A→B
+        const headAtB = edge.arrow === 'forward' || edge.arrow === 'both';
+        const headAtA = edge.arrow === 'backward' || edge.arrow === 'both';
+        // Estremi della linea visibile: arretrati di ARROW_GAP dove c'è la punta.
+        const lx1 = headAtA ? x1 + ux * ARROW_GAP : x1;
+        const ly1 = headAtA ? y1 + uy * ARROW_GAP : y1;
+        const lx2 = headAtB ? x2 - ux * ARROW_GAP : x2;
+        const ly2 = headAtB ? y2 - uy * ARROW_GAP : y2;
         const g = edgesG.append('g').attr('class', 'edge-node').attr('data-source', edge.source_id).attr('data-target', edge.target_id);
         // Alone di selezione (edge selezionato singolarmente → EdgeSidebar).
         if (isEdgeSel) {
@@ -1189,34 +1595,115 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             .attr('stroke-linecap', 'round').style('pointer-events', 'none');
         }
         g.append('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2).attr('stroke', 'transparent').attr('stroke-width', 12).style('cursor', 'pointer');
-        const vl = g.append('line').attr('class', 'edge-visible').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2)
+        const vl = g.append('line').attr('class', 'edge-visible').attr('x1', lx1).attr('y1', ly1).attr('x2', lx2).attr('y2', ly2)
           .attr('stroke', baseStroke).attr('stroke-width', baseWidth).attr('stroke-dasharray', baseDash)
           .attr('stroke-linecap', edge.lineStyle === 'dotted' ? 'round' : 'butt').style('pointer-events', 'none');
         // Anchor dots at port positions
         g.append('circle').attr('cx', x1).attr('cy', y1).attr('r', 3).attr('fill', sColor).style('pointer-events', 'none');
         g.append('circle').attr('cx', x2).attr('cy', y2).attr('r', 3).attr('fill', tColor).style('pointer-events', 'none');
-        // Etichetta al centro dell'edge: pillola leggibile sopra la linea.
+        // ── PUNTE ──────────────────────────────────────────────────────────
+        // Triangoli disegnati a mano e non `<marker>`: un marker SVG per
+        // ereditare il colore della linea vorrebbe `context-stroke`, che non è
+        // ovunque, e altrimenti servirebbe un marker per ogni colore della
+        // palette — 40 definizioni da tenere allineate a tinta, spessore e
+        // stato di selezione. Qui il colore è già in mano (`baseStroke`).
+        //
+        // La punta ha il VERTICE sull'aggancio e cresce all'indietro lungo la
+        // linea, così resta ancorata al bordo del nodo come il pallino che
+        // copre. Misura legata allo spessore: una linea da 4 con la punta di
+        // una da 1 sembrerebbe spuntata.
+        if (edge.arrow) {
+          // Vertice sull'estremo ARRETRATO, non sull'aggancio: è lo stesso punto
+          // in cui si ferma la linea, quindi punta e linea combaciano.
+          const head = (px: number, py: number, sx: number, sy: number) => {
+            const bx = px - sx * ah, by = py - sy * ah;  // centro della base
+            const nx = -sy, ny = sx;                     // perpendicolare
+            g.append('path')
+              .attr('d', `M${px},${py} L${bx + nx * aw},${by + ny * aw} L${bx - nx * aw},${by - ny * aw} Z`)
+              .attr('fill', baseStroke)
+              .style('pointer-events', 'none');
+          };
+          if (headAtB) head(lx2, ly2, ux, uy);
+          if (headAtA) head(lx1, ly1, -ux, -uy);
+        }
+
+        // ── ETICHETTA ──────────────────────────────────────────────────────
+        // Tre disposizioni, una sola costruzione: un gruppo posato sul punto di
+        // mezzo, ruotato o no, con dentro testo e pillola disegnati attorno
+        // all'origine. Ruotare il GRUPPO invece del testo permette di misurare
+        // il riquadro nel sistema di riferimento già inclinato — `getBBox()`
+        // restituisce le coordinate locali — e la pillola combacia da sola.
+        // Calcolarla in coordinate schermo avrebbe voluto dire ruotare a mano i
+        // quattro angoli e prenderne il contenitore, che su testo inclinato è
+        // sempre più largo del testo.
         if (edge.label) {
           const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-          const bgRect = g.append('rect').style('pointer-events', 'none');
-          const txt = g.append('text').attr('x', mx).attr('y', my)
+          const align = edge.labelAlign ?? EDGE_LABEL_ALIGN_DEFAULT;
+          // L'angolo si riporta sempre fra -90 e +90: oltre, il testo si
+          // leggerebbe capovolto. Un collegamento tirato da destra a sinistra
+          // ha la stessa inclinazione di uno tirato al contrario, e l'etichetta
+          // non deve sapere in che ordine è stato disegnato.
+          let ang = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+          if (ang > 90) ang -= 180;
+          if (ang < -90) ang += 180;
+          const lg = g.append('g').attr(
+            'transform',
+            align === 'horizontal' ? `translate(${mx},${my})` : `translate(${mx},${my}) rotate(${ang})`,
+          );
+          const bgRect = lg.append('rect').style('pointer-events', 'none');
+          const txt = lg.append('text').attr('x', 0).attr('y', 0)
             .attr('text-anchor', 'middle').attr('dominant-baseline', 'central')
             .attr('fill', theme.ink).attr('font-family', labelFont).attr('font-size', OB_TEXT.meta).attr('font-weight', OB_WEIGHT.emphasis)
             .style('pointer-events', 'none').text(edge.label);
           try {
-            const bb = (txt.node() as SVGTextElement).getBBox();
-            bgRect.attr('x', bb.x - 5).attr('y', bb.y - 2).attr('width', bb.width + 10).attr('height', bb.height + 4).attr('rx', 4)
+            let bb = (txt.node() as SVGTextElement).getBBox();
+            // A CAPO — se il testo è più lungo del collegamento che lo porta.
+            // Su un edge corto un'etichetta lunga sbordava da entrambi i capi e
+            // finiva sopra i nodi collegati; con l'allineamento centrato, che
+            // ora è il default, il problema è diventato la norma invece che
+            // l'eccezione, perché il testo corre LUNGO la linea.
+            const avail = elen - LABEL_PAD;
+            if (bb.width > avail && edge.label.length > 1) {
+              const charW = bb.width / edge.label.length;   // esatto: monospaziato
+              const perLine = Math.max(LABEL_MIN_CHARS, Math.floor(avail / charW));
+              const lines = wrapLabel(edge.label, perLine);
+              if (lines.length > 1) {
+                txt.text(null);
+                lines.forEach((ln, i) => {
+                  txt.append('tspan')
+                    // La prima riga sale di metà blocco, così il gruppo di righe
+                    // resta centrato sul punto di mezzo come lo era la singola.
+                    .attr('x', 0)
+                    .attr('dy', i === 0 ? -((lines.length - 1) * LABEL_LINE_H) / 2 : LABEL_LINE_H)
+                    .text(ln);
+                });
+                bb = (txt.node() as SVGTextElement).getBBox();
+              }
+            }
+            // `above`: alzata quanto basta perché il bordo basso della pillola
+            // stia 3px sopra la linea. Nel gruppo ruotato "in alto" è già
+            // perpendicolare all'edge, quindi non serve nessun conto di seni.
+            const dy = align === 'above' ? -(bb.height / 2 + 5) : 0;
+            if (dy) txt.attr('y', dy);
+            bgRect.attr('x', bb.x - 5).attr('y', bb.y + dy - 2).attr('width', bb.width + 10).attr('height', bb.height + 4).attr('rx', 4)
               .attr('fill', theme.surface).attr('stroke', isEdgeSel ? selAccent : theme.border).attr('stroke-width', 1);
           } catch { bgRect.remove(); }
         }
-        g.on('mouseenter', () => vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)))
+        // ⚠️ Con un oggetto ARMATO l'edge si tira indietro: niente rosso al
+        // passaggio (l'unica accensione che deve contare è quella dell'innesto,
+        // che è d'accento) e niente click rubato — sopra un collegamento il
+        // click POSA, ed è anzi il gesto con cui ci si innesta.
+        g.on('mouseenter', () => { if (markerModeRef.current) return; vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)); })
          .on('mouseleave', () => {
            // Ripristina il baseline consapevole della selezione (può cambiare in hover).
            const sel = selectedIdsRef.current;
            const ms = sel.length >= 2 && sel.includes(edge.source_id) && sel.includes(edge.target_id);
            vl.attr('stroke', ms ? selAccent : edgeColor).attr('stroke-width', ms ? Math.max(edgeWidth, 2.5) : edgeWidth);
          });
-        g.on('click', (ev: MouseEvent) => { ev.stopPropagation(); onEdgeClickRef.current?.(edge.id); });
+        g.on('click', (ev: MouseEvent) => {
+          if (markerModeRef.current) return;   // il click scende al piano di sotto
+          ev.stopPropagation(); onEdgeClickRef.current?.(edge.id);
+        });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
       });
     };
@@ -1371,7 +1858,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     // Selection ring (toggled per tile based on selectedIds)
     nodeGrps.append('rect').attr('class', 'sel-ring')
       .attr('x', -3).attr('y', -3).attr('width', TILE_W + 6).attr('height', TILE_H + 6).attr('rx', RX_SEL)
-      .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 1.5)
+      .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 2)
       .style('pointer-events', 'none')
       .attr('opacity', (d) => { const id = (d as CanvasNode).id; return (selectedIdsRef.current.includes(id) || selectedTileIdRef.current === id) ? 1 : 0; });
 
@@ -1554,14 +2041,44 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // Background — i box di testo possono avere un colore di sfondo scelto
         // dalla TextSidebar (stessa palette dei gruppi); default = theme.surface.
         const bgFill = tb.type === 'text' && tb.content.bgColor ? tb.content.bgColor : theme.surface;
-        g.append('rect')
-          .attr('width', tw).attr('height', th).attr('rx', RX)
-          .attr('fill', bgFill).attr('stroke', theme.border).attr('stroke-width', SW);
+        // Il box di TESTO è squadrato e porta la stessa hairline dei tile
+        // (`--ob-tile-border`, già risolta in un colore concreto più su): sulla
+        // lavagna sta accanto a loro, e due contorni diversi lo facevano
+        // leggere come un oggetto di un altro sistema. L'IMMAGINE no: quella
+        // resta arrotondata, perché il suo riquadro è una cornice attorno a un
+        // contenuto, non una scheda.
+        const isTextBox = tb.type === 'text';
+        const isMarker = tb.type === 'marker';
+        if (isMarker) {
+          // Fondo ROTONDO. Il riquadro resta quadrato (w = h = MARKER_SIZE) e il
+          // disco ci sta dentro: le porte degli edge, i contorni dei gruppi e la
+          // selezione continuano a ragionare su x/y/w/h senza sapere che qui la
+          // forma è un cerchio.
+          const rawKind = (tb.content as { kind?: string }).kind;
+          const kind = rawKind ? (MARKER_LEGACY[rawKind] ?? rawKind) : undefined;
+          const mk: MarkerKind = (kind && kind in MARKER_SPEC ? kind : 'milestone') as MarkerKind;
+          // Disco PIENO, senza contorno: il colore è la forma. Prima era un
+          // anello — fondo della carta e bordo colorato — e a 36px il colore si
+          // riduceva a un filo di 2px, che su una lavagna piena di tile e box
+          // non bastava a farne un punto notevole.
+          paintMarker(g.node()!, mk, tw, th);
+        } else {
+          g.append('rect')
+            .attr('width', tw).attr('height', th).attr('rx', isTextBox ? 0 : RX)
+            .attr('fill', bgFill)
+            .attr('stroke', isTextBox ? tileBorder : theme.border)
+            .attr('stroke-width', SW);
+        }
 
         // Selection ring (toggled per text box based on selectedIds)
+        // Segue il raggio del riquadro che circonda: su un box squadrato un
+        // anello stondato si stacca agli angoli invece di seguirlo.
         g.append('rect').attr('class', 'sel-ring')
-          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6).attr('rx', RX_SEL)
-          .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 1.5)
+          // Raggio pieno sul marcatore: un anello quadrato attorno a un disco
+          // lascerebbe quattro angoli vuoti.
+          .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6)
+          .attr('rx', isMarker ? (tw + 6) / 2 : (isTextBox ? 0 : RX_SEL))
+          .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 2)
           .style('pointer-events', 'none')
           .attr('opacity', (selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id) ? 1 : 0);
 
@@ -1732,6 +2249,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // Un'immagine può essere membro di un gruppo: il contorno del
               // gruppo la segue mentre la si sposta, come per i tile.
               drawEdges(); drawGroups();
+              // INNESTO. Solo i marcatori, e solo trascinati da soli: spezzare
+              // un edge cambia la struttura del grafo, e va chiesto con un gesto
+              // preciso su un oggetto piccolo — non trascinando cinque cose
+              // insieme o passandoci sopra un'immagine larga.
+              if (!multi && tb.type === 'marker' && onSplitEdgeRef.current) {
+                probeSplit(tb.x + tb.w / 2, tb.y + tb.h / 2, `tb:${tb.id}`);
+              }
             })
             .on('end', () => {
               prev = null;
@@ -1751,6 +2275,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               }
               const wasMulti = multi;
               multi = false; mTiles = []; mTbs = [];
+              // L'innesto si compie al RILASCIO, non allo scadere dell'attesa:
+              // spezzare l'edge a mano ancora premuta avrebbe riscritto i dati a
+              // metà gesto, e il ridisegno che ne segue avrebbe staccato il
+              // trascinamento in corso, riportando l'oggetto dov'era partito.
+              // L'attesa arma, la mano che si apre conferma.
+              const armed = clearSplit();
+              if (armed && !wasMulti && tb.type === 'marker') {
+                onSplitEdgeRef.current?.(armed, `tb:${tb.id}`);
+              } else if (armed) {
+                drawEdges();
+              }
               // ── Drop-into-group ──
               // Stesso gesto dei tile: un'IMMAGINE lasciata cadere dentro un
               // gruppo (drag singolo, centro del box dentro il riquadro) ne
@@ -1802,7 +2337,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // il ridimensionamento sta tutto negli angoli, e i punti a metà bordo
         // tornano a essere quello che sembrano: i nodi di aggancio degli archi.
         const RESIZE_W = 6;
-        const resizeEdges = tb.type === 'image' ? [] : [
+        // Il MARCATORE non si ridimensiona affatto: è un simbolo di misura
+        // fissa, e stirarlo darebbe un'ellisse col disco fuori centro (il
+        // cerchio è tracciato su `min(w,h)` ma centrato su `w/2, h/2`). I punti
+        // a metà bordo gli restano come nodi d'aggancio degli archi, che è
+        // l'unica cosa che deve sapere fare oltre a stare dov'è.
+        const resizeEdges = (tb.type === 'image' || isMarker) ? [] : [
           { key: 'right', x: tw - RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
           { key: 'bottom', x: PORT_R + 4, y: th - RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
           { key: 'left', x: -RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
@@ -1880,7 +2420,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // sopra, questi sono solo il suo segno (pointer-events: none, così non
         // rubano il drag alla striscia né il click alla porta). Niente sulle
         // immagini: là quelle strisce non esistono più.
-        (tb.type === 'image' ? [] : [
+        ((tb.type === 'image' || isMarker) ? [] : [
           { hx: tw, hy: th / 2 }, { hx: tw / 2, hy: th },
           { hx: 0, hy: th / 2 }, { hx: tw / 2, hy: 0 },
         ]).forEach(({ hx, hy }) => {
@@ -1893,7 +2433,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Angoli: scala tenendo fermo l'angolo OPPOSTO. Prima ce n'era uno solo
         // (in basso a destra) e invisibile.
-        const corners = [
+        const corners = isMarker ? [] : [
           { key: 'br', hx: tw, hy: th, cursor: 'nwse-resize' },
           { key: 'bl', hx: 0, hy: th, cursor: 'nesw-resize' },
           { key: 'tr', hx: tw, hy: 0, cursor: 'nesw-resize' },
@@ -2048,7 +2588,63 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       }
     });
 
-    // Click on background to place a new tile
+    // ── IL GHOST DELL'OGGETTO ARMATO ─────────────────────────────────────────
+    // Con uno strumento armato il click cambia significato, e finché non si
+    // clicca non si vede né COSA si sta per posare né DOVE. Il ghost è l'oggetto
+    // vero, disegnato dallo stesso pittore e velato: quello che si vede sotto il
+    // cursore è quello che resta sulla lavagna.
+    //
+    // Sta dentro `board`, cioè sotto la trasformazione dello zoom: così è grande
+    // quanto sarà davvero, e a zoom ridotto non promette un ingombro che non ha.
+    let ghost: SVGGElement | null = null;
+    const clearGhost = () => { ghost?.remove(); ghost = null; };
+    // Spegne ghost e innesto insieme: sono lo stesso gesto interrotto.
+    const cancelPlacing = () => {
+      clearGhost();
+      if (clearSplit()) drawEdges();
+    };
+
+    d3svg.on('mousemove.marker', (ev: MouseEvent) => {
+      const kind = markerModeRef.current;
+      if (!kind) { if (ghost) cancelPlacing(); return; }
+      const [mx, my] = d3.pointer(ev, boardNode);
+      if (!ghost || ghost.getAttribute('data-kind') !== kind) {
+        clearGhost();
+        const gg = board.append('g')
+          .attr('class', 'marker-ghost').attr('data-kind', kind)
+          .style('pointer-events', 'none')
+          .style('opacity', GHOST_OPACITY);
+        ghost = gg.node();
+        if (ghost) paintMarker(ghost, kind, MARKER_SIZE, MARKER_SIZE);
+      }
+      ghost?.setAttribute('transform', `translate(${mx - MARKER_SIZE / 2},${my - MARKER_SIZE / 2})`);
+      // Stessa sonda del trascinamento, stesso mezzo secondo. L'id di sé è
+      // vuoto: l'oggetto non esiste ancora, quindi non c'è nessun edge suo da
+      // escludere.
+      if (onSplitEdgeRef.current) probeSplit(mx, my, '');
+    });
+    // Uscendo dalla lavagna il ghost se ne va: lasciarlo fermo sull'ultimo punto
+    // avrebbe fatto credere che l'oggetto fosse già posato lì.
+    d3svg.on('mouseleave.marker', () => cancelPlacing());
+
+    // Posa un marcatore CENTRATO sul punto cliccato: è un oggetto piccolo e
+    // tondo, e ci si aspetta che finisca dove si è puntato, non che ci appoggi
+    // il proprio angolo in alto a sinistra.
+    d3svg.on('click.marker', (ev: MouseEvent) => {
+      const kind = markerModeRef.current;
+      if (!kind) return;
+      // Il bersaglio può essere anche un EDGE: posare sopra un collegamento è il
+      // gesto dell'innesto, non un click andato a vuoto. Tutto il resto (tile,
+      // box, gruppi) continua a non ricevere oggetti addosso.
+      const t = ev.target as Element;
+      if (t !== svg && !edgesG.node()?.contains(t)) return;
+      const [mx, my] = d3.pointer(ev, boardNode);
+      const armed = clearSplit();
+      clearGhost();
+      if (armed) drawEdges();
+      onAddMarkerAtRef.current?.(mx - MARKER_SIZE / 2, my - MARKER_SIZE / 2, kind, armed ?? undefined);
+    });
+
     d3svg.on('click.tile', (ev: MouseEvent) => {
       if (!tileModeRef.current) return;
       if (ev.target !== svg) return;
@@ -2206,7 +2802,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             >
               <TextEditor
                 editing={editingBoxId === tb.id}
-                fontSize={(tb as { type: 'text'; content: { fontSize?: number } }).content.fontSize ?? 11}
+                fontSize={(tb as { type: 'text'; content: { fontSize?: number } }).content.fontSize ?? BOX_FONT_SIZE}
+                onMeasure={(m) => reportBoxMeasure(tb.id, m)}
+                textColor={tb.content.bgColor ? readableOn(tb.content.bgColor) : 'var(--ob-text)'}
                 initialHtml={(tb as { type: 'text'; content: { html: string } }).content.html}
                 onChange={(html) => {
                   // Keep local box in sync so D3 drag-end save uses the latest HTML.
@@ -2220,6 +2818,36 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                   editorSaveTimersRef.current.set(tb.id, t);
                 }}
               />
+              {/* BADGE DI ESPANSIONE — compare SOLO quando il testo non ci sta,
+                  cioè esattamente quando compare la barra di scorrimento. È
+                  l'alternativa a scorrere: un clic e il box diventa alto quanto
+                  serve.
+
+                  `pointerEvents: 'auto'` è indispensabile: il div del box è
+                  `none` fuori dall'editing (click e trascinamento devono
+                  passare al gruppo D3 sotto), e un figlio deve riaccenderli per
+                  sé. `stopPropagation` sul mousedown impedisce che il gesto
+                  inizi un trascinamento del box.
+
+                  Geometria: 16px appesi allo spigolo in basso a destra, 7
+                  dentro e 9 fuori — le stesse proporzioni con cui il badge
+                  d'azione sta appeso al tile, che qui accanto rende 16 anche
+                  lui. Il box non è zoomato, quindi 16 sono 16. */}
+              {boxOverflow[tb.id] != null && (
+                <button
+                  type="button"
+                  className="ob-boxfit"
+                  title="Espandi il box per mostrare tutto il testo"
+                  aria-label="Espandi il box per mostrare tutto il testo"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    expandBoxToFit(tb, boxOverflow[tb.id]);
+                  }}
+                >
+                  <IconChevronsDown size={10} stroke={2} />
+                </button>
+              )}
             </div>
           ))}
         </div>

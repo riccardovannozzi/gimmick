@@ -60,7 +60,7 @@ export function TileBadge({ badge, shifted }: { badge: BadgeSpec; shifted?: bool
   if (!Glyph) return null;
   return (
     <span className={cn('ob-tbadge', 'ob-tbadge--icon', side)} aria-hidden>
-      <Glyph size={10} stroke={1.8} />
+      <Glyph size={12} stroke={1.8} />
     </span>
   );
 }
@@ -180,7 +180,7 @@ export function TileSparks({ types, shifted }: { types?: SparkType[]; shifted?: 
         const { Glyph, color } = SPARK_CHANNEL[t];
         return (
           <span key={t} className="ob-tspark" style={{ ['--sk' as string]: color }} aria-hidden>
-            <Glyph size={14} stroke={1.8} />
+            <Glyph size={15} stroke={1.8} />
           </span>
         );
       })}

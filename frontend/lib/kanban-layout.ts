@@ -10,18 +10,18 @@
  *
  * ─── Le misure ───────────────────────────────────────────────────────────────
  *
- * Il tile è disegnato su 180×100 in tutte le viste, ma quello che occupa è
+ * Il tile è disegnato su 160×90 in tutte le viste, ma quello che occupa è
  * meno: qui i conti si fanno sull'ingombro reale.
  */
 
 /**
- * L'ingombro del tile arriva dal sistema visivo: 144×80, la misura standard di
+ * L'ingombro del tile arriva dal sistema visivo: 128×72, la misura standard di
  * tutta l'app (vedi `TILE_SCALE` in tile-visual.ts).
  *
  * Il Kanban aveva una scala PROPRIA — era l'unica vista a rimpicciolire il tile,
- * quando le altre lo mostravano a grandezza naturale. Ora che 144×80 è lo
+ * quando le altre lo mostravano a grandezza naturale. Ora che 128×72 è lo
  * standard quella scala locale è sparita: restava un secondo fattore che si
- * sarebbe moltiplicato con quello del tile, riducendolo a 115×64.
+ * sarebbe moltiplicato con quello del tile, riducendolo a 102×58.
  */
 import { TILE_W, TILE_H } from '@/lib/tile-visual';
 
@@ -70,8 +70,8 @@ export const RAIL_KEY = '__rail';
 /** Larghezza di una colonna compressa: resta visibile il solo chevron. */
 export const COL_COLLAPSED_W = 40;
 
-/** Larghezza che serve per tenere `slots` tile affiancati. A 144px per tile:
- *  1 → 157 · 2 → 304 · 3 → 451 · 4 → 598. */
+/** Larghezza che serve per tenere `slots` tile affiancati. A 128px per tile:
+ *  1 → 141 · 2 → 272 · 3 → 403 · 4 → 534. */
 export function colWidth(slots: number): number {
   return Math.round(slots * TILE_W + (slots - 1) * CELL_GAP + COL_CHROME);
 }

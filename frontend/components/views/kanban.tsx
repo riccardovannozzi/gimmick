@@ -30,7 +30,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import {
   IconGripVertical, IconDots, IconArrowAutofitWidth,
-  IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid, IconTransform,
+  IconColumnInsertRight, IconRowInsertBottom, IconCube, IconTransform,
 } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
@@ -136,7 +136,7 @@ const LANES: Lane[] = [
 
 /**
  * La card della lane è il `Tile` del sistema visivo, come in Chrono, nel canvas
- * e nello staging. Misura già 180×100 come il Tile, quindi l'ingombro nella lane
+ * e nello staging. Misura già 160×90 come il Tile, quindi l'ingombro nella lane
  * non cambia: cambia cosa la card dice.
  *
  * ⚠️ Quattro segnali che la card del Kanban aveva e che il Tile NON ha:
@@ -796,7 +796,7 @@ export function KanbanView({
             ma non aggiungi COSA. */}
         <div className="ob-tools">
           <ToolButton
-            icon={<IconLayoutGrid size={16} stroke={1.6} />}
+            icon={<IconCube size={16} stroke={1.6} />}
             label="Nuovo tile"
             onClick={onAddTile}
             disabled={!onAddTile}

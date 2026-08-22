@@ -36,6 +36,8 @@ import { tagsToSidebarGroups } from '@/lib/theme/tags-to-groups';
 import type { Tag } from '@/types';
 import { OB_LEADING, OB_TEXT } from '@/lib/theme/ob-typography';
 import { ContactsModal } from '@/components/contacts/ContactsModal';
+import { SettingsModal } from '@/components/views/settings-modal';
+import { useSettingsModal } from '@/store/settings-modal-store';
 
 /** Mappa vista → rotta. Single source of truth per la navigazione dello shell. */
 const VIEW_TO_PATH: Record<ViewId, string> = {
@@ -208,6 +210,9 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   // Filtro Sidebar (Tutti / Pinned).
   const [tagFilter, setTagFilter] = React.useState('all');
   const [contactsOpen, setContactsOpen] = React.useState(false);
+  // I settings NON sono uno `useState` locale: li apre anche la vecchia rotta
+  // `/settings`, che è un reindirizzo e vive fra le `children`.
+  const openSettings = useSettingsModal((s) => s.setOpen);
   /** Il gruppo su cui si è chiesto «Aggiungi tag». `null` = modale chiusa. */
   const [addTagGroup, setAddTagGroup] = React.useState<SidebarGroup | null>(null);
 
@@ -248,7 +253,7 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
   /**
    * ─── La colonna centrale è UN RESTO ─────────────────────────────────────────
    *
-   * Le due sponde hanno larghezza costante — 232 la sidebar dei tag, 280 il
+   * Le due sponde hanno larghezza costante — 200 la sidebar dei tag, 280 il
    * pannello destro — e il centro è quello che avanza. È l'invariante che tiene
    * ferme le viste quando si passa dall'una all'altra: se una vista si prende
    * anche i 280 della sponda destra, cambiare vista sposta di 280px tutto quello
@@ -301,8 +306,8 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
         onContacts: () => setContactsOpen(true),
         onAsk: () => setChatOpen(true),
         onBell: () => router.push('/tiles'),
-        onSettings: () => router.push('/settings'),
-        onAvatar: () => router.push('/settings'),
+        onSettings: () => openSettings(true),
+        onAvatar: () => openSettings(true),
       }}
       sidebar={
         <Sidebar
@@ -351,6 +356,10 @@ export function ObsidianShell({ children, inspector }: ObsidianShellProps) {
     >
       {children}
       <ContactsModal open={contactsOpen} onClose={() => setContactsOpen(false)} />
+      {/* Montata una volta sola qui: lo shell c'è in ogni vista, quindi le
+          impostazioni si aprono da qualunque punto dell'app senza cambiare
+          rotta — e chiudendole torni dove stavi, non su una vista a caso. */}
+      <SettingsModal />
       {/* Il tag nuovo si accende subito nella sidebar: hai appena detto che ti
           interessa, e trovarlo già selezionato risparmia il passaggio di
           cercarlo nella lista che si è appena riordinata sotto di te. */}

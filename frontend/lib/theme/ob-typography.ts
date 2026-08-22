@@ -105,3 +105,18 @@ export function obLabel(theme: PixelTheme): React.CSSProperties {
     color: theme.ink3,
   };
 }
+
+/**
+ * Titolo del tile — mirror di `--ob-tile-title` / `--ob-tile-title-weight`.
+ *
+ * Sta fuori da `OB_TEXT` perché non è un gradino della scala generale: è la
+ * calibratura di un testo che il browser disegna DOPO una riduzione. Il tile
+ * è rimpicciolito da `zoom: var(--ob-tile-zoom)`, quindi questi 15 rendono 12
+ * sullo schermo — ed è quel 12 che va confrontato con qualunque altro testo
+ * dell'app, non il 15.
+ *
+ * Chi deve APPAIARE il titolo di un tile da fuori (i box di testo del canvas,
+ * che stanno nelle stesse coordinate ma non sono zoomati) usa
+ * `OB_TILE_TITLE.size * TILE_SCALE`, non questo numero nudo.
+ */
+export const OB_TILE_TITLE = { size: 15, weight: 500 } as const;

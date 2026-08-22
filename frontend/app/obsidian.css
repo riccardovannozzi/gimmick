@@ -97,6 +97,33 @@
   /* Semantic (derived from the type scale) */
   --ob-success: #3FAE72; /* timed  ← text  */
   --ob-error: #E0544F;   /* deadline ← voice */
+
+  /* ── MARCATORI di percorso del canvas (start / stop / goal / nodo) ────────
+     Tre dei quattro sono alias di token che esistono già, e non copie del loro
+     valore: uno stop è uno stato di errore, un goal è un esito riuscito, un
+     nodo è inchiostro neutro. Cambiando quelli cambiano anche questi, ed è
+     giusto così.
+     Il blu è l'unico scritto per esteso, perché un blu semantico l'app non ce
+     l'ha: è la stessa coppia chiaro/scuro del blu di sistema (#4F86EE /
+     #7AA7F5), ripetuta qui invece di aliasare `--ob-type-photo` — quello è il
+     colore del TIPO "foto", e legarci un marcatore inventerebbe una parentela
+     che non esiste.
+     ⚠️ In scuro vanno ridefiniti start e goal: gli altri due sono alias e
+     seguono da soli, perché `var()` si risolve al momento dell'uso. */
+  --ob-marker-start: #4F86EE;
+  --ob-marker-stop: var(--ob-error);
+  /* Il goal è l'ECCEZIONE fra gli alias, e per un motivo misurabile: il disco è
+     PIENO e il glifo ci sta dentro, quindi i due colori devono contrastare.
+     `--ob-success` (#3FAE72) contro il bianco dà 2.83:1, sotto il 3:1 che serve
+     a una forma grafica. Questo verde è lo stesso, più cupo quanto basta: 3.60:1.
+     In scuro il problema non si pone (l'inchiostro lì è nero) e si torna all'alias. */
+  --ob-marker-goal: #2E9A60;
+  --ob-marker-milestone: var(--ob-text);
+  /* Il colore DENTRO il disco. È quello della carta, non un bianco fisso: in
+     chiaro il glifo è bianco su disco colorato, in scuro è nero — perché in
+     scuro i quattro colori sono tutti schiariti (il blu #7AA7F5 col bianco fa
+     2.38:1) e l'inchiostro chiaro sparirebbe. Un solo token, due letture. */
+  --ob-marker-ink: var(--ob-canvas);
   --ob-info: #4F86EE;    /* all-day ← photo */
   --ob-warning: #C99220; /* amber  ← file  */
 
@@ -171,6 +198,10 @@
   /* Semantic (derived from the type scale) */
   --ob-success: #74D6A2; /* timed  ← text  */
   --ob-error: #F38682;   /* deadline ← voice */
+
+  /* Start e goal: stop e milestone sono alias e seguono i loro token. */
+  --ob-marker-start: #7AA7F5;
+  --ob-marker-goal: var(--ob-success);
   --ob-info: #7AA7F5;    /* all-day ← photo */
   --ob-warning: #E7C25E; /* amber  ← file  */
 
@@ -307,13 +338,14 @@
   --ob-toolbar-height: 44px;
 
   /* ── Scala del TILE ──────────────────────────────────────────────────────
-     Il tile è disegnato su un rettangolo di 180×100 e mostrato a 0.8, cioè
-     144×80. È la misura STANDARD: canvas, staging, colonne di CHRONO
-     (Notes/Todo/Flow) e Kanban lo mostrano tutti così.
+     Il tile è disegnato su un rettangolo di 160×90 e mostrato a 0.8, cioè
+     128×72 — 16:9 sia da disegnato che da mostrato. È la misura STANDARD:
+     canvas, staging, colonne di CHRONO (Notes/Todo/Flow) e Kanban lo mostrano
+     tutti così.
 
-     Perché una scala e non un rettangolo da 144×80 ridisegnato: `zoom` riduce
+     Perché una scala e non un rettangolo da 128×72 ridisegnato: `zoom` riduce
      ANCHE l'interno — testo, spaziature, strip, badge — mantenendo le
-     proporzioni che rendono il tile leggibile. Ridisegnarlo a 144×80 avrebbe
+     proporzioni che rendono il tile leggibile. Ridisegnarlo a 128×72 avrebbe
      voluto dire ricalcolare a mano ogni misura interna, e i corpi tipografici
      sarebbero caduti fuori dalla scala canonica (8/9/11/12/13/16).
 

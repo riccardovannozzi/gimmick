@@ -1,7 +1,11 @@
 'use client';
 
+import * as React from 'react';
 import { useState } from 'react';
-import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf } from '@tabler/icons-react';
+import { createPortal } from 'react-dom';
+import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX } from '@tabler/icons-react';
+import { MARKER_SPEC, MARKER_KINDS } from '@/components/canvas/CanvasBoard';
+import type { MarkerKind } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
@@ -13,6 +17,9 @@ interface CanvasTopbarProps {
   textMode: boolean;
   tileMode: boolean;
   imageMode: boolean;
+  /** Tipo di marcatore armato, o null. */
+  markerMode?: MarkerKind | null;
+  onPickMarker?: (kind: MarkerKind | null) => void;
   selectMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
@@ -40,7 +47,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -94,6 +101,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   return (
     <div
       className="shrink-0"
+      /* Appiglio per il menu degli oggetti, che si stacca di 4px dal bordo
+         BASSO di questa fascia: la misura si prende qui, non si ricopia. */
+      data-ob-topbar=""
       style={{
         // Fascia sotto la navbar, come header staging e tabbar destra.
         // Scala verticale dello shell: 56 navbar · 48 fascia · 40 sotto-barre.
@@ -262,9 +272,10 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
             fa il click sulla lavagna, e non può essere uno stato che si scopre
             provando. */}
         <ToolButton icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
-        <ToolButton icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ToolButton icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
+        <ToolButton icon={<IconCube size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ToolButton icon={<IconArticle size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onPickMarker && <MarkerTool value={markerMode} onPick={onPickMarker} />}
         {onTogglePdfMode && (
           <>
             {/* Separato dai quattro qui sopra: quelli aggiungono qualcosa alla
@@ -304,5 +315,109 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * Strumento OGGETTI — apre un menu con le forme che si possono posare sulla
+ * lavagna, oggi i due marcatori di percorso.
+ *
+ * È l'unico strumento della barra a passare da un menu, e la ragione è che non
+ * arma UNA cosa sola: gli altri quattro hanno un solo esito possibile, questo
+ * deve prima farti scegliere quale oggetto. Una fila di pulsanti, uno per
+ * oggetto, avrebbe allungato la barra a ogni forma aggiunta.
+ *
+ * ⚠️ E qui il patto è DIVERSO dagli altri quattro strumenti. Quelli si spengono
+ * da soli dopo aver posato una cosa; questo resta aperto e armato finché non lo
+ * chiudi tu — ricliccando «Oggetti» o con la crocetta d'angolo. Gli oggetti si
+ * mettono a gruppi (un capolinea, tre nodi, un traguardo), e riaprire il menu a
+ * ogni posa era un giro in più per ogni singolo pezzo.
+ *
+ * Conseguenza: il menu NON si chiude cliccando fuori. Fuori c'è la lavagna, che
+ * è esattamente dove si posano gli oggetti — un click-fuori che chiude avrebbe
+ * chiuso il menu alla prima posa, cioè sempre.
+ */
+function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: MarkerKind | null) => void }) {
+  const [open, setOpen] = React.useState(false);
+  /** Quota del bordo basso della barra: il menu ci si stacca di 4px. */
+  const [top, setTop] = React.useState(0);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  const openMenu = () => {
+    const bar = ref.current?.closest('[data-ob-topbar]')?.getBoundingClientRect();
+    setTop((bar ? bar.bottom : 0) + 4);
+    setOpen(true);
+  };
+
+  /** Chiudere DISARMA. Un menu chiuso con lo strumento ancora armato lascerebbe
+   *  la lavagna a posare oggetti senza niente che lo dica. */
+  const close = () => { setOpen(false); onPick(null); };
+
+  /**
+   * Cliccare una voce ARMA quella voce. Non è un interruttore.
+   *
+   * Ricliccare quella già accesa la spegneva, ed era una trappola: chi crede di
+   * essersi disarmato dopo una posa (perché l'accensione si vedeva poco) clicca
+   * di nuovo lo stesso oggetto per riarmarlo e invece lo SPEGNE — poi il click
+   * sulla lavagna non posa niente, e la conclusione è «lo strumento si
+   * deseleziona da solo dopo ogni oggetto». Per smettere ci sono già due
+   * comandi che non si possono fraintendere: la crocetta e il pulsante.
+   */
+  const pick = (k: MarkerKind) => onPick(k);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      <ToolButton
+        icon={<IconFlag size={16} stroke={1.6} />}
+        label="Oggetti"
+        active={open || !!value}
+        onClick={() => (open ? close() : openMenu())}
+      />
+      {open && createPortal(
+        /* Forma, centratura e stati stanno in `.ob-markermenu`
+           (app/obsidian-canvas.css) — compreso il perché del portale. */
+        <div className="ob-markermenu" style={{ top }}>
+          <button type="button" className="ob-markermenu__close" onClick={close} title="Chiudi">
+            <IconX size={12} stroke={2} />
+          </button>
+          {/* Le voci escono da `MARKER_SPEC`: aggiungere un marcatore è
+              aggiungere una riga là, e il menu si adegua da solo. */}
+          {MARKER_KINDS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => pick(k)}
+              title={MARKER_SPEC[k].label}
+              className={cn('ob-markermenu__item', value === k && 'ob-markermenu__item--on')}
+            >
+              <MarkerGlyph kind={k} />
+              {MARKER_SPEC[k].label}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+/**
+ * L'anteprima dell'oggetto: lo stesso disco e lo stesso glifo che finiranno
+ * sulla lavagna, in piccolo. Disegnarla invece di descriverla evita di dover
+ * spiegare a parole la differenza fra quattro simboli.
+ */
+function MarkerGlyph({ kind }: { kind: MarkerKind }) {
+  const { color, Glyph } = MARKER_SPEC[kind];
+  return (
+    <span
+      style={{
+        width: 22, height: 22, borderRadius: '50%',
+        background: color, color: 'var(--ob-marker-ink)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <Glyph size={12} stroke={2} />
+    </span>
   );
 }

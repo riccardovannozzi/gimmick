@@ -455,14 +455,22 @@
    A destra non c'è niente da scavalcare. */
 .ob-tbadge--left.ob-tbadge--shifted { left: 26px; }
 /* Parola (FLOW). Sotto queste misure il bordo diventa più spesso del contenuto
-   e la pillola si legge come un pallino. */
+   e la pillola si legge come un pallino.
+   L'altezza non è dichiarata, la fa l'interlinea: 9 × 1.95 + 2.4 di bordo =
+   20, la stessa del badge-icona. */
 .ob-tbadge--word {
-  top: -7px;
-  padding: 0 6px;
-  font-size: var(--ob-text-eyebrow); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.4px; line-height: 1.7;
+  top: -11px;
+  padding: 0 7px;
+  font-size: var(--ob-text-micro); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.4px; line-height: 1.95;
 }
-/* Icona: box fisso. */
-.ob-tbadge--icon { top: -8px; width: 17px; height: 17px; }
+/* Icona: box fisso. 20 come il pallino degli spark: la STESSA pillola, che è
+   quello che il commento laggiù dichiara da sempre senza che fosse vero (erano
+   17 e 18).
+   `top: -11` tiene la parte INTERNA a 9, cioè sotto i 10 di padding del corpo:
+   il badge non entra mai nella prima riga del titolo. Fuori sbordano 11
+   nominali = 8.8px reali, dentro i 9 di gronda fra due tile impilati. È il
+   TETTO: oltre, il badge va a sbattere sulla card di sopra. */
+.ob-tbadge--icon { top: -11px; width: 20px; height: 20px; }
 
 /* STRIP + STEPPER — tela neutra sul lato interno sinistro. Il fondo chiaro
    serve a far leggere i segmenti a piena saturazione senza competere col
@@ -531,10 +539,10 @@
    ⚠️ Come i badge, richiede `overflow: visible` sul contenitore della card. */
 .ob-tsparks {
   position: absolute; z-index: 2;
-  /* -9 e non -8: il disco è 18, quindi il suo bordo alto cade esatto a 9 dal
+  /* -11 e non -9: il disco è 20, quindi il suo bordo alto cade esatto a 9 dal
      fondo — dove comincia lo status. Tangenti, non sovrapposti. E sotto sborda
-     di 9 × 0.8 = 7.2px reali, che stanno nei 9px di stacco fra due card. */
-  left: 10px; bottom: -9px;
+     di 11 × 0.8 = 8.8px reali, che stanno nei 9px di stacco fra due card. */
+  left: 10px; bottom: -11px;
   display: inline-flex; align-items: center; gap: 3px;
   pointer-events: none;
 }
@@ -553,7 +561,7 @@
    lavagna, e senza un fondo suo quella metà si perderebbe. */
 .ob-tspark {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px;
+  width: 20px; height: 20px;
   border-radius: 999px;
   background: var(--ob-surface-2);
   color: var(--sk, var(--ob-muted));
@@ -566,7 +574,7 @@
 [data-sparks='off'] .ob-tsparks { display: none; }
 
 /* ─── IL TILE ───────────────────────────────────────────────────────────────
-   180×100 disegnati, 144×80 mostrati: la misura unica di tutte le superfici
+   160×90 disegnati, 128×72 mostrati: la misura unica di tutte le superfici
    (canvas TILE_W/TILE_H, colonne di Chrono, corsie del Kanban, staging).
 
    ⚠️ NIENTE `overflow: hidden`. È deliberato: i badge sbordano dal rettangolo
@@ -577,18 +585,18 @@
    ────────────────────────────────────────────────────────────────────────── */
 .ob-tile {
   position: relative;
-  /* Il rettangolo di DISEGNO è 180×100: tutte le misure interne (padding 10/6,
+  /* Il rettangolo di DISEGNO è 160×90: tutte le misure interne (padding 10/6,
      strip 20, corpi 11/15) sono tarate su questo, ed è il sistema descritto in
-     lib/tile-visual.ts. Quello che si VEDE è 144×80, perché `zoom` scala il
+     lib/tile-visual.ts. Quello che si VEDE è 128×72, perché `zoom` scala il
      rettangolo e tutto quello che contiene.
      `zoom` e non `transform: scale()`: lo zoom entra nel calcolo del layout,
-     quindi il tile OCCUPA davvero 144×80 e le colonne che lo contengono si
-     allargano di conseguenza. Con `transform` sarebbe rimasta in piedi una
-     scatola da 180×100 con dentro un tile più piccolo.
+     quindi il tile OCCUPA davvero 128×72 e le colonne che lo contengono si
+     dimensionano di conseguenza. Con `transform` sarebbe rimasta in piedi una
+     scatola da 160×90 con dentro un tile più piccolo.
      ⚠️ Gemello di `TILE_BASE_W`/`TILE_BASE_H` in lib/tile-visual.ts, da cui il
      canvas ricava la geometria SVG: vanno cambiati INSIEME, o i tile finiscono
      disegnati in un posto e cliccabili in un altro. */
-  width: 180px; height: 100px; flex-shrink: 0;
+  width: 160px; height: 90px; flex-shrink: 0;
   zoom: var(--ob-tile-zoom, 0.8);
   border-radius: var(--ob-radius-sm);
   /* Velatura del colore dell'action sul fondo unico dei tile — la STESSA
@@ -598,7 +606,7 @@
      velatura: e' la variante che le viste chiamano `--plain`. */
   background: color-mix(in srgb, var(--ac, var(--ob-tile-bg)) 14%, var(--ob-tile-bg));
   /* Hairline strutturale: definisce il rettangolo, non porta significato.
-     Con box-sizing border-box l'ingombro resta 180×100 anche quando il bordo
+     Con box-sizing border-box l'ingombro resta 160×90 anche quando il bordo
      action lo ingrossa a 1.5px.
      ⚠️ È `--ob-tile-border` e non la hairline generica `--ob-line`: da quando in
      light l'area di lavoro è il bianco pieno, il tile senza colorazione è una
@@ -679,13 +687,13 @@
    I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
    perde: il testo va a capo dopo due righe, quindi ogni pixel orizzontale è
    una lettera in più prima dell'ellissi. In verticale invece lo spazio avanza —
-   due righe a 15px occupano 39 dei 97 disponibili.
+   due righe a 15px occupano 39 degli 87 disponibili.
 
    Il padding basso NON è lo spazio riservato al footer: la riga di footer
    (status a sinistra, metadato a destra) è posizionata in assoluto a
    `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
    libero per costruzione; ora la separazione la garantisce il clamp a due
-   righe — 10 di padding + 39 di testo = 49, contro i 78 a cui comincia il
+   righe — 10 di padding + 39 di testo = 49, contro i 68 a cui comincia il
    footer. ⚠️ Se il clamp salisse a tre righe il margine si dimezzerebbe. */
 .ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
@@ -715,7 +723,7 @@
    sei caratteri non viene renderizzato affatto (decisione presa nel componente,
    dove le misure sono note), altrimenti tronca con ellissi. */
 .ob-tile__meta {
-  position: absolute; right: 10px; bottom: 9px; max-width: 118px;
+  position: absolute; right: 10px; bottom: 9px; max-width: 103px;
   font-size: var(--ob-text-meta); line-height: var(--ob-leading-none);
   opacity: 0.6;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;

@@ -149,7 +149,7 @@
    hairline inferiori dei tre pannelli si allineano. Il padding che prima stava
    sull'aside vive ora nel corpo. */
 .ob-sb {
-  width: 232px;
+  width: 200px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -177,7 +177,12 @@
   background: var(--ob-sunken);
   border-bottom: 1px solid var(--ob-line);
 }
-.ob-sb__body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px; }
+/* Il padding NON è uniforme: a sinistra 6, a destra 12. La colonna apre con le
+   freccette dei gruppi, e una freccetta è già quasi tutta aria — messa a 20px
+   dal bordo (12 di corpo + 8 di bottone) la sidebar sembrava rientrata di un
+   dito. A destra i 12 restano: lì ci passa la scrollbar (9px, senza gutter
+   riservato) e sotto ci finiscono i nomi lunghi in ellissi. */
+.ob-sb__body { flex: 1; min-height: 0; overflow-y: auto; padding: 12px 12px 12px 6px; }
 /* I due override per tema che stavano qui sono diventati il token
    `--ob-rail-bg` (obsidian.css): il fondo delle colonne laterali va scelto una
    volta sola, o le due sponde tornano a scostarsi. */
@@ -227,7 +232,9 @@
    ritmi diversi si vedono. */
 .ob-sb-group__head {
   display: flex; align-items: center; gap: 8px;
-  padding: 5px 8px; border-radius: var(--ob-radius-sm);
+  /* Asimmetrico come il corpo: 4 a sinistra perché lì c'è solo la freccetta,
+     8 a destra dove finisce il nome. */
+  padding: 5px 8px 5px 4px; border-radius: var(--ob-radius-sm);
   line-height: var(--ob-leading-tight);
   cursor: pointer;
   transition: background-color 120ms ease-out;

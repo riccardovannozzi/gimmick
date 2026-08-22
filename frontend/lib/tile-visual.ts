@@ -2,7 +2,7 @@
  * Gimmick — Sistema visivo dei Tile a canali indipendenti.
  *
  * Un Tile si legge senza leggerne il contenuto. Cinque canali, cinque zone del
- * rettangolo 180×100, che non possono collidere fra loro:
+ * rettangolo 160×90, che non possono collidere fra loro:
  *
  *   bordo           perimetro                    tipo, famiglia "senza tempo"
  *   badge d'angolo  spigoli superiori (esterni)  tipo, famiglia "con tempo"
@@ -194,17 +194,20 @@ export const STEPPER_MAX_SEGMENTS = 10;
  * Il rettangolo su cui il tile è DISEGNATO. Tutte le misure interne — padding
  * 10/6, strip 20, corpi 11/15 — sono tarate su questo.
  *
- * ⚠️ Non è la misura che si vede: è 180×100 perché a valle c'è `TILE_SCALE`.
- * Era 150×80 quando il tile si mostrava a 120×64; il rettangolo è cresciuto
- * insieme all'ingombro, non al posto suo. Il rapporto è cambiato (1.875 → 1.8),
- * quindi non è un semplice riscalamento del vecchio: il tile è ora
- * proporzionalmente un po' più alto.
+ * ⚠️ Non è la misura che si vede: è 160×90 perché a valle c'è `TILE_SCALE`.
+ *
+ * 160×90 è 16:9, e lo è anche l'ingombro che ne esce (128×72): è l'unica misura
+ * sotto la precedente che resti proporzionata al vecchio 1.8 (scarto 1.2%)
+ * tenendo interi entrambi i rettangoli. Il vincolo che restringe il campo è lo
+ * zoom: base = reso ÷ 0.8, quindi il reso dev'essere divisibile per 4 o la base
+ * cade sui decimali. Per questo 1.800 esatto non era disponibile — servirebbe
+ * 135×75 (base 168.75) — e si è preso il più vicino.
  */
-export const TILE_BASE_W = 180;
-export const TILE_BASE_H = 100;
+export const TILE_BASE_W = 160;
+export const TILE_BASE_H = 90;
 
 /**
- * La scala a cui il tile è MOSTRATO. 0.8 → 144×80, misura standard in canvas,
+ * La scala a cui il tile è MOSTRATO. 0.8 → 128×72, misura standard in canvas,
  * staging, colonne di CHRONO (Notes/Todo/Flow) e Kanban.
  *
  * ⚠️ Il gemello di questo numero è il token `--ob-tile-zoom` in app/obsidian.css,
@@ -232,7 +235,7 @@ export const TILE_H = TILE_BASE_H * TILE_SCALE;
  * c'è nessuna card.
  *
  * Il posto dove il problema esiste davvero è il CANVAS, che ha uno zoom: a
- * scale ridotte il rettangolo resta 180×100 nello spazio del board ma sullo
+ * scale ridotte il rettangolo resta 160×90 nello spazio del board ma sullo
  * schermo diventa una scheggia.
  *
  * 0.6 viene dalle misure, non dal gusto: il segmento dello stepper è alto 3px e

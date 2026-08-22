@@ -774,14 +774,14 @@ export const canvasApi = {
     return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }[]>(`/api/canvas/boxes/${tagId}`);
   },
 
-  async addBox(tagId: string, data: { type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
-    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
+  async addBox(tagId: string, data: { type: 'text' | 'image' | 'marker'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
+    return apiRequest<{ id: string; type: 'text' | 'image' | 'marker'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateBox(id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
+  async updateBox(id: string, updates: { type?: 'text' | 'image' | 'marker'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
     return apiRequest(`/api/canvas/boxes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

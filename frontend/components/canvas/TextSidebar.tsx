@@ -15,13 +15,14 @@ import { useEffect } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import { StarterKit } from '@tiptap/starter-kit';
 import {
-  IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconTrash, IconNote,
+  IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconTrash, IconArticle,
   IconBold, IconItalic, IconStrikethrough, IconH2, IconList, IconListNumbers, IconCode, IconBlockquote,
   IconMinus, IconPlus,
 } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
-import { ColorField, GROUP_BG_PALETTE } from '@/components/canvas/GroupSidebar';
+import { ColorField } from '@/components/canvas/GroupSidebar';
+import { readableOn } from '@/lib/palette';
 
 // Dimensione font: scatti di 1 px alla volta, entro questi limiti.
 const FONT_MIN = 8;
@@ -156,7 +157,7 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
         </button>
         {open && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis }}>
-            <IconNote size={15} style={{ color: theme.accent }} />
+            <IconArticle size={15} style={{ color: theme.accent }} />
             Testo
           </div>
         )}
@@ -185,11 +186,20 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
               stessa riga */}
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
             <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Palette GENERALE dell'app (`GIMMICK_PALETTE`, 10 famiglie × 4
+                  intensità), che è già il default di `ColorField` — per questo
+                  qui non si passa niente. Prima arrivava `GROUP_BG_PALETTE`,
+                  dieci toni scuri e spenti: quella nasce per il fondo dei
+                  GRUPPI, dove un pastello chiaro fa sparire i tile che ci
+                  stanno sopra. Dentro un box di testo non ci sono tile, quindi
+                  il box si portava dietro un vincolo che non era suo — e in
+                  cambio perdeva tre quarti dei colori.
+                  La griglia del picker è `repeat(10, 1fr)`: le quattro righe
+                  da dieci sono la forma per cui era stata scritta. */}
               <ColorField
                 label="Colore sfondo"
                 value={bgColor}
                 allowNone
-                palette={GROUP_BG_PALETTE}
                 onChange={(hex) => onStyleChange({ bgColor: hex })}
               />
             </div>
@@ -221,7 +231,10 @@ export function TextSidebar({ boxId, initialHtml, bgColor, fontSize = 11, open, 
               style={{
                 flex: 1, minHeight: 120, overflowY: 'auto',
                 background: bgColor || 'var(--ob-rail-field)', border: 'none', borderRadius: 'var(--ob-radius-sm)',
-                padding: '10px 12px', color: theme.ink, cursor: 'text',
+                // Con la palette piena il fondo può essere chiarissimo o quasi
+                // nero: l'inchiostro del tema non basta più, e in scuro un
+                // pastello lascerebbe testo chiaro su fondo chiaro.
+                padding: '10px 12px', color: bgColor ? readableOn(bgColor) : theme.ink, cursor: 'text',
               }}
             >
               <EditorContent editor={editor} />
