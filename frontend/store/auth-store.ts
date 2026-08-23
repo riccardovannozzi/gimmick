@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as Sentry from '@sentry/nextjs';
 import { authApi, setTokens, loadTokens, getAccessToken } from '@/lib/api';
 import type { User } from '@/types';
 
@@ -100,3 +101,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 }));
+
+/**
+ * CHI ha incontrato l'errore — l'id e nient'altro.
+ *
+ * È una SOTTOSCRIZIONE allo stato, non una chiamata nei quattro punti che
+ * scrivono `user` (ripristino sessione, login, registrazione, logout): qualunque
+ * strada porti a un cambio di utente passa di qua, comprese quelle che verranno
+ * aggiunte dopo. Quattro chiamate sparse sarebbero quattro occasioni perché la
+ * quinta se ne dimentichi.
+ *
+ * Senza questo, la regola «dell'utente resta solo l'id» in `lib/sentry-privacy`
+ * non ha mai un id da tenere. Il confronto con l'ultimo valore evita di
+ * riscrivere lo scope a ogni cambio di `isLoading`.
+ */
+let lastSentryUserId: string | null = null;
+useAuthStore.subscribe((state) => {
+  const id = state.user?.id ?? null;
+  if (id === lastSentryUserId) return;
+  lastSentryUserId = id;
+  Sentry.setUser(id ? { id } : null);
+});

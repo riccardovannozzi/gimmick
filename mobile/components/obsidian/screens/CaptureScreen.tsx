@@ -1060,32 +1060,27 @@ export function ObsidianCaptureScreen({
                     pointerEvents="none"
                     style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}
                   >
-                    {/* Resta uno sfondo, non un logo: a opacità piena
-                        competerebbe col testo che stai per scrivere. In tema
-                        chiaro serve un filo in più, perché il rosso su bianco
-                        stacca meno che su nero. */}
-                    <Image
-                      source={require('../../../assets/adaptive-icon.png')}
-                      style={{ width: 240, height: 240, opacity: c.dark ? 0.17 : 0.2 }}
-                      resizeMode="contain"
-                      accessibilityIgnoresInvertColors
-                    />
-                    {/* Il margine negativo recupera il vuoto INTERNO dell'asset:
-                        l'omino disegnato occupa circa tre quarti del riquadro,
-                        quindi senza questo la frase sembrerebbe staccata da lui
-                        invece che appoggiata sotto. */}
+                    {/* La frase è rimasta sola: la mascotte in filigrana non
+                        c'è più, e con lei se n'è andato il margine negativo che
+                        recuperava il vuoto interno dell'asset. Ora il testo si
+                        centra da sé nello spazio vuoto del campo.
+
+                        Corsivo e virgolette non sono decorazione: dicono che
+                        quella è una VOCE — Bito che parla — e non un'etichetta
+                        dell'interfaccia. Senza la mascotte a dirlo per immagine,
+                        deve dirlo la tipografia. */}
                     <Text
                       style={{
-                        marginTop: -18,
                         paddingHorizontal: 28,
                         textAlign: 'center',
-                        fontSize: 19,
-                        lineHeight: 26,
+                        fontSize: 28,
+                        lineHeight: 38,
                         fontWeight: '500',
+                        fontStyle: 'italic',
                         color: c.muted,
                       }}
                     >
-                      {greeting}
+                      «{greeting}»
                     </Text>
                   </View>
                 ) : null}

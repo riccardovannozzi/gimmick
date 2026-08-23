@@ -20,6 +20,9 @@ import {
 } from '@tabler/icons-react-native';
 import * as TablerIcons from '@tabler/icons-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+// ⚠️ TEMPORANEI — vanno via con la sezione DIAGNOSTICA in SettingsContent.
+import * as Sentry from '@sentry/react-native';
+import { isSentryEnabled } from '@/lib/sentry';
 import { useObsidian } from '@/lib/obsidian';
 import { OB_BTN_H, type ObsidianColors } from '@/constants/obsidian';
 import { DEFAULT_ACTION_COLORS, STATUS_HEX, STATUS_HEX_FALLBACK, type TileActionKey } from '@/constants/tile-colors';
@@ -1364,6 +1367,11 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
   const [themeState, setThemeState] = React.useState<ThemeMode>('light');
   const [notif, setNotif] = React.useState(false);
   const [tileColor, setTileColor] = React.useState('tint');
+  // ⚠️ TEMPORANEO — esito dell'errore di prova, mostrato nella riga stessa.
+  // Non passa dai toast: qui l'esito deve arrivare anche se il contenitore dei
+  // toast non è montato in questa schermata, e una verifica che dipende da un
+  // altro pezzo da verificare non serve a niente.
+  const [probe, setProbe] = React.useState<string | null>(null);
 
   const haptic = hapticProp ?? hapticState;
   const setHaptic = (v: boolean) => { onHaptic?.(v); if (hapticProp === undefined) setHapticState(v); };
@@ -1471,6 +1479,41 @@ function SettingsContent({ c, haptic: hapticProp, onHaptic, confirmDelete: confi
       <View style={{ gap: 9 }}>
         <Row Icon={IconWorld} label="Lingua" sub="Italiano" control={<IconChevronRight size={15} color={c.faint} />} />
         <Row Icon={IconSparkles} label="Beniamino assistente" sub="Bito" control={<IconChevronRight size={15} color={c.faint} />} />
+      </View>
+
+      {/* ⚠️ SEZIONE TEMPORANEA — verifica di Sentry, da TOGLIERE dopo il primo
+          evento arrivato (insieme ai due import in cima al file e allo stato
+          `probe`). Risponde a due domande che, dopo una build, non si possono
+          rispondere in nessun altro modo:
+
+          · Sentry è acceso? In sviluppo è spento di proposito (`__DEV__`) e
+            senza DSN non parte. Se la riga dice "spento", l'errore non è che
+            non arriva — non è mai partito, e il problema sta nelle variabili
+            della build, non nel codice.
+          · L'evento arriva? Il pulsante ne manda uno vero e scrive il suo id
+            nella riga: è quello da cercare fra gli issue. */}
+      <SectionHead>DIAGNOSTICA (TEMPORANEO)</SectionHead>
+      <View style={{ gap: 9 }}>
+        <Row
+          Icon={TablerIcons.IconActivityHeartbeat}
+          label="Sentry"
+          sub={isSentryEnabled() ? 'attivo' : 'spento (sviluppo o DSN assente)'}
+          control={null}
+        />
+        <Pressable
+          onPress={() => {
+            if (!isSentryEnabled()) { setProbe('spento: in sviluppo non manda nulla'); return; }
+            const id = Sentry.captureException(new Error('Prova Sentry mobile'));
+            setProbe(id ? 'inviato: ' + String(id).slice(0, 8) : 'inviato (nessun id restituito)');
+          }}
+        >
+          <Row
+            Icon={TablerIcons.IconBug}
+            label="Manda un errore di prova"
+            sub={probe ?? 'Compare su Sentry entro pochi secondi'}
+            control={<IconChevronRight size={15} color={c.faint} />}
+          />
+        </Pressable>
       </View>
     </ScrollView>
   );

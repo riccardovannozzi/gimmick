@@ -10,6 +10,10 @@ import {
   IconUser,
 } from '@tabler/icons-react-native';
 import { useSettingsStore, useAuthStore } from '@/store';
+// ⚠️ TEMPORANEI — vanno via con la sezione DIAGNOSTICA qui sotto.
+import * as Sentry from '@sentry/react-native';
+import { isSentryEnabled } from '@/lib/sentry';
+import { toast } from '@/store/toastStore';
 import {
   usePixelTheme,
   usePixelSettings,
@@ -541,6 +545,42 @@ function SettingsScreenLegacy() {
             description={currentModel.label}
             onPress={() => setModelPickerOpen(true)}
             showArrow
+          />
+        </PixelSection>
+
+        {/* ⚠️ SEZIONE TEMPORANEA — verifica di Sentry, da TOGLIERE dopo il
+            primo evento arrivato (insieme ai tre import in cima al file).
+            Esiste per rispondere a due domande che dopo una build non si
+            possono rispondere altrimenti:
+
+            · Sentry è acceso? In sviluppo è spento di proposito (`__DEV__`) e
+              senza DSN non parte: se la riga dice "spento", l'errore non manca
+              — non è mai partito, e il problema è nelle variabili della build,
+              non nel codice.
+            · L'evento arriva? Il pulsante ne manda uno vero e mostra il suo
+              id, che è quello da cercare su Sentry. Se lo stack che vedi lassù
+              ha nomi di file e funzioni veri, allora anche le source map sono
+              state caricate. */}
+        <PixelSection title="DIAGNOSTICA (TEMPORANEO)">
+          <PixelRow
+            label="Sentry"
+            description={isSentryEnabled() ? 'attivo' : 'spento (sviluppo o DSN assente)'}
+          />
+          <PixelRow
+            divider
+            label="Manda un errore di prova"
+            description="Compare su Sentry entro pochi secondi"
+            showArrow
+            onPress={() => {
+              if (!isSentryEnabled()) {
+                toast.warning('Sentry è spento: in sviluppo non manda nulla');
+                return;
+              }
+              const id = Sentry.captureException(new Error('Prova Sentry mobile'));
+              // L'id è il pezzo che collega questo tocco all'evento su Sentry:
+              // senza, resta da cercare a occhio fra gli issue.
+              toast.success('Inviato: ' + String(id).slice(0, 8));
+            }}
           />
         </PixelSection>
 

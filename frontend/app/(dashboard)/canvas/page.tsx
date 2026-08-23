@@ -5,13 +5,14 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent } from '@/components/canvas/CanvasBoard';
+import { tidy, type TidyRect } from '@/lib/canvas-tidy';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
 import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
@@ -20,6 +21,7 @@ import { TILE_W, TILE_H } from '@/lib/tile-visual';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { ImageSidebar } from '@/components/canvas/ImageSidebar';
+import { MarkerSidebar } from '@/components/canvas/MarkerSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
@@ -569,6 +571,11 @@ export default function CanvasPage() {
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
     [textBoxes, selectedTextBoxId],
   );
+  // MARCATORE selezionato → MarkerSidebar (didascalia sotto il disco).
+  const selectedMarkerBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'marker') || null,
+    [textBoxes, selectedTextBoxId],
+  );
   // Box IMMAGINE selezionato → ImageSidebar (titolo, note, mostra titolo).
   const selectedImageBox = useMemo(
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'image') || null,
@@ -662,14 +669,25 @@ export default function CanvasPage() {
    * subito con un id provvisorio, che viene sostituito da quello vero appena il
    * server risponde — e tolto se rifiuta.
    *
-   * Lo strumento NON si disarma dopo la posa: resta armato finché non chiudi il
-   * menu degli oggetti, così se ne mettono tre di fila senza riaprirlo ogni
-   * volta. Che sia ancora armato lo dice il menu, che resta aperto con la voce
-   * accesa — prima si disarmava da solo proprio perché, a menu chiuso, non
-   * c'era niente a dirlo.
+   * UN CLICK, UN OGGETTO: lo strumento si disarma appena l'oggetto è posato.
+   *
+   * Restare armato voleva dire che il click successivo sulla lavagna posava un
+   * altro oggetto invece di fare quello che fa sempre — selezionare, deselezionare,
+   * cominciare un trascinamento. Uno strumento che cambia il significato del
+   * click e ci resta è una modalità nascosta: si nota solo dall'oggetto di
+   * troppo che si è appena messo per sbaglio.
+   *
+   * Il menu degli oggetti però NON si chiude: la voce si spegne e resta lì, così
+   * riarmare costa un click solo. Tre marcatori di fila fanno sei click —
+   * scegli, posa, scegli, posa — e ogni posa è deliberata.
+   *
+   * Il disarmo è la PRIMA cosa che succede, prima ancora della scrittura
+   * ottimistica: se aspettasse il server, i click battuti nel frattempo
+   * avrebbero posato altri oggetti.
    */
   const handleAddMarkerAt = useCallback(async (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => {
     if (!tagId) return;
+    setMarkerMode(null);
     const payload = { type: 'marker' as const, content: { kind }, x, y, w: MARKER_SIZE, h: MARKER_SIZE };
     const tempId = `temp-marker-${Date.now()}`;
     queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
@@ -1066,6 +1084,206 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection, removeFromGroups]);
 
+  /**
+   * ORDINA — allinea gli oggetti sulla griglia e regolarizza le distanze SENZA
+   * cambiare la disposizione: chi era nella terza colonna resta nella terza
+   * colonna, gli stacchi che separano i blocchi restano stacchi. Il conto sta
+   * tutto in `lib/canvas-tidy.ts`; qui ci sono solo la raccolta dei rettangoli e
+   * l'applicazione del risultato.
+   *
+   * Passa dai canali che esistono già — `handlePositionChange` per i tile (un
+   * upsert in batch), `handleUpdateTextBox` per i box — quindi la lavagna si
+   * ridisegna da sé: la board riceve `layout` e `textBoxes` come props e non sa
+   * nemmeno che questo comando esiste. Nessuna riga di D3.
+   *
+   * ⚠️ Il ripensamento passa dal toast e non da una conferma preventiva: il
+   * riordino si giudica guardandolo, e una modale che chiede «sei sicuro?» prima
+   * di aver fatto vedere qualcosa chiede di decidere al buio. Nel canvas non
+   * c'è undo, quindi l'Annulla è l'unica rete e va offerta qui.
+   */
+  const handleTidy = useCallback(() => {
+    if (!tagId) return;
+
+    // I rettangoli in gioco. Per i tile si parte dal LAYOUT — è lì che stanno le
+    // posizioni — ma solo per le voci che hanno ancora un tile vero: quelle
+    // orfane (tile cancellato altrove) non vanno né riordinate né riscritte.
+    const tileIds = new Set(tiles.map((t) => t.id));
+    const rects: TidyRect[] = [
+      ...layout
+        .filter((l: { tile_id: string }) => tileIds.has(l.tile_id))
+        .map((l: { tile_id: string; x: number; y: number }) => ({ id: l.tile_id, x: l.x, y: l.y, w: TILE_W, h: TILE_H })),
+      // Testo, immagini e marcatori insieme: sulla griglia sono tutti rettangoli.
+      ...textBoxes.map((b) => ({ id: `tb:${b.id}`, x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+
+    // C'è una selezione? Si riordina quella. Su una lavagna grande si sistema una
+    // zona per volta, invece di rimettere in riga anche ciò che andava bene.
+    const scope = selectedIds.length > 0 ? new Set(selectedIds) : null;
+    const target = scope ? rects.filter((r) => scope.has(r.id)) : rects;
+    if (target.length < 2) return;
+
+    /**
+     * I collegamenti: servono al riordino per tenere più larghe le corsie che un
+     * edge attraversa — una freccia con la sua etichetta vuole spazio, e due
+     * tile collegati appiccicati rendono il collegamento illeggibile.
+     * `source_id`/`target_id` sono già nel formato dei rettangoli (id nudo =
+     * tile, `tb:<id>` = box), quindi non c'è niente da tradurre.
+     */
+    const links = edges.map((e) => [e.source_id, e.target_id] as const);
+    /**
+     * Con una selezione il canone vale OVUNQUE, anche sugli stacchi larghi.
+     * Indicare tre tile e chiedere di ordinarli vuol dire volerli equidistanti:
+     * rispettare lì lo strappo in mezzo — che sulla lavagna intera è una
+     * separazione da non toccare — significa rispondere «era già in ordine» a
+     * chi sta guardando una fila sbilenca.
+     */
+    const strictCanon = !!scope;
+
+    /**
+     * ─── I GRUPPI SI RIORDINANO A DUE LIVELLI ─────────────────────────────────
+     *
+     * Un gruppo non è un tile grande: è una scatola che contiene tile e che ha
+     * un ingombro suo, la gronda attorno al contenuto e la fascia dell'etichetta
+     * sopra. Riordinando tutto alla rinfusa quell'ingombro non lo vede nessuno —
+     * i tile finiscono spaziati bene e le SCATOLE si toccano, o peggio
+     * l'etichetta di un gruppo cade sulla riga di sopra.
+     *
+     * Quindi due riordini annidati: prima DENTRO ogni gruppo, che dà anche la
+     * misura giusta della scatola; poi FUORI, dove ogni gruppo partecipa come un
+     * rettangolo solo — la sua scatola — accanto a tile liberi, note, immagini e
+     * marcatori. Alla fine i membri seguono il loro gruppo dove è andato.
+     *
+     * Un gruppo entra come blocco solo se TUTTI i suoi membri sono in gioco:
+     * selezionandone metà si sta indicando quei tile, non il gruppo, e vanno
+     * trattati come oggetti singoli.
+     */
+    const inPlay = new Set(target.map((r) => r.id));
+    const blocks = canvasGroups.filter((g) => g.nodeIds.length >= 2 && g.nodeIds.every((id) => inPlay.has(id)));
+    const groupOf = new Map<string, string>();
+    blocks.forEach((g) => g.nodeIds.forEach((id) => groupOf.set(id, g.id)));
+
+    /**
+     * Lo spazio che il gruppo si riserva attorno al contenuto, in PASSI INTERI di
+     * griglia: uno per i lati e il fondo (basta per i 12 della gronda), due sopra
+     * (i 12 della gronda più i 20 dell'etichetta fanno 32). Interi e non i valori
+     * esatti perché il contenuto deve restare sulla griglia: la scatola si posa
+     * su un multiplo del passo, e se la gronda non lo fosse i tile dentro
+     * cadrebbero fra i puntini.
+     */
+    const PAD_SIDE = DOT_STEP;                       // 22 ≥ GROUP_PAD (12)
+    const PAD_TOP = DOT_STEP * 2;                    // 44 ≥ GROUP_PAD + LABEL_H (32)
+    const BLOCK = 'grp:';
+
+    /** I collegamenti che restano dentro un insieme di id. */
+    const linksAmong = (ids: Set<string>) =>
+      links.filter(([a, b]) => ids.has(a) && ids.has(b));
+
+    // ── Livello 1: dentro i gruppi ──
+    /** Posizione di ogni membro DENTRO il suo gruppo, e la scatola che ne esce. */
+    const innerPos = new Map<string, { x: number; y: number }>();
+    const blockRects: TidyRect[] = [];
+    for (const g of blocks) {
+      const members = target.filter((r) => groupOf.get(r.id) === g.id);
+      const ids = new Set(members.map((m) => m.id));
+      const inner = tidy(members, { step: DOT_STEP, links: linksAmong(ids), strictCanon });
+      const placedMembers = members.map((m) => ({ ...m, ...inner.get(m.id)! }));
+      placedMembers.forEach((m) => innerPos.set(m.id, { x: m.x, y: m.y }));
+      const x0 = Math.min(...placedMembers.map((m) => m.x));
+      const y0 = Math.min(...placedMembers.map((m) => m.y));
+      const x1 = Math.max(...placedMembers.map((m) => m.x + m.w));
+      const y1 = Math.max(...placedMembers.map((m) => m.y + m.h));
+      blockRects.push({
+        id: BLOCK + g.id,
+        x: x0 - PAD_SIDE, y: y0 - PAD_TOP,
+        w: (x1 - x0) + PAD_SIDE * 2, h: (y1 - y0) + PAD_TOP + PAD_SIDE,
+      });
+    }
+
+    // ── Livello 2: la lavagna, coi gruppi come blocchi ──
+    const outer: TidyRect[] = [...target.filter((r) => !groupOf.has(r.id)), ...blockRects];
+    // Un edge che tocca un membro vale, là fuori, per tutto il suo gruppo; quelli
+    // interni al gruppo sono già stati considerati al primo livello.
+    const asOuter = (id: string) => (groupOf.has(id) ? BLOCK + groupOf.get(id)! : id);
+    const outerLinks = links
+      .map(([a, b]) => [asOuter(a), asOuter(b)] as const)
+      .filter(([a, b]) => a !== b);
+    const placedOuter = outer.length >= 2
+      ? tidy(outer, { step: DOT_STEP, links: outerLinks, strictCanon })
+      : new Map<string, { x: number; y: number }>();
+
+    // ── Composizione: i membri seguono il loro gruppo ──
+    const next = new Map<string, { x: number; y: number }>();
+    for (const r of outer) {
+      const p = placedOuter.get(r.id) ?? { x: r.x, y: r.y };
+      if (!r.id.startsWith(BLOCK)) { next.set(r.id, p); continue; }
+      // Il contenuto riparte dall'angolo interno della scatola: lo scostamento è
+      // fatto di passi interi, quindi resta tutto in griglia.
+      const dx = (p.x + PAD_SIDE) - (r.x + PAD_SIDE);
+      const dy = (p.y + PAD_TOP) - (r.y + PAD_TOP);
+      const gid = r.id.slice(BLOCK.length);
+      for (const [mid, mp] of innerPos) {
+        if (groupOf.get(mid) === gid) next.set(mid, { x: mp.x + dx, y: mp.y + dy });
+      }
+    }
+
+    const moved = target.filter((r) => {
+      const p = next.get(r.id);
+      return !!p && (p.x !== r.x || p.y !== r.y);
+    });
+    // Un toast con «Annulla» dopo un riordino che non ha riordinato niente è
+    // peggio del silenzio: fa credere che qualcosa sia cambiato.
+    if (moved.length === 0) { toast('Era già in ordine'); return; }
+
+    const applyPositions = (pts: { id: string; x: number; y: number }[]) => {
+      const tilePts = pts.filter((p) => !p.id.startsWith('tb:'));
+      // Solo quelli che si muovono: `saveLayout` è un upsert e
+      // `handlePositionChange` FONDE nella cache, quindi un invio parziale non
+      // fa sparire nessuno dal canvas.
+      if (tilePts.length) handlePositionChange(tilePts.map((p) => ({ tile_id: p.id, x: p.x, y: p.y })));
+      pts.filter((p) => p.id.startsWith('tb:')).forEach((p) => handleUpdateTextBox(p.id.slice(3), { x: p.x, y: p.y }));
+    };
+
+    /**
+     * LA SCATOLA DEL GRUPPO torna ad aderire al contenuto.
+     *
+     * Un gruppo ridimensionato a mano porta un `bounds` suo, e il riquadro
+     * disegnato è l'UNIONE fra quello e i tile: serve a non stringersi sotto il
+     * contenuto quando si tira una maniglia, ma dopo un riordino significa che la
+     * scatola resta larga com'era mentre i tile dentro si sono compattati. La
+     * misura manuale descriveva una disposizione che non c'è più, quindi si
+     * toglie e il gruppo torna ad auto-dimensionarsi.
+     *
+     * Solo per i gruppi che il riordino ha davvero toccato: quelli fermi si
+     * tengono la misura che gli hai dato.
+     */
+    const movedIds = new Set(moved.map((m) => m.id));
+    const refit = new Set(
+      canvasGroups.filter((g) => g.bounds && g.nodeIds.some((id) => movedIds.has(id))).map((g) => g.id),
+    );
+    const groupsBefore = canvasGroups;
+    const applyGroups = (list: CanvasGroup[]) => { if (refit.size) handleGroupsChange(list); };
+
+    const before = moved.map((r) => ({ id: r.id, x: r.x, y: r.y }));
+    const after = moved.map((r) => ({ id: r.id, ...next.get(r.id)! }));
+    applyPositions(after);
+    applyGroups(canvasGroups.map((g) => (refit.has(g.id) ? { ...g, bounds: null } : g)));
+    // Il menu della selezione è ancorato a coordinate di SCHERMO calcolate dalla
+    // board: dopo che gli oggetti si sono spostati indicherebbe il vuoto. Si
+    // nasconde tenendo la selezione, come già fa la board durante un drag
+    // multiplo; ricompare al prossimo gesto.
+    setSelectionBbox(null);
+
+    toast.success(
+      moved.length === 1 ? '1 oggetto riordinato' : `${moved.length} oggetti riordinati`,
+      {
+        duration: 6000,
+        // L'annullamento ripercorre la stessa strada dell'andata: stessi canali,
+        // stesso debounce. Funziona anche premuto prima che il salvataggio parta.
+        action: { label: 'Annulla', onClick: () => { applyPositions(before); applyGroups(groupsBefore); } },
+      },
+    );
+  }, [tagId, tiles, layout, textBoxes, edges, canvasGroups, selectedIds, handlePositionChange, handleUpdateTextBox, handleGroupsChange]);
+
   // Immagini selezionate (i box di TESTO restano fuori dai gruppi).
   const selectedImageBoxIds = useMemo(
     () => selectedTextBoxIds.filter((id) => textBoxes.find((b) => b.id === id)?.type === 'image'),
@@ -1374,6 +1592,10 @@ export default function CanvasPage() {
               setPdfMode(true);
               setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false);
             }}
+            onTidy={tag ? handleTidy : undefined}
+            tidyLabel={selectedIds.length > 0
+              ? 'Ordina gli oggetti selezionati'
+              : 'Ordina gli oggetti sulla griglia'}
             doneHighlight={doneHl}
             onToggleDoneHighlight={toggleDoneHl}
             pinnedTags={pinnedTags}
@@ -1570,7 +1792,7 @@ export default function CanvasPage() {
         )}
 
           {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → edge → box di testo (editor)
-              → MultiTileSidebar (≥2 tile) → TileSidebar. */}
+              → immagine → marcatore → MultiTileSidebar (≥2 tile) → TileSidebar. */}
           {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
@@ -1631,6 +1853,20 @@ export default function CanvasPage() {
               }}
               onDelete={() => { handleDeleteTextBox(selectedImageBox.id); setSelectedTextBoxId(null); }}
             />
+          ) : selectedMarkerBox ? (
+            <MarkerSidebar
+              key={selectedMarkerBox.id}
+              boxId={selectedMarkerBox.id}
+              kind={(selectedMarkerBox.content as CanvasBoxMarkerContent).kind}
+              initialLabel={(selectedMarkerBox.content as CanvasBoxMarkerContent).label || ''}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              // Campo che si DIGITA → stessa via di titolo e note dell'immagine:
+              // specchio in cache e salvataggio a fine battuta, uno solo per
+              // entrambi (il canvas si ridisegna per intero a ogni scrittura).
+              onLabelChange={(label) => handleBoxFieldChange(selectedMarkerBox.id, { label })}
+              onDelete={() => { handleDeleteTextBox(selectedMarkerBox.id); setSelectedTextBoxId(null); }}
+            />
           ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar
               tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
@@ -1665,6 +1901,9 @@ export default function CanvasPage() {
               const tileCount = selectedTileIds.length;
               const tbCount = selectedTextBoxIds.length;
               const groupAllowed = tileCount >= 2 && tbCount === 0;
+              // Riordinare un oggetto solo non vuol dire niente: non ha vicini
+              // rispetto a cui allinearsi.
+              const tidyAllowed = selectedIds.length >= 2;
               return (
                 <div
                   className="fixed"
@@ -1695,6 +1934,35 @@ export default function CanvasPage() {
                       <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
+                  {/* Lo stesso comando dell'ingranaggio a puntini in barra, qui
+                      dove si ragiona sulla selezione: chi ha appena cerchiato una
+                      zona storta la vuole raddrizzare senza risalire alla toolbar
+                      e senza rischiare di perdere la selezione per strada. */}
+                  <button
+                    onClick={handleTidy}
+                    disabled={!tidyAllowed}
+                    title={tidyAllowed
+                      ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                      : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: tidyAllowed ? 'pointer' : 'not-allowed',
+                      color: tidyAllowed ? theme.ink2 : theme.ink3,
+                      opacity: tidyAllowed ? 1 : 0.4,
+                      fontFamily: ('var(--ob-font-sans)'),
+                      fontSize: OB_TEXT.card,
+                    }}
+                  >
+                    <IconGridDots size={14} />
+                    Ordina sulla griglia
+                  </button>
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
@@ -1795,6 +2063,17 @@ export default function CanvasPage() {
                         >
                           {selectedIds.length} selezionati
                         </div>
+                        <button
+                          onClick={() => { setTileCtx(null); handleTidy(); }}
+                          disabled={selectedIds.length < 2}
+                          title={selectedIds.length >= 2
+                            ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                            : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                          style={{ ...menuItem, cursor: selectedIds.length >= 2 ? 'pointer' : 'not-allowed', opacity: selectedIds.length >= 2 ? 1 : 0.4 }}
+                        >
+                          <IconGridDots size={14} />
+                          Ordina sulla griglia
+                        </button>
                         <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
@@ -1904,6 +2183,17 @@ export default function CanvasPage() {
                         >
                           {selectedIds.length} selezionati
                         </div>
+                        <button
+                          onClick={() => { setTbCtx(null); handleTidy(); }}
+                          disabled={selectedIds.length < 2}
+                          title={selectedIds.length >= 2
+                            ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                            : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                          style={{ ...menuItem, cursor: selectedIds.length >= 2 ? 'pointer' : 'not-allowed', opacity: selectedIds.length >= 2 ? 1 : 0.4 }}
+                        >
+                          <IconGridDots size={14} />
+                          Ordina sulla griglia
+                        </button>
                         <button
                           onClick={() => { setTbCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}

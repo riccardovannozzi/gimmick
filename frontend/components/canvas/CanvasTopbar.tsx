@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX } from '@tabler/icons-react';
+import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots } from '@tabler/icons-react';
 import { MARKER_SPEC, MARKER_KINDS } from '@/components/canvas/CanvasBoard';
 import type { MarkerKind } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
@@ -33,6 +33,15 @@ interface CanvasTopbarProps {
   pdfMode?: boolean;
   onTogglePdfMode?: () => void;
   /**
+   * RIORDINO: allinea gli oggetti sulla griglia e regolarizza le distanze senza
+   * cambiare la disposizione. Come Foglio e Done, assente il callback il pulsante
+   * non compare — senza una lavagna aperta non c'è niente da riordinare.
+   */
+  onTidy?: () => void;
+  /** Cosa dice il tooltip: cambia se c'è una selezione (la pagina lo sa, la
+   *  barra no). */
+  tidyLabel?: string;
+  /**
    * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
    * entrambi gli stati, cambia solo se si tingono.
    * Assente il callback, il pulsante non compare: è così che la barra si spegne
@@ -47,7 +56,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -276,6 +285,24 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, m
         <ToolButton icon={<IconArticle size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
         {onPickMarker && <MarkerTool value={markerMode} onPick={onPickMarker} />}
+        {onTidy && (
+          <>
+            {/* Da solo fra due fili, e non è pignoleria: non aggiunge alla
+                lavagna come i modi qui sopra, non la porta fuori come il PDF —
+                rimette in ordine quello che c'è già. È anche l'unico comando
+                della barra che modifica il documento SENZA passare da un gesto
+                sulla lavagna, e stargli accanto lo farebbe scambiare per un
+                modo da armare.
+                Niente `active`: fa una cosa e finisce lì, non resta acceso
+                (vedi la nota su `ToolButtonProps`). */}
+            <div className="ob-toolsep" />
+            <ToolButton
+              icon={<IconGridDots size={16} stroke={1.6} />}
+              label={tidyLabel ?? 'Ordina sulla griglia'}
+              onClick={onTidy}
+            />
+          </>
+        )}
         {onTogglePdfMode && (
           <>
             {/* Separato dai quattro qui sopra: quelli aggiungono qualcosa alla
@@ -327,15 +354,17 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, m
  * deve prima farti scegliere quale oggetto. Una fila di pulsanti, uno per
  * oggetto, avrebbe allungato la barra a ogni forma aggiunta.
  *
- * ⚠️ E qui il patto è DIVERSO dagli altri quattro strumenti. Quelli si spengono
- * da soli dopo aver posato una cosa; questo resta aperto e armato finché non lo
- * chiudi tu — ricliccando «Oggetti» o con la crocetta d'angolo. Gli oggetti si
- * mettono a gruppi (un capolinea, tre nodi, un traguardo), e riaprire il menu a
- * ogni posa era un giro in più per ogni singolo pezzo.
+ * ARMARE e APRIRE sono due cose separate, ed è la particolarità dello
+ * strumento. Come gli altri quattro si disarma dopo aver posato una cosa (lo fa
+ * la pagina, non questo componente: `handleAddMarkerAt` rimette `value` a null).
+ * Il MENU però resta aperto, con la voce spenta: gli oggetti si mettono a
+ * gruppi — un capolinea, tre nodi, un traguardo — e richiedere anche la
+ * riapertura del menu avrebbe fatto tre click per oggetto invece di due.
  *
  * Conseguenza: il menu NON si chiude cliccando fuori. Fuori c'è la lavagna, che
  * è esattamente dove si posano gli oggetti — un click-fuori che chiude avrebbe
- * chiuso il menu alla prima posa, cioè sempre.
+ * chiuso il menu alla prima posa, cioè sempre. Si chiude con la crocetta
+ * d'angolo o ricliccando «Oggetti».
  */
 function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: MarkerKind | null) => void }) {
   const [open, setOpen] = React.useState(false);
@@ -354,22 +383,27 @@ function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: M
   const close = () => { setOpen(false); onPick(null); };
 
   /**
-   * Cliccare una voce ARMA quella voce. Non è un interruttore.
+   * Cliccare una voce ARMA quella voce. Non è un interruttore: ricliccare quella
+   * accesa la lascia accesa.
    *
-   * Ricliccare quella già accesa la spegneva, ed era una trappola: chi crede di
-   * essersi disarmato dopo una posa (perché l'accensione si vedeva poco) clicca
-   * di nuovo lo stesso oggetto per riarmarlo e invece lo SPEGNE — poi il click
-   * sulla lavagna non posa niente, e la conclusione è «lo strumento si
-   * deseleziona da solo dopo ogni oggetto». Per smettere ci sono già due
-   * comandi che non si possono fraintendere: la crocetta e il pulsante.
+   * Con il disarmo alla posa la voce accesa dura un click solo, quindi il caso
+   * «riclicco quella già accesa» capita quasi solo a chi sta rimediando a una
+   * scelta sbagliata — e spegnere lì avrebbe voluto dire un click a vuoto sulla
+   * lavagna subito dopo. Per smettere ci sono già tre comandi che non si possono
+   * fraintendere: la crocetta, il pulsante e Esc.
    */
   const pick = (k: MarkerKind) => onPick(k);
 
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      {/* Armato, il pulsante SMETTE di essere generico: prende il disco e il
+          nome dell'oggetto scelto. È l'unica cosa che resta visibile quando lo
+          sguardo è sulla lavagna, e finché diceva «Oggetti» con un flag grigio
+          non distingueva «armato su Goal» da «spento» — da lì il sospetto che
+          lo strumento si disarmasse dopo ogni posa. */}
       <ToolButton
-        icon={<IconFlag size={16} stroke={1.6} />}
-        label="Oggetti"
+        icon={value ? <MarkerGlyph kind={value} size={16} /> : <IconFlag size={16} stroke={1.6} />}
+        label={value ? MARKER_SPEC[value].label : 'Oggetti'}
         active={open || !!value}
         onClick={() => (open ? close() : openMenu())}
       />
@@ -406,18 +440,18 @@ function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: M
  * sulla lavagna, in piccolo. Disegnarla invece di descriverla evita di dover
  * spiegare a parole la differenza fra quattro simboli.
  */
-function MarkerGlyph({ kind }: { kind: MarkerKind }) {
+function MarkerGlyph({ kind, size = 22 }: { kind: MarkerKind; size?: number }) {
   const { color, Glyph } = MARKER_SPEC[kind];
   return (
     <span
       style={{
-        width: 22, height: 22, borderRadius: '50%',
+        width: size, height: size, borderRadius: '50%',
         background: color, color: 'var(--ob-marker-ink)',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         flexShrink: 0,
       }}
     >
-      <Glyph size={12} stroke={2} />
+      <Glyph size={Math.round(size * 0.55)} stroke={2} />
     </span>
   );
 }

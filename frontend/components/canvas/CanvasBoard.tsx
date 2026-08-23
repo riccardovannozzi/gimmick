@@ -76,8 +76,13 @@ function saveView(key: string | undefined, t: d3.ZoomTransform) {
  * almeno `DOT_MIN_SCREEN`: la griglia si dirada invece di impastarsi, e i
  * puntini che restano sono un sottoinsieme di quelli di prima — cioè cadono
  * ancora sugli stessi punti del mondo.
+ *
+ * ⚠️ ESPORTATO perché il riordino (`lib/canvas-tidy.ts`, comando «Ordina» della
+ * topbar) posa gli oggetti su QUESTA griglia e non su una sua. Una seconda
+ * costante da 22 scritta altrove sarebbe rimasta indietro al primo ritocco, e
+ * gli oggetti si sarebbero allineati a puntini che non si vedono.
  */
-const DOT_STEP = 22;
+export const DOT_STEP = 22;
 const DOT_MIN_SCREEN = 14;
 
 const TILE_BLEED = 12;
@@ -85,8 +90,17 @@ const TILE_GAP = 8;
 const OFFSET_X = 24;
 const OFFSET_Y = 24;
 const PORT_R = 5;
-const GROUP_PAD = 12;
-const LABEL_H = 20;
+/**
+ * Gronda del riquadro di un gruppo attorno ai suoi membri, e altezza della
+ * fascia con l'etichetta sopra il bordo.
+ *
+ * ⚠️ ESPORTATE perché il riordino (`lib/canvas-tidy.ts`) deve sapere quanto
+ * spazio si prende un gruppo OLTRE i suoi tile: senza, due gruppi vicini
+ * finivano con le scatole a due pixel e l'etichetta di uno cadeva sulla riga
+ * dell'altro.
+ */
+export const GROUP_PAD = 12;
+export const LABEL_H = 20;
 
 /** I box (testo/immagine) viaggiano con un id PREFISSATO ovunque convivano con
  *  i tile: endpoint degli edge, multi-selezione e — da ora — membri dei gruppi.
@@ -259,6 +273,56 @@ function paintMarker(node: SVGGElement, kind: MarkerKind, w: number, h: number) 
   (fo.node() as SVGForeignObjectElement)?.appendChild(host);
 }
 
+/**
+ * La DIDASCALIA sotto il disco.
+ *
+ * Sta in un `foreignObject` e non in un `<text>` perché deve andare a capo da
+ * sola su piu' righe e fermarsi alla terza: l'SVG non manda a capo, e farlo a
+ * mano avrebbe voluto dire misurare le parole una per una con una font-metric
+ * scritta a occhio (è la stessa ragione per cui il titolo dell'immagine, che
+ * sta su UNA riga, se la cava invece con un `<text>` troncato a caratteri).
+ *
+ * `pointer-events:none` su tutto: la didascalia è una scritta appoggiata alla
+ * lavagna, non una parte cliccabile del marcatore. Senza, il testo avrebbe
+ * rubato il click di selezione e il trascinamento a un oggetto largo 36px.
+ *
+ * NON viene chiamata dal ghost: l'anteprima mostra dove finisce il disco, e un
+ * marcatore appena posato la didascalia non ce l'ha ancora.
+ */
+function paintMarkerLabel(node: SVGGElement, text: string, w: number, h: number, ink: string) {
+  const fo = d3.select(node).append('foreignObject')
+    .attr('x', (w - MARKER_LABEL_W) / 2)
+    .attr('y', h + MARKER_LABEL_GAP)
+    .attr('width', MARKER_LABEL_W)
+    .attr('height', MARKER_LABEL_LH * MARKER_LABEL_LINES)
+    .style('pointer-events', 'none')
+    .style('overflow', 'visible');
+  const host = document.createElement('div');
+  // `textContent` e non `innerHTML`: è testo digitato dall'utente, e qui finisce
+  // dentro il DOM della lavagna.
+  host.textContent = text;
+  // `-webkit-line-clamp` è la sola cosa che tronca CON i puntini a fine terza
+  // riga; `pre-wrap` fa contare anche gli a-capo battuti a mano, che è quello
+  // che ci si aspetta da un campo multiriga.
+  host.style.cssText = [
+    'width:100%',
+    `font-family:var(--ob-font-sans)`,
+    `font-size:${MARKER_LABEL_FS}px`,
+    `line-height:${MARKER_LABEL_LH}px`,
+    `font-weight:${OB_WEIGHT.emphasis}`,
+    `color:${ink}`,
+    'text-align:center',
+    'white-space:pre-wrap',
+    'overflow-wrap:anywhere',
+    'display:-webkit-box',
+    '-webkit-box-orient:vertical',
+    `-webkit-line-clamp:${MARKER_LABEL_LINES}`,
+    `line-clamp:${MARKER_LABEL_LINES}`,
+    'overflow:hidden',
+  ].join(';');
+  (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+}
+
 /** Opacità del ghost: si deve vedere COSA si sta posando e ANCHE cosa c'è
  *  sotto — se copre l'edge che si sta per innestare, non serve a niente. */
 const GHOST_OPACITY = 0.55;
@@ -359,7 +423,24 @@ export const MARKER_KINDS: MarkerKind[] = ['start', 'stop', 'goal', 'milestone']
  * da solo, che è il modo peggiore di accorgersi che una migrazione non è girata.
  */
 const MARKER_LEGACY: Record<string, MarkerKind> = { end: 'stop', node: 'milestone' };
-export type CanvasBoxMarkerContent = { kind: MarkerKind };
+/**
+ * Il `kind` scritto sulla riga → il tipo con cui va disegnato. Passa dai nomi
+ * vecchi e ripiega su `milestone` se il valore non dice niente.
+ *
+ * Esportata perché la lavagna e la sidebar devono leggere lo STESSO marcatore:
+ * due letture separate potevano mostrare un disco verde sul canvas e la scritta
+ * «Milestone» nel pannello.
+ */
+export function resolveMarkerKind(raw: string | undefined | null): MarkerKind {
+  const k = raw ? (MARKER_LEGACY[raw] ?? raw) : undefined;
+  return (k && k in MARKER_SPEC ? k : 'milestone') as MarkerKind;
+}
+/**
+ * `label` è la DIDASCALIA del marcatore: un testo libero su piu' righe che si
+ * scrive dalla MarkerSidebar e compare sulla lavagna sotto il disco. È
+ * facoltativa — senza, il marcatore resta il solo disco di prima.
+ */
+export type CanvasBoxMarkerContent = { kind: MarkerKind; label?: string };
 /**
  * Lato del riquadro di un marcatore. Quadrato, quindi è anche il diametro.
  *
@@ -374,6 +455,26 @@ export const MARKER_SIZE = 36;
  * armato l'innesto con l'oggetto ancora visibilmente staccato dalla linea.
  */
 const SPLIT_HIT = MARKER_SIZE / 2;
+/**
+ * LA DIDASCALIA DEL MARCATORE — quanto puo' occupare.
+ *
+ * Larga quanto un TILE e non quanto il disco: il disco è 36px, e una frase
+ * incolonnata dentro 36px diventa una scala di parole. Prendere la misura del
+ * tile la fa incolonnare come tutto il resto della lavagna — e siccome
+ * `TILE_W` arriva da `lib/tile-visual`, se un giorno il tile cambia taglia la
+ * didascalia lo segue senza che nessuno debba ricordarsene.
+ *
+ * Tre righe è un TETTO, non un'altezza fissa: una riga occupa una riga. Oltre
+ * la terza il testo viene troncato con i puntini — la lavagna è fatta di
+ * oggetti che si guardano, non di paragrafi che si leggono, e un marcatore che
+ * cresce a piacere si porta dietro quello che ha sotto.
+ */
+export const MARKER_LABEL_W = TILE_W;
+export const MARKER_LABEL_LINES = 3;
+const MARKER_LABEL_FS = 10;
+const MARKER_LABEL_LH = 13;
+/** Stacco fra il bordo basso del disco e la prima riga. */
+const MARKER_LABEL_GAP = 5;
 
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
@@ -2054,14 +2155,16 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           // disco ci sta dentro: le porte degli edge, i contorni dei gruppi e la
           // selezione continuano a ragionare su x/y/w/h senza sapere che qui la
           // forma è un cerchio.
-          const rawKind = (tb.content as { kind?: string }).kind;
-          const kind = rawKind ? (MARKER_LEGACY[rawKind] ?? rawKind) : undefined;
-          const mk: MarkerKind = (kind && kind in MARKER_SPEC ? kind : 'milestone') as MarkerKind;
+          const mk = resolveMarkerKind((tb.content as { kind?: string }).kind);
           // Disco PIENO, senza contorno: il colore è la forma. Prima era un
           // anello — fondo della carta e bordo colorato — e a 36px il colore si
           // riduceva a un filo di 2px, che su una lavagna piena di tile e box
           // non bastava a farne un punto notevole.
           paintMarker(g.node()!, mk, tw, th);
+          // La didascalia: sotto il disco, centrata, larga quanto un tile e
+          // troncata alla terza riga (vedi `paintMarkerLabel`).
+          const mLabel = ((tb.content as { label?: string }).label || '').trim();
+          if (mLabel) paintMarkerLabel(g.node()!, mLabel, tw, th, theme.ink);
         } else {
           g.append('rect')
             .attr('width', tw).attr('height', th).attr('rx', isTextBox ? 0 : RX)
