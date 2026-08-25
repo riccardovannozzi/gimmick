@@ -1,95 +1,31 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Gimmick · Obsidian — Tiles table view ("Quiet rows").
 
-   Ghost controls, horizontal hairlines, lots of air. Color only where it is
-   semantic (event type, tag, sparks). Reference: GimmickTable.dc.html
-   (proposal "A"). Reads `--ob-*` tokens; light/dark via data-theme.
+   Qui resta SOLO ciò che è dei tile: il conteggio in barra, la spunta di riga, i
+   controlli fantasma (action / type / status), la data pianificata, il tag e la
+   fila degli spark.
+
+   Cornice, intestazione appiccicata, fili, righe da 44 e fascia dei comandi non
+   stanno più qui: sono `.ob-tablecard` / `.ob-table` / `.ob-toolbar` in
+   `obsidian-primitives.css`, condivisi con Sparks, Tags e Contatti. Colore solo
+   dove è semantico (tipo di evento, tag, spark).
    ───────────────────────────────────────────────────────────────────────────── */
 
-.ob-tiles {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  background: var(--ob-canvas);
-  font-family: var(--ob-font-sans);
-  /* Column template — shared by header and body rows so they align. */
-  --ob-tiles-grid: 40px 240px 136px 128px 150px 140px 110px minmax(220px, 1fr);
-}
-
-/* ── Top bar (count + Add tile) ── */
-/* Prima barra della vista → `--ob-toolbar-height`, come le altre viste.
-   L'altezza qui era IMPLICITA: nessun `height`, solo `padding: 13px 18px`, e la
-   barra veniva alta quanto il bottone più i 26 di padding (≈56) — sempre un po'
-   diversa dalle altre viste. Con l'altezza esplicita il padding verticale non
-   serve più: `box-sizing: border-box` non lo somma all'altezza, ma stringerebbe
-   la scatola del contenuto a 22px, meno del bottone che deve contenere, che
-   quindi ne uscirebbe fuori. Resta solo il padding orizzontale. */
-.ob-tiles__topbar {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  height: var(--ob-toolbar-height);
-  padding: 0 18px;
-  background: var(--ob-surface);
-  border-bottom: 1px solid var(--ob-line);
-  flex-shrink: 0;
-}
+/* ── Conteggio e selezione, in barra ── */
 .ob-tiles__count { display: flex; align-items: center; gap: 6px; color: var(--ob-subtle); }
-/* Barra selezione multipla (mostrata al posto del conteggio quando ci sono righe spuntate). */
-.ob-tiles__selbar { display: flex; align-items: center; gap: 8px; }
-.ob-tiles__selbar-n { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); letter-spacing: 0.02em; }
 .ob-tiles__count-n { font-family: var(--ob-font-mono); font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); letter-spacing: 0.02em; }
 .ob-tiles__count-sep { font-size: var(--ob-text-control); color: var(--ob-faint); }
 .ob-tiles__count-tot { font-family: var(--ob-font-mono); font-size: var(--ob-text-control); color: var(--ob-muted); }
 .ob-tiles__count-label { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); margin-left: 2px; }
+/* Quante righe sono spuntate. Prende l'accent: è l'unico dato della barra che
+   parla di una scelta in corso, non del contenuto. */
+.ob-tiles__selbar-n { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); font-weight: var(--ob-weight-emphasis); color: var(--ob-accent); letter-spacing: 0.02em; padding: 0 4px; }
 
-/* ── Scroll area (sticky header + rows) ── */
-.ob-tiles__scroll { flex: 1; min-height: 0; overflow-y: auto; }
-
-.ob-tiles__head {
-  display: grid;
-  grid-template-columns: var(--ob-tiles-grid);
-  /* Intestazione di tabella annidata nella vista → livello 3 (40). */
-  height: 40px;
-  background: var(--ob-surface);
-  border-bottom: 1px solid var(--ob-line);
-  position: sticky;
-  top: 0;
-  z-index: 1;
-}
-.ob-tiles__hcell { display: flex; align-items: center; gap: 5px; padding: 0 14px; }
-.ob-tiles__hcell--check { justify-content: center; padding: 0 8px; }
-.ob-tiles__hlabel {
-  font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em;
-  text-transform: uppercase; color: var(--ob-subtle);
-}
-.ob-tiles__hsort { color: var(--ob-faint); display: inline-flex; }
-
-/* ── Body rows ── */
-.ob-tiles__row {
-  display: grid;
-  grid-template-columns: var(--ob-tiles-grid);
-  min-height: 52px;
-  border-bottom: 1px solid var(--ob-line);
-  background: var(--ob-surface);
-  transition: background-color 120ms ease-out;
-}
-.ob-tiles__row:last-child { border-bottom: none; }
-.ob-tiles__row:hover { background: var(--ob-hover); }
-.ob-tiles__row--clickable { cursor: pointer; }
-.ob-tiles__row--active { background: var(--ob-accent-soft); }
-.ob-tiles__row--checked { background: color-mix(in srgb, var(--ob-accent) 10%, transparent); }
-.ob-tiles__row--checked:hover { background: color-mix(in srgb, var(--ob-accent) 14%, transparent); }
-
-.ob-tiles__cell { display: flex; align-items: center; padding: 0 14px; min-width: 0; overflow: hidden; }
-.ob-tiles__cell--check { justify-content: center; padding: 0 8px; }
-.ob-tiles__cell--ctrl { padding: 0 10px; }
-
+/* ── Spunta di riga e select-all ── */
 .ob-tiles__checkbox {
   width: 16px; height: 16px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2);
   flex-shrink: 0; padding: 0; margin: 0; background: transparent; cursor: pointer;
-  display: inline-flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
   /* La spunta sta su --ob-accent (riga --on qui sotto), quindi il suo inchiostro
      è --ob-accent-ink. Era `#fff`: in light coincide per caso, ma in dark
      l'accent è #AB9FF2 (violetto chiaro) e l'ink è #1b0d2e (quasi nero). */
@@ -98,39 +34,43 @@
 .ob-tiles__checkbox:hover { border-color: var(--ob-accent); }
 .ob-tiles__checkbox--on { background: var(--ob-accent); border-color: var(--ob-accent); }
 
-.ob-tiles__status { display: flex; align-items: center; gap: 7px; min-width: 0; }
-.ob-tiles__title { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* ── Titolo ──
+   Il troncamento arriva da `.ob-table__text`, che il JSX mette accanto a questa
+   classe: qui restano solo corpo e colore. */
+.ob-tiles__title { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-text); }
 /* Tile completato: titolo barrato e attenuato. */
 .ob-tiles__title--done { text-decoration: line-through; color: var(--ob-faint); }
-.ob-tiles__dash { font-size: var(--ob-text-control); color: var(--ob-faint); }
 
-/* ghost control (action / type / status) */
+/* ── Controllo fantasma (action / type / status) ── */
 .ob-tiles__ctrl { display: flex; align-items: center; gap: 7px; padding: 5px 6px; border-radius: var(--ob-radius-sm); min-width: 0; width: 100%; }
 .ob-tiles__ctrl-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .ob-tiles__ctrl-dot--sq { border-radius: 2px; }
 .ob-tiles__ctrl-label { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ob-tiles__ctrl--empty .ob-tiles__ctrl-label { color: var(--ob-faint); font-weight: var(--ob-weight-body); }
 .ob-tiles__ctrl-chev { color: var(--ob-faint); display: inline-flex; flex-shrink: 0; }
+.ob-tiles__status { display: flex; align-items: center; gap: 7px; min-width: 0; padding: 0 6px; }
 
-/* schedule */
+/* ── Pianificazione ──
+   Due righe dentro una cella alta 44: l'interlinea stretta è ciò che le fa stare
+   dentro senza spingere la riga. */
 .ob-tiles__sched-date { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); color: var(--ob-text); line-height: var(--ob-leading-tight); }
 .ob-tiles__sched-time { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); line-height: var(--ob-leading-tight); }
 
-/* tags */
-.ob-tiles__tag { display: flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: var(--ob-radius-sm); max-width: 100%; }
+/* ── Tag ── */
+.ob-tiles__tag { display: flex; align-items: center; gap: 6px; border-radius: var(--ob-radius-sm); max-width: 100%; }
 .ob-tiles__tag-name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-body); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* sparks */
+/* ── Spark ── */
 .ob-tiles__sparks { display: flex; align-items: center; gap: 6px; overflow: hidden; }
 .ob-tiles__spark-box {
-  width: 30px; height: 30px; border-radius: var(--ob-radius-sm);
+  width: 28px; height: 28px; border-radius: var(--ob-radius-sm);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; border: 1px solid var(--ob-line);
 }
 .ob-tiles__spark-box--photo { background: var(--ob-surface-2); color: var(--ob-subtle); }
 .ob-tiles__spark-chip {
-  display: flex; align-items: center; gap: 6px; max-width: 180px;
-  padding: 5px 9px; border-radius: var(--ob-radius-sm);
+  display: flex; align-items: center; gap: 6px; max-width: 170px;
+  padding: 4px 9px; border-radius: var(--ob-radius-sm);
   background: var(--ob-surface-2); border: 1px solid var(--ob-line);
 }
 .ob-tiles__spark-chip-text { font-size: var(--ob-text-card); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

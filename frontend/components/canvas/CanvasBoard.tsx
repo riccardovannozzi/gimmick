@@ -109,6 +109,22 @@ const BOX_ID_PREFIX = 'tb:';
 const isBoxId = (id: string) => id.startsWith(BOX_ID_PREFIX);
 const boxIdOf = (id: string) => id.slice(BOX_ID_PREFIX.length);
 
+/**
+ * Quali box possono stare dentro un gruppo: TESTO e IMMAGINE, esattamente come
+ * un tile — stessa cattura col contorno, stesso drop trascinandoli dentro,
+ * stesso «sfila» per uscirne.
+ *
+ * Fuori restano i MARCATORI, e non per dimenticanza: trascinarne uno ha già un
+ * significato suo, l'innesto su un collegamento (`probeSplit`), e sono l'unico
+ * box con una scritta che esce dal proprio riquadro senza che `getGroupRects`
+ * sappia quanto è alta — il riquadro del gruppo gliela taglierebbe.
+ *
+ * Esportato perché la stessa domanda se la fanno la lavagna (contorno e drop) e
+ * la pagina (voce «Crea gruppo» sulla selezione): con due liste separate una
+ * delle due sarebbe rimasta indietro al primo tipo di box aggiunto.
+ */
+export const isGroupableBox = (tb: { type: string }) => tb.type === 'text' || tb.type === 'image';
+
 export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
@@ -913,14 +929,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     });
   }, [tiles, layout, allStatuses, typeIcons, typeTileIcons]);
 
-  /** Box (immagini) membri del gruppo, nell'ordine in cui compaiono. */
+  /** Box (testo e immagini) membri del gruppo, nell'ordine in cui compaiono. */
   const getGroupBoxes = (g: CanvasGroup, tbs: CanvasBox[]) =>
     g.nodeIds
       .filter(isBoxId)
       .map((id) => tbs.find((tb) => tb.id === boxIdOf(id)))
       .filter((tb): tb is CanvasBox => !!tb);
 
-  /** Rettangoli di TUTTI i membri (tile + immagini): è su questi che il gruppo
+  /** Rettangoli di TUTTI i membri (tile + box): è su questi che il gruppo
    *  si auto-dimensiona. Il titolo di un'immagine sta FUORI dal suo box, sopra
    *  il bordo: l'ingombro del membro comincia lì, altrimenti il riquadro del
    *  gruppo lo taglierebbe. */
@@ -969,7 +985,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (!b) continue;
         if (bx >= b.x - TOL && bx <= b.x + b.w + TOL && by >= b.y - LABEL_H - TOL && by <= b.y + b.h + TOL) {
           // Ancora dell'edge: un membro QUALSIASI del gruppo (tile o immagine) —
-          // un gruppo di sole immagini resta comunque collegabile.
+          // un gruppo di soli box resta comunque collegabile.
           const first = ns.find((n) => g.nodeIds.includes(n.id) && n.id !== excludeId);
           if (first) return { nodeId: first.id, groupId: g.id };
           const firstBox = getGroupBoxes(g, textBoxes).find((tb) => `${BOX_ID_PREFIX}${tb.id}` !== excludeId);
@@ -1194,13 +1210,13 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const insideTiles = nodes.filter((n) => hit(n.x, n.y, TILE_W, TILE_H));
       // Modalità "Group" (pulsante toolbar): ogni contorno valido chiude
       // l'operazione — il parent disattiva il pulsante. Entrano nel gruppo i
-      // tile E le immagini catturate (≥2 in tutto, guardia lato parent); i box
-      // di TESTO restano fuori.
+      // tile E i box catturati (≥2 in tutto, guardia lato parent), esclusi i
+      // marcatori — vedi `isGroupableBox`.
       if (selectModeRef.current) {
-        const insideImgs = textBoxes.filter((tb) => tb.type === 'image' && hit(tb.x, tb.y, tb.w, tb.h));
+        const insideBoxes = textBoxes.filter((tb) => isGroupableBox(tb) && hit(tb.x, tb.y, tb.w, tb.h));
         onGroupTilesRef.current?.([
           ...insideTiles.map((n) => n.id),
-          ...insideImgs.map((tb) => `${BOX_ID_PREFIX}${tb.id}`),
+          ...insideBoxes.map((tb) => `${BOX_ID_PREFIX}${tb.id}`),
         ]);
         return;
       }
@@ -1447,7 +1463,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           const ha = gw.append('circle').attr('cx', cx).attr('cy', cy).attr('r', 14).attr('fill', 'rgba(0,0,0,0.001)').style('cursor', 'crosshair');
           ha.call(d3.drag<SVGCircleElement, unknown>().filter(() => linkRef.current)
             // L'edge del gruppo è ancorato a un suo membro: il primo tile, o —
-            // se il gruppo è di sole immagini — il primo box.
+            // se il gruppo non ne ha — il primo box.
             .on('start', (ev) => {
               const fn = nodes.find((n) => grp.nodeIds.includes(n.id));
               const fb = fn ? null : getGroupBoxes(grp, textBoxes)[0];
@@ -2390,10 +2406,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
                 drawEdges();
               }
               // ── Drop-into-group ──
-              // Stesso gesto dei tile: un'IMMAGINE lasciata cadere dentro un
-              // gruppo (drag singolo, centro del box dentro il riquadro) ne
-              // diventa membro. I box di testo restano fuori dai gruppi.
-              if (wasMulti || tb.type !== 'image') return;
+              // Stesso gesto dei tile: un BOX lasciato cadere dentro un gruppo
+              // (drag singolo, centro del box dentro il riquadro) ne diventa
+              // membro. Testo e immagine allo stesso modo; i marcatori no, il
+              // loro trascinamento è già l'innesto (vedi `isGroupableBox`).
+              if (wasMulti || !isGroupableBox(tb)) return;
               const memberId = `${BOX_ID_PREFIX}${tb.id}`;
               const currentGroups = groupsRef.current;
               if (currentGroups.some((gr) => gr.nodeIds.includes(memberId))) return;

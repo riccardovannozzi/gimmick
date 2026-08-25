@@ -3,34 +3,43 @@
 /**
  * Gimmick · Obsidian — Tiles table view ("Quiet rows").
  *
- * The Tiles view rendered as a calm, high-density table: ghost controls,
- * horizontal hairlines, color only where semantic (event type, tag, sparks).
- * Reference: GimmickTable.dc.html (proposal "A"). Drop into the shell's
- * ViewContainer with `hideToolbar` — this view brings its own top bar.
+ * La vista Tiles come tabella densa: controlli fantasma, colore solo dove è
+ * semantico (tipo di evento, tag, spark).
  *
- * Reuses the shell <Icon> and the <Button> primitive; the type colors come
- * straight from the `--ob-type-*` / semantic tokens.
+ * Tabella e barra sono quelle CONDIVISE (`components/primitives/table.tsx`), le
+ * stesse di Sparks, Tags e Contatti. Prima era una griglia CSS tutta sua
+ * (`--ob-tiles-grid`, righe da 52, solo fili orizzontali) e una barra con
+ * bottoni pieni: due vocabolari che non tornavano da nessun'altra parte.
+ *
+ * ⚠️ Le colonne sono LARGHEZZE FISSE tranne il titolo, che prende quello che
+ * avanza. È il patto di `table-layout: fixed`: senza, una riga con molti spark
+ * allargherebbe la sua colonna e sfalserebbe l'incolonnamento di tutte le altre
+ * — che in una tabella di controlli affiancati è esattamente ciò che la rende
+ * leggibile.
  */
 import * as React from 'react';
 import { IconCheck, IconMinus } from '@tabler/icons-react';
 import { cn } from '@/lib/utils';
-import { Button } from '@/components/primitives';
+import {
+  TableCard, Table, TableBody, TableRow, TableCell, TableText, TableEmpty,
+  Toolbar, ToolbarGap, ToolGroup, ToolSep, ToolButton, ToolWord,
+  type TableColumn,
+} from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
 import { StatusSwatch } from '@/components/statuses/status-swatch';
 import { actionMeta, type ActionKind } from '@/lib/tile-action';
 import type { StatusShape } from '@/types';
 
 // ─── Columns ──────────────────────────────────────────────────────────────────
-interface Col { key: string; label: string; sort?: boolean; check?: boolean }
-const COLS: Col[] = [
-  { key: 'check', label: '', check: true },
-  { key: 'title', label: 'Title', sort: true },
-  { key: 'action', label: 'Action', sort: true },
-  { key: 'schedule', label: 'Schedule' },
-  { key: 'tags', label: 'Tags', sort: true },
-  { key: 'type', label: 'Type' },
-  { key: 'status', label: 'Status' },
-  { key: 'sparks', label: 'Sparks', sort: true },
+const COLUMNS: TableColumn[] = [
+  { key: 'check', width: 40, align: 'center' },
+  { key: 'title', label: 'Title' },
+  { key: 'action', label: 'Action', width: 134 },
+  { key: 'schedule', label: 'Schedule', width: 128 },
+  { key: 'tags', label: 'Tags', width: 148 },
+  { key: 'type', label: 'Type', width: 134 },
+  { key: 'status', label: 'Status', width: 122 },
+  { key: 'sparks', label: 'Sparks', width: 230 },
 ];
 
 // ─── Data model ───────────────────────────────────────────────────────────────
@@ -149,11 +158,12 @@ function Checkbox({
 function Row({ row, onClick, active, checked, onToggle, onContextMenu }: { row: TileRow; onClick?: () => void; active?: boolean; checked?: boolean; onToggle?: () => void; onContextMenu?: (e: React.MouseEvent) => void }) {
   const am = actionMeta(row.action);
   return (
-    <div
-      className={cn('ob-tiles__row', active && 'ob-tiles__row--active', onClick && 'ob-tiles__row--clickable', checked && 'ob-tiles__row--checked')}
+    <TableRow
+      interactive={!!onClick}
+      active={active}
+      checked={checked}
       onClick={onClick}
       onContextMenu={onContextMenu}
-      role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={
         onClick
@@ -166,35 +176,37 @@ function Row({ row, onClick, active, checked, onToggle, onContextMenu }: { row: 
           : undefined
       }
     >
-      <div className="ob-tiles__cell ob-tiles__cell--check">
+      <TableCell align="center" style={{ padding: '0 8px' }}>
         <Checkbox checked={checked} onToggle={onToggle} ariaLabel="Seleziona tile" />
-      </div>
-      <div className="ob-tiles__cell"><span className={cn('ob-tiles__title', row.done && 'ob-tiles__title--done')}>{row.title}</span></div>
-      <div className="ob-tiles__cell ob-tiles__cell--ctrl"><Control label={am.label} icon={am.icon} iconColor={am.color} /></div>
-      <div className="ob-tiles__cell">
+      </TableCell>
+      <TableCell>
+        <TableText className={cn('ob-tiles__title', row.done && 'ob-tiles__title--done')}>{row.title}</TableText>
+      </TableCell>
+      <TableCell style={{ padding: '0 6px' }}><Control label={am.label} icon={am.icon} iconColor={am.color} /></TableCell>
+      <TableCell>
         {row.date ? (
           <div>
             <div className="ob-tiles__sched-date">{row.date}</div>
             {row.time && <div className="ob-tiles__sched-time">{row.time}</div>}
           </div>
         ) : (
-          <span className="ob-tiles__dash">—</span>
+          <span className="ob-table__dash">—</span>
         )}
-      </div>
-      <div className="ob-tiles__cell">
+      </TableCell>
+      <TableCell>
         <div className="ob-tiles__tag">
           <span style={{ color: row.tagAmber ? 'var(--ob-warning)' : 'var(--ob-accent)', display: 'inline-flex', flexShrink: 0 }}>
             <Icon name={row.tagIcon ?? 'tags'} size={13} />
           </span>
           <span className="ob-tiles__tag-name">{row.tags}</span>
         </div>
-      </div>
-      <div className="ob-tiles__cell ob-tiles__cell--ctrl">
+      </TableCell>
+      <TableCell style={{ padding: '0 6px' }}>
         {row.type
           ? <Control label={row.type} dotColor="var(--ob-error)" square />
           : <Control empty />}
-      </div>
-      <div className="ob-tiles__cell ob-tiles__cell--ctrl">
+      </TableCell>
+      <TableCell style={{ padding: '0 6px' }}>
         {row.status ? (
           <div className="ob-tiles__status">
             <StatusSwatch shape={row.status.shape} color={row.status.color} size={13} />
@@ -203,15 +215,15 @@ function Row({ row, onClick, active, checked, onToggle, onContextMenu }: { row: 
         ) : (
           <Control empty />
         )}
-      </div>
-      <div className="ob-tiles__cell">
+      </TableCell>
+      <TableCell>
         <div className="ob-tiles__sparks">
           {row.sparks.length
             ? row.sparks.map((s, i) => <SparkEl key={i} s={s} />)
-            : <span className="ob-tiles__dash">—</span>}
+            : <span className="ob-table__dash">—</span>}
         </div>
-      </div>
-    </div>
+      </TableCell>
+    </TableRow>
   );
 }
 
@@ -255,14 +267,29 @@ export function TilesView({
   const [confirming, setConfirming] = React.useState(false);
   React.useEffect(() => { setConfirming(false); }, [checkedCount]);
 
+  // La colonna della spunta porta il select-all al posto di un'intestazione: è
+  // l'unica testata che è un COMANDO, e va costruita qui perché conosce lo stato
+  // della selezione.
+  const columns = React.useMemo<TableColumn[]>(() => COLUMNS.map((c) => (
+    c.key === 'check'
+      ? {
+          ...c,
+          label: checkable
+            ? <Checkbox checked={allChecked} indeterminate={someChecked} onToggle={onToggleAll} ariaLabel="Seleziona tutte" />
+            : undefined,
+        }
+      : c
+  )), [checkable, allChecked, someChecked, onToggleAll]);
+
   return (
-    <div className="ob-tiles">
-      <div className="ob-tiles__topbar">
+    <div className="ob-tablepage">
+      <Toolbar>
         {checkedCount > 0 ? (
-          <div className="ob-tiles__selbar">
+          <ToolGroup>
             <span className="ob-tiles__selbar-n">{checkedCount} selezionati</span>
-            <Button variant="ghost" size="sm" onClick={onClearSelection}>Deseleziona</Button>
-          </div>
+            <ToolSep />
+            <ToolWord onClick={onClearSelection}>Deseleziona</ToolWord>
+          </ToolGroup>
         ) : (
           <div className="ob-tiles__count">
             <Icon name="tiles" size={15} />
@@ -272,54 +299,51 @@ export function TilesView({
             <span className="ob-tiles__count-label">TILES</span>
           </div>
         )}
-        <div style={{ flex: 1 }} />
-        {checkedCount > 0 && onDeleteSelected && (
-          <Button
-            variant="danger"
-            size="sm"
-            icon={<Icon name="trash" size={13} />}
-            onClick={() => {
-              if (confirming) { onDeleteSelected(); setConfirming(false); }
-              else setConfirming(true);
-            }}
-          >
-            {confirming ? `Conferma · elimina ${checkedCount}` : 'Elimina'}
-          </Button>
-        )}
-        <Button variant="primary" size="sm" icon={<Icon name="plus" size={13} />} onClick={onAddTile}>
-          Add tile
-        </Button>
-      </div>
+        <ToolbarGap />
+        <ToolGroup>
+          {/* Conferma a due passi, come nella sidebar: il primo click ARMA (la
+              parola diventa rossa e dice quante righe porta via), il secondo
+              esegue. È una parola e non un'icona perché deve poter dichiarare il
+              numero — un cestino che cambia significato al secondo click sarebbe
+              lo stesso comando con due esiti e nessun modo di distinguerli. */}
+          {checkedCount > 0 && onDeleteSelected && (
+            <>
+              <ToolWord
+                on={confirming}
+                tone="var(--ob-error)"
+                onClick={() => {
+                  if (confirming) { onDeleteSelected(); setConfirming(false); }
+                  else setConfirming(true);
+                }}
+              >
+                {confirming ? `Conferma · elimina ${checkedCount}` : 'Elimina'}
+              </ToolWord>
+              <ToolSep />
+            </>
+          )}
+          <ToolButton icon={<Icon name="plus" size={16} />} label="Aggiungi tile" onClick={onAddTile} disabled={!onAddTile} />
+        </ToolGroup>
+      </Toolbar>
 
-      <div className="ob-tiles__scroll ob-scroll">
-        <div className="ob-tiles__head">
-          {COLS.map((c) => (
-            <div key={c.key} className={cn('ob-tiles__hcell', c.check && 'ob-tiles__hcell--check')}>
-              {c.check ? (
-                checkable
-                  ? <Checkbox checked={allChecked} indeterminate={someChecked} onToggle={onToggleAll} ariaLabel="Seleziona tutte" />
-                  : <div className="ob-tiles__checkbox" />
-              ) : (
-                <>
-                  <span className="ob-tiles__hlabel">{c.label}</span>
-                  {c.sort && <span className="ob-tiles__hsort"><Icon name="filter" size={10} /></span>}
-                </>
-              )}
-            </div>
-          ))}
-        </div>
-        {rows.map((r, i) => (
-          <Row
-            key={r.id ?? i}
-            row={r}
-            active={!!r.id && r.id === selectedId}
-            onClick={onRowClick && r.id ? () => onRowClick(r.id!) : undefined}
-            checked={!!r.id && !!checkedIds?.has(r.id)}
-            onToggle={checkable && r.id ? () => onToggleRow!(r.id!) : undefined}
-            onContextMenu={onRowContextMenu && r.id ? (e) => onRowContextMenu(e, r.id!) : undefined}
-          />
-        ))}
-        {footer}
+      <div className="ob-tableview">
+        <TableCard footer={footer}>
+          <Table columns={columns}>
+            <TableBody>
+              {rows.map((r, i) => (
+                <Row
+                  key={r.id ?? i}
+                  row={r}
+                  active={!!r.id && r.id === selectedId}
+                  onClick={onRowClick && r.id ? () => onRowClick(r.id!) : undefined}
+                  checked={!!r.id && !!checkedIds?.has(r.id)}
+                  onToggle={checkable && r.id ? () => onToggleRow!(r.id!) : undefined}
+                  onContextMenu={onRowContextMenu && r.id ? (e) => onRowContextMenu(e, r.id!) : undefined}
+                />
+              ))}
+              {rows.length === 0 && <TableEmpty colSpan={COLUMNS.length}>Nessun tile</TableEmpty>}
+            </TableBody>
+          </Table>
+        </TableCard>
       </div>
     </div>
   );

@@ -405,24 +405,155 @@
 .ob-listrow__main { flex: 1; min-width: 0; }
 .ob-listrow__meta { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); flex-shrink: 0; }
 
-/* ── TableRow ── */
-.ob-table { width: 100%; border-collapse: collapse; font-family: var(--ob-font-sans); font-size: var(--ob-text-control); color: var(--ob-text); }
+/* ─── LA TABELLA ──────────────────────────────────────────────────────────────
+   UNA sola tabella per tutta l'app: Sparks, Tiles, Tags e Contatti.
+
+   Erano quattro. Contatti e Tags disegnavano a mano, in JSX, la stessa cornice e
+   le stesse celle (il commento in cima a ContactsModal diceva testualmente «la
+   tabella è quella della pagina TAGS»); Sparks e Tiles erano invece due griglie
+   CSS con il proprio `--ob-*-grid`, righe alte 50 e 52, intestazioni su fondi
+   diversi e nessun filo verticale. Quattro tabelle che si somigliavano abbastanza
+   da sembrare un errore di stampa, e nessuna che si potesse correggere una volta
+   sola.
+
+   La forma scelta è quella dei CONTATTI, la più strutturata delle quattro:
+
+   · CORNICE — la tabella sta dentro una scatola di superficie con la sua
+     hairline, e scorre DENTRO quella scatola. Le altre scorrevano contro il bordo
+     della vista, e a metà scorrimento non si capiva più dove finisse la tabella
+     e cominciasse la pagina.
+   · INTESTAZIONE — appiccicata in alto su `--ob-surface-2`, in mono minuscolo
+     maiuscolato. Un fondo diverso dalle righe è ciò che la tiene leggibile
+     mentre il corpo le scorre sotto.
+   · GRIGLIA PIENA — filo a destra e sotto OGNI cella, non solo sotto le righe.
+     Con colonne strette e affiancate (tipo, data, dimensione) le sole righe
+     orizzontali lasciano i valori a fluttuare senza incolonnarsi.
+   · RIGHE DA 44 — la stessa quota dei controlli di barra: le tabelle si aprono
+     accanto a pannelli che quella misura ce l'hanno già.
+
+   `table-layout: fixed` è parte del patto: le larghezze le dichiara chi usa la
+   tabella, colonna per colonna, e il testo che non ci sta viene troncato con
+   `.ob-table__text`. Senza, una cella con una frase lunga allargherebbe la sua
+   colonna e sfalserebbe l'incolonnamento di tutte le righe.
+
+   ⚠️ La cornice (`.ob-tablecard`) è un flex column che cresce: perché lo scroll
+   funzioni, l'antenato deve avere un'altezza definita — dentro una vista è il
+   `flex: 1; min-height: 0` della vista stessa, dentro una modale un `max-height`
+   sullo scroll. */
+.ob-tablecard {
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line-2);
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0;
+  overflow: hidden;
+}
+.ob-tablecard__scroll { flex: 1; min-height: 0; overflow: auto; }
+/* Il corpo di una VISTA che è fatta di una tabella (Sparks, Tiles, Tags). La
+   gronda è ciò che rende visibile la cornice: senza, il bordo della tabella
+   coinciderebbe col bordo della vista e la scatola sparirebbe. */
+.ob-tableview {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 12px;
+  background: var(--ob-canvas);
+}
+/* La vista-tabella per intero: fascia dei comandi + corpo. */
+.ob-tablepage { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
+
+.ob-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-family: var(--ob-font-sans);
+  font-size: var(--ob-text-card);
+  color: var(--ob-text);
+}
 .ob-table thead th {
-  text-align: left;
+  position: sticky; top: 0; z-index: 2;
+  height: 34px; padding: 0 12px;
+  text-align: left; vertical-align: middle;
+  background: var(--ob-surface-2);
+  border-right: 1px solid var(--ob-line-2);
+  border-bottom: 1px solid var(--ob-line-2);
   font-family: var(--ob-font-mono);
-  font-size: var(--ob-text-meta);
-  font-weight: var(--ob-weight-emphasis);
-  letter-spacing: 0.04em;
-  color: var(--ob-subtle);
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--ob-line);
+  font-size: var(--ob-text-micro);
+  font-weight: var(--ob-weight-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ob-muted);
   white-space: nowrap;
 }
-.ob-tablerow { transition: background-color 120ms ease-out; }
-.ob-tablerow td { padding: 11px 12px; border-bottom: 1px solid var(--ob-line); vertical-align: middle; }
+/* Intestazione ORDINABILE: si preme, quindi si accende al passaggio. La freccia
+   sta in `.ob-table__sort` e compare solo sulla colonna in uso — una freccia per
+   colonna direbbe «ordinabile», che è già detto dal cursore. */
+.ob-table th.ob-table__h--sortable { cursor: pointer; user-select: none; }
+.ob-table th.ob-table__h--sortable:hover { color: var(--ob-text); }
+.ob-table th.ob-table__h--on { color: var(--ob-accent); }
+.ob-table__sort { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+
+.ob-table tbody td {
+  height: 44px; padding: 0 12px;
+  border-right: 1px solid var(--ob-line-2);
+  border-bottom: 1px solid var(--ob-line-2);
+  overflow: hidden; vertical-align: middle;
+}
+/* L'ultima colonna non ha filo a destra: ce l'ha già la cornice, e due linee a un
+   pixel di distanza si leggono come un bordo storto. */
+.ob-table th:last-child, .ob-table tbody td:last-child { border-right: none; }
+.ob-table__c--center { text-align: center; }
+.ob-table__c--right { text-align: right; }
+/* Il troncamento è un OPT-IN sul contenuto, non una regola della cella: una cella
+   può contenere un badge, una fila di chip o un input, e `text-overflow` su
+   quelli non vuol dire niente. */
+.ob-table__text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Valore assente. Un trattino grigio dice «qui non c'è niente» meglio di una
+   cella vuota, che si legge come un errore di caricamento. */
+.ob-table__dash { color: var(--ob-faint); }
+
+.ob-tablerow { background: transparent; transition: background-color 120ms ease-out; }
 .ob-tablerow--interactive { cursor: pointer; }
 .ob-tablerow--interactive:hover td { background: var(--ob-hover); }
 .ob-tablerow--active td { background: var(--ob-accent-soft); }
+/* SPUNTATA non è APERTA: la riga aperta nell'inspector è una sola e prende
+   l'accent pieno; le spuntate sono molte e ne prendono una velatura. */
+.ob-tablerow--checked td { background: color-mix(in srgb, var(--ob-accent) 10%, transparent); }
+.ob-tablerow--checked:hover td { background: color-mix(in srgb, var(--ob-accent) 14%, transparent); }
+
+/* Al posto del corpo: «nessun risultato». In mono maiuscolato come le
+   intestazioni — è una didascalia della tabella, non un suo contenuto. */
+.ob-table__empty {
+  padding: 26px 0; text-align: center; margin: 0;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-meta);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-subtle);
+}
+/* Conteggio sotto la tabella (righe mostrate, totale). */
+.ob-table__foot { margin: 0; font-family: var(--ob-font-sans); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
+
+/* ─── LA BARRA DEGLI STRUMENTI ────────────────────────────────────────────────
+   La fascia che ospita `.ob-tools`, `ToolButton`, `ToolWord` e `.ob-toolinput`.
+
+   Nasce da `.ob-chrono__toolbar`, che era la copia più pulita: quota dal token,
+   fondo `--ob-surface`, hairline sotto. Chrono e Canvas avevano già questo
+   vocabolario di comandi; Sparks, Tiles, Tags e Contatti no — ognuna aveva i
+   suoi bottoni pieni con etichetta, che in una barra di quattro comandi pesano
+   quanto il contenuto che stanno lì per filtrare.
+
+   `gap: 0` di proposito: la spaziatura la danno i gruppi (`.ob-tools`, gap 2) e i
+   separatori (`.ob-toolsep`, margine 8). Un gap sulla fascia si sommerebbe a
+   entrambi e allontanerebbe i comandi dai loro fili. */
+.ob-toolbar {
+  height: var(--ob-toolbar-height); flex-shrink: 0;
+  display: flex; align-items: center; gap: 0;
+  padding: 0 12px;
+  background: var(--ob-surface);
+  border-bottom: 1px solid var(--ob-line);
+}
+/* Spinge a destra quello che viene dopo. */
+.ob-toolbar__gap { flex: 1; min-width: 8px; }
+/* La barra di una MODALE non ha una vista sotto di sé: niente fondo e niente
+   hairline (la modale ha già le sue), e nessun rientro — i suoi comandi si
+   allineano al bordo del contenuto. */
+.ob-toolbar--bare { background: transparent; border-bottom: none; padding: 0; }
 
 /* ─── SISTEMA VISIVO DEI TILE — canali indipendenti ─────────────────────────
    Vedi lib/tile-visual.ts per la mappa tipo → canali. Qui c'è solo la forma.
@@ -967,6 +1098,13 @@
 .ob-toolword--on:hover { color: var(--toolword-on, var(--ob-accent)); }
 .ob-toolword:disabled { opacity: 0.4; cursor: default; }
 .ob-toolword:disabled:hover { color: var(--ob-subtle); }
+/* Il CONTATORE di una parola-filtro («Audio 12»). In mono perché è una cifra che
+   cambia sotto una parola che non cambia: allineandosi verticalmente fra un
+   filtro e l'altro si legge come una colonna invece che come un pezzo di frase.
+   `color: inherit` da accesa: prende il tono del filtro, e la coppia
+   parola+numero resta una cosa sola. */
+.ob-toolword__n { margin-left: 5px; font-family: var(--ob-font-mono); font-size: var(--ob-text-micro); color: var(--ob-faint); }
+.ob-toolword--on .ob-toolword__n { color: inherit; opacity: 0.75; }
 
 /* Il gruppo dei comandi in fondo alla barra, e il filo che ne separa le famiglie.
    Due righe di CSS, e stavano scritte tre volte — inline nella topbar del canvas,

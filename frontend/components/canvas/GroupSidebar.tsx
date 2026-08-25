@@ -9,7 +9,7 @@
  * (GIMMICK_PALETTE). La selezione evidenzia anche i punti di aggancio sul canvas.
  */
 import { useState, useEffect, useRef } from 'react';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOff, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOff, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted, IconArticle } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -24,9 +24,11 @@ import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBo
 interface GroupSidebarProps {
   group: CanvasGroup;
   tiles: { id: string; title?: string }[];
-  /** Tutte le immagini del canvas: il pannello ne pesca quelle del gruppo
-   *  (membri `tb:<id>`) e le elenca accanto ai tile. */
-  images?: { id: string; src: string }[];
+  /** Tutti i box del canvas che possono essere membri (testo e immagini): il
+   *  pannello pesca quelli del gruppo (membri `tb:<id>`) e li elenca accanto ai
+   *  tile. `label` è già pronta da mostrare — ricavarla qui avrebbe voluto dire
+   *  ripulire l'HTML di una nota dentro un pannello di stile. */
+  boxes?: { id: string; type: 'text' | 'image'; src?: string; label: string }[];
   open: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<CanvasGroup>) => void;
@@ -34,7 +36,7 @@ interface GroupSidebarProps {
   onDelete: () => void;
   onSelectTile: (id: string) => void;
   /** Sfila un singolo membro dal gruppo. Id nel formato dei membri: id nudo =
-   *  tile, `tb:<id>` = immagine. */
+   *  tile, `tb:<id>` = box. */
   onUngroupMember?: (memberId: string) => void;
 }
 
@@ -228,7 +230,7 @@ function UngroupButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpdate, onDelete, onSelectTile, onUngroupMember }: GroupSidebarProps) {
+export function GroupSidebar({ group, tiles, boxes = [], open, onToggle, onUpdate, onDelete, onSelectTile, onUngroupMember }: GroupSidebarProps) {
   const theme = usePixelTheme();
   const [name, setName] = useState(group.label || '');
 
@@ -237,12 +239,13 @@ export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpda
   const groupTiles = group.nodeIds
     .map((id) => tiles.find((t) => t.id === id))
     .filter((t): t is { id: string; title?: string } => !!t);
-  // Le immagini stanno nei gruppi come i tile, solo identificate da `tb:<id>`.
-  // Non hanno un titolo: si elencano per miniatura.
-  const groupImages = group.nodeIds
+  // I box stanno nei gruppi come i tile, solo identificati da `tb:<id>`. Non
+  // hanno un titolo proprio: si elencano per miniatura (immagini) o per la prima
+  // riga del contenuto (testi).
+  const groupBoxes = group.nodeIds
     .filter((id) => id.startsWith('tb:'))
-    .map((id) => images.find((im) => im.id === id.slice(3)))
-    .filter((im): im is { id: string; src: string } => !!im);
+    .map((id) => boxes.find((b) => b.id === id.slice(3)))
+    .filter((b): b is NonNullable<typeof b> => !!b);
 
   const eyebrow = eyebrowStyle(theme);
   // Stesso default del disegno (`gBw` in CanvasBoard.tsx): un gruppo nasce con
@@ -382,13 +385,16 @@ export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpda
             </div>
           </div>
 
-          {/* Immagini contenute — membri come i tile, elencate per miniatura. */}
-          {groupImages.length > 0 && (
+          {/* Box contenuti — membri come i tile: testi e immagini in UNA sola
+              lista, perché nel gruppo valgono la stessa cosa e due sezioni
+              separate avrebbero suggerito due regole diverse. Li distingue la
+              miniatura (immagine) o il glifo della nota (testo). */}
+          {groupBoxes.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <span style={eyebrow}>Immagini ({groupImages.length})</span>
+              <span style={eyebrow}>Box ({groupBoxes.length})</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {groupImages.map((im) => (
-                  <div key={im.id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
+                {groupBoxes.map((b) => (
+                  <div key={b.id} style={{ display: 'flex', alignItems: 'stretch', gap: 4 }}>
                     <div
                       style={{
                         display: 'flex', alignItems: 'center', gap: 8, flex: 1, minWidth: 0, padding: '5px 8px',
@@ -396,28 +402,42 @@ export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpda
                         borderRadius: 'var(--ob-radius-sm)', color: theme.ink2,
                         fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control,
                       }}
+                      title={b.label}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={im.src}
-                        alt=""
-                        style={{ width: 36, height: 24, objectFit: 'cover', borderRadius: 2, flexShrink: 0, background: theme.bg1 }}
-                      />
-                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>Immagine</span>
+                      {b.type === 'image' && b.src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={b.src}
+                          alt=""
+                          style={{ width: 36, height: 24, objectFit: 'cover', borderRadius: 2, flexShrink: 0, background: theme.bg1 }}
+                        />
+                      ) : (
+                        // Stessa impronta della miniatura (36×24) così le due
+                        // righe si incolonnano invece di sfalsarsi.
+                        <span
+                          style={{
+                            width: 36, height: 24, flexShrink: 0, borderRadius: 2, background: theme.bg1,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3,
+                          }}
+                        >
+                          <IconArticle size={14} />
+                        </span>
+                      )}
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>
                     </div>
-                    {onUngroupMember && <UngroupButton onClick={() => onUngroupMember(`tb:${im.id}`)} />}
+                    {onUngroupMember && <UngroupButton onClick={() => onUngroupMember(`tb:${b.id}`)} />}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Azioni — sciogliere NON cancella: il contenitore va via, tile e
-              immagini restano dove sono. Per questo non è un'azione rossa. */}
+          {/* Azioni — sciogliere NON cancella: il contenitore va via, i membri
+              restano dove sono. Per questo non è un'azione rossa. */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <button
               onClick={onDelete}
-              title="Toglie il gruppo: tile e immagini restano sul canvas"
+              title="Toglie il gruppo: i membri restano sul canvas"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 width: '100%', padding: '9px 12px', background: 'transparent',
@@ -429,7 +449,7 @@ export function GroupSidebar({ group, tiles, images = [], open, onToggle, onUpda
               Sciogli gruppo (Ungroup)
             </button>
             <span style={{ color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta }}>
-              I tile e le immagini restano sul canvas.
+              I tile, i testi e le immagini restano sul canvas.
             </span>
           </div>
         </div>

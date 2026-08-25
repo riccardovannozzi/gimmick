@@ -137,28 +137,9 @@ export function ListRow({ interactive, active, leading, meta, className, childre
 }
 
 // ─── Table + TableRow ─────────────────────────────────────────────────────────
-export function Table({ className, ...rest }: React.TableHTMLAttributes<HTMLTableElement>) {
-  return <table className={cn('ob-table', className)} {...rest} />;
-}
-
-export interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
-  interactive?: boolean;
-  active?: boolean;
-}
-
-export function TableRow({ interactive, active, className, ...rest }: TableRowProps) {
-  return (
-    <tr
-      className={cn(
-        'ob-tablerow',
-        interactive && 'ob-tablerow--interactive',
-        active && 'ob-tablerow--active',
-        className,
-      )}
-      {...rest}
-    />
-  );
-}
+// Traslocati in `./table.tsx` insieme a cornice, testata, celle e barra: erano
+// due gusci vuoti che nessuno usava, mentre le quattro tabelle vere si
+// disegnavano ognuna per conto suo.
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 export type ToastTone = 'default' | 'success' | 'error' | 'info';

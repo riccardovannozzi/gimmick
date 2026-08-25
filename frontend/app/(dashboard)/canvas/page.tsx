@@ -11,7 +11,7 @@ import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, isGroupableBox } from '@/components/canvas/CanvasBoard';
 import { tidy, type TidyRect } from '@/lib/canvas-tidy';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
@@ -29,6 +29,27 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import type { Tag, Tile } from '@/types';
 import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
+
+/**
+ * Prima riga leggibile di una nota, per elencarla dove l'HTML non ci sta: la
+ * lista dei membri di un gruppo. Un'immagine ha una miniatura, un testo no —
+ * e «Box di testo» ripetuto cinque volte non distingue i cinque.
+ */
+function boxTextPreview(html: string | undefined): string {
+  const plain = (html || '')
+    // I blocchi che finiscono diventano uno spazio, altrimenti l'ultima parola
+    // di un paragrafo si incolla alla prima del successivo.
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain || 'Nota vuota';
+}
 
 export default function CanvasPage() {
   const theme = usePixelTheme();
@@ -1284,28 +1305,34 @@ export default function CanvasPage() {
     );
   }, [tagId, tiles, layout, textBoxes, edges, canvasGroups, selectedIds, handlePositionChange, handleUpdateTextBox, handleGroupsChange]);
 
-  // Immagini selezionate (i box di TESTO restano fuori dai gruppi).
-  const selectedImageBoxIds = useMemo(
-    () => selectedTextBoxIds.filter((id) => textBoxes.find((b) => b.id === id)?.type === 'image'),
+  // Box selezionati che possono entrare in un gruppo: testo e immagini, come i
+  // tile. Restano fuori solo i marcatori — il perché sta su `isGroupableBox`.
+  const selectedGroupableBoxIds = useMemo(
+    () => selectedTextBoxIds.filter((id) => {
+      const b = textBoxes.find((bb) => bb.id === id);
+      return !!b && isGroupableBox(b);
+    }),
     [selectedTextBoxIds, textBoxes],
   );
-  /** Un gruppo si può creare da tile e immagini (≥2 in tutto), mai da testi. */
+  /** Un gruppo si può creare da tile, testi e immagini (≥2 in tutto). Basta un
+   *  marcatore nella selezione per fermare tutto: entrerebbe in un gruppo che
+   *  non sa disegnargli attorno la didascalia. */
   const groupFromSelectionAllowed =
-    selectedTileIds.length + selectedImageBoxIds.length >= 2 &&
-    selectedImageBoxIds.length === selectedTextBoxIds.length;
+    selectedTileIds.length + selectedGroupableBoxIds.length >= 2 &&
+    selectedGroupableBoxIds.length === selectedTextBoxIds.length;
 
   const handleCreateGroupFromSelection = useCallback(() => {
     // Dirlo, invece di non fare niente: da tastiera (CTRL+G) non c'è un pulsante
     // grigio a spiegare perché il gruppo non nasce.
     if (!groupFromSelectionAllowed) {
-      if (selectedTileIds.length + selectedImageBoxIds.length < 2) {
-        toast.info('Seleziona almeno due elementi (tile o immagini) per creare un gruppo');
+      if (selectedTileIds.length + selectedGroupableBoxIds.length < 2) {
+        toast.info('Seleziona almeno due elementi (tile, testi o immagini) per creare un gruppo');
       } else {
-        toast.info('I box di testo non entrano nei gruppi: togli il testo dalla selezione');
+        toast.info('I marcatori non entrano nei gruppi: toglili dalla selezione');
       }
       return;
     }
-    const ids = [...selectedTileIds, ...selectedImageBoxIds.map((id) => `tb:${id}`)];
+    const ids = [...selectedTileIds, ...selectedGroupableBoxIds.map((id) => `tb:${id}`)];
     const idSet = new Set(ids);
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
@@ -1313,20 +1340,20 @@ export default function CanvasPage() {
     ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
     clearSelection();
-  }, [groupFromSelectionAllowed, selectedTileIds, selectedImageBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
+  }, [groupFromSelectionAllowed, selectedTileIds, selectedGroupableBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
 
-  // Modalità "Raggruppa a contorno": tile e immagini catturati dal rettangolo
-  // formano subito un nuovo gruppo (id nudo = tile, `tb:<id>` = immagine).
+  // Modalità "Raggruppa a contorno": tile e box catturati dal rettangolo
+  // formano subito un nuovo gruppo (id nudo = tile, `tb:<id>` = box).
   // Rimuove gli id dai gruppi esistenti (un elemento sta in un solo gruppo) e
   // scarta i gruppi rimasti con <2 membri.
   const handleGroupTiles = useCallback((ids: string[]) => {
     // Il pulsante Group si disattiva dopo ogni uso (come Tile/Text/Image).
     setSelectMode(false);
     // Contorno che cattura 0 o 1 elemento: senza un messaggio è un gesto che
-    // sembra non aver funzionato (e i box di testo, esclusi per scelta, sono la
+    // sembra non aver funzionato (e i marcatori, esclusi per scelta, sono la
     // ragione più frequente per cui il conto non torna).
     if (ids.length < 2) {
-      toast.info('Il contorno deve contenere almeno due elementi fra tile e immagini');
+      toast.info('Il contorno deve contenere almeno due elementi fra tile, testi e immagini');
       return;
     }
     const idSet = new Set(ids);
@@ -1461,7 +1488,7 @@ export default function CanvasPage() {
     removeFromGroups([id]);
   }, [tileCtx, removeFromGroups]);
 
-  // Stessa azione per un'immagine dentro un gruppo.
+  // Stessa azione per un box (testo o immagine) dentro un gruppo.
   const handleUngroupBox = useCallback(() => {
     if (!tbCtx) return;
     const id = tbCtx.textBoxId;
@@ -1797,11 +1824,18 @@ export default function CanvasPage() {
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
               tiles={tiles}
-              // Le immagini sono membri a pieno titolo: il pannello le elenca
-              // come i tile (miniatura) e permette di sfilarle una per una.
-              images={textBoxes
-                .filter((b) => b.type === 'image')
-                .map((b) => ({ id: b.id, src: (b.content as { src?: string }).src || '' }))}
+              // Testi e immagini sono membri a pieno titolo: il pannello li
+              // elenca come i tile e permette di sfilarli uno per uno.
+              boxes={textBoxes.filter(isGroupableBox).map((b) => (
+                b.type === 'image'
+                  ? {
+                      id: b.id,
+                      type: 'image' as const,
+                      src: (b.content as CanvasBoxImageContent).src,
+                      label: ((b.content as CanvasBoxImageContent).title || '').trim() || 'Immagine',
+                    }
+                  : { id: b.id, type: 'text' as const, label: boxTextPreview((b.content as { html?: string }).html) }
+              ))}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
@@ -1966,7 +2000,7 @@ export default function CanvasPage() {
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
-                    title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                    title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2077,7 +2111,7 @@ export default function CanvasPage() {
                         <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -2197,7 +2231,7 @@ export default function CanvasPage() {
                         <button
                           onClick={() => { setTbCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -2210,7 +2244,7 @@ export default function CanvasPage() {
                         <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                       </>
                     )}
-                    {/* Un'immagine dentro un gruppo si sfila come un tile. */}
+                    {/* Un box dentro un gruppo si sfila come un tile. */}
                     {tbCtx.inGroup && (
                       <button onClick={handleUngroupBox} style={menuItem}>
                         <IconBoxOff size={14} />
@@ -2321,14 +2355,14 @@ export default function CanvasPage() {
                       Rinomina gruppo
                     </button>
                     {/* Sciogliere un gruppo NON cancella niente: toglie solo il
-                        contenitore e lascia tile e immagini dove sono. Era
+                        contenitore e lascia i membri dove sono. Era
                         etichettato "Elimina gruppo" in rosso col cestino —
                         l'azione giusta con il nome di quella sbagliata, e quindi
                         un ungroup che nessuno osava premere. */}
                     <button
                       onClick={() => { handleDeleteGroup(groupCtx.groupId); setGroupCtx(null); }}
                       style={menuItem}
-                      title="Toglie il gruppo: tile e immagini restano sul canvas"
+                      title="Toglie il gruppo: i membri restano sul canvas"
                     >
                       <IconBoxOff size={14} />
                       Sciogli gruppo (Ungroup)
