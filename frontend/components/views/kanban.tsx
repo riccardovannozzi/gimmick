@@ -76,6 +76,11 @@ export interface CardData {
   sparks?: SparkType[];
   /** Colore che tinge fondo, bordo e badge. Dalle impostazioni, mai un hex qui. */
   accent?: string;
+  /** In FOCUS: l'attività su cui si sta lavorando adesso → cornice rossa
+   *  tratteggiata tutt'intorno al tile. Vive sul tile, quindi si vede in ogni
+   *  vista che lo disegna — un segno che sparisce cambiando scheda non è un
+   *  segno. */
+  focused?: boolean;
   /**
    * Card PROVVISORIA: la tile che il doppio click ha appena chiesto, disegnata
    * mentre il server la crea. Non si trascina e non si apre — il suo `id` non
@@ -186,6 +191,7 @@ function TileCard({ t, onClick, onMenu, active }: {
         meta={t.meta}
         sparks={t.sparks}
         accent={t.accent ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        focused={t.focused}
         ghost={t.ghost}
         active={active}
         onClick={onClick}

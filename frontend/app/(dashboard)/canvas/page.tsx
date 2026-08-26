@@ -5,13 +5,13 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots, IconSquareDashed } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, isGroupableBox } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasBoxSubjectContent, SUBJECT_SIZE, isGroupableBox } from '@/components/canvas/CanvasBoard';
 import { tidy, type TidyRect } from '@/lib/canvas-tidy';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
@@ -22,6 +22,7 @@ import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { ImageSidebar } from '@/components/canvas/ImageSidebar';
 import { MarkerSidebar } from '@/components/canvas/MarkerSidebar';
+import { SubjectSidebar } from '@/components/canvas/SubjectSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
@@ -72,12 +73,13 @@ export default function CanvasPage() {
   // I marcatori rientrano qui come qualunque altro box: il ramo di incollaggio
   // dei box è già generico (tipo, contenuto e misure del sorgente), quindi non
   // ha avuto bisogno di sapere che esistono.
-  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker'; id: string } | null>(null);
+  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker' | 'subject'; id: string } | null>(null);
   // Menu contestuale "Incolla" sullo sfondo del canvas (posizione + coord locali).
   const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; localX: number; localY: number } | null>(null);
   const [imageMode, setImageMode] = useState(false);
   /** Tipo di marcatore armato dalla barra, o null. */
   const [markerMode, setMarkerMode] = useState<MarkerKind | null>(null);
+  const [subjectMode, setSubjectMode] = useState(false);
   // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
@@ -592,6 +594,11 @@ export default function CanvasPage() {
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
     [textBoxes, selectedTextBoxId],
   );
+  // SOGGETTO selezionato → SubjectSidebar (denominazione, mail, telefono, note).
+  const selectedSubjectBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'subject') || null,
+    [textBoxes, selectedTextBoxId],
+  );
   // MARCATORE selezionato → MarkerSidebar (didascalia sotto il disco).
   const selectedMarkerBox = useMemo(
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'marker') || null,
@@ -722,6 +729,38 @@ export default function CanvasPage() {
     const newId = (res?.data as any)?.id;
     if (splitEdgeId && newId) handleSplitEdge(splitEdgeId, `tb:${newId}`);
   }, [tagId, queryClient, commitBox, handleSplitEdge]);
+
+  /**
+   * Posa un SOGGETTO. Scrittura ottimistica come per gli altri box.
+   *
+   * Due differenze dal marcatore, e sono la stessa: un marcatore appena posato
+   * è già completo (la sua forma dice tutto), un soggetto è un'icona anonima
+   * finché non gli si dà un nome. Quindi lo strumento si disarma subito E il
+   * pannello si apre da solo sul soggetto appena nato — la posa e il battezzarlo
+   * sono un gesto unico, e separarli voleva dire lasciare sulla lavagna una fila
+   * di persone senza nome.
+   */
+  const handleAddSubjectAt = useCallback(async (x: number, y: number) => {
+    if (!tagId) return;
+    setSubjectMode(false);
+    const payload = { type: 'subject' as const, content: {}, x, y, w: SUBJECT_SIZE, h: SUBJECT_SIZE };
+    const tempId = `temp-subject-${Date.now()}`;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, ...payload }],
+    }));
+    const res = await canvasApi.addBox(tagId, payload);
+    if (!commitBox(tempId, res, 'Soggetto non salvato')) return;
+    const newId = (res?.data as any)?.id;
+    if (newId) {
+      setSelectedTextBoxId(newId);
+      setSelectedTileId(null);
+      setSelectedGroupId(null);
+      setSelectedEdgeId(null);
+      setSelectedIds([]);
+      setSelectionBbox(null);
+      setSidebarOpen(true);
+    }
+  }, [tagId, queryClient, commitBox]);
 
   const handleDeleteTextBox = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -909,9 +948,12 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tagId, tags, tileMode, queryClient]);
 
-  // Incolla l'elemento negli appunti nel punto (coord locali canvas). Supporta
-  // tile, testo e immagine. Gli appunti restano attivi → si può incollare più
-  // volte finché non si copia altro o si preme Esc.
+  // Incolla l'elemento negli appunti nel punto (coord locali canvas). Il tile ha
+  // un ramo suo (va creato come riga, taggato e messo a layout); ogni BOX —
+  // testo, immagine, marcatore, soggetto — passa dallo stesso ramo generico:
+  // si replicano `type`, `content` e le misure, e non c'è niente da sapere sul
+  // tipo. Gli appunti restano attivi → si può incollare più volte finché non si
+  // copia altro o si preme Esc.
   const handlePasteAt = useCallback(async (localX: number, localY: number) => {
     if (!tagId || !clipboard) return;
     const { kind, id } = clipboard;
@@ -954,7 +996,7 @@ export default function CanvasPage() {
         queryClient.invalidateQueries({ queryKey: ['tags'] });
       } catch { /* ignore */ }
     } else {
-      // Text / image box: replica contenuto e dimensioni del sorgente.
+      // Box di qualunque tipo: replica contenuto e dimensioni del sorgente.
       const src = textBoxes.find((b) => b.id === id);
       if (!src) return;
       const payload = { type: kind, content: src.content as Record<string, unknown>, x: localX, y: localY, w: src.w, h: src.h };
@@ -1070,13 +1112,13 @@ export default function CanvasPage() {
 
   // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
   useEffect(() => {
-    if (!tileMode && !clipboard && !pasteMenu) return;
+    if (!tileMode && !subjectMode && !clipboard && !pasteMenu) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setClipboard(null); setPasteMenu(null); }
+      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setSubjectMode(false); setClipboard(null); setPasteMenu(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [tileMode, clipboard, pasteMenu]);
+  }, [tileMode, subjectMode, clipboard, pasteMenu]);
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
@@ -1326,7 +1368,7 @@ export default function CanvasPage() {
     // grigio a spiegare perché il gruppo non nasce.
     if (!groupFromSelectionAllowed) {
       if (selectedTileIds.length + selectedGroupableBoxIds.length < 2) {
-        toast.info('Seleziona almeno due elementi (tile, testi o immagini) per creare un gruppo');
+        toast.info('Seleziona almeno due elementi (tile, testi, immagini o soggetti) per creare un gruppo');
       } else {
         toast.info('I marcatori non entrano nei gruppi: toglili dalla selezione');
       }
@@ -1353,7 +1395,7 @@ export default function CanvasPage() {
     // sembra non aver funzionato (e i marcatori, esclusi per scelta, sono la
     // ragione più frequente per cui il conto non torna).
     if (ids.length < 2) {
-      toast.info('Il contorno deve contenere almeno due elementi fra tile, testi e immagini');
+      toast.info('Il contorno deve contenere almeno due elementi fra tile, testi, immagini e soggetti');
       return;
     }
     const idSet = new Set(ids);
@@ -1546,6 +1588,26 @@ export default function CanvasPage() {
     setTileCtx(null);
   }, [tileCtx]);
 
+  /**
+   * FOCUS acceso/spento su un tile (migration 045).
+   *
+   * Scrittura ottimistica: il pallino deve comparire con il click, non con la
+   * risposta del server. È un segno che serve a dire «sto lavorando a questo»,
+   * e mezzo secondo di attesa lo trasformerebbe in un comando di cui ci si
+   * chiede se sia arrivato.
+   *
+   * Non tocca lo status: sono due assi diversi (vedi la nota sulla colonna).
+   * Se il server rifiuta, l'`invalidate` rimette la lavagna d'accordo coi dati.
+   */
+  const handleToggleFocus = useCallback(async (id: string, next: boolean) => {
+    if (!tagId) return;
+    queryClient.setQueryData(['canvas-tiles', tagId], (old: any) => (
+      old?.data ? { ...old, data: old.data.map((t: Tile) => (t.id === id ? { ...t, is_focused: next } : t)) } : old
+    ));
+    try { await tilesApi.update(id, { is_focused: next }); }
+    catch { queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] }); }
+  }, [tagId, queryClient]);
+
   // "Copia" per un box di testo/immagine → appunti.
   const handleCopyBox = useCallback(() => {
     if (!tbCtx) return;
@@ -1606,6 +1668,8 @@ export default function CanvasPage() {
             imageMode={imageMode}
             markerMode={markerMode}
             onPickMarker={setMarkerMode}
+            subjectMode={subjectMode}
+            onToggleSubjectMode={() => { setSubjectMode((v) => !v); setMarkerMode(null); setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             selectMode={selectMode}
             onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
@@ -1644,7 +1708,7 @@ export default function CanvasPage() {
             // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
             // sproporzionato — qui cambia solo una regola CSS.
             className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
-            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode || subjectMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
             // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
@@ -1697,6 +1761,8 @@ export default function CanvasPage() {
               imageMode={imageMode}
               markerMode={markerMode}
               onAddMarkerAt={handleAddMarkerAt}
+              subjectMode={subjectMode}
+              onAddSubjectAt={handleAddSubjectAt}
               selectMode={selectMode}
               pdfMode={pdfMode}
               onPdfArea={handlePdfArea}
@@ -1819,23 +1885,28 @@ export default function CanvasPage() {
         )}
 
           {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → edge → box di testo (editor)
-              → immagine → marcatore → MultiTileSidebar (≥2 tile) → TileSidebar. */}
+              → immagine → soggetto → marcatore → MultiTileSidebar (≥2 tile)
+              → TileSidebar. */}
           {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
               tiles={tiles}
               // Testi e immagini sono membri a pieno titolo: il pannello li
               // elenca come i tile e permette di sfilarli uno per uno.
-              boxes={textBoxes.filter(isGroupableBox).map((b) => (
-                b.type === 'image'
-                  ? {
-                      id: b.id,
-                      type: 'image' as const,
-                      src: (b.content as CanvasBoxImageContent).src,
-                      label: ((b.content as CanvasBoxImageContent).title || '').trim() || 'Immagine',
-                    }
-                  : { id: b.id, type: 'text' as const, label: boxTextPreview((b.content as { html?: string }).html) }
-              ))}
+              boxes={textBoxes.filter(isGroupableBox).map((bx) => {
+                if (bx.type === 'image') return {
+                  id: bx.id,
+                  type: 'image' as const,
+                  src: (bx.content as CanvasBoxImageContent).src,
+                  label: ((bx.content as CanvasBoxImageContent).title || '').trim() || 'Immagine',
+                };
+                if (bx.type === 'subject') return {
+                  id: bx.id,
+                  type: 'subject' as const,
+                  label: ((bx.content as CanvasBoxSubjectContent).name || '').trim() || 'Soggetto senza nome',
+                };
+                return { id: bx.id, type: 'text' as const, label: boxTextPreview((bx.content as { html?: string }).html) };
+              })}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
@@ -1886,6 +1957,19 @@ export default function CanvasPage() {
                 handleUpdateTextBox(selectedImageBox.id, { h: Math.max(40, selectedImageBox.w / aspect) });
               }}
               onDelete={() => { handleDeleteTextBox(selectedImageBox.id); setSelectedTextBoxId(null); }}
+            />
+          ) : selectedSubjectBox ? (
+            <SubjectSidebar
+              key={selectedSubjectBox.id}
+              boxId={selectedSubjectBox.id}
+              content={selectedSubjectBox.content as CanvasBoxSubjectContent}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              // Campi che si DIGITANO → stessa via del titolo dell'immagine:
+              // specchio in cache e salvataggio a fine battuta, uno solo per
+              // entrambi (il canvas si ridisegna per intero a ogni scrittura).
+              onChange={(patch) => handleBoxFieldChange(selectedSubjectBox.id, patch)}
+              onDelete={() => { handleDeleteTextBox(selectedSubjectBox.id); setSelectedTextBoxId(null); }}
             />
           ) : selectedMarkerBox ? (
             <MarkerSidebar
@@ -2000,7 +2084,7 @@ export default function CanvasPage() {
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
-                    title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
+                    title={!groupAllowed ? 'Un gruppo può contenere tile, testi, immagini e soggetti (i marcatori restano fuori)' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -2111,7 +2195,7 @@ export default function CanvasPage() {
                         <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi, immagini e soggetti (i marcatori restano fuori)' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -2124,6 +2208,27 @@ export default function CanvasPage() {
                         <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                       </>
                     )}
+                    {/* FOCUS — l'attività su cui si sta lavorando adesso. Prima
+                        voce del menu: è l'unica che si usa mentre si lavora, le
+                        altre riguardano il posto del tile sulla lavagna. */}
+                    {(() => {
+                      const focused = !!allTagTiles.find((t) => t.id === tileCtx.tileId)?.is_focused;
+                      return (
+                        <button
+                          onClick={() => { const id = tileCtx.tileId; setTileCtx(null); handleToggleFocus(id, !focused); }}
+                          style={{ ...menuItem, color: focused ? 'var(--ob-focus)' : theme.ink2 }}
+                          title={focused
+                            ? 'Togli la cornice rossa: non è più l’attività di adesso'
+                            : 'Segna questa come l’attività su cui stai lavorando'}
+                        >
+                          {/* Il quadrato tratteggiato è la cornice che il
+                              comando accende, vista da lontano. */}
+                          <IconSquareDashed size={14} style={{ color: focused ? 'var(--ob-focus)' : theme.ink3 }} />
+                          {focused ? 'Focus off' : 'Focus on'}
+                        </button>
+                      );
+                    })()}
+                    <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                     {tileCtx.inGroup && (
                       <button onClick={handleUngroupTile} style={menuItem}>
                         <IconBoxOff size={14} />
@@ -2231,7 +2336,7 @@ export default function CanvasPage() {
                         <button
                           onClick={() => { setTbCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi e immagini (i marcatori restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Un gruppo può contenere tile, testi, immagini e soggetti (i marcatori restano fuori)' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -2305,6 +2410,7 @@ export default function CanvasPage() {
                   Incolla {clipboard?.kind === 'tile' ? 'tile'
                     : clipboard?.kind === 'image' ? 'immagine'
                     : clipboard?.kind === 'marker' ? 'marcatore'
+                    : clipboard?.kind === 'subject' ? 'soggetto'
                     : 'testo'}
                 </button>
               </div>

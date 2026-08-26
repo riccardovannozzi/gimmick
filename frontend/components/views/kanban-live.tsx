@@ -209,6 +209,7 @@ function toCard(t: Tile, rootTagId: string | undefined, statusById: Map<string, 
     visualKey: key,
     statusName: st?.name as TileStatus | undefined,
     meta: cardMeta(t, key),
+    focused: !!t.is_focused,
     sparks: (t.sparks ?? []).map((s) => s.type),
     // Stessa regola di canvas e staging: tinge il colore del TIPO, con ricaduta
     // sull'AZIONE quando il tipo manca — così una scadenza senza tipo resta

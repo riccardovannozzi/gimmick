@@ -3,8 +3,8 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots } from '@tabler/icons-react';
-import { MARKER_SPEC, MARKER_KINDS } from '@/components/canvas/CanvasBoard';
+import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots, IconUser } from '@tabler/icons-react';
+import { MARKER_SPEC, MARKER_KINDS, MarkerBadge } from '@/components/canvas/CanvasBoard';
 import type { MarkerKind } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
@@ -20,6 +20,17 @@ interface CanvasTopbarProps {
   /** Tipo di marcatore armato, o null. */
   markerMode?: MarkerKind | null;
   onPickMarker?: (kind: MarkerKind | null) => void;
+  /**
+   * SOGGETTO — la persona a cui una parte della lavagna fa capo.
+   *
+   * Ha un pulsante suo e non una voce nel menu «Oggetti»: là dentro stanno i
+   * quattro marcatori, che sono un vocabolario chiuso di segni del PERCORSO
+   * (da dove parte, dove si ferma, dove arriva). Una persona non è un punto del
+   * percorso, e infilarla fra loro avrebbe fatto cercare «start, stop, goal,
+   * milestone… e Mario».
+   */
+  subjectMode?: boolean;
+  onToggleSubjectMode?: () => void;
   selectMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
@@ -56,7 +67,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, subjectMode = false, onToggleSubjectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -285,6 +296,14 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, m
         <ToolButton icon={<IconArticle size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
         {onPickMarker && <MarkerTool value={markerMode} onPick={onPickMarker} />}
+        {onToggleSubjectMode && (
+          <ToolButton
+            icon={<IconUser size={16} stroke={1.6} />}
+            label="Soggetto"
+            active={subjectMode}
+            onClick={onToggleSubjectMode}
+          />
+        )}
         {onTidy && (
           <>
             {/* Da solo fra due fili, e non è pignoleria: non aggiunge alla
@@ -402,7 +421,7 @@ function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: M
           non distingueva «armato su Goal» da «spento» — da lì il sospetto che
           lo strumento si disarmasse dopo ogni posa. */}
       <ToolButton
-        icon={value ? <MarkerGlyph kind={value} size={16} /> : <IconFlag size={16} stroke={1.6} />}
+        icon={value ? <MarkerBadge kind={value} size={16} /> : <IconFlag size={16} stroke={1.6} />}
         label={value ? MARKER_SPEC[value].label : 'Oggetti'}
         active={open || !!value}
         onClick={() => (open ? close() : openMenu())}
@@ -424,7 +443,7 @@ function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: M
               title={MARKER_SPEC[k].label}
               className={cn('ob-markermenu__item', value === k && 'ob-markermenu__item--on')}
             >
-              <MarkerGlyph kind={k} />
+              <MarkerBadge kind={k} />
               {MARKER_SPEC[k].label}
             </button>
           ))}
@@ -435,23 +454,7 @@ function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: M
   );
 }
 
-/**
- * L'anteprima dell'oggetto: lo stesso disco e lo stesso glifo che finiranno
- * sulla lavagna, in piccolo. Disegnarla invece di descriverla evita di dover
- * spiegare a parole la differenza fra quattro simboli.
- */
-function MarkerGlyph({ kind, size = 22 }: { kind: MarkerKind; size?: number }) {
-  const { color, Glyph } = MARKER_SPEC[kind];
-  return (
-    <span
-      style={{
-        width: size, height: size, borderRadius: '50%',
-        background: color, color: 'var(--ob-marker-ink)',
-        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        flexShrink: 0,
-      }}
-    >
-      <Glyph size={Math.round(size * 0.55)} stroke={2} />
-    </span>
-  );
-}
+/* L'anteprima dell'oggetto — disegnarla invece di descriverla evita di dover
+   spiegare a parole la differenza fra quattro simboli — sta in `MarkerBadge`,
+   accanto a `MARKER_SPEC`: da quando lo stop non è più un disco col glifo
+   dentro, una copia qui sarebbe rimasta indietro al primo cambio di faccia. */

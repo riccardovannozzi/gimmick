@@ -331,6 +331,7 @@ export function StagingPanel({
           meta={meta}
           sparks={(t.sparks ?? []).map((s) => s.type)}
           accent={accent}
+          focused={!!t.is_focused}
           active={selectedTileId === t.id}
           onClick={onTileClick ? () => onTileClick(t.id) : undefined}
         />

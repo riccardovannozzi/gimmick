@@ -816,18 +816,74 @@
 
 /* Corpo: il titolo in alto, con 10 di respiro sopra e sotto e 6 ai lati.
    I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
-   perde: il testo va a capo dopo due righe, quindi ogni pixel orizzontale è
-   una lettera in più prima dell'ellissi. In verticale invece lo spazio avanza —
-   due righe a 15px occupano 39 degli 87 disponibili.
+   perde: il testo va a capo dopo tre righe, quindi ogni pixel orizzontale è
+   una lettera in più prima dell'ellissi. In verticale lo spazio basta appena —
+   tre righe a 15px occupano 54 dei 67 disponibili.
 
    Il padding basso NON è lo spazio riservato al footer: la riga di footer
    (status a sinistra, metadato a destra) è posizionata in assoluto a
-   `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
-   libero per costruzione; ora la separazione la garantisce il clamp a due
-   righe — 10 di padding + 39 di testo = 49, contro i 68 a cui comincia il
-   footer. ⚠️ Se il clamp salisse a tre righe il margine si dimezzerebbe. */
+   `bottom: 9px` e non partecipa a questo flusso. A tenerli separati è il CLAMP
+   del titolo, e da quando le righe sono tre il conto è al pixel. Coordinate
+   del tile, caso peggiore = bordo action da 1,5 (che è anche ciò che riduce a
+   87 il padding box su cui si appoggia il footer):
+
+     fondo del titolo   1,5 + 10 di padding + 3 × 18 di riga  = 65,5
+     cima del footer    1,5 + 87 − 9 di `bottom` − 11 di riga = 68,5
+
+   restano 3 fra le due scatole — 2,4px reali dopo lo zoom — e fra l'INCHIOSTRO
+   un po' di più, perché sotto la terza riga resta il mezzo-leading (1,5).
+   ⚠️ Il conto regge SOLO con `--ob-tile-title-leading` a 1.2: a 1.3 (il vecchio
+   `--ob-leading-tight`) la riga sarebbe alta 19,5 e la terza finirebbe DENTRO
+   il footer. E tre righe sono il tetto, non un margine da spendere: una quarta
+   arriverebbe a 83,5, cioè 15 dentro. Chi tocca il corpo del titolo,
+   l'interlinea o il `bottom` del footer rifaccia questi due numeri. */
 .ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
+
+/* ── LA CORNICE DEL FOCUS ───────────────────────────────────────────────────
+   L'attività su cui si sta lavorando ADESSO. Non un segno in un angolo, da
+   andare a cercare: tutto il perimetro, tratteggiato e rosso, appena FUORI dal
+   tile. È il tile intero a essere marcato, quindi si riconosce alla distanza a
+   cui si riconosce il tile — non a quella a cui si legge un dettaglio.
+
+   Sta FUORI e non sul bordo del tile perché quel bordo è già occupato: è il
+   canale dell'AZIONE (pieno = scadenza, tratteggiato = evento, vedi
+   `[data-border]`), e tingerlo di rosso avrebbe spento un dato per accenderne
+   un altro. Questa è quindi una SECONDA cornice, staccata di 4px: lo stacco è
+   ciò che la fa leggere come una cosa a sé e non come un bordo bicolore.
+
+   Misure in coordinate di DISEGNO (il tile è 160×90, poi ridotto da `zoom`
+   0.8): i 5px del tratto rendono 4 sullo schermo, più del TRIPLO del bordo
+   action — non c'è modo di confonderli, ed è il punto.
+   Lo stacco scende a 3 proprio perché il tratto è salito a 5: l'ingombro
+   totale resta 8 disegnati, cioè 6,4px reali per lato. È un tetto, non un
+   caso — la cornice SBORDA, e deve stare nel margine di chi ospita il tile:
+   ⚠️ la gronda del canvas (TILE_BLEED = 12 reali), il padding delle colonne di
+   Chrono (9 + 4 di slack) e quello del pannello di staging (8, il più stretto)
+   la contengono; chi ospita il tile deve inoltre avere `overflow: visible`,
+   esattamente come già serve a badge e spark. Ingrossando ancora il tratto,
+   è lo stacco che va ridotto — non il totale.
+
+   `z-index: 1` e non 3: badge e spark sbordano anche loro, e stanno a 2. Sopra
+   di loro la cornice li avrebbe tagliati in due con una riga rossa; sotto, sono
+   loro a posarsi sulla cornice — che è come già si posano sul bordo del tile.
+
+   Nessuna animazione: il pallino pulsava perché un disco da 14px sullo schermo
+   aveva bisogno del movimento per farsi trovare. Un perimetro rosso su una
+   lavagna di rettangoli grigi non ne ha, e un perimetro che pulsa su più tile
+   è una lavagna che sfarfalla. */
+.ob-tile__focus {
+  position: absolute; z-index: 1;
+  inset: -3px;
+  /* `--ob-focus` e non `--ob-error`: quello è il rosso smorzato degli STATI e
+     nel tema scuro sbianca a salmone. Vedi il token in obsidian.css. */
+  border: 5px dashed var(--ob-focus);
+  /* Concentrico al tile: il raggio del tile PIÙ lo stacco, altrimenti le due
+     curve divergono agli angoli — il punto in cui una cornice storta si vede
+     per prima. */
+  border-radius: calc(var(--ob-radius-sm) + 3px);
+  pointer-events: none;
+}
 
 /* Corpo e peso hanno un token TUTTO LORO (`--ob-tile-title`, 15px, e
    `--ob-tile-title-weight`, 500) e non pescano dalla scala generale. Il motivo
@@ -844,9 +900,14 @@
 .ob-tile__title {
   font-size: var(--ob-tile-title);
   font-weight: var(--ob-tile-title-weight);
-  line-height: var(--ob-leading-tight);
+  /* Interlinea DEDICATA, non `--ob-leading-tight`: la terza riga entra solo a
+     1.2. Vedi il token in obsidian.css e il conto su `.ob-tile__body`. */
+  line-height: var(--ob-tile-title-leading);
   letter-spacing: -0.01em;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  /* Tre righe: il massimo che entra sopra il footer. La terza non è spazio
+     guadagnato ma spazio che c'era già e restava vuoto — sui titoli corti non
+     cambia nulla, sui lunghi è una riga di parole invece di un'ellissi. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden; word-break: break-word;
 }
 

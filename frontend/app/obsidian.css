@@ -370,6 +370,18 @@
      12 della scala; il 15 è solo il numero che serve a monte dello zoom. */
   --ob-tile-title: 15px;
 
+  /* Interlinea del titolo del tile. Ha un token suo e non usa
+     `--ob-leading-tight` (1.3) per una ragione di GEOMETRIA, non di gusto: da
+     quando il titolo è clampato a TRE righe il conto è al pixel, e a 1.3 la
+     terza riga finiva 1,5px dentro la scatola del footer. A 1.2 ne resta 3
+     sopra. Il conto completo sta sul commento di `.ob-tile__body`
+     (obsidian-primitives.css), accanto al padding da cui dipende.
+     Tipograficamente non si perde niente: 1.2 su un titolo breve e in grassetto
+     è interlinea normale, ed è la stessa aria che avevano le due righe di prima
+     viste dopo lo zoom.
+     ⚠️ Alzarla fa collidere la terza riga col footer: è un vincolo. */
+  --ob-tile-title-leading: 1.2;
+
   /* Peso del titolo del tile.
      ⚠️ Il 500 NON è nella scala dei pesi (400 body / 600 emphasis / 700 mono):
      è un peso che il sistema aveva deliberatamente ritirato. Vive qui, in un
@@ -387,6 +399,18 @@
      chiaro e scuro — come si comportava già quando era scritto a mano in 17
      punti, senza coincidere con nessuno dei due valori di --ob-error. */
   --ob-danger: #E24B4A;
+
+  /* Rosso del FOCUS — la cornice tratteggiata sull'attività di adesso.
+     È il rosso PIÙ ACCESO della tavolozza, e sta qui fra gli invarianti per la
+     stessa ragione di `--ob-danger`: non descrive uno stato del tile (quello è
+     `--ob-error`, che si smorza col tema — #E0544F in chiaro, #F38682 in
+     scuro), descrive DOVE STAI GUARDANDO. Un segno del genere non può
+     schiarirsi o spegnersi a seconda del tema: deve essere la cosa più forte
+     sulla lavagna in entrambi, e il salmone del tema scuro non lo era.
+     Puro e saturo di proposito, fuori dalla famiglia smorzata del resto della
+     tavolozza: è esattamente ciò che lo fa saltare all'occhio. Regge perché è
+     RARO — acceso su venti tile sarebbe solo chiasso. */
+  --ob-focus: #FF2E2E;
 
   /* Spacing scale (step of 4) */
   --ob-space-4: 4px;

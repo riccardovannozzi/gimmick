@@ -30,6 +30,13 @@ const updateTileSchema = z.object({
   end_at: z.string().nullable().optional(),
   is_completed: z.boolean().optional(),
   is_cta: z.boolean().optional(),
+  /**
+   * FOCUS: l'attività su cui si sta lavorando adesso (migration 045). Non è uno
+   * status e non ne cambia nessuno — sono due assi indipendenti, vedi la nota
+   * sulla migrazione. Nessuna sincronizzazione da fare qui: la colonna passa
+   * dritta all'UPDATE come `sort_order`.
+   */
+  is_focused: z.boolean().optional(),
   status_id: z.string().uuid().nullable().optional(),
   sort_order: z.number().int().optional(),
 });

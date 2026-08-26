@@ -9,7 +9,7 @@
  * (GIMMICK_PALETTE). La selezione evidenzia anche i punti di aggancio sul canvas.
  */
 import { useState, useEffect, useRef } from 'react';
-import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOff, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted, IconArticle } from '@tabler/icons-react';
+import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOff, IconBoxMultiple, IconLine, IconLineDashed, IconLineDotted, IconArticle, IconUser } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -24,11 +24,12 @@ import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBo
 interface GroupSidebarProps {
   group: CanvasGroup;
   tiles: { id: string; title?: string }[];
-  /** Tutti i box del canvas che possono essere membri (testo e immagini): il
-   *  pannello pesca quelli del gruppo (membri `tb:<id>`) e li elenca accanto ai
-   *  tile. `label` è già pronta da mostrare — ricavarla qui avrebbe voluto dire
-   *  ripulire l'HTML di una nota dentro un pannello di stile. */
-  boxes?: { id: string; type: 'text' | 'image'; src?: string; label: string }[];
+  /** Tutti i box del canvas che possono essere membri (testo, immagini e
+   *  soggetti): il pannello pesca quelli del gruppo (membri `tb:<id>`) e li
+   *  elenca accanto ai tile. `label` è già pronta da mostrare — ricavarla qui
+   *  avrebbe voluto dire ripulire l'HTML di una nota dentro un pannello di
+   *  stile. */
+  boxes?: { id: string; type: 'text' | 'image' | 'subject'; src?: string; label: string }[];
   open: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<CanvasGroup>) => void;
@@ -412,15 +413,16 @@ export function GroupSidebar({ group, tiles, boxes = [], open, onToggle, onUpdat
                           style={{ width: 36, height: 24, objectFit: 'cover', borderRadius: 2, flexShrink: 0, background: theme.bg1 }}
                         />
                       ) : (
-                        // Stessa impronta della miniatura (36×24) così le due
-                        // righe si incolonnano invece di sfalsarsi.
+                        // Stessa impronta della miniatura (36×24) così le righe
+                        // si incolonnano invece di sfalsarsi. Il glifo dice il
+                        // tipo: la nota o la persona.
                         <span
                           style={{
                             width: 36, height: 24, flexShrink: 0, borderRadius: 2, background: theme.bg1,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3,
                           }}
                         >
-                          <IconArticle size={14} />
+                          {b.type === 'subject' ? <IconUser size={14} /> : <IconArticle size={14} />}
                         </span>
                       )}
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>

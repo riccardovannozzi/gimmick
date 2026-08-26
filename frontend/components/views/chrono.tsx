@@ -86,6 +86,11 @@ export interface ColTile {
    *  booleani, e un booleano non sa dire «fermo»: il rosso non poteva arrivare
    *  fin qui. */
   steps?: StepState[];
+  /** In FOCUS: l'attività su cui si sta lavorando adesso → cornice rossa
+   *  tratteggiata tutt'intorno al tile. Vive sul tile, quindi si vede in ogni
+   *  vista che lo disegna — un segno che sparisce cambiando scheda non è un
+   *  segno. */
+  focused?: boolean;
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
   /** Nome grezzo dello status (`active`, `done`, `paused`…). Distinto da
@@ -124,6 +129,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         steps={t.steps}
         sparks={t.sparks}
         accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        focused={t.focused}
         active={active}
         onClick={onClick}
         onContextMenu={onContextMenu}

@@ -24,7 +24,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconTrash, IconX,
 } from '@tabler/icons-react';
-import { MARKER_SPEC, MARKER_LABEL_LINES, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
+import { MARKER_SPEC, BOX_LABEL_LINES, resolveMarkerKind, MarkerBadge } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 
@@ -47,7 +47,6 @@ export function MarkerSidebar({
   const theme = usePixelTheme();
   const mk = resolveMarkerKind(kind);
   const spec = MARKER_SPEC[mk];
-  const Glyph = spec.Glyph;
 
   // Campo controllato in locale: il valore del parent torna con lo specchio
   // ritardato, e legarlo direttamente farebbe saltare il cursore a metà parola.
@@ -62,7 +61,7 @@ export function MarkerSidebar({
    *  perché il canvas rispetta `pre-wrap`. Non conta il ritorno a capo
    *  automatico — quello dipende dalla larghezza, e qui non si può misurare. */
   const hardLines = label.trim() ? label.split('\n').length : 0;
-  const overflowing = hardLines > MARKER_LABEL_LINES;
+  const overflowing = hardLines > BOX_LABEL_LINES;
 
   return (
     <div
@@ -101,17 +100,11 @@ export function MarkerSidebar({
         </button>
         {open && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis }}>
-            {/* Lo stesso disco della lavagna, in piccolo: dice a quale dei
-                quattro marcatori appartiene il campo qui sotto. */}
-            <span
-              style={{
-                width: 18, height: 18, borderRadius: '50%', background: spec.color,
-                color: 'var(--ob-marker-ink)', display: 'inline-flex',
-                alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-              }}
-            >
-              <Glyph size={11} stroke={2} />
-            </span>
+            {/* Lo stesso segno della lavagna, in piccolo: dice a quale dei
+                quattro marcatori appartiene il campo qui sotto. È il componente
+                condiviso e non una copia — lo stop è una X nuda, non un disco,
+                e una copia l'avrebbe mostrato ancora col cerchio. */}
+            <MarkerBadge kind={mk} size={18} />
             {spec.label}
           </div>
         )}
@@ -147,7 +140,7 @@ export function MarkerSidebar({
               ref={areaRef}
               value={label}
               onChange={(e) => write(e.target.value)}
-              rows={MARKER_LABEL_LINES}
+              rows={BOX_LABEL_LINES}
               placeholder={`Es. ${spec.label} di progetto`}
               style={{
                 width: '100%', padding: '8px 10px', resize: 'vertical', minHeight: 62,
@@ -164,8 +157,8 @@ export function MarkerSidebar({
               }}
             >
               {overflowing
-                ? `Sulla lavagna si vedono solo le prime ${MARKER_LABEL_LINES} righe.`
-                : `Larga quanto un tile, al massimo ${MARKER_LABEL_LINES} righe.`}
+                ? `Sulla lavagna si vedono solo le prime ${BOX_LABEL_LINES} righe.`
+                : `Larga quanto un tile, al massimo ${BOX_LABEL_LINES} righe.`}
             </span>
           </div>
 

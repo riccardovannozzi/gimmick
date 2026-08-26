@@ -16,7 +16,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { Tile as TileCard } from '@/components/tiles/Tile';
 import { tileVisualKey, subtaskToStep, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
-import { IconChevronsDown, IconFlag, IconBan, IconTargetArrow, IconCircle } from '@tabler/icons-react';
+import { IconChevronsDown, IconFlag, IconCircle, IconUser } from '@tabler/icons-react';
 import { TextEditor, BOX_FONT_SIZE } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
@@ -110,22 +110,28 @@ const isBoxId = (id: string) => id.startsWith(BOX_ID_PREFIX);
 const boxIdOf = (id: string) => id.slice(BOX_ID_PREFIX.length);
 
 /**
- * Quali box possono stare dentro un gruppo: TESTO e IMMAGINE, esattamente come
- * un tile — stessa cattura col contorno, stesso drop trascinandoli dentro,
- * stesso «sfila» per uscirne.
+ * Quali box possono stare dentro un gruppo: TESTO, IMMAGINE e SOGGETTO,
+ * esattamente come un tile — stessa cattura col contorno, stesso drop
+ * trascinandoli dentro, stesso «sfila» per uscirne.
  *
- * Fuori restano i MARCATORI, e non per dimenticanza: trascinarne uno ha già un
- * significato suo, l'innesto su un collegamento (`probeSplit`), e sono l'unico
- * box con una scritta che esce dal proprio riquadro senza che `getGroupRects`
- * sappia quanto è alta — il riquadro del gruppo gliela taglierebbe.
+ * Il soggetto è entrato quando `boxExtent` ha imparato a misurare la scritta
+ * che gli esce dal riquadro: prima restava fuori perché il gruppo si
+ * auto-dimensiona sui rettangoli dei membri, e un rettangolo che non teneva
+ * conto della denominazione avrebbe tagliato il nome della persona proprio nel
+ * momento in cui la si mette in un gruppo per dire di chi è quella zona.
+ *
+ * Fuori restano i MARCATORI, e ormai per una ragione sola: nessuno l'ha
+ * chiesto. La geometria non è più un ostacolo — `boxExtent` misura anche la
+ * loro didascalia — quindi aggiungerli è una parola qui.
  *
  * Esportato perché la stessa domanda se la fanno la lavagna (contorno e drop) e
  * la pagina (voce «Crea gruppo» sulla selezione): con due liste separate una
  * delle due sarebbe rimasta indietro al primo tipo di box aggiunto.
  */
-export const isGroupableBox = (tb: { type: string }) => tb.type === 'text' || tb.type === 'image';
+export const isGroupableBox = (tb: { type: string }) =>
+  tb.type === 'text' || tb.type === 'image' || tb.type === 'subject';
 
-export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; x: number; y: number; }
+export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; /** In FOCUS: cornice rossa tratteggiata intorno alla card (migration 045). */ isFocused?: boolean; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
 // port format: "top"|"right"|"bottom"|"left" for tile, "g:top"|"g:right"|"g:bottom"|"g:left" for group
 export interface CanvasEdge {
@@ -262,6 +268,10 @@ const SPLIT_DWELL = 500;
 function paintMarker(node: SVGGElement, kind: MarkerKind, w: number, h: number) {
   const spec = MARKER_SPEC[kind];
   const g = d3.select(node);
+  if (!spec.Glyph) {
+    paintMarkerX(g, spec.color, w, h);
+    return;
+  }
   g.append('circle')
     .attr('cx', w / 2).attr('cy', h / 2).attr('r', Math.min(w, h) / 2)
     .style('fill', spec.color)
@@ -290,7 +300,83 @@ function paintMarker(node: SVGGElement, kind: MarkerKind, w: number, h: number) 
 }
 
 /**
- * La DIDASCALIA sotto il disco.
+ * Spessore del tratto della X, in frazione del lato: a `MARKER_SIZE` (36) fa 4.
+ *
+ * È il numero che decide se il marcatore nudo si vede. Un disco pieno mette in
+ * campo tutta la sua area di colore; una X ne mette in campo si e no un sesto,
+ * quindi il tratto deve reggere da solo. Il 4 è il doppio del filo da 2 con cui
+ * i marcatori erano nati ad anello — quello sparve su una lavagna piena, e
+ * questa è la stessa trappola vista da un'altra angolazione.
+ * ⚠️ Frazione e non pixel: il badge nei pannelli disegna la stessa X a 16, 18 e
+ * 22px, e deve avere lo stesso PESO, non lo stesso spessore.
+ */
+const MARKER_X_STROKE = 0.12;
+
+/**
+ * La X del marcatore nudo: due linee da angolo a angolo del riquadro.
+ *
+ * Tracciata a mano e non presa da Tabler per una ragione di misura: un'icona
+ * porta il suo margine interno, e a piena misura la X ne riempirebbe due terzi
+ * — accanto ai dischi degli altri tre sembrerebbe un marcatore più piccolo,
+ * mentre è lo stesso oggetto con un'altra faccia.
+ */
+function paintMarkerX(g: d3.Selection<SVGGElement, unknown, null, undefined>, color: string, w: number, h: number) {
+  const sw = Math.max(2, Math.round(Math.min(w, h) * MARKER_X_STROKE));
+  // I cappucci tondi sporgono di mezzo tratto oltre l'estremo: partendo da
+  // `sw / 2` la X resta esattamente dentro il riquadro, che è quello su cui
+  // ragionano porte degli edge, contorni dei gruppi e selezione.
+  const p = sw / 2;
+  const x = g.append('g')
+    // `.style()` e non `.attr()`: il colore è una custom property, e un
+    // attributo di presentazione SVG non risolve `var()`.
+    .style('stroke', color)
+    .style('stroke-width', sw)
+    .style('stroke-linecap', 'round');
+  x.append('line').attr('x1', p).attr('y1', p).attr('x2', w - p).attr('y2', h - p);
+  x.append('line').attr('x1', w - p).attr('y1', p).attr('x2', p).attr('y2', h - p);
+}
+
+/**
+ * L'anteprima di un marcatore nei pannelli: lo stesso segno che finisce sulla
+ * lavagna, in piccolo.
+ *
+ * Vive qui, accanto a `MARKER_SPEC` e a `paintMarkerX`, e non nel pannello che
+ * per primo ne ha avuto bisogno: la topbar e la sidebar del marcatore ne
+ * tenevano una copia a testa, e al primo marcatore che smette di essere un
+ * disco col glifo dentro — è appena successo allo stop — due copie su tre
+ * sarebbero rimaste indietro.
+ */
+export function MarkerBadge({ kind, size = 22 }: { kind: MarkerKind; size?: number }) {
+  const { color, Glyph } = MARKER_SPEC[kind];
+  if (!Glyph) {
+    const sw = Math.max(1.5, size * MARKER_X_STROKE);
+    const p = sw / 2;
+    return (
+      <svg
+        width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden
+        style={{ flexShrink: 0, display: 'block', stroke: color, strokeWidth: sw, strokeLinecap: 'round' }}
+      >
+        <line x1={p} y1={p} x2={size - p} y2={size - p} />
+        <line x1={size - p} y1={p} x2={p} y2={size - p} />
+      </svg>
+    );
+  }
+  return (
+    <span
+      style={{
+        width: size, height: size, borderRadius: '50%',
+        background: color, color: 'var(--ob-marker-ink)',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0,
+      }}
+    >
+      <Glyph size={Math.round(size * 0.55)} stroke={2} />
+    </span>
+  );
+}
+
+/**
+ * La DIDASCALIA sotto un oggetto piccolo — il marcatore e il soggetto.
  *
  * Sta in un `foreignObject` e non in un `<text>` perché deve andare a capo da
  * sola su piu' righe e fermarsi alla terza: l'SVG non manda a capo, e farlo a
@@ -299,18 +385,18 @@ function paintMarker(node: SVGGElement, kind: MarkerKind, w: number, h: number) 
  * sta su UNA riga, se la cava invece con un `<text>` troncato a caratteri).
  *
  * `pointer-events:none` su tutto: la didascalia è una scritta appoggiata alla
- * lavagna, non una parte cliccabile del marcatore. Senza, il testo avrebbe
+ * lavagna, non una parte cliccabile dell'oggetto. Senza, il testo avrebbe
  * rubato il click di selezione e il trascinamento a un oggetto largo 36px.
  *
  * NON viene chiamata dal ghost: l'anteprima mostra dove finisce il disco, e un
- * marcatore appena posato la didascalia non ce l'ha ancora.
+ * oggetto appena posato la didascalia non ce l'ha ancora.
  */
-function paintMarkerLabel(node: SVGGElement, text: string, w: number, h: number, ink: string) {
+function paintBoxLabel(node: SVGGElement, text: string, w: number, h: number, ink: string) {
   const fo = d3.select(node).append('foreignObject')
-    .attr('x', (w - MARKER_LABEL_W) / 2)
-    .attr('y', h + MARKER_LABEL_GAP)
-    .attr('width', MARKER_LABEL_W)
-    .attr('height', MARKER_LABEL_LH * MARKER_LABEL_LINES)
+    .attr('x', (w - BOX_LABEL_W) / 2)
+    .attr('y', h + BOX_LABEL_GAP)
+    .attr('width', BOX_LABEL_W)
+    .attr('height', BOX_LABEL_LH * BOX_LABEL_LINES)
     .style('pointer-events', 'none')
     .style('overflow', 'visible');
   const host = document.createElement('div');
@@ -323,8 +409,8 @@ function paintMarkerLabel(node: SVGGElement, text: string, w: number, h: number,
   host.style.cssText = [
     'width:100%',
     `font-family:var(--ob-font-sans)`,
-    `font-size:${MARKER_LABEL_FS}px`,
-    `line-height:${MARKER_LABEL_LH}px`,
+    `font-size:${BOX_LABEL_FS}px`,
+    `line-height:${BOX_LABEL_LH}px`,
     `font-weight:${OB_WEIGHT.emphasis}`,
     `color:${ink}`,
     'text-align:center',
@@ -332,12 +418,103 @@ function paintMarkerLabel(node: SVGGElement, text: string, w: number, h: number,
     'overflow-wrap:anywhere',
     'display:-webkit-box',
     '-webkit-box-orient:vertical',
-    `-webkit-line-clamp:${MARKER_LABEL_LINES}`,
-    `line-clamp:${MARKER_LABEL_LINES}`,
+    `-webkit-line-clamp:${BOX_LABEL_LINES}`,
+    `line-clamp:${BOX_LABEL_LINES}`,
     'overflow:hidden',
   ].join(';');
   (fo.node() as SVGForeignObjectElement)?.appendChild(host);
 }
+
+/**
+ * Il SOGGETTO disegnato: un disco di superficie con la hairline dei tile e la
+ * figura di una persona dentro.
+ *
+ * Deliberatamente DIVERSO dal marcatore, che è un disco pieno di colore. I
+ * marcatori sono quattro simboli di un vocabolario chiuso e il colore è la loro
+ * forma; un soggetto è uno solo, se ne posano molti e non c'è nessuna scala di
+ * colori da leggerci dentro. Tingerli avrebbe fatto credere a cinque marcatori.
+ *
+ * Stesso mestiere di `paintMarker` (foreignObject + `renderToString`): il glifo
+ * è un'icona vera, e ridisegnarne il tracciato a mano avrebbe voluto dire
+ * tenerne una copia allineata alla libreria.
+ */
+function paintSubject(node: SVGGElement, w: number, h: number) {
+  const g = d3.select(node);
+  g.append('circle')
+    .attr('cx', w / 2).attr('cy', h / 2).attr('r', Math.min(w, h) / 2 - 0.75)
+    .style('fill', 'var(--ob-surface-2)')
+    .style('stroke', 'var(--ob-line-2)')
+    .style('stroke-width', 1.5);
+  const GS = Math.round(Math.min(w, h) * 0.52);
+  const fo = g.append('foreignObject')
+    .attr('x', (w - GS) / 2).attr('y', (h - GS) / 2)
+    .attr('width', GS).attr('height', GS)
+    .style('pointer-events', 'none')
+    .style('overflow', 'visible');
+  const host = document.createElement('div');
+  host.style.cssText = `width:${GS}px;height:${GS}px;display:flex;align-items:center;justify-content:center;color:var(--ob-muted);`;
+  try {
+    host.innerHTML = renderToString(React.createElement(IconUser, { size: GS, stroke: 1.8 }));
+  } catch {
+    // Un glifo che non si renderizza non deve togliere il soggetto: il disco
+    // resta, e con lui posizione, aggancio e menu contestuale.
+  }
+  (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+}
+
+/**
+ * Quante righe occuperà una didascalia. È una STIMA, e non può essere altro: le
+ * righe vere le decide il browser mandando a capo il testo dentro un
+ * `foreignObject`, e chi misura qui — il riquadro del gruppo — deve saperlo
+ * PRIMA che il disegno esista.
+ *
+ * La metrica è la stessa del titolo dell'immagine (`CAPTION_FS * 0.55` per
+ * carattere): approssimativa, ma sbaglia per eccesso su un testo fitto, che è
+ * il verso giusto — meglio un gruppo un filo più alto del necessario che uno
+ * che taglia l'ultima riga di un nome.
+ */
+const boxLabelLines = (text: string) => {
+  // I caratteri per riga si contano DENTRO la funzione e non a modulo: le
+  // costanti della didascalia sono dichiarate più in basso, e leggerle qui in
+  // fase di valutazione le troverebbe ancora nella loro zona morta.
+  const perLine = Math.max(4, Math.floor(BOX_LABEL_W / (BOX_LABEL_FS * 0.55)));
+  const rows = text.split('\n').reduce((n, line) => n + Math.max(1, Math.ceil(line.length / perLine)), 0);
+  return Math.min(BOX_LABEL_LINES, Math.max(1, rows));
+};
+
+/**
+ * L'INGOMBRO VERO di un box: il suo riquadro più la scritta che ne esce.
+ *
+ * Serve a una cosa sola, ma delicata: il riquadro di un gruppo si auto-dimensiona
+ * sui rettangoli dei suoi membri, e `x/y/w/h` — che è quello che sta sulla riga —
+ * descrive solo la scatola disegnata. Le scritte stanno FUORI da quella scatola:
+ * il titolo di un'immagine sopra il bordo, la didascalia di marcatori e soggetti
+ * sotto, e larga quanto un TILE, cioè molto più del disco da 36–44 px a cui
+ * appartiene. Misurare la sola scatola voleva dire tagliare proprio il nome della
+ * persona che si è appena messa nel gruppo per dire di chi è quella zona.
+ */
+const boxExtent = (tb: CanvasBox) => {
+  if (tb.type === 'image') {
+    // Il titolo dell'immagine sta SOPRA il bordo, su una riga sola e troncato a
+    // caratteri dal disegno: l'ingombro comincia più in alto, non più in basso.
+    const cap = tb.content.showTitle && (tb.content.title || '').trim() ? CAPTION_H : 0;
+    return { x: tb.x, y: tb.y - cap, w: tb.w, h: tb.h + cap };
+  }
+  const caption = tb.type === 'subject'
+    ? (tb.content.name || '')
+    : tb.type === 'marker' ? (tb.content.label || '') : '';
+  const text = caption.trim();
+  if (!text) return { x: tb.x, y: tb.y, w: tb.w, h: tb.h };
+  // La didascalia è CENTRATA sul box e larga quanto un tile: su un disco da 44
+  // sborda di una quarantina di pixel per lato.
+  const w = Math.max(tb.w, BOX_LABEL_W);
+  return {
+    x: tb.x + (tb.w - w) / 2,
+    y: tb.y,
+    w,
+    h: tb.h + BOX_LABEL_GAP + boxLabelLines(text) * BOX_LABEL_LH,
+  };
+};
 
 /** Opacità del ghost: si deve vedere COSA si sta posando e ANCHE cosa c'è
  *  sotto — se copre l'edge che si sta per innestare, non serve a niente. */
@@ -413,6 +590,48 @@ export type CanvasBoxImageContent = {
 export type MarkerKind = 'start' | 'stop' | 'goal' | 'milestone';
 
 /**
+ * BANDIERA A SCACCHI — il glifo dell'ARRIVO.
+ *
+ * Disegnata qui perché Tabler non ce l'ha: della bandiera ha trenta varianti
+ * (con la spunta, con la stella, col fulmine, col bitcoin) e nessuna a scacchi.
+ * È l'unico simbolo del file che non viene dalla libreria.
+ *
+ * È PIENA e non tracciata come le altre icone, e non è una svista: una
+ * scacchiera è fatta di AREE, non di linee — a contorno resterebbe una griglia,
+ * cioè il disegno di una finestra. Le caselle "vuote" non sono bianche ma
+ * TRASPARENTI, e lasciano vedere il disco verde sotto: è così che il secondo
+ * colore della scacchiera arriva gratis, senza che il glifo debba sapere su che
+ * cosa è posato — vale identico dentro il disco della lavagna e dentro quello
+ * dei pannelli.
+ *
+ * Il contorno del telo però serve: con tre sole caselle piene su sei, senza un
+ * perimetro si leggerebbero tre quadrati sparsi invece di un telo diviso a
+ * scacchi. Sei caselle e non le dodici di una bandiera vera perché il glifo
+ * rende 18px sulla lavagna: a quella misura una scacchiera fitta diventa
+ * grigio.
+ *
+ * Le proporzioni sono quelle di `IconFlag` — asta a sinistra che scende sotto
+ * il telo — perché start e goal sono due bandiere e devono sembrare parenti.
+ * Il disegno riempie il riquadro molto più di un'icona Tabler (che si tiene i
+ * suoi margini): a questa misura ogni decimo di scala è mezza casella.
+ * `stroke` è accettato e ignorato — il peso di questo segno sta nelle aree.
+ */
+function IconCheckeredFlag({ size = 24 }: { size?: number; stroke?: number }) {
+  /** Telo 18×12 diviso in 3×2 caselle da 6: piene quelle a parità pari,
+   *  partendo dall'angolo attaccato all'asta. */
+  const cells = [[0, 0], [2, 0], [1, 1]];
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <rect x="1.6" y="2" width="2.4" height="20" rx="1.2" />
+      <rect x="4" y="2.4" width="18" height="12" fill="none" stroke="currentColor" strokeWidth="1.4" />
+      {cells.map(([c, r]) => (
+        <rect key={`${c}-${r}`} x={4 + c * 6} y={2.4 + r * 6} width="6" height="6" />
+      ))}
+    </svg>
+  );
+}
+
+/**
  * I quattro marcatori: colore e glifo di ciascuno.
  *
  * Il colore arriva dai token `--ob-marker-*`, non da valori scritti qui: tre dei
@@ -421,10 +640,25 @@ export type MarkerKind = 'start' | 'stop' | 'goal' | 'milestone';
  * `.style()` e non con `.attr()` — un attributo di presentazione SVG non
  * risolve le custom properties.
  */
-export const MARKER_SPEC: Record<MarkerKind, { color: string; label: string; Glyph: typeof IconFlag }> = {
+export const MARKER_SPEC: Record<MarkerKind, {
+  color: string;
+  label: string;
+  /**
+   * Il glifo dentro il disco: un'icona Tabler o un disegno nostro, purché si
+   * monti allo stesso modo — chi disegna non deve sapere quale dei due sta
+   * montando (vedi `IconCheckeredFlag`).
+   *
+   * `null` = marcatore NUDO: niente disco e niente glifo, il segno stesso è il
+   * marcatore, tracciato a mano a piena misura nel colore. Oggi solo lo stop,
+   * che è una X. Il `null` non è un buco: è il discriminante, e TypeScript
+   * obbliga a gestirlo tutte e due le volte che si disegna un marcatore
+   * (`paintMarker` sulla lavagna, `MarkerBadge` nei pannelli).
+   */
+  Glyph: React.ComponentType<{ size?: number; stroke?: number }> | null;
+}> = {
   start: { color: 'var(--ob-marker-start)', label: 'Start', Glyph: IconFlag },
-  stop: { color: 'var(--ob-marker-stop)', label: 'Stop', Glyph: IconBan },
-  goal: { color: 'var(--ob-marker-goal)', label: 'Goal', Glyph: IconTargetArrow },
+  stop: { color: 'var(--ob-marker-stop)', label: 'Stop', Glyph: null },
+  goal: { color: 'var(--ob-marker-goal)', label: 'Goal', Glyph: IconCheckeredFlag },
   milestone: { color: 'var(--ob-marker-milestone)', label: 'Milestone', Glyph: IconCircle },
 };
 /** L'ordine in cui compaiono nel menu dello strumento. */
@@ -466,13 +700,21 @@ export type CanvasBoxMarkerContent = { kind: MarkerKind; label?: string };
  */
 export const MARKER_SIZE = 36;
 /**
- * Quanto vicino deve passare la linea perché conti come intercettata: il raggio
- * del disco, cioè il marcatore la deve TOCCARE. Una soglia più larga avrebbe
- * armato l'innesto con l'oggetto ancora visibilmente staccato dalla linea.
+ * Quanto vicino deve passare la linea perché conti come intercettata: il RAGGIO
+ * DEL CERCHIO INSCRITTO nell'oggetto trascinato, cioè l'oggetto la deve TOCCARE
+ * col proprio corpo. Una soglia più larga armerebbe l'innesto con l'oggetto
+ * ancora visibilmente staccato dalla linea.
+ *
+ * Era una costante — mezzo marcatore, 18 — perché innestare sapeva farlo solo
+ * lui. Adesso lo fa anche un TILE, che è 128×72: con 18 fissi la linea avrebbe
+ * dovuto passare quasi esattamente per il suo centro, cioè un innesto che
+ * riesce per caso. Dedotta dalla misura dell'oggetto la regola resta UNA («posa
+ * l'oggetto sulla linea») e per il marcatore non cambia niente: min(36,36)/2 fa
+ * ancora 18.
  */
-const SPLIT_HIT = MARKER_SIZE / 2;
+const splitHit = (w: number, h: number) => Math.min(w, h) / 2;
 /**
- * LA DIDASCALIA DEL MARCATORE — quanto puo' occupare.
+ * LA DIDASCALIA DI UN OGGETTO PICCOLO — quanto puo' occupare.
  *
  * Larga quanto un TILE e non quanto il disco: il disco è 36px, e una frase
  * incolonnata dentro 36px diventa una scala di parole. Prendere la misura del
@@ -485,17 +727,38 @@ const SPLIT_HIT = MARKER_SIZE / 2;
  * oggetti che si guardano, non di paragrafi che si leggono, e un marcatore che
  * cresce a piacere si porta dietro quello che ha sotto.
  */
-export const MARKER_LABEL_W = TILE_W;
-export const MARKER_LABEL_LINES = 3;
-const MARKER_LABEL_FS = 10;
-const MARKER_LABEL_LH = 13;
+export const BOX_LABEL_W = TILE_W;
+export const BOX_LABEL_LINES = 3;
+const BOX_LABEL_FS = 10;
+const BOX_LABEL_LH = 13;
 /** Stacco fra il bordo basso del disco e la prima riga. */
-const MARKER_LABEL_GAP = 5;
+const BOX_LABEL_GAP = 5;
+
+/**
+ * IL SOGGETTO — la persona a cui una parte della lavagna fa capo.
+ *
+ * Tutti e quattro i campi sono facoltativi, `name` compreso: un soggetto si
+ * posa prima di sapere come si chiama, e un box che rifiuta di esistere finché
+ * non gli si dà un nome costringe a inventarlo. Senza nome resta un'icona
+ * anonima, che è esattamente ciò che si sta dicendo.
+ *
+ * ⚠️ Non è un `Contact`. La rubrica (`contacts`) è una riga condivisa e
+ * referenziata dai passi dei flow; questo è un segno su UNA lavagna, che vive e
+ * muore con lei. Vedi la nota sulla migrazione 046.
+ */
+export type CanvasBoxSubjectContent = { name?: string; email?: string; phone?: string; notes?: string };
+/**
+ * Lato del riquadro di un soggetto. Quadrato, come il marcatore, e appena più
+ * grande: dentro non c'è un simbolo astratto ma una figura, che a 36px si
+ * chiude su se stessa.
+ */
+export const SUBJECT_SIZE = 44;
 
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
   | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number }
-  | { id: string; type: 'marker'; content: CanvasBoxMarkerContent; x: number; y: number; w: number; h: number };
+  | { id: string; type: 'marker'; content: CanvasBoxMarkerContent; x: number; y: number; w: number; h: number }
+  | { id: string; type: 'subject'; content: CanvasBoxSubjectContent; x: number; y: number; w: number; h: number };
 // Backward-compat alias (kept until all consumers are migrated).
 export type CanvasTextBox = CanvasBox;
 
@@ -549,6 +812,8 @@ interface CanvasBoardProps {
   imageMode?: boolean;
   /** Armato con un tipo di marcatore: il prossimo click sulla lavagna lo posa. */
   markerMode?: MarkerKind | null;
+  /** SOGGETTO armato: il prossimo click sulla lavagna posa una persona. */
+  subjectMode?: boolean;
   /**
    * Posa un oggetto. `splitEdgeId` arriva valorizzato quando l'oggetto è stato
    * lasciato su un edge armato: chi lo riceve deve prima crearlo e poi spezzare
@@ -556,6 +821,9 @@ interface CanvasBoardProps {
    * creazione, quindi l'innesto non può essere deciso qui.
    */
   onAddMarkerAt?: (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => void;
+  /** Posa un soggetto. Nessun `splitEdgeId`: un soggetto non innesta — vedi la
+   *  nota su `currentPlacing`. */
+  onAddSubjectAt?: (x: number, y: number) => void;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
   /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
    *  SENZA bisogno di modificatori e gli elementi catturati formano subito un
@@ -634,7 +902,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onEdgeContextMenu, onTileContextMenu, onTileClick,
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
-  pdfMode, onPdfArea, pdfPreview, boardRootRef, markerMode, onAddMarkerAt,
+  pdfMode, onPdfArea, pdfPreview, boardRootRef, markerMode, onAddMarkerAt, subjectMode, onAddSubjectAt,
   onEdgeClick, selectedEdgeId,
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
@@ -707,6 +975,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const pdfModeRef = useRef(pdfMode); pdfModeRef.current = pdfMode;
   const markerModeRef = useRef(markerMode); markerModeRef.current = markerMode;
   const onAddMarkerAtRef = useRef(onAddMarkerAt); onAddMarkerAtRef.current = onAddMarkerAt;
+  const subjectModeRef = useRef(subjectMode); subjectModeRef.current = subjectMode;
+  const onAddSubjectAtRef = useRef(onAddSubjectAt); onAddSubjectAtRef.current = onAddSubjectAt;
   const onPdfAreaRef = useRef(onPdfArea); onPdfAreaRef.current = onPdfArea;
   const pdfPreviewRef = useRef(pdfPreview); pdfPreviewRef.current = pdfPreview;
   /** Come drawGroupsRef: ridisegna SOLO l'anteprima del foglio quando cambia il
@@ -925,7 +1195,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       // Treat ALL DAY tiles as the 'allday' virtual action_type so colors/borders
       // resolve against the ALL DAY palette (not the TIMED one used for plain event).
       const resolvedActionType = (t.all_day && t.action_type === 'event') ? 'allday' : (t.action_type || 'none');
-      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, statusName, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, sparks: (t.sparks ?? []).map((sp) => sp.type), x, y };
+      return { id: t.id, title: t.title || 'Senza titolo', actionType: resolvedActionType, statusShape: shape, statusName, isCompleted: !!t.is_completed, typeIcon: ti?.icon, typeColor: ti?.color, startAt: t.start_at, endAt: t.end_at, allDay: t.all_day, subtasks: t.subtasks, sparks: (t.sparks ?? []).map((sp) => sp.type), isFocused: !!t.is_focused, x, y };
     });
   }, [tiles, layout, allStatuses, typeIcons, typeTileIcons]);
 
@@ -937,15 +1207,11 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       .filter((tb): tb is CanvasBox => !!tb);
 
   /** Rettangoli di TUTTI i membri (tile + box): è su questi che il gruppo
-   *  si auto-dimensiona. Il titolo di un'immagine sta FUORI dal suo box, sopra
-   *  il bordo: l'ingombro del membro comincia lì, altrimenti il riquadro del
-   *  gruppo lo taglierebbe. */
+   *  si auto-dimensiona. Non è `x/y/w/h` della riga ma l'ingombro VERO, scritte
+   *  comprese — vedi `boxExtent`. */
   const getGroupRects = (g: CanvasGroup, ns: CanvasNode[], tbs: CanvasBox[]) => [
     ...ns.filter((n) => g.nodeIds.includes(n.id)).map((n) => ({ x: n.x, y: n.y, w: TILE_W, h: TILE_H })),
-    ...getGroupBoxes(g, tbs).map((tb) => {
-      const cap = tb.type === 'image' && tb.content.showTitle && (tb.content.title || '').trim() ? CAPTION_H : 0;
-      return { x: tb.x, y: tb.y - cap, w: tb.w, h: tb.h + cap };
-    }),
+    ...getGroupBoxes(g, tbs).map(boxExtent),
   ];
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
@@ -1082,7 +1348,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -1236,7 +1502,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
-      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current || markerModeRef.current) return;
+      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current) return;
       if (!hasAnySelection()) return;
       selectedIdsRef.current = [];
       // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
@@ -1630,14 +1896,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     /**
      * Sonda: l'oggetto trascinato sta sopra un edge? Se ci resta, lo arma.
      *
-     * Gli edge di cui l'oggetto è già un capo sono esclusi: un marcatore non
-     * può spezzare il collegamento che parte da lui.
+     * `cx`/`cy` sono il CENTRO dell'oggetto e `w`/`h` il suo ingombro: da lì
+     * esce la soglia (vedi `splitHit`), che quindi vale per un marcatore da 36
+     * come per un tile da 128×72 senza due regole diverse.
+     *
+     * Gli edge di cui l'oggetto è già un capo sono esclusi: non si può spezzare
+     * il collegamento che parte da sé.
      */
-    const probeSplit = (cx: number, cy: number, selfId: string) => {
+    const probeSplit = (cx: number, cy: number, selfId: string, w: number, h: number) => {
+      const reach = splitHit(w, h);
       let hit: string | null = null;
       for (const [id, ge] of edgeGeom) {
         if (ge.s === selfId || ge.t === selfId) continue;
-        if (distToSegment(cx, cy, ge.x1, ge.y1, ge.x2, ge.y2) <= SPLIT_HIT) { hit = id; break; }
+        if (distToSegment(cx, cy, ge.x1, ge.y1, ge.x2, ge.y2) <= reach) { hit = id; break; }
       }
       if (hit === splitHoverId) return;   // stesso stato: l'attesa in corso prosegue
       const wasArmed = clearSplit();
@@ -1810,7 +2081,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // passaggio (l'unica accensione che deve contare è quella dell'innesto,
         // che è d'accento) e niente click rubato — sopra un collegamento il
         // click POSA, ed è anzi il gesto con cui ci si innesta.
-        g.on('mouseenter', () => { if (markerModeRef.current) return; vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)); })
+        g.on('mouseenter', () => { if (markerModeRef.current || subjectModeRef.current) return; vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)); })
          .on('mouseleave', () => {
            // Ripristina il baseline consapevole della selezione (può cambiare in hover).
            const sel = selectedIdsRef.current;
@@ -1818,7 +2089,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
            vl.attr('stroke', ms ? selAccent : edgeColor).attr('stroke-width', ms ? Math.max(edgeWidth, 2.5) : edgeWidth);
          });
         g.on('click', (ev: MouseEvent) => {
-          if (markerModeRef.current) return;   // il click scende al piano di sotto
+          if (markerModeRef.current || subjectModeRef.current) return;   // il click scende al piano di sotto
           ev.stopPropagation(); onEdgeClickRef.current?.(edge.id);
         });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
@@ -1953,6 +2224,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
             meta,
             sparks: d.sparks,
             accent,
+            focused: d.isFocused,
           }),
         );
       } catch {
@@ -2059,6 +2331,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           d3.select(this).attr('transform', `translate(${d.x},${d.y})`);
         }
         drawEdges(); drawGroups();
+        // INNESTO. Come per i marcatori, e solo trascinando UN tile per volta:
+        // spezzare un collegamento cambia la struttura del grafo e va chiesto
+        // con un gesto preciso, non spostando cinque cose insieme sopra la
+        // lavagna. La sonda va DOPO `drawEdges`, che è ciò che rifà la geometria
+        // su cui misura: prima leggerebbe le linee di un fotogramma fa.
+        if (!dragMultiNodes && onSplitEdgeRef.current) {
+          probeSplit(d.x + TILE_W / 2, d.y + TILE_H / 2, d.id, TILE_W, TILE_H);
+        }
         // Publish the live pointer position so the parent can highlight the
         // staging panel when the cursor enters it during the drag.
         const srcEv = ev?.sourceEvent as MouseEvent | PointerEvent | undefined;
@@ -2108,6 +2388,20 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         dragMultiSelection = null;
         dragMultiTbs = null;
         dragSuppressedBbox = false;
+        // INNESTO — si compie al RILASCIO, non allo scadere dell'attesa: spezzare
+        // l'edge a mano ancora premuta riscriverebbe i dati a metà gesto, e il
+        // ridisegno che ne segue staccherebbe il trascinamento in corso
+        // riportando il tile dov'era partito. L'attesa arma, la mano che si apre
+        // conferma.
+        // `clearSplit` va chiamato SEMPRE, anche uscendo di qui: lascia indietro
+        // un timer e un edge acceso, e il prossimo trascinamento troverebbe la
+        // lavagna già armata su un collegamento che non stava toccando.
+        const armedSplit = clearSplit();
+        if (armedSplit && !wasMulti && !isStagingDrop) {
+          onSplitEdgeRef.current?.(armedSplit, d.id);
+        } else if (armedSplit) {
+          drawEdges();
+        }
         // Drop-into-group only for single-tile drag that didn't go to staging.
         if (wasMulti || isStagingDrop) return;
         const cx = d.x + TILE_W / 2, cy = d.y + TILE_H / 2;
@@ -2166,7 +2460,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // contenuto, non una scheda.
         const isTextBox = tb.type === 'text';
         const isMarker = tb.type === 'marker';
-        if (isMarker) {
+        const isSubject = tb.type === 'subject';
+        // Marcatore e soggetto sono TONDI e piccoli, e tutto il resto del file
+        // li tratta allo stesso modo: niente maniglie di ridimensionamento
+        // (la misura è quella e basta) e anello di selezione a raggio pieno.
+        const isDisc = isMarker || isSubject;
+        if (isSubject) {
+          // Disco di superficie con la figura di una persona: vedi `paintSubject`
+          // per il perché non è colorato come i marcatori.
+          paintSubject(g.node()!, tw, th);
+          // La DENOMINAZIONE sotto il disco, con la stessa didascalia del
+          // marcatore: un'icona anonima su una lavagna con quattro persone non
+          // dice niente, ed è l'unico dei quattro campi che si legge da lontano.
+          const sName = ((tb.content as { name?: string }).name || '').trim();
+          if (sName) paintBoxLabel(g.node()!, sName, tw, th, theme.ink);
+        } else if (isMarker) {
           // Fondo ROTONDO. Il riquadro resta quadrato (w = h = MARKER_SIZE) e il
           // disco ci sta dentro: le porte degli edge, i contorni dei gruppi e la
           // selezione continuano a ragionare su x/y/w/h senza sapere che qui la
@@ -2176,11 +2484,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           // anello — fondo della carta e bordo colorato — e a 36px il colore si
           // riduceva a un filo di 2px, che su una lavagna piena di tile e box
           // non bastava a farne un punto notevole.
+          // Lo stop fa eccezione: è una X nuda, senza disco (`MARKER_SPEC`).
           paintMarker(g.node()!, mk, tw, th);
           // La didascalia: sotto il disco, centrata, larga quanto un tile e
           // troncata alla terza riga (vedi `paintMarkerLabel`).
           const mLabel = ((tb.content as { label?: string }).label || '').trim();
-          if (mLabel) paintMarkerLabel(g.node()!, mLabel, tw, th, theme.ink);
+          if (mLabel) paintBoxLabel(g.node()!, mLabel, tw, th, theme.ink);
         } else {
           g.append('rect')
             .attr('width', tw).attr('height', th).attr('rx', isTextBox ? 0 : RX)
@@ -2196,7 +2505,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           // Raggio pieno sul marcatore: un anello quadrato attorno a un disco
           // lascerebbe quattro angoli vuoti.
           .attr('x', -3).attr('y', -3).attr('width', tw + 6).attr('height', th + 6)
-          .attr('rx', isMarker ? (tw + 6) / 2 : (isTextBox ? 0 : RX_SEL))
+          .attr('rx', isDisc ? (tw + 6) / 2 : (isTextBox ? 0 : RX_SEL))
           .attr('fill', 'none').attr('stroke', selAccent).attr('stroke-width', 2)
           .style('pointer-events', 'none')
           .attr('opacity', (selectedIdsRef.current.includes(`tb:${tb.id}`) || selectedTextBoxIdRef.current === tb.id) ? 1 : 0);
@@ -2373,7 +2682,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // preciso su un oggetto piccolo — non trascinando cinque cose
               // insieme o passandoci sopra un'immagine larga.
               if (!multi && tb.type === 'marker' && onSplitEdgeRef.current) {
-                probeSplit(tb.x + tb.w / 2, tb.y + tb.h / 2, `tb:${tb.id}`);
+                probeSplit(tb.x + tb.w / 2, tb.y + tb.h / 2, `tb:${tb.id}`, tb.w, tb.h);
               }
             })
             .on('end', () => {
@@ -2408,8 +2717,8 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // ── Drop-into-group ──
               // Stesso gesto dei tile: un BOX lasciato cadere dentro un gruppo
               // (drag singolo, centro del box dentro il riquadro) ne diventa
-              // membro. Testo e immagine allo stesso modo; i marcatori no, il
-              // loro trascinamento è già l'innesto (vedi `isGroupableBox`).
+              // membro. Testo, immagine e soggetto allo stesso modo; i
+              // marcatori restano fuori (vedi `isGroupableBox`).
               if (wasMulti || !isGroupableBox(tb)) return;
               const memberId = `${BOX_ID_PREFIX}${tb.id}`;
               const currentGroups = groupsRef.current;
@@ -2462,7 +2771,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // cerchio è tracciato su `min(w,h)` ma centrato su `w/2, h/2`). I punti
         // a metà bordo gli restano come nodi d'aggancio degli archi, che è
         // l'unica cosa che deve sapere fare oltre a stare dov'è.
-        const resizeEdges = (tb.type === 'image' || isMarker) ? [] : [
+        const resizeEdges = (tb.type === 'image' || isDisc) ? [] : [
           { key: 'right', x: tw - RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
           { key: 'bottom', x: PORT_R + 4, y: th - RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
           { key: 'left', x: -RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
@@ -2540,7 +2849,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // sopra, questi sono solo il suo segno (pointer-events: none, così non
         // rubano il drag alla striscia né il click alla porta). Niente sulle
         // immagini: là quelle strisce non esistono più.
-        ((tb.type === 'image' || isMarker) ? [] : [
+        ((tb.type === 'image' || isDisc) ? [] : [
           { hx: tw, hy: th / 2 }, { hx: tw / 2, hy: th },
           { hx: 0, hy: th / 2 }, { hx: tw / 2, hy: 0 },
         ]).forEach(({ hx, hy }) => {
@@ -2553,7 +2862,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Angoli: scala tenendo fermo l'angolo OPPOSTO. Prima ce n'era uno solo
         // (in basso a destra) e invisibile.
-        const corners = isMarker ? [] : [
+        const corners = isDisc ? [] : [
           { key: 'br', hx: tw, hy: th, cursor: 'nwse-resize' },
           { key: 'bl', hx: 0, hy: th, cursor: 'nesw-resize' },
           { key: 'tr', hx: tw, hy: 0, cursor: 'nesw-resize' },
@@ -2724,45 +3033,82 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       if (clearSplit()) drawEdges();
     };
 
-    d3svg.on('mousemove.marker', (ev: MouseEvent) => {
+    /**
+     * COSA si sta per posare, se qualcosa. Un solo posto a rispondere, così
+     * ghost e click non possono dare due risposte diverse — ed è quello che
+     * aggiungere il soggetto avrebbe fatto scrivere due volte: un secondo
+     * ghost, un secondo mouseleave, un secondo click con le stesse guardie.
+     *
+     * `key` serve solo al ghost, per sapere se quello già disegnato è ancora
+     * quello giusto: cambiando strumento cambia la chiave e il ghost si rifà.
+     *
+     * `split` è acceso SOLO sul marcatore. Un marcatore posato su una linea la
+     * spezza e ne diventa una tappa — è un oggetto del percorso, e stare in
+     * mezzo è il suo mestiere. Un soggetto no: è una persona a cui una parte
+     * della lavagna fa capo, e infilarla dentro un collegamento cambierebbe di
+     * nascosto la struttura del grafo per un gesto che voleva dire tutt'altro.
+     */
+    type PlaceSpec = {
+      key: string; w: number; h: number; split: boolean;
+      paint: (node: SVGGElement) => void;
+      place: (x: number, y: number, splitEdgeId?: string) => void;
+    };
+    const currentPlacing = (): PlaceSpec | null => {
       const kind = markerModeRef.current;
-      if (!kind) { if (ghost) cancelPlacing(); return; }
+      if (kind) return {
+        key: `marker:${kind}`, w: MARKER_SIZE, h: MARKER_SIZE, split: true,
+        paint: (node) => paintMarker(node, kind, MARKER_SIZE, MARKER_SIZE),
+        place: (x, y, splitEdgeId) => onAddMarkerAtRef.current?.(x, y, kind, splitEdgeId),
+      };
+      if (subjectModeRef.current && onAddSubjectAtRef.current) return {
+        key: 'subject', w: SUBJECT_SIZE, h: SUBJECT_SIZE, split: false,
+        paint: (node) => paintSubject(node, SUBJECT_SIZE, SUBJECT_SIZE),
+        place: (x, y) => onAddSubjectAtRef.current?.(x, y),
+      };
+      return null;
+    };
+
+    d3svg.on('mousemove.place', (ev: MouseEvent) => {
+      const spec = currentPlacing();
+      if (!spec) { if (ghost) cancelPlacing(); return; }
       const [mx, my] = d3.pointer(ev, boardNode);
-      if (!ghost || ghost.getAttribute('data-kind') !== kind) {
+      if (!ghost || ghost.getAttribute('data-place') !== spec.key) {
         clearGhost();
         const gg = board.append('g')
-          .attr('class', 'marker-ghost').attr('data-kind', kind)
+          .attr('class', 'place-ghost').attr('data-place', spec.key)
           .style('pointer-events', 'none')
           .style('opacity', GHOST_OPACITY);
         ghost = gg.node();
-        if (ghost) paintMarker(ghost, kind, MARKER_SIZE, MARKER_SIZE);
+        if (ghost) spec.paint(ghost);
       }
-      ghost?.setAttribute('transform', `translate(${mx - MARKER_SIZE / 2},${my - MARKER_SIZE / 2})`);
+      ghost?.setAttribute('transform', `translate(${mx - spec.w / 2},${my - spec.h / 2})`);
       // Stessa sonda del trascinamento, stesso mezzo secondo. L'id di sé è
       // vuoto: l'oggetto non esiste ancora, quindi non c'è nessun edge suo da
       // escludere.
-      if (onSplitEdgeRef.current) probeSplit(mx, my, '');
+      if (spec.split && onSplitEdgeRef.current) probeSplit(mx, my, '', spec.w, spec.h);
     });
     // Uscendo dalla lavagna il ghost se ne va: lasciarlo fermo sull'ultimo punto
     // avrebbe fatto credere che l'oggetto fosse già posato lì.
-    d3svg.on('mouseleave.marker', () => cancelPlacing());
+    d3svg.on('mouseleave.place', () => cancelPlacing());
 
-    // Posa un marcatore CENTRATO sul punto cliccato: è un oggetto piccolo e
-    // tondo, e ci si aspetta che finisca dove si è puntato, non che ci appoggi
-    // il proprio angolo in alto a sinistra.
-    d3svg.on('click.marker', (ev: MouseEvent) => {
-      const kind = markerModeRef.current;
-      if (!kind) return;
-      // Il bersaglio può essere anche un EDGE: posare sopra un collegamento è il
-      // gesto dell'innesto, non un click andato a vuoto. Tutto il resto (tile,
-      // box, gruppi) continua a non ricevere oggetti addosso.
+    // Posa l'oggetto CENTRATO sul punto cliccato: sono oggetti piccoli e tondi,
+    // e ci si aspetta che finiscano dove si è puntato, non che ci appoggino il
+    // proprio angolo in alto a sinistra.
+    d3svg.on('click.place', (ev: MouseEvent) => {
+      const spec = currentPlacing();
+      if (!spec) return;
+      // Il bersaglio può essere anche un EDGE, ma solo per chi innesta: posare
+      // sopra un collegamento è il gesto dell'innesto, non un click andato a
+      // vuoto. Tutto il resto (tile, box, gruppi) continua a non ricevere
+      // oggetti addosso.
       const t = ev.target as Element;
-      if (t !== svg && !edgesG.node()?.contains(t)) return;
+      const onEdge = t !== svg && !!edgesG.node()?.contains(t);
+      if (t !== svg && !(spec.split && onEdge)) return;
       const [mx, my] = d3.pointer(ev, boardNode);
       const armed = clearSplit();
       clearGhost();
       if (armed) drawEdges();
-      onAddMarkerAtRef.current?.(mx - MARKER_SIZE / 2, my - MARKER_SIZE / 2, kind, armed ?? undefined);
+      spec.place(mx - spec.w / 2, my - spec.h / 2, armed ?? undefined);
     });
 
     d3svg.on('click.tile', (ev: MouseEvent) => {
