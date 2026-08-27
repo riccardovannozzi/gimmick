@@ -42,3 +42,38 @@
 .ob-settings__row-link-chev { color: var(--ob-faint); display: inline-flex; }
 .ob-settings__beniamino { display: flex; align-items: center; gap: 8px; background: transparent; border: none; cursor: pointer; }
 .ob-settings__beniamino-name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
+
+/* ── Settings dentro la modale ────────────────────────────────────────────────
+   Le regole qui sopra descrivono ancora la stessa cosa — nav a sinistra, cards
+   a destra — ma la cornice non è più la pagina: è `.ob-modal--settings`
+   (components/views/settings-modal.tsx). Cambia il contenitore, non i pannelli.
+
+   ⚠️ Il dialogo NON scrolla: `overflow: hidden` e altezza dichiarata. A
+   scorrere sono le due colonne, ognuna per conto suo — la nav resta ferma
+   mentre leggi un pannello lungo, che è tutto il motivo per cui la nav sta lì.
+   Col `overflow: auto` del `.ob-modal` base scorreva invece il dialogo intero e
+   la nav se ne andava fuori campo. */
+.ob-modal--settings {
+  max-width: 920px;
+  height: min(680px, calc(100vh - 96px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.ob-modal--settings .ob-modal__body {
+  /* Il body della modale ha 18px di padding: qui li toglie, il respiro lo danno
+     le due colonne (`__sidebar` 18/12, `__main` 22/26). */
+  padding: 0;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.ob-modal--settings .ob-settings { flex: 1; min-width: 0; }
+/* L'occhiello "IMPOSTAZIONI" era il titolo della pagina: ora lo dice la barra
+   del dialogo, due righe più in alto. */
+.ob-modal--settings .ob-settings__nav-eyebrow { display: none; }
+/* Meno margini della pagina: qui l'altezza è quella che è, e ogni riga di aria
+   in testa è una riga di impostazioni in meno da vedere senza scorrere. */
+.ob-modal--settings .ob-settings__main { padding: 22px 26px; }
+.ob-modal--settings .ob-settings__h1 { font-size: 21px; }
+.ob-modal--settings .ob-settings__lead { margin-bottom: 20px; }

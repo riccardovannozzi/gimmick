@@ -1,7 +1,8 @@
 'use client';
 
 /**
- * Gimmick — Il Tile, 150×80, con i cinque canali visivi montati.
+ * Gimmick — Il Tile, 160×90 disegnati e 128×72 mostrati, con i cinque canali
+ * visivi montati.
  *
  * Presentazionale: riceve la chiave grafica già risolta (`tileVisualKey()`) e
  * il metadato già formattato. Non legge il dominio, non formatta date, non
@@ -24,11 +25,14 @@ import type { SparkType } from '@/types';
  * La regola "se il metadato non entra in almeno 6 caratteri non renderizzarlo"
  * richiede di sapere quanto spazio resta accanto allo status. Misurarlo davvero
  * significherebbe un passaggio di layout per ogni tile; qui non serve, perché
- * la larghezza del tile è FISSA a 150 e il corpo tipografico è fisso: la stima
+ * la larghezza del tile è FISSA a 160 e il corpo tipografico è fisso: la stima
  * è deterministica, non un'approssimazione che cambia da caso a caso.
+ *
+ * ⚠️ Vanno rifatti se cambia `TILE_BASE_W` (lib/tile-visual.ts): sono la sua
+ * larghezza meno il footer, non due numeri indipendenti.
  */
-const FOOTER_W = 130;        // 150 − 10 di padding per lato
-const FOOTER_W_STRIP = 112;  // con la strip il padding sinistro diventa 28
+const FOOTER_W = 140;        // 160 − 10 di padding per lato
+const FOOTER_W_STRIP = 122;  // con la strip il padding sinistro diventa 28
 const CHAR_W = 5.4;          // larghezza media a var(--ob-text-meta)
 const MIN_META_CHARS = 6;
 
@@ -65,6 +69,18 @@ export interface TileProps {
    * stessa card, attenuata, in attesa di diventare una riga.
    */
   ghost?: boolean;
+  /**
+   * FOCUS — l'attività su cui si sta lavorando adesso: una cornice rossa
+   * tratteggiata e spessa, tutt'intorno al tile.
+   *
+   * Non è un sesto canale del sistema visivo: quelli descrivono il tile (che
+   * cos'è, a che punto è, cosa contiene) e sono sempre accesi. Questo descrive
+   * TE — dove stai guardando ora — vive su pochissimi tile per volta e si
+   * spegne da sé quando hai finito. È il segno più forte che un tile possa
+   * portare, e regge solo finché resta raro: acceso su venti tile sarebbe una
+   * lavagna a righe rosse, cioè di nuovo nessuna indicazione.
+   */
+  focused?: boolean;
   active?: boolean;
   onClick?: () => void;
   onContextMenu?: (e: React.MouseEvent) => void;
@@ -73,7 +89,7 @@ export interface TileProps {
 
 export function Tile({
   title, visualKey, status = 'active', steps, meta, sparks, accent, ghost,
-  active, onClick, onContextMenu, className,
+  focused, active, onClick, onContextMenu, className,
 }: TileProps) {
   const spec = TILE_VISUAL[visualKey];
 
@@ -106,6 +122,12 @@ export function Tile({
       tabIndex={onClick ? 0 : undefined}
       onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } } : undefined}
     >
+      {/* La cornice del FOCUS: un figlio in posizione assoluta che si dispone
+          appena fuori dal rettangolo, NON il bordo del tile — quel bordo dice
+          già l'azione (`data-border`) e va lasciato dov'è. Restando fuori non
+          tocca né la strip né il titolo: qualunque tipo di tile la porta
+          identica, che è ciò che la rende un segno e non un dettaglio. */}
+      {focused && <span className="ob-tile__focus" aria-label="In focus" />}
       {spec.badge && <TileBadge badge={spec.badge} shifted={hasStrip} />}
       <TileStepper steps={steppedSteps} />
 

@@ -108,7 +108,7 @@ function Frame({ mode }: { mode: 'light' | 'dark' }) {
             color: 'var(--ob-subtle)', margin: '20px 0 4px',
           }}>{r.label}</div>
           {/* La gronda di 9px vive sulla CELLA, non sul tile: il rettangolo
-              del tile resta 150×80 e l'allineamento non si sposta. */}
+              del tile resta 160×90 e l'allineamento non si sposta. */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
             {r.tiles.map((t, i) => (
               <div key={i} style={{ paddingTop: 9 }}><Tile {...t} /></div>

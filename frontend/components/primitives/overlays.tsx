@@ -32,15 +32,39 @@ interface BaseOverlayProps {
   hideClose?: boolean;
 }
 
+/**
+ * Pila degli overlay aperti, dal più esterno al più interno.
+ *
+ * Serve da quando le impostazioni sono una modale: dentro ce n'è un'altra (il
+ * dettaglio di un beniamino, `mascot-roster-panel.tsx`). Ogni overlay aperto
+ * ascolta l'Escape, quindi senza pila un solo tasto chiudeva ENTRAMBI — quello
+ * che stavi guardando e la cornice che lo conteneva. Chiude solo chi sta in
+ * cima; il click sullo sfondo non ha il problema, perché guarda il bersaglio.
+ */
+const overlayStack: object[] = [];
+
 /** Shared overlay scaffold: portal + Escape + scroll lock + backdrop. */
 function useOverlay(open: boolean, onClose: () => void) {
   const [mounted, setMounted] = React.useState(false);
   React.useEffect(() => setMounted(true), []);
 
+  /** Identità stabile di QUESTO overlay: la sua posizione nella pila. */
+  const id = React.useRef({}).current;
+  /* `onClose` passa quasi sempre come arrow inline, cioè cambia a ogni render.
+     Se stesse fra le dipendenze dell'effect, ogni render dell'overlay esterno
+     lo toglierebbe e rimetterebbe in cima alla pila, scavalcando quello interno
+     — l'esatto contrario di quello che la pila serve a garantire. Quindi
+     l'effect dipende solo da `open`, e la callback si legge da un ref. */
+  const onCloseRef = React.useRef(onClose);
+  onCloseRef.current = onClose;
+
   React.useEffect(() => {
     if (!open) return;
+    overlayStack.push(id);
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key !== 'Escape') return;
+      if (overlayStack[overlayStack.length - 1] !== id) return;
+      onCloseRef.current();
     };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
@@ -48,8 +72,10 @@ function useOverlay(open: boolean, onClose: () => void) {
     return () => {
       document.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
+      const i = overlayStack.indexOf(id);
+      if (i !== -1) overlayStack.splice(i, 1);
     };
-  }, [open, onClose]);
+  }, [open, id]);
 
   return mounted;
 }

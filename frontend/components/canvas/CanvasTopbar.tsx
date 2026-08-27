@@ -1,7 +1,11 @@
 'use client';
 
+import * as React from 'react';
 import { useState } from 'react';
-import { IconNote, IconLayoutGrid, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf } from '@tabler/icons-react';
+import { createPortal } from 'react-dom';
+import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots, IconUser } from '@tabler/icons-react';
+import { MARKER_SPEC, MARKER_KINDS, MarkerBadge } from '@/components/canvas/CanvasBoard';
+import type { MarkerKind } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
@@ -13,6 +17,20 @@ interface CanvasTopbarProps {
   textMode: boolean;
   tileMode: boolean;
   imageMode: boolean;
+  /** Tipo di marcatore armato, o null. */
+  markerMode?: MarkerKind | null;
+  onPickMarker?: (kind: MarkerKind | null) => void;
+  /**
+   * SOGGETTO — la persona a cui una parte della lavagna fa capo.
+   *
+   * Ha un pulsante suo e non una voce nel menu «Oggetti»: là dentro stanno i
+   * quattro marcatori, che sono un vocabolario chiuso di segni del PERCORSO
+   * (da dove parte, dove si ferma, dove arriva). Una persona non è un punto del
+   * percorso, e infilarla fra loro avrebbe fatto cercare «start, stop, goal,
+   * milestone… e Mario».
+   */
+  subjectMode?: boolean;
+  onToggleSubjectMode?: () => void;
   selectMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
@@ -25,6 +43,15 @@ interface CanvasTopbarProps {
    */
   pdfMode?: boolean;
   onTogglePdfMode?: () => void;
+  /**
+   * RIORDINO: allinea gli oggetti sulla griglia e regolarizza le distanze senza
+   * cambiare la disposizione. Come Foglio e Done, assente il callback il pulsante
+   * non compare — senza una lavagna aperta non c'è niente da riordinare.
+   */
+  onTidy?: () => void;
+  /** Cosa dice il tooltip: cambia se c'è una selezione (la pagina lo sa, la
+   *  barra no). */
+  tidyLabel?: string;
   /**
    * Tinge di verde le attività COMPLETATE. Non le filtra: i tile ci sono in
    * entrambi gli stati, cambia solo se si tingono.
@@ -40,7 +67,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, subjectMode = false, onToggleSubjectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -94,6 +121,9 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
   return (
     <div
       className="shrink-0"
+      /* Appiglio per il menu degli oggetti, che si stacca di 4px dal bordo
+         BASSO di questa fascia: la misura si prende qui, non si ricopia. */
+      data-ob-topbar=""
       style={{
         // Fascia sotto la navbar, come header staging e tabbar destra.
         // Scala verticale dello shell: 56 navbar · 48 fascia · 40 sotto-barre.
@@ -262,9 +292,36 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
             fa il click sulla lavagna, e non può essere uno stato che si scopre
             provando. */}
         <ToolButton icon={<IconLasso size={16} stroke={1.6} />} label="Group" active={selectMode} onClick={onToggleSelectMode} />
-        <ToolButton icon={<IconLayoutGrid size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
-        <ToolButton icon={<IconNote size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
+        <ToolButton icon={<IconCube size={16} stroke={1.6} />} label="Tile" active={tileMode} onClick={onToggleTileMode} />
+        <ToolButton icon={<IconArticle size={16} stroke={1.6} />} label="Text" active={textMode} onClick={onToggleTextMode} />
         <ToolButton icon={<IconPhoto size={16} stroke={1.6} />} label="Image" active={imageMode} onClick={onToggleImageMode} />
+        {onPickMarker && <MarkerTool value={markerMode} onPick={onPickMarker} />}
+        {onToggleSubjectMode && (
+          <ToolButton
+            icon={<IconUser size={16} stroke={1.6} />}
+            label="Soggetto"
+            active={subjectMode}
+            onClick={onToggleSubjectMode}
+          />
+        )}
+        {onTidy && (
+          <>
+            {/* Da solo fra due fili, e non è pignoleria: non aggiunge alla
+                lavagna come i modi qui sopra, non la porta fuori come il PDF —
+                rimette in ordine quello che c'è già. È anche l'unico comando
+                della barra che modifica il documento SENZA passare da un gesto
+                sulla lavagna, e stargli accanto lo farebbe scambiare per un
+                modo da armare.
+                Niente `active`: fa una cosa e finisce lì, non resta acceso
+                (vedi la nota su `ToolButtonProps`). */}
+            <div className="ob-toolsep" />
+            <ToolButton
+              icon={<IconGridDots size={16} stroke={1.6} />}
+              label={tidyLabel ?? 'Ordina sulla griglia'}
+              onClick={onTidy}
+            />
+          </>
+        )}
         {onTogglePdfMode && (
           <>
             {/* Separato dai quattro qui sopra: quelli aggiungono qualcosa alla
@@ -306,3 +363,98 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, o
     </div>
   );
 }
+
+/**
+ * Strumento OGGETTI — apre un menu con le forme che si possono posare sulla
+ * lavagna, oggi i due marcatori di percorso.
+ *
+ * È l'unico strumento della barra a passare da un menu, e la ragione è che non
+ * arma UNA cosa sola: gli altri quattro hanno un solo esito possibile, questo
+ * deve prima farti scegliere quale oggetto. Una fila di pulsanti, uno per
+ * oggetto, avrebbe allungato la barra a ogni forma aggiunta.
+ *
+ * ARMARE e APRIRE sono due cose separate, ed è la particolarità dello
+ * strumento. Come gli altri quattro si disarma dopo aver posato una cosa (lo fa
+ * la pagina, non questo componente: `handleAddMarkerAt` rimette `value` a null).
+ * Il MENU però resta aperto, con la voce spenta: gli oggetti si mettono a
+ * gruppi — un capolinea, tre nodi, un traguardo — e richiedere anche la
+ * riapertura del menu avrebbe fatto tre click per oggetto invece di due.
+ *
+ * Conseguenza: il menu NON si chiude cliccando fuori. Fuori c'è la lavagna, che
+ * è esattamente dove si posano gli oggetti — un click-fuori che chiude avrebbe
+ * chiuso il menu alla prima posa, cioè sempre. Si chiude con la crocetta
+ * d'angolo o ricliccando «Oggetti».
+ */
+function MarkerTool({ value, onPick }: { value: MarkerKind | null; onPick: (k: MarkerKind | null) => void }) {
+  const [open, setOpen] = React.useState(false);
+  /** Quota del bordo basso della barra: il menu ci si stacca di 4px. */
+  const [top, setTop] = React.useState(0);
+  const ref = React.useRef<HTMLDivElement>(null);
+
+  const openMenu = () => {
+    const bar = ref.current?.closest('[data-ob-topbar]')?.getBoundingClientRect();
+    setTop((bar ? bar.bottom : 0) + 4);
+    setOpen(true);
+  };
+
+  /** Chiudere DISARMA. Un menu chiuso con lo strumento ancora armato lascerebbe
+   *  la lavagna a posare oggetti senza niente che lo dica. */
+  const close = () => { setOpen(false); onPick(null); };
+
+  /**
+   * Cliccare una voce ARMA quella voce. Non è un interruttore: ricliccare quella
+   * accesa la lascia accesa.
+   *
+   * Con il disarmo alla posa la voce accesa dura un click solo, quindi il caso
+   * «riclicco quella già accesa» capita quasi solo a chi sta rimediando a una
+   * scelta sbagliata — e spegnere lì avrebbe voluto dire un click a vuoto sulla
+   * lavagna subito dopo. Per smettere ci sono già tre comandi che non si possono
+   * fraintendere: la crocetta, il pulsante e Esc.
+   */
+  const pick = (k: MarkerKind) => onPick(k);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
+      {/* Armato, il pulsante SMETTE di essere generico: prende il disco e il
+          nome dell'oggetto scelto. È l'unica cosa che resta visibile quando lo
+          sguardo è sulla lavagna, e finché diceva «Oggetti» con un flag grigio
+          non distingueva «armato su Goal» da «spento» — da lì il sospetto che
+          lo strumento si disarmasse dopo ogni posa. */}
+      <ToolButton
+        icon={value ? <MarkerBadge kind={value} size={16} /> : <IconFlag size={16} stroke={1.6} />}
+        label={value ? MARKER_SPEC[value].label : 'Oggetti'}
+        active={open || !!value}
+        onClick={() => (open ? close() : openMenu())}
+      />
+      {open && createPortal(
+        /* Forma, centratura e stati stanno in `.ob-markermenu`
+           (app/obsidian-canvas.css) — compreso il perché del portale. */
+        <div className="ob-markermenu" style={{ top }}>
+          <button type="button" className="ob-markermenu__close" onClick={close} title="Chiudi">
+            <IconX size={12} stroke={2} />
+          </button>
+          {/* Le voci escono da `MARKER_SPEC`: aggiungere un marcatore è
+              aggiungere una riga là, e il menu si adegua da solo. */}
+          {MARKER_KINDS.map((k) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => pick(k)}
+              title={MARKER_SPEC[k].label}
+              className={cn('ob-markermenu__item', value === k && 'ob-markermenu__item--on')}
+            >
+              <MarkerBadge kind={k} />
+              {MARKER_SPEC[k].label}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+/* L'anteprima dell'oggetto — disegnarla invece di descriverla evita di dover
+   spiegare a parole la differenza fra quattro simboli — sta in `MarkerBadge`,
+   accanto a `MARKER_SPEC`: da quando lo stop non è più un disco col glifo
+   dentro, una copia qui sarebbe rimasta indietro al primo cambio di faccia. */

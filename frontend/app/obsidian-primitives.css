@@ -405,24 +405,155 @@
 .ob-listrow__main { flex: 1; min-width: 0; }
 .ob-listrow__meta { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); color: var(--ob-subtle); flex-shrink: 0; }
 
-/* ── TableRow ── */
-.ob-table { width: 100%; border-collapse: collapse; font-family: var(--ob-font-sans); font-size: var(--ob-text-control); color: var(--ob-text); }
+/* ─── LA TABELLA ──────────────────────────────────────────────────────────────
+   UNA sola tabella per tutta l'app: Sparks, Tiles, Tags e Contatti.
+
+   Erano quattro. Contatti e Tags disegnavano a mano, in JSX, la stessa cornice e
+   le stesse celle (il commento in cima a ContactsModal diceva testualmente «la
+   tabella è quella della pagina TAGS»); Sparks e Tiles erano invece due griglie
+   CSS con il proprio `--ob-*-grid`, righe alte 50 e 52, intestazioni su fondi
+   diversi e nessun filo verticale. Quattro tabelle che si somigliavano abbastanza
+   da sembrare un errore di stampa, e nessuna che si potesse correggere una volta
+   sola.
+
+   La forma scelta è quella dei CONTATTI, la più strutturata delle quattro:
+
+   · CORNICE — la tabella sta dentro una scatola di superficie con la sua
+     hairline, e scorre DENTRO quella scatola. Le altre scorrevano contro il bordo
+     della vista, e a metà scorrimento non si capiva più dove finisse la tabella
+     e cominciasse la pagina.
+   · INTESTAZIONE — appiccicata in alto su `--ob-surface-2`, in mono minuscolo
+     maiuscolato. Un fondo diverso dalle righe è ciò che la tiene leggibile
+     mentre il corpo le scorre sotto.
+   · GRIGLIA PIENA — filo a destra e sotto OGNI cella, non solo sotto le righe.
+     Con colonne strette e affiancate (tipo, data, dimensione) le sole righe
+     orizzontali lasciano i valori a fluttuare senza incolonnarsi.
+   · RIGHE DA 44 — la stessa quota dei controlli di barra: le tabelle si aprono
+     accanto a pannelli che quella misura ce l'hanno già.
+
+   `table-layout: fixed` è parte del patto: le larghezze le dichiara chi usa la
+   tabella, colonna per colonna, e il testo che non ci sta viene troncato con
+   `.ob-table__text`. Senza, una cella con una frase lunga allargherebbe la sua
+   colonna e sfalserebbe l'incolonnamento di tutte le righe.
+
+   ⚠️ La cornice (`.ob-tablecard`) è un flex column che cresce: perché lo scroll
+   funzioni, l'antenato deve avere un'altezza definita — dentro una vista è il
+   `flex: 1; min-height: 0` della vista stessa, dentro una modale un `max-height`
+   sullo scroll. */
+.ob-tablecard {
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line-2);
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0;
+  overflow: hidden;
+}
+.ob-tablecard__scroll { flex: 1; min-height: 0; overflow: auto; }
+/* Il corpo di una VISTA che è fatta di una tabella (Sparks, Tiles, Tags). La
+   gronda è ciò che rende visibile la cornice: senza, il bordo della tabella
+   coinciderebbe col bordo della vista e la scatola sparirebbe. */
+.ob-tableview {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  padding: 12px;
+  background: var(--ob-canvas);
+}
+/* La vista-tabella per intero: fascia dei comandi + corpo. */
+.ob-tablepage { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
+
+.ob-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-family: var(--ob-font-sans);
+  font-size: var(--ob-text-card);
+  color: var(--ob-text);
+}
 .ob-table thead th {
-  text-align: left;
+  position: sticky; top: 0; z-index: 2;
+  height: 34px; padding: 0 12px;
+  text-align: left; vertical-align: middle;
+  background: var(--ob-surface-2);
+  border-right: 1px solid var(--ob-line-2);
+  border-bottom: 1px solid var(--ob-line-2);
   font-family: var(--ob-font-mono);
-  font-size: var(--ob-text-meta);
-  font-weight: var(--ob-weight-emphasis);
-  letter-spacing: 0.04em;
-  color: var(--ob-subtle);
-  padding: 9px 12px;
-  border-bottom: 1px solid var(--ob-line);
+  font-size: var(--ob-text-micro);
+  font-weight: var(--ob-weight-mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ob-muted);
   white-space: nowrap;
 }
-.ob-tablerow { transition: background-color 120ms ease-out; }
-.ob-tablerow td { padding: 11px 12px; border-bottom: 1px solid var(--ob-line); vertical-align: middle; }
+/* Intestazione ORDINABILE: si preme, quindi si accende al passaggio. La freccia
+   sta in `.ob-table__sort` e compare solo sulla colonna in uso — una freccia per
+   colonna direbbe «ordinabile», che è già detto dal cursore. */
+.ob-table th.ob-table__h--sortable { cursor: pointer; user-select: none; }
+.ob-table th.ob-table__h--sortable:hover { color: var(--ob-text); }
+.ob-table th.ob-table__h--on { color: var(--ob-accent); }
+.ob-table__sort { display: inline-flex; vertical-align: middle; margin-left: 4px; }
+
+.ob-table tbody td {
+  height: 44px; padding: 0 12px;
+  border-right: 1px solid var(--ob-line-2);
+  border-bottom: 1px solid var(--ob-line-2);
+  overflow: hidden; vertical-align: middle;
+}
+/* L'ultima colonna non ha filo a destra: ce l'ha già la cornice, e due linee a un
+   pixel di distanza si leggono come un bordo storto. */
+.ob-table th:last-child, .ob-table tbody td:last-child { border-right: none; }
+.ob-table__c--center { text-align: center; }
+.ob-table__c--right { text-align: right; }
+/* Il troncamento è un OPT-IN sul contenuto, non una regola della cella: una cella
+   può contenere un badge, una fila di chip o un input, e `text-overflow` su
+   quelli non vuol dire niente. */
+.ob-table__text { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Valore assente. Un trattino grigio dice «qui non c'è niente» meglio di una
+   cella vuota, che si legge come un errore di caricamento. */
+.ob-table__dash { color: var(--ob-faint); }
+
+.ob-tablerow { background: transparent; transition: background-color 120ms ease-out; }
 .ob-tablerow--interactive { cursor: pointer; }
 .ob-tablerow--interactive:hover td { background: var(--ob-hover); }
 .ob-tablerow--active td { background: var(--ob-accent-soft); }
+/* SPUNTATA non è APERTA: la riga aperta nell'inspector è una sola e prende
+   l'accent pieno; le spuntate sono molte e ne prendono una velatura. */
+.ob-tablerow--checked td { background: color-mix(in srgb, var(--ob-accent) 10%, transparent); }
+.ob-tablerow--checked:hover td { background: color-mix(in srgb, var(--ob-accent) 14%, transparent); }
+
+/* Al posto del corpo: «nessun risultato». In mono maiuscolato come le
+   intestazioni — è una didascalia della tabella, non un suo contenuto. */
+.ob-table__empty {
+  padding: 26px 0; text-align: center; margin: 0;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-meta);
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--ob-subtle);
+}
+/* Conteggio sotto la tabella (righe mostrate, totale). */
+.ob-table__foot { margin: 0; font-family: var(--ob-font-sans); font-size: var(--ob-text-meta); color: var(--ob-subtle); }
+
+/* ─── LA BARRA DEGLI STRUMENTI ────────────────────────────────────────────────
+   La fascia che ospita `.ob-tools`, `ToolButton`, `ToolWord` e `.ob-toolinput`.
+
+   Nasce da `.ob-chrono__toolbar`, che era la copia più pulita: quota dal token,
+   fondo `--ob-surface`, hairline sotto. Chrono e Canvas avevano già questo
+   vocabolario di comandi; Sparks, Tiles, Tags e Contatti no — ognuna aveva i
+   suoi bottoni pieni con etichetta, che in una barra di quattro comandi pesano
+   quanto il contenuto che stanno lì per filtrare.
+
+   `gap: 0` di proposito: la spaziatura la danno i gruppi (`.ob-tools`, gap 2) e i
+   separatori (`.ob-toolsep`, margine 8). Un gap sulla fascia si sommerebbe a
+   entrambi e allontanerebbe i comandi dai loro fili. */
+.ob-toolbar {
+  height: var(--ob-toolbar-height); flex-shrink: 0;
+  display: flex; align-items: center; gap: 0;
+  padding: 0 12px;
+  background: var(--ob-surface);
+  border-bottom: 1px solid var(--ob-line);
+}
+/* Spinge a destra quello che viene dopo. */
+.ob-toolbar__gap { flex: 1; min-width: 8px; }
+/* La barra di una MODALE non ha una vista sotto di sé: niente fondo e niente
+   hairline (la modale ha già le sue), e nessun rientro — i suoi comandi si
+   allineano al bordo del contenuto. */
+.ob-toolbar--bare { background: transparent; border-bottom: none; padding: 0; }
 
 /* ─── SISTEMA VISIVO DEI TILE — canali indipendenti ─────────────────────────
    Vedi lib/tile-visual.ts per la mappa tipo → canali. Qui c'è solo la forma.
@@ -455,14 +586,22 @@
    A destra non c'è niente da scavalcare. */
 .ob-tbadge--left.ob-tbadge--shifted { left: 26px; }
 /* Parola (FLOW). Sotto queste misure il bordo diventa più spesso del contenuto
-   e la pillola si legge come un pallino. */
+   e la pillola si legge come un pallino.
+   L'altezza non è dichiarata, la fa l'interlinea: 9 × 1.95 + 2.4 di bordo =
+   20, la stessa del badge-icona. */
 .ob-tbadge--word {
-  top: -7px;
-  padding: 0 6px;
-  font-size: var(--ob-text-eyebrow); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.4px; line-height: 1.7;
+  top: -11px;
+  padding: 0 7px;
+  font-size: var(--ob-text-micro); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.4px; line-height: 1.95;
 }
-/* Icona: box fisso. */
-.ob-tbadge--icon { top: -8px; width: 17px; height: 17px; }
+/* Icona: box fisso. 20 come il pallino degli spark: la STESSA pillola, che è
+   quello che il commento laggiù dichiara da sempre senza che fosse vero (erano
+   17 e 18).
+   `top: -11` tiene la parte INTERNA a 9, cioè sotto i 10 di padding del corpo:
+   il badge non entra mai nella prima riga del titolo. Fuori sbordano 11
+   nominali = 8.8px reali, dentro i 9 di gronda fra due tile impilati. È il
+   TETTO: oltre, il badge va a sbattere sulla card di sopra. */
+.ob-tbadge--icon { top: -11px; width: 20px; height: 20px; }
 
 /* STRIP + STEPPER — tela neutra sul lato interno sinistro. Il fondo chiaro
    serve a far leggere i segmenti a piena saturazione senza competere col
@@ -531,10 +670,10 @@
    ⚠️ Come i badge, richiede `overflow: visible` sul contenitore della card. */
 .ob-tsparks {
   position: absolute; z-index: 2;
-  /* -9 e non -8: il disco è 18, quindi il suo bordo alto cade esatto a 9 dal
+  /* -11 e non -9: il disco è 20, quindi il suo bordo alto cade esatto a 9 dal
      fondo — dove comincia lo status. Tangenti, non sovrapposti. E sotto sborda
-     di 9 × 0.8 = 7.2px reali, che stanno nei 9px di stacco fra due card. */
-  left: 10px; bottom: -9px;
+     di 11 × 0.8 = 8.8px reali, che stanno nei 9px di stacco fra due card. */
+  left: 10px; bottom: -11px;
   display: inline-flex; align-items: center; gap: 3px;
   pointer-events: none;
 }
@@ -553,7 +692,7 @@
    lavagna, e senza un fondo suo quella metà si perderebbe. */
 .ob-tspark {
   display: inline-flex; align-items: center; justify-content: center;
-  width: 18px; height: 18px;
+  width: 20px; height: 20px;
   border-radius: 999px;
   background: var(--ob-surface-2);
   color: var(--sk, var(--ob-muted));
@@ -566,8 +705,8 @@
 [data-sparks='off'] .ob-tsparks { display: none; }
 
 /* ─── IL TILE ───────────────────────────────────────────────────────────────
-   150×80, la misura unica di tutte le superfici (canvas TILE_W/TILE_H, colonne
-   di Chrono, corsie del Kanban, staging).
+   160×90 disegnati, 128×72 mostrati: la misura unica di tutte le superfici
+   (canvas TILE_W/TILE_H, colonne di Chrono, corsie del Kanban, staging).
 
    ⚠️ NIENTE `overflow: hidden`. È deliberato: i badge sbordano dal rettangolo
    per costruzione. Il contenimento è ottenuto dando a ogni figlio che tocca il
@@ -577,15 +716,18 @@
    ────────────────────────────────────────────────────────────────────────── */
 .ob-tile {
   position: relative;
-  /* Il rettangolo di DISEGNO resta 150×80: tutte le misure interne (padding 10,
-     strip 20, corpi 11/12) sono tarate su questo, ed è il sistema descritto in
-     lib/tile-visual.ts. Quello che si VEDE è 120×64, perché `zoom` scala il
+  /* Il rettangolo di DISEGNO è 160×90: tutte le misure interne (padding 10/6,
+     strip 20, corpi 11/15) sono tarate su questo, ed è il sistema descritto in
+     lib/tile-visual.ts. Quello che si VEDE è 128×72, perché `zoom` scala il
      rettangolo e tutto quello che contiene.
      `zoom` e non `transform: scale()`: lo zoom entra nel calcolo del layout,
-     quindi il tile OCCUPA davvero 120×64 e le colonne che lo contengono si
-     stringono di conseguenza. Con `transform` sarebbe rimasta in piedi una
-     scatola da 150×80 con dentro un tile più piccolo. */
-  width: 150px; height: 80px; flex-shrink: 0;
+     quindi il tile OCCUPA davvero 128×72 e le colonne che lo contengono si
+     dimensionano di conseguenza. Con `transform` sarebbe rimasta in piedi una
+     scatola da 160×90 con dentro un tile più piccolo.
+     ⚠️ Gemello di `TILE_BASE_W`/`TILE_BASE_H` in lib/tile-visual.ts, da cui il
+     canvas ricava la geometria SVG: vanno cambiati INSIEME, o i tile finiscono
+     disegnati in un posto e cliccabili in un altro. */
+  width: 160px; height: 90px; flex-shrink: 0;
   zoom: var(--ob-tile-zoom, 0.8);
   border-radius: var(--ob-radius-sm);
   /* Velatura del colore dell'action sul fondo unico dei tile — la STESSA
@@ -595,7 +737,7 @@
      velatura: e' la variante che le viste chiamano `--plain`. */
   background: color-mix(in srgb, var(--ac, var(--ob-tile-bg)) 14%, var(--ob-tile-bg));
   /* Hairline strutturale: definisce il rettangolo, non porta significato.
-     Con box-sizing border-box l'ingombro resta 150×80 anche quando il bordo
+     Con box-sizing border-box l'ingombro resta 160×90 anche quando il bordo
      action lo ingrossa a 1.5px.
      ⚠️ È `--ob-tile-border` e non la hairline generica `--ob-line`: da quando in
      light l'area di lavoro è il bianco pieno, il tile senza colorazione è una
@@ -674,31 +816,98 @@
 
 /* Corpo: il titolo in alto, con 10 di respiro sopra e sotto e 6 ai lati.
    I fianchi sono più stretti dell'asse verticale perché è lì che il titolo
-   perde: il tile è largo 150 e il testo va a capo dopo due righe, quindi ogni
-   pixel orizzontale è una lettera in più prima dell'ellissi. In verticale
-   invece lo spazio avanza — due righe a 13px occupano 34 dei 77 disponibili.
+   perde: il testo va a capo dopo tre righe, quindi ogni pixel orizzontale è
+   una lettera in più prima dell'ellissi. In verticale lo spazio basta appena —
+   tre righe a 15px occupano 54 dei 67 disponibili.
 
-   Il padding basso NON è più lo spazio riservato al footer: la riga di footer
+   Il padding basso NON è lo spazio riservato al footer: la riga di footer
    (status a sinistra, metadato a destra) è posizionata in assoluto a
-   `bottom: 9px` e non partecipa a questo flusso. Il vecchio 26px lo teneva
-   libero per costruzione; ora la separazione la garantisce il clamp a due
-   righe — 10 di padding + 34 di testo = 44, contro i 58 a cui comincia il
-   footer. ⚠️ Se il clamp salisse a tre righe quel margine sparirebbe. */
+   `bottom: 9px` e non partecipa a questo flusso. A tenerli separati è il CLAMP
+   del titolo, e da quando le righe sono tre il conto è al pixel. Coordinate
+   del tile, caso peggiore = bordo action da 1,5 (che è anche ciò che riduce a
+   87 il padding box su cui si appoggia il footer):
+
+     fondo del titolo   1,5 + 10 di padding + 3 × 18 di riga  = 65,5
+     cima del footer    1,5 + 87 − 9 di `bottom` − 11 di riga = 68,5
+
+   restano 3 fra le due scatole — 2,4px reali dopo lo zoom — e fra l'INCHIOSTRO
+   un po' di più, perché sotto la terza riga resta il mezzo-leading (1,5).
+   ⚠️ Il conto regge SOLO con `--ob-tile-title-leading` a 1.2: a 1.3 (il vecchio
+   `--ob-leading-tight`) la riga sarebbe alta 19,5 e la terza finirebbe DENTRO
+   il footer. E tre righe sono il tetto, non un margine da spendere: una quarta
+   arriverebbe a 83,5, cioè 15 dentro. Chi tocca il corpo del titolo,
+   l'interlinea o il `bottom` del footer rifaccia questi due numeri. */
 .ob-tile__body { height: 100%; padding: 10px 6px; box-sizing: border-box; }
 .ob-tile--stripped .ob-tile__body { padding-left: 28px; }
 
-/* Peso BODY e non emphasis. Il 600 era tarato su un tile a grandezza naturale,
-   dove il titolo rendeva 12px pieni; da quando il tile è scalato a 0.8 quel
-   testo rende 10,4px, e a quel corpo un tratto grasso chiude le contro-forme
-   delle lettere — la parola diventa una macchia con la sagoma giusta.
-   La gerarchia col metadato regge lo stesso: quello è più piccolo (8,8) e al
-   60% di opacità, quindi il titolo resta primo senza bisogno del peso. */
+/* ── LA CORNICE DEL FOCUS ───────────────────────────────────────────────────
+   L'attività su cui si sta lavorando ADESSO. Non un segno in un angolo, da
+   andare a cercare: tutto il perimetro, tratteggiato e rosso, appena FUORI dal
+   tile. È il tile intero a essere marcato, quindi si riconosce alla distanza a
+   cui si riconosce il tile — non a quella a cui si legge un dettaglio.
+
+   Sta FUORI e non sul bordo del tile perché quel bordo è già occupato: è il
+   canale dell'AZIONE (pieno = scadenza, tratteggiato = evento, vedi
+   `[data-border]`), e tingerlo di rosso avrebbe spento un dato per accenderne
+   un altro. Questa è quindi una SECONDA cornice, staccata di 4px: lo stacco è
+   ciò che la fa leggere come una cosa a sé e non come un bordo bicolore.
+
+   Misure in coordinate di DISEGNO (il tile è 160×90, poi ridotto da `zoom`
+   0.8): i 5px del tratto rendono 4 sullo schermo, più del TRIPLO del bordo
+   action — non c'è modo di confonderli, ed è il punto.
+   Lo stacco scende a 3 proprio perché il tratto è salito a 5: l'ingombro
+   totale resta 8 disegnati, cioè 6,4px reali per lato. È un tetto, non un
+   caso — la cornice SBORDA, e deve stare nel margine di chi ospita il tile:
+   ⚠️ la gronda del canvas (TILE_BLEED = 12 reali), il padding delle colonne di
+   Chrono (9 + 4 di slack) e quello del pannello di staging (8, il più stretto)
+   la contengono; chi ospita il tile deve inoltre avere `overflow: visible`,
+   esattamente come già serve a badge e spark. Ingrossando ancora il tratto,
+   è lo stacco che va ridotto — non il totale.
+
+   `z-index: 1` e non 3: badge e spark sbordano anche loro, e stanno a 2. Sopra
+   di loro la cornice li avrebbe tagliati in due con una riga rossa; sotto, sono
+   loro a posarsi sulla cornice — che è come già si posano sul bordo del tile.
+
+   Nessuna animazione: il pallino pulsava perché un disco da 14px sullo schermo
+   aveva bisogno del movimento per farsi trovare. Un perimetro rosso su una
+   lavagna di rettangoli grigi non ne ha, e un perimetro che pulsa su più tile
+   è una lavagna che sfarfalla. */
+.ob-tile__focus {
+  position: absolute; z-index: 1;
+  inset: -3px;
+  /* `--ob-focus` e non `--ob-error`: quello è il rosso smorzato degli STATI e
+     nel tema scuro sbianca a salmone. Vedi il token in obsidian.css. */
+  border: 5px dashed var(--ob-focus);
+  /* Concentrico al tile: il raggio del tile PIÙ lo stacco, altrimenti le due
+     curve divergono agli angoli — il punto in cui una cornice storta si vede
+     per prima. */
+  border-radius: calc(var(--ob-radius-sm) + 3px);
+  pointer-events: none;
+}
+
+/* Corpo e peso hanno un token TUTTO LORO (`--ob-tile-title`, 15px, e
+   `--ob-tile-title-weight`, 500) e non pescano dalla scala generale. Il motivo
+   è lo zoom: questo è l'unico testo dell'app che il browser disegna dopo una
+   riduzione a 0.8, quindi va calibrato sul rendering — 15/500 qui valgono
+   12px sullo schermo.
+
+   Il 500 sta in mezzo ai due pesi della scala, e la ragione è quella di prima
+   letta al contrario: il 600 chiudeva le contro-forme quando il titolo rendeva
+   9,6px, ma ora ne rende 12 e quel rischio è rientrato; il 400 a 12px, su un
+   tile diventato più grande, lasciava il titolo troppo timido rispetto al
+   rettangolo che lo contiene.
+   ⚠️ Il 500 è un peso che la scala aveva ritirato — vedi la nota sul token. */
 .ob-tile__title {
   font-size: var(--ob-tile-title);
-  font-weight: var(--ob-weight-body);
-  line-height: var(--ob-leading-tight);
+  font-weight: var(--ob-tile-title-weight);
+  /* Interlinea DEDICATA, non `--ob-leading-tight`: la terza riga entra solo a
+     1.2. Vedi il token in obsidian.css e il conto su `.ob-tile__body`. */
+  line-height: var(--ob-tile-title-leading);
   letter-spacing: -0.01em;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  /* Tre righe: il massimo che entra sopra il footer. La terza non è spazio
+     guadagnato ma spazio che c'era già e restava vuoto — sui titoli corti non
+     cambia nulla, sui lunghi è una riga di parole invece di un'ellissi. */
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
   overflow: hidden; word-break: break-word;
 }
 
@@ -706,7 +915,7 @@
    sei caratteri non viene renderizzato affatto (decisione presa nel componente,
    dove le misure sono note), altrimenti tronca con ellissi. */
 .ob-tile__meta {
-  position: absolute; right: 10px; bottom: 9px; max-width: 96px;
+  position: absolute; right: 10px; bottom: 9px; max-width: 103px;
   font-size: var(--ob-text-meta); line-height: var(--ob-leading-none);
   opacity: 0.6;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -950,6 +1159,13 @@
 .ob-toolword--on:hover { color: var(--toolword-on, var(--ob-accent)); }
 .ob-toolword:disabled { opacity: 0.4; cursor: default; }
 .ob-toolword:disabled:hover { color: var(--ob-subtle); }
+/* Il CONTATORE di una parola-filtro («Audio 12»). In mono perché è una cifra che
+   cambia sotto una parola che non cambia: allineandosi verticalmente fra un
+   filtro e l'altro si legge come una colonna invece che come un pezzo di frase.
+   `color: inherit` da accesa: prende il tono del filtro, e la coppia
+   parola+numero resta una cosa sola. */
+.ob-toolword__n { margin-left: 5px; font-family: var(--ob-font-mono); font-size: var(--ob-text-micro); color: var(--ob-faint); }
+.ob-toolword--on .ob-toolword__n { color: inherit; opacity: 0.75; }
 
 /* Il gruppo dei comandi in fondo alla barra, e il filo che ne separa le famiglie.
    Due righe di CSS, e stavano scritte tre volte — inline nella topbar del canvas,

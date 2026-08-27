@@ -8,16 +8,22 @@ import * as TablerIcons from '@tabler/icons-react';
 import { IconPicker } from '@/components/ui/icon-picker';
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
+// La tabella e la barra CONDIVISE (Sparks, Tiles, Tags, Contatti): la forma
+// nasce qui — era la pagina TAGS a dettarla — ma ora la definizione sta in un
+// posto solo. Vedi `components/primitives/table.tsx`.
 import {
+  TableCard,
   Table,
   TableBody,
   TableCell,
-  TableHead,
-  TableHeader,
   TableRow,
-} from '@/components/ui/table';
+  Toolbar,
+  ToolbarGap,
+  ToolGroup,
+  ToolButton,
+  ToolWord,
+} from '@/components/primitives';
 import { usePixelTheme } from '@/components/pixel';
-import { obsidianToolbarBtn } from '@/lib/pixel-toolbar';
 import { tagsApi, tagTypesApi } from '@/lib/api';
 import { useTagTypes } from '@/store/tag-types-store';
 import { GIMMICK_PALETTE } from '@/lib/palette';
@@ -130,27 +136,19 @@ function FilterableHead({
     [width, onResize]
   );
 
+  // `<th>` nudo: corpo, fondo e fili della testata arrivano da `.ob-table thead
+  // th` (obsidian-primitives.css), la stessa regola di Sparks, Tiles e Contatti.
+  // Qui resta solo ciò che è di TAGS: la larghezza regolabile e il filtro.
   return (
-    <TableHead
+    <th
       ref={headRef}
       className="relative"
-      style={{
-        width, minWidth: width, maxWidth: width,
-        background: theme.surfaceVariant,
-        borderRight: `1px solid ${theme.border}`,
-        borderBottom: `1px solid ${theme.border}`,
-      }}
+      style={{ width, minWidth: width, maxWidth: width }}
     >
       <button
         onClick={onToggleFilter}
         className="flex items-center gap-1 w-full text-left"
-        style={{
-          fontFamily: ('var(--ob-font-mono)'),
-          fontSize: OB_TEXT.micro,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          color: theme.ink2,
-        }}
+        style={{ font: 'inherit', letterSpacing: 'inherit', textTransform: 'inherit', color: 'inherit', background: 'transparent', border: 'none', cursor: 'pointer', padding: 0 }}
       >
         <span className="truncate">{label}</span>
         <IconFilter size={11} className="shrink-0" style={{ color: hasActiveFilter ? theme.accent : theme.ink3 }} />
@@ -162,7 +160,7 @@ function FilterableHead({
         onMouseEnter={(e) => (e.currentTarget.style.background = `${theme.accent}66`)}
         onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
       />
-    </TableHead>
+    </th>
   );
 }
 
@@ -739,11 +737,6 @@ export default function TagsPage() {
     setOpenFilter((prev) => (prev === col ? null : col));
   }, []);
 
-  const cellBorder: React.CSSProperties = {
-    borderRight: `1px solid ${theme.border}`,
-    borderBottom: `1px solid ${theme.border}`,
-  };
-
   const labelStyle: React.CSSProperties = {
     fontFamily: ('var(--ob-font-mono)'),
     fontSize: OB_TEXT.micro,
@@ -768,62 +761,47 @@ export default function TagsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: theme.bg1, ...({ flex: 1, minWidth: 0 }) }}>
 
-      <div style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', gap: 16, overflow: 'hidden' }}>
-        {/* Toolbar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-            <IconTag size={18} style={{ color: theme.accent }} />
-            <span
-              style={{
-                fontFamily: ('var(--ob-font-mono)'),
-                fontSize: OB_TEXT.meta,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                color: theme.ink2,
-              }}
-            >
-              {allTags.length} tags
-            </span>
-          </div>
+      {/* Barra — gli stessi comandi di canvas e chrono: il conteggio a sinistra,
+          le icone di ciò che crea a destra. I due bottoni pieni «Add Tag» e
+          «Edit Tags» pesavano quanto la tabella che stanno lì per riempire. */}
+      <Toolbar>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 4px' }}>
+          <IconTag size={16} style={{ color: theme.accent }} />
+          <span
+            style={{
+              fontFamily: ('var(--ob-font-mono)'),
+              fontSize: OB_TEXT.meta,
+              letterSpacing: '0.08em',
+              textTransform: 'uppercase',
+              color: theme.ink2,
+            }}
+          >
+            {allTags.length} tags
+          </span>
+        </div>
+        <ToolbarGap />
+        <ToolGroup>
+          {/* Compare solo con un filtro attivo: è un comando che ANNULLA, e a
+              filtri spenti non annullerebbe niente. */}
           {hasAnyFilter && (
-            <button
+            <ToolWord
+              on
               onClick={() => {
                 setNameFilter('');
                 setTypeFilter(new Set());
                 setAliasFilter('');
               }}
-              style={{
-                fontFamily: ('var(--ob-font-mono)'),
-                fontSize: OB_TEXT.micro,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                color: theme.accent,
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-              }}
+              title="Mostra di nuovo tutti i tag"
             >
               Rimuovi filtri
-            </button>
+            </ToolWord>
           )}
-          <button
-            onClick={() => setCreateOpen(true)}
-            className="px-press"
-            style={obsidianToolbarBtn(theme, true)}
-          >
-            <IconPlus size={12} />
-            Add Tag
-          </button>
-          <button
-            onClick={() => setTypesOpen(true)}
-            className="px-press"
-            style={obsidianToolbarBtn(theme, false)}
-          >
-            <IconPencil size={12} />
-            Edit Tags
-          </button>
-        </div>
+          <ToolButton icon={<IconPencil size={16} stroke={1.6} />} label="Modifica i tipi di tag" onClick={() => setTypesOpen(true)} />
+          <ToolButton icon={<IconPlus size={16} stroke={1.6} />} label="Nuovo tag" onClick={() => setCreateOpen(true)} />
+        </ToolGroup>
+      </Toolbar>
 
+      <div className="ob-tableview">
         {/* Table */}
         {isLoading ? (
           <p
@@ -874,43 +852,27 @@ export default function TagsPage() {
             )}
           </div>
         ) : (
-          <div
-            style={{
-              background: theme.surface,
-              border: `1px solid ${theme.border}`,
-              boxShadow: `${theme.shadowOffset}px ${theme.shadowOffset}px 0 ${theme.shadowColor}`,
-              display: 'flex',
-              flexDirection: 'column',
-              flex: 1,
-              overflow: 'hidden',
-            }}
-          >
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <Table style={{ tableLayout: 'fixed', width: colWidths.name + colWidths.type + colWidths.alias + 96, minWidth: colWidths.name + colWidths.type + colWidths.alias + 96 }}>
-                <TableHeader className="sticky top-0 z-10" style={{ background: theme.surfaceVariant }}>
-                  <TableRow style={{ background: 'transparent', borderBottom: 'none' }}>
+          <TableCard>
+            {/* La colonna delle AZIONI non dichiara una larghezza: con
+                `table-layout: fixed` prende quello che avanza, e le tre colonne
+                regolabili tengono la misura che l'utente ha dato loro. Dichiarare
+                anche lei avrebbe fatto scalare tutte e quattro in proporzione al
+                primo ridimensionamento. */}
+            <Table style={{ minWidth: colWidths.name + colWidths.type + colWidths.alias + 96 }}>
+                <thead>
+                  <tr>
                     <FilterableHead label="Name" width={colWidths.name} onResize={(w) => setColWidth('name', w)} hasActiveFilter={!!nameFilter} filterOpen={openFilter === 'name'} onToggleFilter={() => toggleFilter('name')} headRef={nameHeadRef} />
                     <FilterableHead label="Type" width={colWidths.type} onResize={(w) => setColWidth('type', w)} hasActiveFilter={typeFilter.size > 0} filterOpen={openFilter === 'type'} onToggleFilter={() => toggleFilter('type')} headRef={typeHeadRef} />
                     <FilterableHead label="Alias" width={colWidths.alias} onResize={(w) => setColWidth('alias', w)} hasActiveFilter={!!aliasFilter} filterOpen={openFilter === 'alias'} onToggleFilter={() => toggleFilter('alias')} headRef={aliasHeadRef} />
-                    <TableHead
-                      style={{
-                        width: 96,
-                        minWidth: 96,
-                        maxWidth: 96,
-                        background: theme.surfaceVariant,
-                        borderRight: `1px solid ${theme.border}`,
-                        borderBottom: `1px solid ${theme.border}`,
-                      }}
-                    />
-                  </TableRow>
-                </TableHeader>
+                    <th />
+                  </tr>
+                </thead>
                 <TableBody>
                   {tags.map((tag) => (
-                    <TableRow key={tag.id} style={{ height: 44, maxHeight: 44, background: 'transparent' }}>
+                    <TableRow key={tag.id}>
                       {/* Name */}
                       <TableCell
                         style={{
-                          ...cellBorder,
                           width: colWidths.name,
                           minWidth: colWidths.name,
                           maxWidth: colWidths.name,
@@ -963,7 +925,6 @@ export default function TagsPage() {
                       {/* Type */}
                       <TableCell
                         style={{
-                          ...cellBorder,
                           width: colWidths.type,
                           minWidth: colWidths.type,
                           maxWidth: colWidths.type,
@@ -999,7 +960,6 @@ export default function TagsPage() {
                       {/* Alias */}
                       <TableCell
                         style={{
-                          ...cellBorder,
                           width: colWidths.alias,
                           minWidth: colWidths.alias,
                           maxWidth: colWidths.alias,
@@ -1033,7 +993,7 @@ export default function TagsPage() {
                       </TableCell>
 
                       {/* Actions */}
-                      <TableCell style={{ ...cellBorder, textAlign: 'right', padding: '0 8px' }}>
+                      <TableCell style={{ textAlign: 'right', padding: '0 8px' }}>
                         {tag.is_root ? (
                           <span
                             style={{
@@ -1071,9 +1031,8 @@ export default function TagsPage() {
                     </TableRow>
                   ))}
                 </TableBody>
-              </Table>
-            </div>
-          </div>
+            </Table>
+          </TableCard>
         )}
       </div>
 

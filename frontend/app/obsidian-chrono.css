@@ -52,15 +52,16 @@
 .ob-chrono__body { flex: 1; display: flex; min-height: 0; }
 
 /* ── COLONNA NOTES / TODO ── */
-/* 146 = 120 di tile + 9+9 di padding del corpo + 6 di gutter della scrollbar
+/* 154 = 128 di tile + 9+9 di padding del corpo + 6 di gutter della scrollbar
    (`.ob-scroll-quiet`, sempre riservato) + 1 di bordo, più 1 di scarto.
-   Erano 176, calcolati su un tile da 150: da quando il tile standard è 120×64
-   (`--ob-tile-zoom`) quei 30px in più erano vuoto a destra di ogni card.
+   Era 146 quando il tile standard occupava 120×64; segue l'ingombro del tile
+   (`TILE_W`), quindi si rifà ogni volta che quello cambia — altrimenti o
+   avanza vuoto a destra di ogni card, o la card viene tagliata.
    Il gutter resta: senza, quando la colonna inizia a scrollare la barra ruba
    spazio e il tile viene tagliato.
    ⚠️ Vale per le colonne NOTES/TODO/FLOW. Il CALENDARIO non passa di qui: i
    suoi blocchi sono dimensionati dal tempo, non dal tile. */
-.ob-chrono__col { width: 146px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
+.ob-chrono__col { width: 154px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--ob-canvas); border-right: 1px solid var(--ob-line); overflow: hidden; }
 /* Drop di un tile dalla griglia/altra colonna su Notes/Todo. */
 .ob-chrono__col--dragover { background: var(--ob-accent-soft); box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--ob-accent) 40%, transparent); }
 .ob-chrono__colhead { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 7px; padding: 0 8px; background: var(--ob-head); border-bottom: 1px solid var(--ob-line); }
@@ -86,7 +87,7 @@
 .ob-chrono__colbody { flex: 1; overflow-y: auto; padding: 9px; display: flex; flex-direction: column; align-items: center; gap: 3px; }
 /* Cella della colonna: la GRONDA di 9px in cui sbordano i badge d'angolo del
    tile. Sta qui e non come margine sul tile perché il rettangolo deve restare
-   150×80 e l'allineamento non deve spostarsi. `overflow: visible` esplicito:
+   160×90 e l'allineamento non deve spostarsi. `overflow: visible` esplicito:
    il contenitore non deve mai ritagliare ciò che sborda. */
 .ob-chrono__cell { padding-top: 9px; flex-shrink: 0; overflow: visible; }
 .ob-chrono__empty { font-size: var(--ob-text-meta); color: var(--ob-subtle); padding: 4px; }

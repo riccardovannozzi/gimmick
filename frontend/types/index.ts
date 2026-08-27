@@ -47,6 +47,14 @@ export interface Tile {
   /** Quando è stato completato (migration 040). `null` = mai chiuso, o riaperto. */
   completed_at?: string | null;
   is_cta?: boolean;
+  /**
+   * FOCUS — l'attività su cui si sta lavorando adesso (migration 045).
+   *
+   * Ortogonale allo status: quello dice a che punto è l'attività, questo che è
+   * quella che hai davanti. Un tile «bloccato» può benissimo essere il pezzo su
+   * cui stai sbattendo la testa. Non è esclusivo: più tile possono esserlo.
+   */
+  is_focused?: boolean;
   status_id?: string;
   color?: string;
   sort_order?: number;

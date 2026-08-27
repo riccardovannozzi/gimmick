@@ -43,8 +43,6 @@ export {
   Avatar,
   Skeleton,
   ListRow,
-  Table,
-  TableRow,
   Toast,
 } from './surfaces';
 export type {
@@ -53,10 +51,35 @@ export type {
   AvatarProps,
   SkeletonProps,
   ListRowProps,
-  TableRowProps,
   ToastProps,
   ToastTone,
 } from './surfaces';
+
+// La tabella condivisa da Sparks, Tiles, Tags e Contatti, e la fascia dei
+// comandi che le sta sopra. Vedi `./table.tsx`.
+export {
+  TableCard,
+  Table,
+  TableBody,
+  TableRow,
+  TableCell,
+  TableText,
+  TableDash,
+  TableEmpty,
+  tableAlign,
+  Toolbar,
+  ToolbarGap,
+  ToolGroup,
+  ToolSep,
+} from './table';
+export type {
+  TableColumn,
+  TableCardProps,
+  TableProps,
+  TableRowProps,
+  TableCellProps,
+  ToolbarProps,
+} from './table';
 
 export { Modal, Sheet } from './overlays';
 export type { ModalProps, SheetProps } from './overlays';

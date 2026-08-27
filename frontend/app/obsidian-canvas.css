@@ -86,7 +86,9 @@
 }
 [data-theme='light'] .ob-canvas__card { box-shadow: 0 1px 2px rgba(24, 20, 38, 0.04); }
 .ob-canvas__card--sel { border: 2px solid var(--ob-accent); }
-/* Titolo del tile 150×80. Identico in CANVAS, KANBAN, CHRONO e STAGING: è lo
+/* Titolo della card statica delle ANTEPRIME (non il tile vero, che è
+   `.ob-tile__title` e ora vive su 160×90 con corpo/peso propri). Era allineato
+   fra CANVAS, KANBAN, CHRONO e STAGING quando lo era anche la card: è lo
    stesso oggetto, e prima ognuna delle quattro viste lo scriveva a modo suo
    (12.5/600 qui, 12/300 in kanban e staging, 12/400 in chrono). */
 .ob-canvas__card-title { font-size: var(--ob-text-card); line-height: var(--ob-leading-tight); font-weight: var(--ob-weight-emphasis); letter-spacing: -0.01em; color: var(--ob-text); }
@@ -167,7 +169,7 @@
 
 /* ── LIVELLO DI DETTAGLIO DEL TILE SUL CANVAS ─────────────────────────────────
    Il canvas è l'unica vista con uno zoom, quindi l'unica in cui il tile può
-   diventare una scheggia: il rettangolo resta 150×80 nello spazio della board
+   diventare una scheggia: il rettangolo resta 160×90 nello spazio della board
    ma sullo schermo si rimpicciolisce. Sotto `TILE_LOD_MIN_SCALE` (0.6) il
    segmento dello stepper — alto 3px — scende sotto i 2px reali e il bordo del
    badge sotto il pixel fisico: a quel punto non sono più simboli attenuati, sono
@@ -300,4 +302,120 @@
   min-width: 0;
   font-size: var(--ob-text-micro);
   color: var(--ob-subtle);
+}
+
+/* ── BADGE «ESPANDI» DEI BOX DI TESTO ─────────────────────────────────────────
+   Appeso allo spigolo in basso a destra del box, e visibile solo quando il
+   testo eccede — cioè quando c'è una barra di scorrimento. Dice che sotto c'è
+   dell'altro e offre di mostrarlo tutto, invece di obbligare a scorrere dentro
+   un riquadro grande come un francobollo.
+
+   Stessa pillola del badge d'azione del tile: cerchio, hairline, fondo pieno,
+   glifo piccolo. La misura però è scritta a mano e non presa dal tile: quella
+   è nominale e finisce sotto `zoom: 0.8`, mentre il box sta sulla lavagna a
+   scala 1. 16px qui rendono quanto i 20 nominali del tile.
+
+   `pointer-events: auto` non è ridondante: il div che lo ospita è
+   `pointer-events: none` finché non si sta scrivendo, così i gesti passano al
+   gruppo D3 sotto. Il badge se li riprende per sé. */
+.ob-boxfit {
+  position: absolute;
+  right: 0;
+  /* -17 = 8 di TB_PAD + 9 di sbordo: il badge esce di 9 sotto il bordo del box
+     e ne resta dentro 7. Le stesse quote del badge del tile. */
+  bottom: -17px;
+  z-index: 3;
+  width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  padding: 0;
+  border: 1px solid var(--ob-line-2);
+  border-radius: 999px;
+  background: var(--ob-surface-2);
+  color: var(--ob-muted);
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 120ms ease-out, border-color 120ms ease-out;
+}
+.ob-boxfit:hover { color: var(--ob-accent); border-color: var(--ob-accent); }
+
+
+/* ── Il menu degli OGGETTI ───────────────────────────────────────────────────
+   Il pannello che si apre dallo strumento «Oggetti» nella topbar del canvas.
+
+   Sta CENTRATO SULLA FINESTRA, non sotto il suo pulsante, e per questo esce dal
+   flusso della barra: `position: fixed` in un portale su `document.body`. Non
+   è un vezzo di simmetria — `.ob-tools` sta in fondo alla barra, dentro una
+   colonna `overflow: hidden`, quindi un menu ancorato al pulsante cresceva
+   verso destra e veniva TAGLIATO: è così che il quarto oggetto era diventato
+   invisibile, e ogni oggetto aggiunto avrebbe spinto fuori il precedente. Al
+   centro della finestra lo spazio non finisce mai, e nessun antenato può
+   ritagliarlo.
+
+   Il `top` NON sta qui: lo misura il componente sul bordo basso della barra,
+   più 4px d'aria. In CSS servirebbe la quota della fascia sommata a quella
+   della navbar sopra — due numeri copiati che scadono al primo ritocco dello
+   shell.
+
+   Le voci non hanno cornice: sono `.ob-tool` con l'etichetta sotto, cioè la
+   stessa ricetta dei bottoni della barra da cui il menu esce — fondo al
+   passaggio, fondo tenue d'accento da armate. Un contorno per voce disegnava
+   una griglia di riquadri attorno a quattro dischi che sono già delle forme
+   chiuse: due cornici concentriche per la stessa cosa. */
+.ob-markermenu {
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 2px; padding: 4px;
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line-2);
+  border-radius: var(--ob-radius-md);
+  box-shadow: var(--ob-shadow-card);
+}
+.ob-markermenu__item {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  width: 56px; padding: 6px 4px;
+  border: none; background: transparent;
+  border-radius: var(--ob-radius-sm);
+  color: var(--ob-muted);
+  font-family: var(--ob-font-sans);
+  font-size: var(--ob-text-meta);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+/* La crocetta che chiude. Sta NELL'ANGOLO IN ALTO A DESTRA, sovrapposta
+   all'ultima voce: il disco del glifo è centrato nella sua colonna, quindi
+   quell'angolo è vuoto e la crocetta non le va addosso.
+   Una colonna sua avrebbe allargato il pannello di 20px per un comando che si
+   usa una volta sola.
+   È l'unico modo di chiudere insieme al pulsante «Oggetti»: il menu NON si
+   chiude più cliccando fuori, perché fuori c'è la lavagna — cioè il posto dove
+   si posano gli oggetti, e ogni posa lo avrebbe chiuso. */
+.ob-markermenu__close {
+  /* `right: 0` non la incolla al bordo: l'area cliccabile è 16px e il glifo
+     ne è 12, quindi si porta dietro 2px d'aria suoi. */
+  position: absolute; top: 3px; right: 0;
+  width: 16px; height: 16px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0; border: none; background: transparent;
+  border-radius: var(--ob-radius-sm);
+  color: var(--ob-subtle);
+  cursor: pointer;
+  transition: color 120ms ease-out;
+}
+.ob-markermenu__close:hover { color: var(--ob-text); }
+
+.ob-markermenu__item:hover { background: var(--ob-hover-strong); color: var(--ob-text); }
+/* ARMATO: fondo tenue d'accento PIÙ un filo pieno tutt'intorno.
+   Il solo fondo non bastava: `--ob-accent-soft` è una velatura da 1.2:1 sulla
+   superficie in scuro, cioè quasi invisibile — e uno stato che non si vede si
+   legge come uno stato che non c'è. È il motivo per cui lo strumento sembrava
+   disarmarsi da solo dopo ogni posa.
+   Il filo è un `inset box-shadow` e non un `border`: non sposta di un pixel il
+   contenuto della voce, quindi accendersi non fa saltare la fila. E non
+   contraddice le cornici tolte prima da tutte le voci — quelle erano permanenti
+   e decorative, questo compare solo sull'oggetto che sta per essere posato. */
+.ob-markermenu__item--on,
+.ob-markermenu__item--on:hover {
+  background: var(--ob-accent-soft);
+  color: var(--ob-accent);
+  box-shadow: inset 0 0 0 1.5px var(--ob-accent);
 }

@@ -97,6 +97,33 @@
   /* Semantic (derived from the type scale) */
   --ob-success: #3FAE72; /* timed  ← text  */
   --ob-error: #E0544F;   /* deadline ← voice */
+
+  /* ── MARCATORI di percorso del canvas (start / stop / goal / nodo) ────────
+     Tre dei quattro sono alias di token che esistono già, e non copie del loro
+     valore: uno stop è uno stato di errore, un goal è un esito riuscito, un
+     nodo è inchiostro neutro. Cambiando quelli cambiano anche questi, ed è
+     giusto così.
+     Il blu è l'unico scritto per esteso, perché un blu semantico l'app non ce
+     l'ha: è la stessa coppia chiaro/scuro del blu di sistema (#4F86EE /
+     #7AA7F5), ripetuta qui invece di aliasare `--ob-type-photo` — quello è il
+     colore del TIPO "foto", e legarci un marcatore inventerebbe una parentela
+     che non esiste.
+     ⚠️ In scuro vanno ridefiniti start e goal: gli altri due sono alias e
+     seguono da soli, perché `var()` si risolve al momento dell'uso. */
+  --ob-marker-start: #4F86EE;
+  --ob-marker-stop: var(--ob-error);
+  /* Il goal è l'ECCEZIONE fra gli alias, e per un motivo misurabile: il disco è
+     PIENO e il glifo ci sta dentro, quindi i due colori devono contrastare.
+     `--ob-success` (#3FAE72) contro il bianco dà 2.83:1, sotto il 3:1 che serve
+     a una forma grafica. Questo verde è lo stesso, più cupo quanto basta: 3.60:1.
+     In scuro il problema non si pone (l'inchiostro lì è nero) e si torna all'alias. */
+  --ob-marker-goal: #2E9A60;
+  --ob-marker-milestone: var(--ob-text);
+  /* Il colore DENTRO il disco. È quello della carta, non un bianco fisso: in
+     chiaro il glifo è bianco su disco colorato, in scuro è nero — perché in
+     scuro i quattro colori sono tutti schiariti (il blu #7AA7F5 col bianco fa
+     2.38:1) e l'inchiostro chiaro sparirebbe. Un solo token, due letture. */
+  --ob-marker-ink: var(--ob-canvas);
   --ob-info: #4F86EE;    /* all-day ← photo */
   --ob-warning: #C99220; /* amber  ← file  */
 
@@ -171,6 +198,10 @@
   /* Semantic (derived from the type scale) */
   --ob-success: #74D6A2; /* timed  ← text  */
   --ob-error: #F38682;   /* deadline ← voice */
+
+  /* Start e goal: stop e milestone sono alias e seguono i loro token. */
+  --ob-marker-start: #7AA7F5;
+  --ob-marker-goal: var(--ob-success);
   --ob-info: #7AA7F5;    /* all-day ← photo */
   --ob-warning: #E7C25E; /* amber  ← file  */
 
@@ -307,15 +338,21 @@
   --ob-toolbar-height: 44px;
 
   /* ── Scala del TILE ──────────────────────────────────────────────────────
-     Il tile è disegnato su un rettangolo di 150×80 e mostrato a 0.8, cioè
-     120×64. È la misura STANDARD: canvas, staging, colonne di CHRONO
-     (Notes/Todo/Flow) e Kanban lo mostrano tutti così.
+     Il tile è disegnato su un rettangolo di 160×90 e mostrato a 0.8, cioè
+     128×72 — 16:9 sia da disegnato che da mostrato. È la misura STANDARD:
+     canvas, staging, colonne di CHRONO (Notes/Todo/Flow) e Kanban lo mostrano
+     tutti così.
 
-     Perché una scala e non un rettangolo da 120×64 ridisegnato: `zoom` riduce
+     Perché una scala e non un rettangolo da 128×72 ridisegnato: `zoom` riduce
      ANCHE l'interno — testo, spaziature, strip, badge — mantenendo le
-     proporzioni che rendono il tile leggibile. Ridisegnarlo a 120×64 avrebbe
+     proporzioni che rendono il tile leggibile. Ridisegnarlo a 128×72 avrebbe
      voluto dire ricalcolare a mano ogni misura interna, e i corpi tipografici
      sarebbero caduti fuori dalla scala canonica (8/9/11/12/13/16).
+
+     ⚠️ Per cambiare l'ingombro si tocca il RETTANGOLO (`TILE_BASE_W/H` in
+     lib/tile-visual.ts + `width`/`height` di `.ob-tile`), non questa scala:
+     lo zoom governa anche il corpo del testo, e ritoccarlo rimpicciolirebbe o
+     ingrosserebbe tutto l'interno insieme al rettangolo.
 
      ⚠️ Il gemello di questo numero è `TILE_SCALE` in lib/tile-visual.ts, che
      serve al canvas per la geometria SVG (JavaScript non può leggere un token
@@ -327,10 +364,34 @@
      "12px generico" dell'app: lo usano un centinaio di punti fra sidebar,
      modali, pagina dei tag, contatti ed editor markdown. Portarlo a 13 per far
      crescere il titolo del tile avrebbe ingrossato tutti quelli insieme.
-     Resta dentro la scala canonica (8/9/11/12/13/16): è il 13, non un valore
-     inventato per l'occasione.
-     ⚠️ È un corpo NOMINALE: lo zoom del tile (0.8) lo riduce a 10,4px reali. */
-  --ob-tile-title: 13px;
+     ⚠️ È un corpo NOMINALE: lo zoom del tile (0.8) lo riduce a 12px reali —
+     che è poi il motivo per cui 15 non stona pur essendo fuori dalla scala
+     canonica (8/9/11/12/13/16). Sullo schermo il titolo rende esattamente il
+     12 della scala; il 15 è solo il numero che serve a monte dello zoom. */
+  --ob-tile-title: 15px;
+
+  /* Interlinea del titolo del tile. Ha un token suo e non usa
+     `--ob-leading-tight` (1.3) per una ragione di GEOMETRIA, non di gusto: da
+     quando il titolo è clampato a TRE righe il conto è al pixel, e a 1.3 la
+     terza riga finiva 1,5px dentro la scatola del footer. A 1.2 ne resta 3
+     sopra. Il conto completo sta sul commento di `.ob-tile__body`
+     (obsidian-primitives.css), accanto al padding da cui dipende.
+     Tipograficamente non si perde niente: 1.2 su un titolo breve e in grassetto
+     è interlinea normale, ed è la stessa aria che avevano le due righe di prima
+     viste dopo lo zoom.
+     ⚠️ Alzarla fa collidere la terza riga col footer: è un vincolo. */
+  --ob-tile-title-leading: 1.2;
+
+  /* Peso del titolo del tile.
+     ⚠️ Il 500 NON è nella scala dei pesi (400 body / 600 emphasis / 700 mono):
+     è un peso che il sistema aveva deliberatamente ritirato. Vive qui, in un
+     token tutto suo, e non come `--ob-weight-medium`, proprio per non
+     riaprirlo a tutta l'app: è una calibratura del solo titolo del tile, che
+     è l'unico testo che il browser disegna dopo uno zoom.
+     Regge perché Geist è caricato come variable font (nessun `weight` fissato
+     in layout.tsx), quindi l'asse 100–900 è continuo e il 500 è un peso vero,
+     non un'approssimazione al 400 più vicino. */
+  --ob-tile-title-weight: 500;
 
   /* Rosso dell'azione distruttiva (elimina, conferma eliminazione).
      È DISTINTO da `--ob-error`, che segnala uno stato e cambia col tema
@@ -338,6 +399,18 @@
      chiaro e scuro — come si comportava già quando era scritto a mano in 17
      punti, senza coincidere con nessuno dei due valori di --ob-error. */
   --ob-danger: #E24B4A;
+
+  /* Rosso del FOCUS — la cornice tratteggiata sull'attività di adesso.
+     È il rosso PIÙ ACCESO della tavolozza, e sta qui fra gli invarianti per la
+     stessa ragione di `--ob-danger`: non descrive uno stato del tile (quello è
+     `--ob-error`, che si smorza col tema — #E0544F in chiaro, #F38682 in
+     scuro), descrive DOVE STAI GUARDANDO. Un segno del genere non può
+     schiarirsi o spegnersi a seconda del tema: deve essere la cosa più forte
+     sulla lavagna in entrambi, e il salmone del tema scuro non lo era.
+     Puro e saturo di proposito, fuori dalla famiglia smorzata del resto della
+     tavolozza: è esattamente ciò che lo fa saltare all'occhio. Regge perché è
+     RARO — acceso su venti tile sarebbe solo chiasso. */
+  --ob-focus: #FF2E2E;
 
   /* Spacing scale (step of 4) */
   --ob-space-4: 4px;

@@ -33,7 +33,7 @@ interface Props {
   onToggle?: () => void;
 }
 
-/** L'ingombro reale di un tile: 120, non il 150 su cui è disegnato. Arriva dal
+/** L'ingombro reale di un tile: 128, non il 160 su cui è disegnato. Arriva dal
  *  sistema visivo perché la colonna deve essere larga quanto il tile è, non
  *  quanto sarebbe se non fosse scalato. */
 
@@ -51,7 +51,7 @@ const STAGING_SCROLLBAR_W = 6;
  * Larghezza minima del pannello: esattamente UNA colonna di tile, stessa regola
  * delle colonne NOTES/TODO/FLOW di CHRONO (`.ob-chrono__col`) e delle lane del
  * KANBAN, che come qui includono anche il gutter della scrollbar.
- * 120 + 8+8 + 6 + 1 = 143. Sotto questa soglia il tile verrebbe tagliato, quindi
+ * 128 + 8+8 + 6 + 1 = 151. Sotto questa soglia il tile verrebbe tagliato, quindi
  * è il limite sia del resize col separatore sia del valore ripristinato da
  * localStorage.
  */
@@ -275,7 +275,7 @@ export function StagingPanel({
    * restare presentazionale: il trascinamento verso la board, e la GRONDA di
    * 9px in cui sborda il badge d'angolo. La gronda sta sul contenitore e non
    * come margine sul tile — un margine ne sposterebbe l'allineamento, un
-   * padding lascia il rettangolo intatto a 150×80.
+   * padding lascia il rettangolo intatto a 160×90.
    */
   const renderTile = (t: Tile) => {
     const si = getIconForTile(t.id);
@@ -331,6 +331,7 @@ export function StagingPanel({
           meta={meta}
           sparks={(t.sparks ?? []).map((s) => s.type)}
           accent={accent}
+          focused={!!t.is_focused}
           active={selectedTileId === t.id}
           onClick={onTileClick ? () => onTileClick(t.id) : undefined}
         />

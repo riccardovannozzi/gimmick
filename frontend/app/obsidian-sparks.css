@@ -1,124 +1,29 @@
 /* ─────────────────────────────────────────────────────────────────────────────
    Gimmick · Obsidian — Sparks list view (buffer / triage).
 
-   Filterable list: Nome · Tipo · Data · Dim. · AI · Azioni, with per-type
-   filter chips and column sorting. Reference: GimmickBuffer.dc.html.
-   Type colors come from the canonical `--ob-type-*` scale. The per-type tint
-   uses a local `--badge-c` so light/dark text contrast can be theme-switched.
+   Qui resta SOLO ciò che è degli spark: il badge del tipo, il quadrato dell'AI,
+   il cestino di riga e i tre corpi di testo delle celle.
+
+   Cornice, intestazione appiccicata, fili, righe da 44 e barra dei comandi non
+   stanno più qui: sono `.ob-tablecard` / `.ob-table` / `.ob-toolbar` in
+   `obsidian-primitives.css`, condivisi con Tiles, Tags e Contatti. Erano una
+   griglia CSS tutta locale (`--ob-sparks-grid`) più una fila di chip pieni: due
+   vocabolari che non tornavano da nessun'altra parte dell'app.
+
+   Il colore per tipo passa da `--badge-c`, locale, così il contrasto del testo
+   si può cambiare per tema senza toccare la scala `--ob-type-*`.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.ob-sparks { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); --ob-sparks-grid: minmax(0, 1fr) 108px 120px 88px 64px 78px; }
-
-/* ── Toolbar ── */
-.ob-sparks__toolbar {
-  height: var(--ob-toolbar-height); flex-shrink: 0;
-  display: flex; align-items: center; gap: 12px;
-  padding: 0 20px;
-  background: var(--ob-head);
-  border-bottom: 1px solid var(--ob-line);
-}
-/* Striscia dei chip di filtro, dentro l'UNICA toolbar della vista. Prende lo
-   spazio a sinistra e spinge ricerca e filtro-tipo a destra: niente più
-   spaziatore. Scorre in orizzontale quando i chip non ci stanno, con la barra
-   nascosta — in una fascia alta come questa si mangerebbe l'altezza. */
-.ob-sparks__chipbar {
-  flex: 1; min-width: 0;
-  display: flex; align-items: center; gap: 8px;
-  overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none;
-}
-.ob-sparks__chipbar::-webkit-scrollbar { display: none; }
-/* 30 = altezza di ogni controllo di barra dello shell (toolbar canvas, chip,
-   tab dell'inspector, segmentati). `.ob-field` non dichiara un'altezza: cresce
-   sul contenuto con `padding: 9px 12px`, cioè ~40px, ed era il pezzo che
-   sfalsava la fascia. Il padding verticale va azzerato: con `border-box` non si
-   somma all'altezza, ma stringerebbe la scatola del contenuto sotto ai 30. */
-.ob-sparks__search { width: 220px; height: 30px; padding: 0 12px; background: var(--ob-surface-2); border-color: var(--ob-line); }
-.ob-sparks__typefilter {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 30px; padding: 0 13px;
-  border-radius: var(--ob-radius-sm);
-  border: 1px solid var(--ob-line-2);
-  background: transparent;
-  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-muted);
-  cursor: pointer;
-}
-.ob-sparks__typefilter-icon { color: var(--ob-subtle); display: inline-flex; }
-
-/* ── Filter chips ── */
-.ob-sparks__chip {
-  display: inline-flex; align-items: center; gap: 7px;
-  height: 30px; padding: 0 12px;
-  border-radius: var(--ob-radius-sm);
-  background: var(--ob-surface);
-  border: 1px solid var(--ob-line);
-  color: var(--ob-muted);
-  font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis);
-  cursor: pointer; white-space: nowrap;
-  transition: background-color 120ms ease-out, border-color 120ms ease-out, color 120ms ease-out;
-}
-.ob-sparks__chip:hover { border-color: var(--ob-line-2); }
-.ob-sparks__chip-icon { color: var(--ob-subtle); display: inline-flex; }
-.ob-sparks__chip-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); color: var(--ob-subtle); opacity: 0.8; }
-/* active — accent ("Tutti") */
-.ob-sparks__chip--accent { background: var(--ob-accent-soft); border-color: transparent; color: var(--ob-accent); }
-.ob-sparks__chip--accent .ob-sparks__chip-icon { color: var(--ob-accent); }
-.ob-sparks__chip--accent .ob-sparks__chip-count { color: inherit; }
-/* active — typed */
-.ob-sparks__chip--type {
-  background: color-mix(in srgb, var(--badge-c) 13%, transparent);
-  border-color: color-mix(in srgb, var(--badge-c) 28%, transparent);
-  color: var(--badge-c);
-}
-.ob-sparks__chip--type .ob-sparks__chip-icon { color: var(--badge-c); }
-.ob-sparks__chip--type .ob-sparks__chip-count { color: inherit; }
-[data-theme='dark'] .ob-sparks__chip--type { color: var(--ob-text); }
-
-/* ── Table ── */
-.ob-sparks__scroll { flex: 1; min-height: 0; overflow-y: auto; }
-.ob-sparks__head {
-  display: grid;
-  grid-template-columns: var(--ob-sparks-grid);
-  align-items: center;
-  height: 40px;
-  padding: 0 20px;
-  background: var(--ob-head);
-  border-bottom: 1px solid var(--ob-line-2);
-  position: sticky; top: 0; z-index: 2;
-}
-.ob-sparks__hcell { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.ob-sparks__hcell--center { justify-content: center; }
-.ob-sparks__hcell--sortable { cursor: pointer; background: none; border: none; padding: 0; font: inherit; }
-.ob-sparks__hlabel { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-mono); letter-spacing: 0.13em; color: var(--ob-subtle); }
-.ob-sparks__hcell--active .ob-sparks__hlabel { color: var(--ob-accent); }
-.ob-sparks__hsort { color: var(--ob-accent); display: inline-flex; }
-
-.ob-sparks__row {
-  display: grid;
-  grid-template-columns: var(--ob-sparks-grid);
-  align-items: center;
-  min-height: 50px;
-  padding: 0 20px;
-  border-bottom: 1px solid var(--ob-line);
-  transition: background-color 120ms ease-out;
-}
-.ob-sparks__row:last-child { border-bottom: none; }
-.ob-sparks__row:hover { background: var(--ob-hover); }
-.ob-sparks__row--clickable { cursor: pointer; }
-.ob-sparks__cell { display: flex; align-items: center; min-width: 0; }
-.ob-sparks__cell--center { justify-content: center; }
-
 /* Colonna-contenuto: il nome è testo scritto dall'utente, non un dato tecnico.
-   Sta quindi in sans (ereditato da `.ob-sparks`, come `.ob-tiles__title` nella
-   tabella gemella) e porta il peso di enfasi, che è ciò che la distingue dalle
-   celle di servizio. Era mono/500: il mono resta a date, dimensioni e contatori
-   qui sotto, dove incolonna cifre e serve davvero. */
-.ob-sparks__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+   Sta quindi in sans e porta il peso di enfasi, che è ciò che lo distingue dalle
+   celle di servizio. Il mono resta a date e dimensioni qui sotto, dove incolonna
+   cifre e serve davvero. */
+.ob-sparks__name { font-size: var(--ob-text-control); font-weight: var(--ob-weight-emphasis); color: var(--ob-text); }
 .ob-sparks__date { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); color: var(--ob-muted); }
 .ob-sparks__dim { font-family: var(--ob-font-mono); font-size: var(--ob-text-card); color: var(--ob-muted); }
 .ob-sparks__dim--empty { color: var(--ob-faint); }
 
-/* type badge */
+/* ── Badge del tipo ── */
 .ob-sparks__type {
   display: inline-flex; align-items: center; gap: 6px;
   border-radius: var(--ob-radius-sm); padding: 3px 9px;
@@ -129,14 +34,19 @@
 .ob-sparks__type-name { font-size: var(--ob-text-meta); font-weight: var(--ob-weight-emphasis); letter-spacing: 0.02em; color: var(--badge-c); }
 [data-theme='dark'] .ob-sparks__type-name { color: var(--ob-text); }
 
-/* AI cell */
-.ob-sparks__ai { width: 18px; height: 18px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2); }
-.ob-sparks__ai--on { border: none; background: var(--ob-type-text); color: #fff; display: flex; align-items: center; justify-content: center; }
+/* ── Cella AI ──
+   `inline-flex` e non `flex`: la cella la centra con `text-align`, e un blocco
+   se ne starebbe a sinistra ignorandolo. */
+.ob-sparks__ai {
+  width: 18px; height: 18px; border-radius: var(--ob-radius-sm); border: 1.5px solid var(--ob-line-2);
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+}
+.ob-sparks__ai--on { border: none; background: var(--ob-type-text); color: #fff; }
 
-/* row delete */
+/* ── Cestino di riga ── */
 .ob-sparks__del {
   width: 28px; height: 28px; border-radius: var(--ob-radius-sm);
-  display: flex; align-items: center; justify-content: center;
+  display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
   color: var(--ob-faint);
   border: 1px solid var(--ob-line);
   background: transparent;
@@ -144,5 +54,3 @@
   transition: color 120ms ease-out, border-color 120ms ease-out, background-color 120ms ease-out;
 }
 .ob-sparks__del:hover { color: var(--ob-error); border-color: color-mix(in srgb, var(--ob-error) 35%, transparent); background: color-mix(in srgb, var(--ob-error) 9%, transparent); }
-
-.ob-sparks__empty { padding: 40px; text-align: center; font-size: var(--ob-text-control); color: var(--ob-subtle); }

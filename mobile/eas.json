@@ -23,7 +23,11 @@
         "APP_VARIANT": "preview",
         "EXPO_PUBLIC_OBSIDIAN_SHELL": "1",
         "EXPO_PUBLIC_SUPABASE_URL": "https://ohquyslqsikzxbfsitni.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ocXV5c2xxc2lrenhiZnNpdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNjI3MDQsImV4cCI6MjA4MzYzODcwNH0.lMQQLytwe7RijfJhFb_50Mdi2BSLfDIR3icxEDwgTSY"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ocXV5c2xxc2lrenhiZnNpdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNjI3MDQsImV4cCI6MjA4MzYzODcwNH0.lMQQLytwe7RijfJhFb_50Mdi2BSLfDIR3icxEDwgTSY",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://7d5d57ec76b898465dfada743a766cc8@o4511921960386560.ingest.de.sentry.io/4511922013929552",
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "preview",
+        "SENTRY_ORG": "ilvannozzi",
+        "SENTRY_PROJECT": "gimmick-mobile"
       }
     },
     "production": {
@@ -32,7 +36,11 @@
         "APP_VARIANT": "production",
         "EXPO_PUBLIC_OBSIDIAN_SHELL": "1",
         "EXPO_PUBLIC_SUPABASE_URL": "https://ohquyslqsikzxbfsitni.supabase.co",
-        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ocXV5c2xxc2lrenhiZnNpdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNjI3MDQsImV4cCI6MjA4MzYzODcwNH0.lMQQLytwe7RijfJhFb_50Mdi2BSLfDIR3icxEDwgTSY"
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9ocXV5c2xxc2lrenhiZnNpdG5pIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjgwNjI3MDQsImV4cCI6MjA4MzYzODcwNH0.lMQQLytwe7RijfJhFb_50Mdi2BSLfDIR3icxEDwgTSY",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://7d5d57ec76b898465dfada743a766cc8@o4511921960386560.ingest.de.sentry.io/4511922013929552",
+        "EXPO_PUBLIC_SENTRY_ENVIRONMENT": "production",
+        "SENTRY_ORG": "ilvannozzi",
+        "SENTRY_PROJECT": "gimmick-mobile"
       }
     }
   },

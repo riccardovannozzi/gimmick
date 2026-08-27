@@ -312,7 +312,7 @@ export const tilesApi = {
     });
   },
 
-  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; status_id?: string | null; sort_order?: number }) {
+  async update(id: string, updates: { title?: string; action_type?: ActionType; is_event?: boolean; all_day?: boolean; start_at?: string | null; end_at?: string | null; is_completed?: boolean; is_cta?: boolean; is_focused?: boolean; status_id?: string | null; sort_order?: number }) {
     return apiRequest<Tile>(`/api/tiles/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -774,14 +774,14 @@ export const canvasApi = {
     return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }[]>(`/api/canvas/boxes/${tagId}`);
   },
 
-  async addBox(tagId: string, data: { type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
-    return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
+  async addBox(tagId: string, data: { type: 'text' | 'image' | 'marker' | 'subject'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
+    return apiRequest<{ id: string; type: 'text' | 'image' | 'marker' | 'subject'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateBox(id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
+  async updateBox(id: string, updates: { type?: 'text' | 'image' | 'marker' | 'subject'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
     return apiRequest(`/api/canvas/boxes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

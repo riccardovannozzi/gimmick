@@ -19,7 +19,7 @@ import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { cn } from '@/lib/utils';
 import { Tile } from '@/components/tiles/Tile';
 import { tileVisualKey, type StepState, type TileStatus } from '@/lib/tile-visual';
-import { IconLayoutGrid } from '@tabler/icons-react';
+import { IconCube } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
 import { Icon, type ShellIconName } from '@/components/shell';
@@ -86,6 +86,11 @@ export interface ColTile {
    *  booleani, e un booleano non sa dire «fermo»: il rosso non poteva arrivare
    *  fin qui. */
   steps?: StepState[];
+  /** In FOCUS: l'attività su cui si sta lavorando adesso → cornice rossa
+   *  tratteggiata tutt'intorno al tile. Vive sul tile, quindi si vede in ogni
+   *  vista che lo disegna — un segno che sparisce cambiando scheda non è un
+   *  segno. */
+  focused?: boolean;
   /** ISO di creazione — usato dall'ordinamento "Recenti" nelle colonne. */
   createdAt?: string;
   /** Nome grezzo dello status (`active`, `done`, `paused`…). Distinto da
@@ -104,7 +109,7 @@ export interface ColTile {
  * presentazionale: il trascinamento verso la griglia del calendario, e la
  * GRONDA di 9px. La gronda sta sulla cella e non sul tile — un margine sul tile
  * ne sposterebbe l'allineamento; un padding sulla cella lascia il rettangolo
- * intatto a 150×80 e riserva sopra lo spazio in cui i badge sbordano.
+ * intatto a 160×90 e riserva sopra lo spazio in cui i badge sbordano.
  */
 function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTile; onClick?: () => void; active?: boolean; schedulable?: boolean; onContextMenu?: (e: React.MouseEvent) => void }) {
   const canDrag = !!schedulable && !!t.id;
@@ -124,6 +129,7 @@ function TileCard({ t, onClick, active, schedulable, onContextMenu }: { t: ColTi
         steps={t.steps}
         sparks={t.sparks}
         accent={t.bg ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        focused={t.focused}
         active={active}
         onClick={onClick}
         onContextMenu={onContextMenu}
@@ -948,7 +954,7 @@ export function ChronoView({
               comando: armato, il click sul calendario posiziona la tile — per
               questo resta acceso, come gli strumenti di disegno del canvas. */}
           <ToolButton
-            icon={<IconLayoutGrid size={16} stroke={1.6} />}
+            icon={<IconCube size={16} stroke={1.6} />}
             label={addArmed
               ? 'Clicca sul calendario per posizionare la tile (Esc per annullare)'
               : 'Posiziona una nuova tile sul calendario'}

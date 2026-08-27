@@ -128,6 +128,7 @@ function toColTile(t: Tile, statusById: Map<string, Status>, iconOf: (tileId: st
     // l'etichetta tradotta che `cardStatus` produce per lo swatch.
     statusName: (t.status_id ? statusById.get(t.status_id)?.name : undefined) as TileStatus | undefined,
     type: ti ? { icon: ti.icon, color: ti.color ?? '#5C5868' } : undefined,
+    focused: !!t.is_focused,
     sparkCount: (t.sparks ?? []).length,
   };
 }

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import * as Sentry from '@sentry/react-native';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApi, setTokens, setOnAuthFailed, setOnTokensRefreshed } from '@/lib/api';
@@ -263,6 +264,26 @@ setOnTokensRefreshed((tokens) => {
     refreshToken: tokens.refresh_token,
     expiresAt: tokens.expires_at ?? null,
   });
+});
+
+/**
+ * CHI ha incontrato l'errore — l'id e nient'altro.
+ *
+ * Registrata a livello di modulo come i due ponti qui sopra, e per la stessa
+ * ragione: è una SOTTOSCRIZIONE allo stato, quindi la vedono tutte le strade che
+ * cambiano utente — login, idratazione da AsyncStorage, logout automatico al
+ * 401 — comprese quelle che verranno aggiunte dopo.
+ *
+ * Senza, la regola «dell'utente resta solo l'id» in `lib/sentry.ts` non ha mai
+ * un id da tenere. Il confronto con l'ultimo valore evita di riscrivere lo scope
+ * a ogni cambio di `isLoading`.
+ */
+let lastSentryUserId: string | null = null;
+useAuthStore.subscribe((state) => {
+  const id = state.user?.id ?? null;
+  if (id === lastSentryUserId) return;
+  lastSentryUserId = id;
+  Sentry.setUser(id ? { id } : null);
 });
 
 // Selectors

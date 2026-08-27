@@ -3,15 +3,28 @@
 /**
  * Gimmick · Obsidian — Sparks list view (buffer / triage).
  *
- * Filterable, sortable list of captured sparks: Nome · Tipo · Data · Dim. · AI ·
- * Azioni, with per-type filter chips. Reference: GimmickBuffer.dc.html.
- * Type colors come from the canonical `--ob-type-*` scale. Self-contained — drop
- * into the shell's ViewContainer with `hideToolbar`.
+ * Lista filtrabile e ordinabile degli spark catturati: Nome · Tipo · Data ·
+ * Dim. · AI · Azioni.
+ *
+ * Tabella e barra sono quelle CONDIVISE (`components/primitives/table.tsx`), le
+ * stesse di Tiles, Tags e Contatti. Prima era una griglia CSS tutta sua
+ * (`--ob-sparks-grid`, righe da 50, intestazione senza fili verticali) e una
+ * barra di chip pieni con contorno: due vocabolari che qui non tornavano più da
+ * nessun'altra parte dell'app.
+ *
+ * I chip di filtro sono diventati PAROLE (`ToolWord`), come i comandi di chrono:
+ * cambiano cosa guardi e non toccano i dati, quindi sono i più leggeri della
+ * barra. Il colore del tipo non è andato perso — è il tono che la parola prende
+ * da accesa, esattamente come il verde di «Done» in chrono.
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
-import { IconCheck, IconTrash, IconArrowUp, IconArrowDown } from '@tabler/icons-react';
-import { Field } from '@/components/primitives';
+import { IconCheck, IconTrash } from '@tabler/icons-react';
+import {
+  TableCard, Table, TableBody, TableRow, TableCell, TableText, TableEmpty,
+  Toolbar, ToolbarGap, ToolGroup, ToolWord,
+  type TableColumn,
+} from '@/components/primitives';
 import { Icon, type ShellIconName } from '@/components/shell';
 
 // ─── Model ────────────────────────────────────────────────────────────────────
@@ -64,14 +77,14 @@ function sortVal(s: SparkItem, k: SortKey): string | number {
   return s.name.toLowerCase();
 }
 
-interface Col { key: string; label: string; center?: boolean; sort?: SortKey }
-const COLS: Col[] = [
-  { key: 'name', label: 'NOME', sort: 'name' },
-  { key: 'type', label: 'TIPO', sort: 'type' },
-  { key: 'date', label: 'DATA', sort: 'date' },
-  { key: 'dimv', label: 'DIM.', sort: 'dimv' },
-  { key: 'ai', label: 'AI', center: true, sort: 'ai' },
-  { key: 'actions', label: 'AZIONI', center: true },
+/** NOME senza larghezza: è la colonna-contenuto e prende lo spazio che avanza. */
+const COLUMNS: TableColumn[] = [
+  { key: 'name', label: 'Nome', sortable: true },
+  { key: 'type', label: 'Tipo', width: 130, sortable: true },
+  { key: 'date', label: 'Data', width: 116, sortable: true },
+  { key: 'dimv', label: 'Dim.', width: 100, sortable: true },
+  { key: 'ai', label: 'AI', width: 60, align: 'center', sortable: true },
+  { key: 'actions', label: 'Azioni', width: 78, align: 'center' },
 ];
 
 // ─── Subcomponents ────────────────────────────────────────────────────────────
@@ -98,10 +111,10 @@ export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewPr
   const [sortKey, setSortKey] = React.useState<SortKey>('date');
   const [sortDir, setSortDir] = React.useState<SortDir>('desc');
 
-  const toggleSort = (k?: SortKey) => {
-    if (!k) return;
-    if (sortKey === k) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    else { setSortKey(k); setSortDir('asc'); }
+  const toggleSort = (k: string) => {
+    const key = k as SortKey;
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir('asc'); }
   };
 
   const counts = React.useMemo(() => {
@@ -122,7 +135,7 @@ export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewPr
     });
   }, [sparks, filter, search, sortKey, sortDir]);
 
-  const chipDefs: Array<{ id: 'all' | SparkKind; label: string; type?: SparkKind; count: number }> = [
+  const filters: Array<{ id: 'all' | SparkKind; label: string; type?: SparkKind; count: number }> = [
     { id: 'all', label: 'Tutti', count: sparks.length },
     { id: 'audio', label: 'Audio', type: 'audio', count: counts.audio ?? 0 },
     { id: 'text', label: 'Text', type: 'text', count: counts.text ?? 0 },
@@ -132,119 +145,89 @@ export function SparksView({ sparks = SPARKS, onDelete, onSelect }: SparksViewPr
   ];
 
   return (
-    <div className="ob-sparks">
-      {/* Toolbar — una sola fascia: i chip di filtro stavano in una seconda
-          barra sotto, e la prima conteneva solo il nome della vista (già scritto
-          nel tab della navbar) più il suo conteggio (già nel chip "Tutti"). */}
-      <div className="ob-sparks__toolbar">
-        <div className="ob-sparks__chipbar">
-          {chipDefs.map((c) => {
-            const active = filter === c.id;
-            const color = c.type ? TYPE_META[c.type].color : undefined;
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => setFilter(c.id)}
-                className={cn('ob-sparks__chip', active && (c.type ? 'ob-sparks__chip--type' : 'ob-sparks__chip--accent'))}
-                style={color ? ({ ['--badge-c' as string]: color }) : undefined}
-              >
-                <span className="ob-sparks__chip-icon">
-                  <Icon name={c.type ? TYPE_META[c.type].icon : 'sparkles'} size={c.type ? 13 : 12} />
-                </span>
-                {c.label}
-                <span className="ob-sparks__chip-count">{c.count}</span>
-              </button>
-            );
-          })}
-        </div>
-        <Field
-          wrapperClassName="ob-sparks__search"
-          leading={<Icon name="search" size={14} />}
+    <div className="ob-tablepage">
+      <Toolbar>
+        <ToolGroup>
+          {filters.map((f) => (
+            <ToolWord
+              key={f.id}
+              on={filter === f.id}
+              tone={f.type ? TYPE_META[f.type].color : undefined}
+              onClick={() => setFilter(f.id)}
+              title={f.type ? `Solo ${f.label.toLowerCase()}` : 'Tutti i tipi'}
+            >
+              {f.label}
+              <span className="ob-toolword__n">{f.count}</span>
+            </ToolWord>
+          ))}
+        </ToolGroup>
+        <ToolbarGap />
+        <input
+          className="ob-toolinput"
+          style={{ width: 220 }}
           placeholder="Cerca…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button type="button" className="ob-sparks__typefilter">
-          <span className="ob-sparks__typefilter-icon"><Icon name="filter" size={13} /></span>
-          Tutti i tipi
-          <span className="ob-sparks__typefilter-icon"><Icon name="chevD" size={12} /></span>
-        </button>
-      </div>
+      </Toolbar>
 
-      {/* Table */}
-      <div className="ob-sparks__scroll ob-scroll">
-        <div className="ob-sparks__head">
-          {COLS.map((c) => {
-            const active = !!c.sort && sortKey === c.sort;
-            const content = (
-              <>
-                <span className="ob-sparks__hlabel">{c.label}</span>
-                {active && (
-                  <span className="ob-sparks__hsort">
-                    {sortDir === 'asc' ? <IconArrowUp size={11} stroke={1.8} /> : <IconArrowDown size={11} stroke={1.8} />}
-                  </span>
-                )}
-              </>
-            );
-            const cls = cn('ob-sparks__hcell', c.center && 'ob-sparks__hcell--center', active && 'ob-sparks__hcell--active');
-            return c.sort ? (
-              <button key={c.key} type="button" className={cn(cls, 'ob-sparks__hcell--sortable')} onClick={() => toggleSort(c.sort)}>
-                {content}
-              </button>
-            ) : (
-              <div key={c.key} className={cls}>{content}</div>
-            );
-          })}
-        </div>
-
-        {rows.length ? (
-          rows.map((s) => (
-            <div
-              key={s.id}
-              className={cn('ob-sparks__row', onSelect && 'ob-sparks__row--clickable')}
-              onClick={onSelect ? () => onSelect(s.id) : undefined}
-              role={onSelect ? 'button' : undefined}
-              tabIndex={onSelect ? 0 : undefined}
-              onKeyDown={
-                onSelect
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        onSelect(s.id);
-                      }
-                    }
-                  : undefined
-              }
-            >
-              <div className="ob-sparks__cell"><span className="ob-sparks__name">{s.name}</span></div>
-              <div className="ob-sparks__cell"><TypeBadge type={s.type} /></div>
-              <div className="ob-sparks__cell"><span className="ob-sparks__date">{s.date}</span></div>
-              <div className="ob-sparks__cell">
-                <span className={cn('ob-sparks__dim', !s.dim && 'ob-sparks__dim--empty')}>{s.dim ?? '—'}</span>
-              </div>
-              <div className="ob-sparks__cell ob-sparks__cell--center">
-                {s.ai ? (
-                  <span className="ob-sparks__ai ob-sparks__ai--on"><IconCheck size={12} stroke={2.4} /></span>
-                ) : (
-                  <span className="ob-sparks__ai" />
-                )}
-              </div>
-              <div className="ob-sparks__cell ob-sparks__cell--center">
-                <button
-                  type="button"
-                  className="ob-sparks__del"
-                  aria-label="Elimina spark"
-                  onClick={(e) => { e.stopPropagation(); onDelete?.(s.id); }}
+      <div className="ob-tableview">
+        <TableCard>
+          <Table columns={COLUMNS} sortKey={sortKey} sortDir={sortDir} onSort={toggleSort}>
+            <TableBody>
+              {rows.map((s) => (
+                <TableRow
+                  key={s.id}
+                  interactive={!!onSelect}
+                  onClick={onSelect ? () => onSelect(s.id) : undefined}
+                  tabIndex={onSelect ? 0 : undefined}
+                  onKeyDown={
+                    onSelect
+                      ? (e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            onSelect(s.id);
+                          }
+                        }
+                      : undefined
+                  }
                 >
-                  <IconTrash size={14} stroke={1.6} />
-                </button>
-              </div>
-            </div>
-          ))
-        ) : (
-          <div className="ob-sparks__empty">Nessuno spark di questo tipo.</div>
-        )}
+                  <TableCell><TableText className="ob-sparks__name">{s.name}</TableText></TableCell>
+                  <TableCell><TypeBadge type={s.type} /></TableCell>
+                  <TableCell><span className="ob-sparks__date">{s.date}</span></TableCell>
+                  <TableCell>
+                    <span className={cn('ob-sparks__dim', !s.dim && 'ob-sparks__dim--empty')}>{s.dim ?? '—'}</span>
+                  </TableCell>
+                  <TableCell align="center">
+                    {/* Acceso = indicizzato dall'AI. Lo spento è un quadrato vuoto e
+                        non un trattino: sta in colonna sotto quelli accesi, e la
+                        differenza si legge di colpo scorrendo la lista. */}
+                    {s.ai ? (
+                      <span className="ob-sparks__ai ob-sparks__ai--on"><IconCheck size={12} stroke={2.4} /></span>
+                    ) : (
+                      <span className="ob-sparks__ai" />
+                    )}
+                  </TableCell>
+                  <TableCell align="center">
+                    <button
+                      type="button"
+                      className="ob-sparks__del"
+                      aria-label="Elimina spark"
+                      onClick={(e) => { e.stopPropagation(); onDelete?.(s.id); }}
+                    >
+                      <IconTrash size={14} stroke={1.6} />
+                    </button>
+                  </TableCell>
+                </TableRow>
+              ))}
+              {rows.length === 0 && (
+                <TableEmpty colSpan={COLUMNS.length}>
+                  {search ? 'Nessun risultato' : 'Nessuno spark di questo tipo'}
+                </TableEmpty>
+              )}
+            </TableBody>
+          </Table>
+        </TableCard>
       </div>
     </div>
   );

@@ -5,13 +5,14 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots, IconSquareDashed } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
 import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasBoxSubjectContent, SUBJECT_SIZE, MARKER_SPEC, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
+import { tidy, type TidyRect } from '@/lib/canvas-tidy';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
 import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
@@ -20,6 +21,8 @@ import { TILE_W, TILE_H } from '@/lib/tile-visual';
 import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { ImageSidebar } from '@/components/canvas/ImageSidebar';
+import { MarkerSidebar } from '@/components/canvas/MarkerSidebar';
+import { SubjectSidebar } from '@/components/canvas/SubjectSidebar';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
@@ -27,6 +30,27 @@ import { useTypeIcons } from '@/store/type-icons-store';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import type { Tag, Tile } from '@/types';
 import { OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
+
+/**
+ * Prima riga leggibile di una nota, per elencarla dove l'HTML non ci sta: la
+ * lista dei membri di un gruppo. Un'immagine ha una miniatura, un testo no —
+ * e «Box di testo» ripetuto cinque volte non distingue i cinque.
+ */
+function boxTextPreview(html: string | undefined): string {
+  const plain = (html || '')
+    // I blocchi che finiscono diventano uno spazio, altrimenti l'ultima parola
+    // di un paragrafo si incolla alla prima del successivo.
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return plain || 'Nota vuota';
+}
 
 export default function CanvasPage() {
   const theme = usePixelTheme();
@@ -46,10 +70,16 @@ export default function CanvasPage() {
   // Appunti canvas (copia/incolla). Copiando un elemento (tile/testo/immagine)
   // si memorizza qui; l'incolla avviene SOLO col tasto destro sul punto target
   // (menu "Incolla"), non più col click sinistro.
-  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image'; id: string } | null>(null);
+  // I marcatori rientrano qui come qualunque altro box: il ramo di incollaggio
+  // dei box è già generico (tipo, contenuto e misure del sorgente), quindi non
+  // ha avuto bisogno di sapere che esistono.
+  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker' | 'subject'; id: string } | null>(null);
   // Menu contestuale "Incolla" sullo sfondo del canvas (posizione + coord locali).
   const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; localX: number; localY: number } | null>(null);
   const [imageMode, setImageMode] = useState(false);
+  /** Tipo di marcatore armato dalla barra, o null. */
+  const [markerMode, setMarkerMode] = useState<MarkerKind | null>(null);
+  const [subjectMode, setSubjectMode] = useState(false);
   // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
@@ -302,6 +332,9 @@ export default function CanvasPage() {
     lineStyle: e.line_style ?? null,
     lineWidth: e.line_width ?? null,
     label: e.label ?? null,
+    arrow: e.arrow ?? null,
+    arrowSize: e.arrow_size ?? null,
+    labelAlign: e.label_align ?? null,
   })), [edgesData]);
   const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) || null, [edges, selectedEdgeId]);
 
@@ -423,6 +456,82 @@ export default function CanvasPage() {
     }
   }, [tagId, queryClient]);
 
+  /**
+   * INNESTO — A→B diventa A→X e X→B, con X l'oggetto lasciato cadere sopra.
+   *
+   * I due mezzi EREDITANO lo stile del collegamento spezzato (colore, tratto,
+   * spessore, freccia, misura della punta, disposizione del testo): quello che
+   * si sta facendo è infilare una tappa in un percorso, non sostituirlo con due
+   * collegamenti nuovi che ricominciano dai valori di fabbrica.
+   *
+   * L'ETICHETTA no: resta sul primo mezzo. Duplicarla avrebbe scritto due volte
+   * la stessa parola a pochi pixel di distanza, e cancellarla avrebbe perso un
+   * testo che l'utente aveva battuto a mano.
+   *
+   * Le porte esterne si conservano (A tiene la sua, B la sua); quelle nuove, sui
+   * due capi che toccano l'oggetto, restano libere: il marcatore è tondo e la
+   * scelta migliore la fa già `findBestPorts` in base a dove si trova.
+   */
+  const handleSplitEdge = useCallback(async (edgeId: string, nodeId: string) => {
+    if (!tagId) return;
+    const list = ((queryClient.getQueryData(['canvas-edges', tagId]) as any)?.data || []) as any[];
+    const e = list.find((x) => x.id === edgeId);
+    if (!e) return;
+    // Lo stile viaggia in snake_case: è la forma in cui la cache tiene gli edge
+    // (arrivano così dall'API) ed è quella che la PATCH si aspetta.
+    const style = {
+      color: e.color ?? null,
+      line_style: e.line_style ?? null,
+      line_width: e.line_width ?? null,
+      arrow: e.arrow ?? null,
+      arrow_size: e.arrow_size ?? null,
+      label_align: e.label_align ?? null,
+    };
+    const stamp = Date.now();
+    const tempA = `temp-split-a-${stamp}`;
+    const tempB = `temp-split-b-${stamp}`;
+    queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+      data: [
+        ...(old?.data || []).filter((x: any) => x.id !== edgeId),
+        { id: tempA, source_id: e.source_id, target_id: nodeId, source_port: e.source_port, ...style, label: e.label ?? null },
+        { id: tempB, source_id: nodeId, target_id: e.target_id, target_port: e.target_port, ...style, label: null },
+      ],
+    }));
+
+    const [ra, rb] = await Promise.all([
+      canvasApi.addEdge(tagId, e.source_id, nodeId, e.source_port, undefined),
+      canvasApi.addEdge(tagId, nodeId, e.target_id, undefined, e.target_port),
+    ]);
+    const a = ra?.success ? (ra.data as any) : null;
+    const b = rb?.success ? (rb.data as any) : null;
+
+    if (!a || !b) {
+      // Rimettiamo l'edge com'era. Un mezzo che fosse passato va tolto anche dal
+      // server: lasciarlo darebbe un collegamento che nessuno ha chiesto, in più
+      // a un edge che è ancora intero.
+      queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+        data: [...(old?.data || []).filter((x: any) => x.id !== tempA && x.id !== tempB), e],
+      }));
+      if (a) canvasApi.deleteEdge(a.id);
+      if (b) canvasApi.deleteEdge(b.id);
+      toast.error(ra?.error || rb?.error || 'Innesto non riuscito');
+      return;
+    }
+
+    queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
+      data: (old?.data || []).map((x: any) =>
+        x.id === tempA ? { ...x, id: a.id } : x.id === tempB ? { ...x, id: b.id } : x),
+    }));
+    // Lo stile non viaggia con la POST (che porta solo gli estremi): si scrive
+    // subito dopo, e senza debounce — qui non c'è una mano che continua a
+    // muovere un cursore, è una scrittura sola.
+    canvasApi.updateEdge(a.id, { ...style, label: e.label ?? null });
+    canvasApi.updateEdge(b.id, style);
+    // Il vecchio se ne va per ULTIMO: fin qui, se qualcosa fosse andato storto,
+    // il collegamento originale esisteva ancora sul server e si poteva rimettere.
+    await canvasApi.deleteEdge(edgeId);
+  }, [tagId, queryClient]);
+
   // Delete edge
   const handleDeleteEdge = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -436,19 +545,40 @@ export default function CanvasPage() {
   // Aggiorna lo stile di un edge (colore/tipologia/spessore/testo). La cache
   // tiene i dati in snake_case (come dall'API): mappiamo il patch camelCase e
   // salviamo in modo debounced.
-  const edgeUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const handleUpdateEdge = useCallback((id: string, patch: { color?: string | null; lineStyle?: 'solid' | 'dashed' | 'dotted' | null; lineWidth?: number | null; label?: string | null }) => {
+  /**
+   * Salvataggi degli edge, rimandati di 500ms — UNO SPORTELLO PER EDGE, e con
+   * gli aggiornamenti dello stesso edge che si SOMMANO.
+   *
+   * Stessa correzione fatta per i box: era un timer solo per tutti, quindi
+   * scegliere il colore e poi la freccia entro mezzo secondo mandava al server
+   * la sola freccia. Sullo schermo si vedeva tutto giusto — la cache si scrive
+   * subito — e la perdita saltava fuori solo al ricaricamento.
+   */
+  const edgeUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const edgePending = useRef<Map<string, Record<string, unknown>>>(new Map());
+  const handleUpdateEdge = useCallback((id: string, patch: { color?: string | null; lineStyle?: 'solid' | 'dashed' | 'dotted' | null; lineWidth?: number | null; label?: string | null; arrow?: EdgeArrow | null; arrowSize?: number | null; labelAlign?: EdgeLabelAlign | null }) => {
     if (!tagId) return;
     const snake: Record<string, unknown> = {};
     if ('color' in patch) snake.color = patch.color ?? null;
     if ('lineStyle' in patch) snake.line_style = patch.lineStyle ?? null;
     if ('lineWidth' in patch) snake.line_width = patch.lineWidth ?? null;
     if ('label' in patch) snake.label = patch.label ?? null;
+    if ('arrow' in patch) snake.arrow = patch.arrow ?? null;
+    if ('arrowSize' in patch) snake.arrow_size = patch.arrowSize ?? null;
+    if ('labelAlign' in patch) snake.label_align = patch.labelAlign ?? null;
     queryClient.setQueryData(['canvas-edges', tagId], (old: any) => ({
       data: (old?.data || []).map((e: any) => e.id === id ? { ...e, ...snake } : e),
     }));
-    if (edgeUpdateTimer.current) clearTimeout(edgeUpdateTimer.current);
-    edgeUpdateTimer.current = setTimeout(() => { canvasApi.updateEdge(id, snake); }, 500);
+    const merged = { ...(edgePending.current.get(id) ?? {}), ...snake };
+    edgePending.current.set(id, merged);
+    const running = edgeUpdateTimers.current.get(id);
+    if (running) clearTimeout(running);
+    edgeUpdateTimers.current.set(id, setTimeout(() => {
+      const payload = edgePending.current.get(id);
+      edgePending.current.delete(id);
+      edgeUpdateTimers.current.delete(id);
+      if (payload) canvasApi.updateEdge(id, payload);
+    }, 500));
   }, [tagId, queryClient]);
 
   // ── Boxes (text/image, polymorphic) ──
@@ -464,11 +594,53 @@ export default function CanvasPage() {
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
     [textBoxes, selectedTextBoxId],
   );
+  // SOGGETTO selezionato → SubjectSidebar (denominazione, mail, telefono, note).
+  const selectedSubjectBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'subject') || null,
+    [textBoxes, selectedTextBoxId],
+  );
+  // MARCATORE selezionato → MarkerSidebar (didascalia sotto il disco).
+  const selectedMarkerBox = useMemo(
+    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'marker') || null,
+    [textBoxes, selectedTextBoxId],
+  );
   // Box IMMAGINE selezionato → ImageSidebar (titolo, note, mostra titolo).
   const selectedImageBox = useMemo(
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'image') || null,
     [textBoxes, selectedTextBoxId],
   );
+
+  /**
+   * Chiude una scrittura ottimistica: la riga provvisoria diventa quella vera,
+   * oppure sparisce E DICE PERCHÉ.
+   *
+   * ⚠️ Esiste per una ragione precisa: `apiRequest` (lib/api.ts) NON LANCIA
+   * MAI. Gli errori del server — e anche quelli di rete — tornano come valore,
+   * `{ success: false, error }`. I quattro punti che posano un box si
+   * affidavano tutti a un `catch` che quindi non scattava mai, e a un
+   * `if (res?.data)` senza ramo else: quando l'insert falliva, la riga
+   * provvisoria restava sullo schermo con il suo id finto, senza un avviso, e
+   * spariva al primo reload. Da fuori è indistinguibile da «l'oggetto non è
+   * persistente», ed è esattamente come si è presentato.
+   */
+  const commitBox = useCallback((
+    tempId: string,
+    res: { success?: boolean; data?: unknown; error?: string } | undefined,
+    fallback: string,
+  ) => {
+    if (res?.success && res.data) {
+      const d = res.data as any;
+      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+        data: (old?.data || []).map((b: any) => (b.id === tempId ? d : b)),
+      }));
+      return true;
+    }
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: (old?.data || []).filter((b: any) => b.id !== tempId),
+    }));
+    toast.error(res?.error || fallback);
+    return false;
+  }, [tagId, queryClient]);
 
   const handleAddTextBox = useCallback(async (x: number, y: number, w: number, h: number) => {
     if (!tagId) return;
@@ -477,22 +649,26 @@ export default function CanvasPage() {
     queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
       data: [...(old?.data || []), { id: tempId, type: 'text', content: { html: '' }, x, y, w, h }],
     }));
-    try {
-      const res = await canvasApi.addBox(tagId, { type: 'text', content: { html: '' }, x, y, w, h });
-      if (res?.data) {
-        const d = res.data as any;
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
-        }));
-      }
-    } catch {
-      queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-        data: (old?.data || []).filter((tb: any) => tb.id !== tempId),
-      }));
-    }
-  }, [tagId, queryClient]);
+    commitBox(tempId, await canvasApi.addBox(tagId, { type: 'text', content: { html: '' }, x, y, w, h }), 'Box di testo non salvato');
+  }, [tagId, queryClient, commitBox]);
 
-  const tbUpdateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Salvataggi dei box, rimandati di 800ms — UNO SPORTELLO PER BOX.
+   *
+   * Era un timer solo per tutti: ogni chiamata azzerava quella prima, quindi di
+   * due box toccati nello stesso secondo ne arrivava al server uno soltanto, e
+   * dello stesso box una PATCH di posizione cancellava quella di testo. Con
+   * l'espansione dei box il caso è diventato ordinario: si espande, il
+   * salvataggio del testo che era già in coda porta via l’altezza, e al
+   * ricaricamento la nota torna piccola.
+   *
+   * Gli aggiornamenti dello stesso box si SOMMANO invece di sostituirsi: due
+   * chiamate ravvicinate (`{ h }` e poi `{ content }`) devono partire come una
+   * PATCH sola con dentro entrambi i campi, o il secondo campo va perso.
+   */
+  type BoxUpdate = { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number };
+  const tbUpdateTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const tbPending = useRef<Map<string, BoxUpdate>>(new Map());
   const handleUpdateTextBox = useCallback((id: string, updates: { type?: 'text' | 'image'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) => {
     if (!tagId) return;
     // For content-only updates, skip cache write: the contenteditable DOM already reflects
@@ -504,9 +680,87 @@ export default function CanvasPage() {
         data: (old?.data || []).map((tb: any) => tb.id === id ? { ...tb, ...updates } : tb),
       }));
     }
-    if (tbUpdateTimer.current) clearTimeout(tbUpdateTimer.current);
-    tbUpdateTimer.current = setTimeout(() => { canvasApi.updateBox(id, updates); }, 800);
+    const merged: BoxUpdate = { ...(tbPending.current.get(id) ?? {}), ...updates };
+    tbPending.current.set(id, merged);
+    const running = tbUpdateTimers.current.get(id);
+    if (running) clearTimeout(running);
+    tbUpdateTimers.current.set(id, setTimeout(() => {
+      const payload = tbPending.current.get(id);
+      tbPending.current.delete(id);
+      tbUpdateTimers.current.delete(id);
+      if (payload) canvasApi.updateBox(id, payload);
+    }, 800));
   }, [tagId, queryClient]);
+
+  /**
+   * Posa un marcatore. Scrittura ottimistica come per gli altri box: compare
+   * subito con un id provvisorio, che viene sostituito da quello vero appena il
+   * server risponde — e tolto se rifiuta.
+   *
+   * UN CLICK, UN OGGETTO: lo strumento si disarma appena l'oggetto è posato.
+   *
+   * Restare armato voleva dire che il click successivo sulla lavagna posava un
+   * altro oggetto invece di fare quello che fa sempre — selezionare, deselezionare,
+   * cominciare un trascinamento. Uno strumento che cambia il significato del
+   * click e ci resta è una modalità nascosta: si nota solo dall'oggetto di
+   * troppo che si è appena messo per sbaglio.
+   *
+   * Il menu degli oggetti però NON si chiude: la voce si spegne e resta lì, così
+   * riarmare costa un click solo. Tre marcatori di fila fanno sei click —
+   * scegli, posa, scegli, posa — e ogni posa è deliberata.
+   *
+   * Il disarmo è la PRIMA cosa che succede, prima ancora della scrittura
+   * ottimistica: se aspettasse il server, i click battuti nel frattempo
+   * avrebbero posato altri oggetti.
+   */
+  const handleAddMarkerAt = useCallback(async (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => {
+    if (!tagId) return;
+    setMarkerMode(null);
+    const payload = { type: 'marker' as const, content: { kind }, x, y, w: MARKER_SIZE, h: MARKER_SIZE };
+    const tempId = `temp-marker-${Date.now()}`;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, ...payload }],
+    }));
+    const res = await canvasApi.addBox(tagId, payload);
+    if (!commitBox(tempId, res, 'Marcatore non salvato')) return;
+    // INNESTO al volo: l'oggetto è stato posato su un edge armato. Si spezza
+    // ADESSO e non prima, perché l'id con cui i due mezzi si aggancieranno nasce
+    // qui — la lavagna, al momento del click, aveva solo un ghost.
+    const newId = (res?.data as any)?.id;
+    if (splitEdgeId && newId) handleSplitEdge(splitEdgeId, `tb:${newId}`);
+  }, [tagId, queryClient, commitBox, handleSplitEdge]);
+
+  /**
+   * Posa un SOGGETTO. Scrittura ottimistica come per gli altri box.
+   *
+   * Due differenze dal marcatore, e sono la stessa: un marcatore appena posato
+   * è già completo (la sua forma dice tutto), un soggetto è un'icona anonima
+   * finché non gli si dà un nome. Quindi lo strumento si disarma subito E il
+   * pannello si apre da solo sul soggetto appena nato — la posa e il battezzarlo
+   * sono un gesto unico, e separarli voleva dire lasciare sulla lavagna una fila
+   * di persone senza nome.
+   */
+  const handleAddSubjectAt = useCallback(async (x: number, y: number) => {
+    if (!tagId) return;
+    setSubjectMode(false);
+    const payload = { type: 'subject' as const, content: {}, x, y, w: SUBJECT_SIZE, h: SUBJECT_SIZE };
+    const tempId = `temp-subject-${Date.now()}`;
+    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
+      data: [...(old?.data || []), { id: tempId, ...payload }],
+    }));
+    const res = await canvasApi.addBox(tagId, payload);
+    if (!commitBox(tempId, res, 'Soggetto non salvato')) return;
+    const newId = (res?.data as any)?.id;
+    if (newId) {
+      setSelectedTextBoxId(newId);
+      setSelectedTileId(null);
+      setSelectedGroupId(null);
+      setSelectedEdgeId(null);
+      setSelectedIds([]);
+      setSelectionBbox(null);
+      setSidebarOpen(true);
+    }
+  }, [tagId, queryClient, commitBox]);
 
   const handleDeleteTextBox = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -655,17 +909,13 @@ export default function CanvasPage() {
       queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: [...(old?.data || []), { id: tempId, type: 'image', content: { src }, x, y, w: finalW, h: finalH }],
       }));
-      const res = await canvasApi.addBox(tagId, { type: 'image', content: { src }, x, y, w: finalW, h: finalH });
-      if (res?.data) {
-        const d = res.data as any;
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).map((tb: any) => tb.id === tempId ? d : tb),
-        }));
-      }
+      commitBox(tempId, await canvasApi.addBox(tagId, { type: 'image', content: { src }, x, y, w: finalW, h: finalH }), 'Immagine non salvata');
     } catch (err: any) {
+      // Resta un `catch` vero: qui dentro c'è anche l'UPLOAD del file, che
+      // passa da un'altra strada e può lanciare davvero.
       toast.error(err?.message || 'Errore inserimento immagine');
     }
-  }, [tagId, queryClient]);
+  }, [tagId, queryClient, commitBox]);
 
   // Text box context menu
   const [tbCtx, setTbCtx] = useState<{ x: number; y: number; textBoxId: string; inGroup: boolean } | null>(null);
@@ -698,9 +948,12 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [tagId, tags, tileMode, queryClient]);
 
-  // Incolla l'elemento negli appunti nel punto (coord locali canvas). Supporta
-  // tile, testo e immagine. Gli appunti restano attivi → si può incollare più
-  // volte finché non si copia altro o si preme Esc.
+  // Incolla l'elemento negli appunti nel punto (coord locali canvas). Il tile ha
+  // un ramo suo (va creato come riga, taggato e messo a layout); ogni BOX —
+  // testo, immagine, marcatore, soggetto — passa dallo stesso ramo generico:
+  // si replicano `type`, `content` e le misure, e non c'è niente da sapere sul
+  // tipo. Gli appunti restano attivi → si può incollare più volte finché non si
+  // copia altro o si preme Esc.
   const handlePasteAt = useCallback(async (localX: number, localY: number) => {
     if (!tagId || !clipboard) return;
     const { kind, id } = clipboard;
@@ -743,7 +996,7 @@ export default function CanvasPage() {
         queryClient.invalidateQueries({ queryKey: ['tags'] });
       } catch { /* ignore */ }
     } else {
-      // Text / image box: replica contenuto e dimensioni del sorgente.
+      // Box di qualunque tipo: replica contenuto e dimensioni del sorgente.
       const src = textBoxes.find((b) => b.id === id);
       if (!src) return;
       const payload = { type: kind, content: src.content as Record<string, unknown>, x: localX, y: localY, w: src.w, h: src.h };
@@ -751,21 +1004,9 @@ export default function CanvasPage() {
       queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: [...(old?.data || []), { id: tempId, ...payload }],
       }));
-      try {
-        const res = await canvasApi.addBox(tagId, payload);
-        if (res?.data) {
-          const d = res.data as any;
-          queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-            data: (old?.data || []).map((b: any) => (b.id === tempId ? d : b)),
-          }));
-        }
-      } catch {
-        queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-          data: (old?.data || []).filter((b: any) => b.id !== tempId),
-        }));
-      }
+      commitBox(tempId, await canvasApi.addBox(tagId, payload), 'Copia non salvata');
     }
-  }, [tagId, clipboard, tiles, tags, textBoxes, typeTileIcons, assignTypeIcon, queryClient]);
+  }, [tagId, clipboard, tiles, tags, textBoxes, typeTileIcons, assignTypeIcon, queryClient, commitBox]);
 
   const handleFit = useCallback(() => {
     setFitTrigger((n) => n + 1);
@@ -871,13 +1112,13 @@ export default function CanvasPage() {
 
   // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
   useEffect(() => {
-    if (!tileMode && !clipboard && !pasteMenu) return;
+    if (!tileMode && !subjectMode && !clipboard && !pasteMenu) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setTileMode(false); setClipboard(null); setPasteMenu(null); }
+      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setSubjectMode(false); setClipboard(null); setPasteMenu(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [tileMode, clipboard, pasteMenu]);
+  }, [tileMode, subjectMode, clipboard, pasteMenu]);
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
@@ -906,28 +1147,219 @@ export default function CanvasPage() {
     } catch { /* ignore */ }
   }, [selectedIds, selectedTileIds, selectedTextBoxIds, tagId, queryClient, clearSelection, removeFromGroups]);
 
-  // Immagini selezionate (i box di TESTO restano fuori dai gruppi).
-  const selectedImageBoxIds = useMemo(
-    () => selectedTextBoxIds.filter((id) => textBoxes.find((b) => b.id === id)?.type === 'image'),
-    [selectedTextBoxIds, textBoxes],
-  );
-  /** Un gruppo si può creare da tile e immagini (≥2 in tutto), mai da testi. */
-  const groupFromSelectionAllowed =
-    selectedTileIds.length + selectedImageBoxIds.length >= 2 &&
-    selectedImageBoxIds.length === selectedTextBoxIds.length;
+  /**
+   * ORDINA — allinea gli oggetti sulla griglia e regolarizza le distanze SENZA
+   * cambiare la disposizione: chi era nella terza colonna resta nella terza
+   * colonna, gli stacchi che separano i blocchi restano stacchi. Il conto sta
+   * tutto in `lib/canvas-tidy.ts`; qui ci sono solo la raccolta dei rettangoli e
+   * l'applicazione del risultato.
+   *
+   * Passa dai canali che esistono già — `handlePositionChange` per i tile (un
+   * upsert in batch), `handleUpdateTextBox` per i box — quindi la lavagna si
+   * ridisegna da sé: la board riceve `layout` e `textBoxes` come props e non sa
+   * nemmeno che questo comando esiste. Nessuna riga di D3.
+   *
+   * ⚠️ Il ripensamento passa dal toast e non da una conferma preventiva: il
+   * riordino si giudica guardandolo, e una modale che chiede «sei sicuro?» prima
+   * di aver fatto vedere qualcosa chiede di decidere al buio. Nel canvas non
+   * c'è undo, quindi l'Annulla è l'unica rete e va offerta qui.
+   */
+  const handleTidy = useCallback(() => {
+    if (!tagId) return;
+
+    // I rettangoli in gioco. Per i tile si parte dal LAYOUT — è lì che stanno le
+    // posizioni — ma solo per le voci che hanno ancora un tile vero: quelle
+    // orfane (tile cancellato altrove) non vanno né riordinate né riscritte.
+    const tileIds = new Set(tiles.map((t) => t.id));
+    const rects: TidyRect[] = [
+      ...layout
+        .filter((l: { tile_id: string }) => tileIds.has(l.tile_id))
+        .map((l: { tile_id: string; x: number; y: number }) => ({ id: l.tile_id, x: l.x, y: l.y, w: TILE_W, h: TILE_H })),
+      // Testo, immagini e marcatori insieme: sulla griglia sono tutti rettangoli.
+      ...textBoxes.map((b) => ({ id: `tb:${b.id}`, x: b.x, y: b.y, w: b.w, h: b.h })),
+    ];
+
+    // C'è una selezione? Si riordina quella. Su una lavagna grande si sistema una
+    // zona per volta, invece di rimettere in riga anche ciò che andava bene.
+    const scope = selectedIds.length > 0 ? new Set(selectedIds) : null;
+    const target = scope ? rects.filter((r) => scope.has(r.id)) : rects;
+    if (target.length < 2) return;
+
+    /**
+     * I collegamenti: servono al riordino per tenere più larghe le corsie che un
+     * edge attraversa — una freccia con la sua etichetta vuole spazio, e due
+     * tile collegati appiccicati rendono il collegamento illeggibile.
+     * `source_id`/`target_id` sono già nel formato dei rettangoli (id nudo =
+     * tile, `tb:<id>` = box), quindi non c'è niente da tradurre.
+     */
+    const links = edges.map((e) => [e.source_id, e.target_id] as const);
+    /**
+     * Con una selezione il canone vale OVUNQUE, anche sugli stacchi larghi.
+     * Indicare tre tile e chiedere di ordinarli vuol dire volerli equidistanti:
+     * rispettare lì lo strappo in mezzo — che sulla lavagna intera è una
+     * separazione da non toccare — significa rispondere «era già in ordine» a
+     * chi sta guardando una fila sbilenca.
+     */
+    const strictCanon = !!scope;
+
+    /**
+     * ─── I GRUPPI SI RIORDINANO A DUE LIVELLI ─────────────────────────────────
+     *
+     * Un gruppo non è un tile grande: è una scatola che contiene tile e che ha
+     * un ingombro suo, la gronda attorno al contenuto e la fascia dell'etichetta
+     * sopra. Riordinando tutto alla rinfusa quell'ingombro non lo vede nessuno —
+     * i tile finiscono spaziati bene e le SCATOLE si toccano, o peggio
+     * l'etichetta di un gruppo cade sulla riga di sopra.
+     *
+     * Quindi due riordini annidati: prima DENTRO ogni gruppo, che dà anche la
+     * misura giusta della scatola; poi FUORI, dove ogni gruppo partecipa come un
+     * rettangolo solo — la sua scatola — accanto a tile liberi, note, immagini e
+     * marcatori. Alla fine i membri seguono il loro gruppo dove è andato.
+     *
+     * Un gruppo entra come blocco solo se TUTTI i suoi membri sono in gioco:
+     * selezionandone metà si sta indicando quei tile, non il gruppo, e vanno
+     * trattati come oggetti singoli.
+     */
+    const inPlay = new Set(target.map((r) => r.id));
+    const blocks = canvasGroups.filter((g) => g.nodeIds.length >= 2 && g.nodeIds.every((id) => inPlay.has(id)));
+    const groupOf = new Map<string, string>();
+    blocks.forEach((g) => g.nodeIds.forEach((id) => groupOf.set(id, g.id)));
+
+    /**
+     * Lo spazio che il gruppo si riserva attorno al contenuto, in PASSI INTERI di
+     * griglia: uno per i lati e il fondo (basta per i 12 della gronda), due sopra
+     * (i 12 della gronda più i 20 dell'etichetta fanno 32). Interi e non i valori
+     * esatti perché il contenuto deve restare sulla griglia: la scatola si posa
+     * su un multiplo del passo, e se la gronda non lo fosse i tile dentro
+     * cadrebbero fra i puntini.
+     */
+    const PAD_SIDE = DOT_STEP;                       // 22 ≥ GROUP_PAD (12)
+    const PAD_TOP = DOT_STEP * 2;                    // 44 ≥ GROUP_PAD + LABEL_H (32)
+    const BLOCK = 'grp:';
+
+    /** I collegamenti che restano dentro un insieme di id. */
+    const linksAmong = (ids: Set<string>) =>
+      links.filter(([a, b]) => ids.has(a) && ids.has(b));
+
+    // ── Livello 1: dentro i gruppi ──
+    /** Posizione di ogni membro DENTRO il suo gruppo, e la scatola che ne esce. */
+    const innerPos = new Map<string, { x: number; y: number }>();
+    const blockRects: TidyRect[] = [];
+    for (const g of blocks) {
+      const members = target.filter((r) => groupOf.get(r.id) === g.id);
+      const ids = new Set(members.map((m) => m.id));
+      const inner = tidy(members, { step: DOT_STEP, links: linksAmong(ids), strictCanon });
+      const placedMembers = members.map((m) => ({ ...m, ...inner.get(m.id)! }));
+      placedMembers.forEach((m) => innerPos.set(m.id, { x: m.x, y: m.y }));
+      const x0 = Math.min(...placedMembers.map((m) => m.x));
+      const y0 = Math.min(...placedMembers.map((m) => m.y));
+      const x1 = Math.max(...placedMembers.map((m) => m.x + m.w));
+      const y1 = Math.max(...placedMembers.map((m) => m.y + m.h));
+      blockRects.push({
+        id: BLOCK + g.id,
+        x: x0 - PAD_SIDE, y: y0 - PAD_TOP,
+        w: (x1 - x0) + PAD_SIDE * 2, h: (y1 - y0) + PAD_TOP + PAD_SIDE,
+      });
+    }
+
+    // ── Livello 2: la lavagna, coi gruppi come blocchi ──
+    const outer: TidyRect[] = [...target.filter((r) => !groupOf.has(r.id)), ...blockRects];
+    // Un edge che tocca un membro vale, là fuori, per tutto il suo gruppo; quelli
+    // interni al gruppo sono già stati considerati al primo livello.
+    const asOuter = (id: string) => (groupOf.has(id) ? BLOCK + groupOf.get(id)! : id);
+    const outerLinks = links
+      .map(([a, b]) => [asOuter(a), asOuter(b)] as const)
+      .filter(([a, b]) => a !== b);
+    const placedOuter = outer.length >= 2
+      ? tidy(outer, { step: DOT_STEP, links: outerLinks, strictCanon })
+      : new Map<string, { x: number; y: number }>();
+
+    // ── Composizione: i membri seguono il loro gruppo ──
+    const next = new Map<string, { x: number; y: number }>();
+    for (const r of outer) {
+      const p = placedOuter.get(r.id) ?? { x: r.x, y: r.y };
+      if (!r.id.startsWith(BLOCK)) { next.set(r.id, p); continue; }
+      // Il contenuto riparte dall'angolo interno della scatola: lo scostamento è
+      // fatto di passi interi, quindi resta tutto in griglia.
+      const dx = (p.x + PAD_SIDE) - (r.x + PAD_SIDE);
+      const dy = (p.y + PAD_TOP) - (r.y + PAD_TOP);
+      const gid = r.id.slice(BLOCK.length);
+      for (const [mid, mp] of innerPos) {
+        if (groupOf.get(mid) === gid) next.set(mid, { x: mp.x + dx, y: mp.y + dy });
+      }
+    }
+
+    const moved = target.filter((r) => {
+      const p = next.get(r.id);
+      return !!p && (p.x !== r.x || p.y !== r.y);
+    });
+    // Un toast con «Annulla» dopo un riordino che non ha riordinato niente è
+    // peggio del silenzio: fa credere che qualcosa sia cambiato.
+    if (moved.length === 0) { toast('Era già in ordine'); return; }
+
+    const applyPositions = (pts: { id: string; x: number; y: number }[]) => {
+      const tilePts = pts.filter((p) => !p.id.startsWith('tb:'));
+      // Solo quelli che si muovono: `saveLayout` è un upsert e
+      // `handlePositionChange` FONDE nella cache, quindi un invio parziale non
+      // fa sparire nessuno dal canvas.
+      if (tilePts.length) handlePositionChange(tilePts.map((p) => ({ tile_id: p.id, x: p.x, y: p.y })));
+      pts.filter((p) => p.id.startsWith('tb:')).forEach((p) => handleUpdateTextBox(p.id.slice(3), { x: p.x, y: p.y }));
+    };
+
+    /**
+     * LA SCATOLA DEL GRUPPO torna ad aderire al contenuto.
+     *
+     * Un gruppo ridimensionato a mano porta un `bounds` suo, e il riquadro
+     * disegnato è l'UNIONE fra quello e i tile: serve a non stringersi sotto il
+     * contenuto quando si tira una maniglia, ma dopo un riordino significa che la
+     * scatola resta larga com'era mentre i tile dentro si sono compattati. La
+     * misura manuale descriveva una disposizione che non c'è più, quindi si
+     * toglie e il gruppo torna ad auto-dimensionarsi.
+     *
+     * Solo per i gruppi che il riordino ha davvero toccato: quelli fermi si
+     * tengono la misura che gli hai dato.
+     */
+    const movedIds = new Set(moved.map((m) => m.id));
+    const refit = new Set(
+      canvasGroups.filter((g) => g.bounds && g.nodeIds.some((id) => movedIds.has(id))).map((g) => g.id),
+    );
+    const groupsBefore = canvasGroups;
+    const applyGroups = (list: CanvasGroup[]) => { if (refit.size) handleGroupsChange(list); };
+
+    const before = moved.map((r) => ({ id: r.id, x: r.x, y: r.y }));
+    const after = moved.map((r) => ({ id: r.id, ...next.get(r.id)! }));
+    applyPositions(after);
+    applyGroups(canvasGroups.map((g) => (refit.has(g.id) ? { ...g, bounds: null } : g)));
+    // Il menu della selezione è ancorato a coordinate di SCHERMO calcolate dalla
+    // board: dopo che gli oggetti si sono spostati indicherebbe il vuoto. Si
+    // nasconde tenendo la selezione, come già fa la board durante un drag
+    // multiplo; ricompare al prossimo gesto.
+    setSelectionBbox(null);
+
+    toast.success(
+      moved.length === 1 ? '1 oggetto riordinato' : `${moved.length} oggetti riordinati`,
+      {
+        duration: 6000,
+        // L'annullamento ripercorre la stessa strada dell'andata: stessi canali,
+        // stesso debounce. Funziona anche premuto prima che il salvataggio parta.
+        action: { label: 'Annulla', onClick: () => { applyPositions(before); applyGroups(groupsBefore); } },
+      },
+    );
+  }, [tagId, tiles, layout, textBoxes, edges, canvasGroups, selectedIds, handlePositionChange, handleUpdateTextBox, handleGroupsChange]);
+
+  /** Un gruppo si può creare da due elementi qualsiasi in su. Non c'è più
+   *  nessun tipo escluso: quello che conta è quanti sono, non di che cosa sono
+   *  fatti. */
+  const groupFromSelectionAllowed = selectedTileIds.length + selectedTextBoxIds.length >= 2;
 
   const handleCreateGroupFromSelection = useCallback(() => {
     // Dirlo, invece di non fare niente: da tastiera (CTRL+G) non c'è un pulsante
     // grigio a spiegare perché il gruppo non nasce.
     if (!groupFromSelectionAllowed) {
-      if (selectedTileIds.length + selectedImageBoxIds.length < 2) {
-        toast.info('Seleziona almeno due elementi (tile o immagini) per creare un gruppo');
-      } else {
-        toast.info('I box di testo non entrano nei gruppi: togli il testo dalla selezione');
-      }
+      toast.info('Seleziona almeno due elementi per creare un gruppo');
       return;
     }
-    const ids = [...selectedTileIds, ...selectedImageBoxIds.map((id) => `tb:${id}`)];
+    const ids = [...selectedTileIds, ...selectedTextBoxIds.map((id) => `tb:${id}`)];
     const idSet = new Set(ids);
     const ng = canvasGroups
       .map((g) => ({ ...g, nodeIds: g.nodeIds.filter((nid) => !idSet.has(nid)) }))
@@ -935,20 +1367,19 @@ export default function CanvasPage() {
     ng.push({ id: crypto.randomUUID(), label: '', nodeIds: ids });
     handleGroupsChange(ng);
     clearSelection();
-  }, [groupFromSelectionAllowed, selectedTileIds, selectedImageBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
+  }, [groupFromSelectionAllowed, selectedTileIds, selectedTextBoxIds, canvasGroups, handleGroupsChange, clearSelection]);
 
-  // Modalità "Raggruppa a contorno": tile e immagini catturati dal rettangolo
-  // formano subito un nuovo gruppo (id nudo = tile, `tb:<id>` = immagine).
+  // Modalità "Raggruppa a contorno": tile e box catturati dal rettangolo
+  // formano subito un nuovo gruppo (id nudo = tile, `tb:<id>` = box).
   // Rimuove gli id dai gruppi esistenti (un elemento sta in un solo gruppo) e
   // scarta i gruppi rimasti con <2 membri.
   const handleGroupTiles = useCallback((ids: string[]) => {
     // Il pulsante Group si disattiva dopo ogni uso (come Tile/Text/Image).
     setSelectMode(false);
     // Contorno che cattura 0 o 1 elemento: senza un messaggio è un gesto che
-    // sembra non aver funzionato (e i box di testo, esclusi per scelta, sono la
-    // ragione più frequente per cui il conto non torna).
+    // sembra non aver funzionato.
     if (ids.length < 2) {
-      toast.info('Il contorno deve contenere almeno due elementi fra tile e immagini');
+      toast.info('Il contorno deve contenere almeno due elementi');
       return;
     }
     const idSet = new Set(ids);
@@ -1083,7 +1514,7 @@ export default function CanvasPage() {
     removeFromGroups([id]);
   }, [tileCtx, removeFromGroups]);
 
-  // Stessa azione per un'immagine dentro un gruppo.
+  // Stessa azione per un box (testo o immagine) dentro un gruppo.
   const handleUngroupBox = useCallback(() => {
     if (!tbCtx) return;
     const id = tbCtx.textBoxId;
@@ -1140,6 +1571,26 @@ export default function CanvasPage() {
     setClipboard({ kind: 'tile', id: tileCtx.tileId });
     setTileCtx(null);
   }, [tileCtx]);
+
+  /**
+   * FOCUS acceso/spento su un tile (migration 045).
+   *
+   * Scrittura ottimistica: il pallino deve comparire con il click, non con la
+   * risposta del server. È un segno che serve a dire «sto lavorando a questo»,
+   * e mezzo secondo di attesa lo trasformerebbe in un comando di cui ci si
+   * chiede se sia arrivato.
+   *
+   * Non tocca lo status: sono due assi diversi (vedi la nota sulla colonna).
+   * Se il server rifiuta, l'`invalidate` rimette la lavagna d'accordo coi dati.
+   */
+  const handleToggleFocus = useCallback(async (id: string, next: boolean) => {
+    if (!tagId) return;
+    queryClient.setQueryData(['canvas-tiles', tagId], (old: any) => (
+      old?.data ? { ...old, data: old.data.map((t: Tile) => (t.id === id ? { ...t, is_focused: next } : t)) } : old
+    ));
+    try { await tilesApi.update(id, { is_focused: next }); }
+    catch { queryClient.invalidateQueries({ queryKey: ['canvas-tiles', tagId] }); }
+  }, [tagId, queryClient]);
 
   // "Copia" per un box di testo/immagine → appunti.
   const handleCopyBox = useCallback(() => {
@@ -1199,6 +1650,10 @@ export default function CanvasPage() {
             textMode={textMode}
             tileMode={tileMode}
             imageMode={imageMode}
+            markerMode={markerMode}
+            onPickMarker={setMarkerMode}
+            subjectMode={subjectMode}
+            onToggleSubjectMode={() => { setSubjectMode((v) => !v); setMarkerMode(null); setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             selectMode={selectMode}
             onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
@@ -1212,6 +1667,10 @@ export default function CanvasPage() {
               setPdfMode(true);
               setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false);
             }}
+            onTidy={tag ? handleTidy : undefined}
+            tidyLabel={selectedIds.length > 0
+              ? 'Ordina gli oggetti selezionati'
+              : 'Ordina gli oggetti sulla griglia'}
             doneHighlight={doneHl}
             onToggleDoneHighlight={toggleDoneHl}
             pinnedTags={pinnedTags}
@@ -1233,7 +1692,7 @@ export default function CanvasPage() {
             // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
             // sproporzionato — qui cambia solo una regola CSS.
             className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
-            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode || subjectMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
             // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
@@ -1284,6 +1743,10 @@ export default function CanvasPage() {
               textMode={textMode}
               tileMode={tileMode}
               imageMode={imageMode}
+              markerMode={markerMode}
+              onAddMarkerAt={handleAddMarkerAt}
+              subjectMode={subjectMode}
+              onAddSubjectAt={handleAddSubjectAt}
               selectMode={selectMode}
               pdfMode={pdfMode}
               onPdfArea={handlePdfArea}
@@ -1303,6 +1766,7 @@ export default function CanvasPage() {
               onPositionChange={handlePositionChange}
               onAddEdge={handleAddEdge}
               onDeleteEdge={handleDeleteEdge}
+              onSplitEdge={handleSplitEdge}
               onEdgeContextMenu={handleEdgeContextMenu}
               onTileContextMenu={handleTileContextMenu}
               onTileClick={(id) => {
@@ -1405,16 +1869,43 @@ export default function CanvasPage() {
         )}
 
           {/* 5 — SIDEBAR DESTRA. Priorità: gruppo → edge → box di testo (editor)
-              → MultiTileSidebar (≥2 tile) → TileSidebar. */}
+              → immagine → soggetto → marcatore → MultiTileSidebar (≥2 tile)
+              → TileSidebar. */}
           {selectedGroupId && canvasGroups.find((g) => g.id === selectedGroupId) ? (
             <GroupSidebar
               group={canvasGroups.find((g) => g.id === selectedGroupId)!}
               tiles={tiles}
-              // Le immagini sono membri a pieno titolo: il pannello le elenca
-              // come i tile (miniatura) e permette di sfilarle una per una.
-              images={textBoxes
-                .filter((b) => b.type === 'image')
-                .map((b) => ({ id: b.id, src: (b.content as { src?: string }).src || '' }))}
+              // OGNI box è membro a pieno titolo: il pannello li elenca come i
+              // tile e permette di sfilarli uno per uno. Nessun filtro — il
+              // pannello mostra i membri del gruppo, e i membri possono essere
+              // di qualunque tipo.
+              boxes={textBoxes.map((bx) => {
+                if (bx.type === 'image') return {
+                  id: bx.id,
+                  type: 'image' as const,
+                  src: (bx.content as CanvasBoxImageContent).src,
+                  label: ((bx.content as CanvasBoxImageContent).title || '').trim() || 'Immagine',
+                };
+                if (bx.type === 'subject') return {
+                  id: bx.id,
+                  type: 'subject' as const,
+                  label: ((bx.content as CanvasBoxSubjectContent).name || '').trim() || 'Soggetto senza nome',
+                };
+                if (bx.type === 'marker') {
+                  // Senza didascalia resta il nome del tipo («Start», «Stop»…):
+                  // sono quattro e si ripetono, ma la riga porta accanto il
+                  // simbolo vero, che è ciò che distingue due «Stop» fra loro
+                  // meglio di qualunque parola.
+                  const kind = resolveMarkerKind((bx.content as CanvasBoxMarkerContent).kind);
+                  return {
+                    id: bx.id,
+                    type: 'marker' as const,
+                    kind,
+                    label: ((bx.content as CanvasBoxMarkerContent).label || '').trim() || MARKER_SPEC[kind].label,
+                  };
+                }
+                return { id: bx.id, type: 'text' as const, label: boxTextPreview((bx.content as { html?: string }).html) };
+              })}
               open={sidebarOpen}
               onToggle={() => setSidebarOpen(!sidebarOpen)}
               onUpdate={(patch) => handleUpdateGroup(selectedGroupId, patch)}
@@ -1466,6 +1957,33 @@ export default function CanvasPage() {
               }}
               onDelete={() => { handleDeleteTextBox(selectedImageBox.id); setSelectedTextBoxId(null); }}
             />
+          ) : selectedSubjectBox ? (
+            <SubjectSidebar
+              key={selectedSubjectBox.id}
+              boxId={selectedSubjectBox.id}
+              content={selectedSubjectBox.content as CanvasBoxSubjectContent}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              // Campi che si DIGITANO → stessa via del titolo dell'immagine:
+              // specchio in cache e salvataggio a fine battuta, uno solo per
+              // entrambi (il canvas si ridisegna per intero a ogni scrittura).
+              onChange={(patch) => handleBoxFieldChange(selectedSubjectBox.id, patch)}
+              onDelete={() => { handleDeleteTextBox(selectedSubjectBox.id); setSelectedTextBoxId(null); }}
+            />
+          ) : selectedMarkerBox ? (
+            <MarkerSidebar
+              key={selectedMarkerBox.id}
+              boxId={selectedMarkerBox.id}
+              kind={(selectedMarkerBox.content as CanvasBoxMarkerContent).kind}
+              initialLabel={(selectedMarkerBox.content as CanvasBoxMarkerContent).label || ''}
+              open={sidebarOpen}
+              onToggle={() => setSidebarOpen(!sidebarOpen)}
+              // Campo che si DIGITA → stessa via di titolo e note dell'immagine:
+              // specchio in cache e salvataggio a fine battuta, uno solo per
+              // entrambi (il canvas si ridisegna per intero a ogni scrittura).
+              onLabelChange={(label) => handleBoxFieldChange(selectedMarkerBox.id, { label })}
+              onDelete={() => { handleDeleteTextBox(selectedMarkerBox.id); setSelectedTextBoxId(null); }}
+            />
           ) : selectedTileIds.length >= 2 && selectedTextBoxIds.length === 0 ? (
             <MultiTileSidebar
               tiles={tiles.filter((t) => selectedTileIds.includes(t.id))}
@@ -1499,7 +2017,16 @@ export default function CanvasPage() {
               if (top + estH > vh - margin) top = Math.max(margin, selectionBbox.y - estH - margin);
               const tileCount = selectedTileIds.length;
               const tbCount = selectedTextBoxIds.length;
-              const groupAllowed = tileCount >= 2 && tbCount === 0;
+              // La stessa regola di CTRL+G e degli altri due menu, e non una
+              // copia locale: qui diceva ancora `tbCount === 0`, cioè vietava il
+              // gruppo appena nella selezione entrava un box. Era vero quando i
+              // gruppi tenevano solo tile, ed è sopravvissuto per due giri a
+              // quella verità — il pulsante restava grigio mentre CTRL+G, sulla
+              // stessa selezione, il gruppo lo creava.
+              const groupAllowed = groupFromSelectionAllowed;
+              // Riordinare un oggetto solo non vuol dire niente: non ha vicini
+              // rispetto a cui allinearsi.
+              const tidyAllowed = selectedIds.length >= 2;
               return (
                 <div
                   className="fixed"
@@ -1530,10 +2057,39 @@ export default function CanvasPage() {
                       <span style={{ marginLeft: 4, textTransform: 'none', color: theme.ink3, fontFamily: ('var(--ob-font-sans)'), fontSize: OB_TEXT.meta }}>({tileCount} tile · {tbCount} note)</span>
                     )}
                   </div>
+                  {/* Lo stesso comando dell'ingranaggio a puntini in barra, qui
+                      dove si ragiona sulla selezione: chi ha appena cerchiato una
+                      zona storta la vuole raddrizzare senza risalire alla toolbar
+                      e senza rischiare di perdere la selezione per strada. */}
+                  <button
+                    onClick={handleTidy}
+                    disabled={!tidyAllowed}
+                    title={tidyAllowed
+                      ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                      : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      width: '100%',
+                      padding: '6px 10px',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: tidyAllowed ? 'pointer' : 'not-allowed',
+                      color: tidyAllowed ? theme.ink2 : theme.ink3,
+                      opacity: tidyAllowed ? 1 : 0.4,
+                      fontFamily: ('var(--ob-font-sans)'),
+                      fontSize: OB_TEXT.card,
+                    }}
+                  >
+                    <IconGridDots size={14} />
+                    Ordina sulla griglia
+                  </button>
                   <button
                     onClick={handleCreateGroupFromSelection}
                     disabled={!groupAllowed}
-                    title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                    title={!groupAllowed ? 'Servono almeno due elementi selezionati' : undefined}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -1631,9 +2187,20 @@ export default function CanvasPage() {
                           {selectedIds.length} selezionati
                         </div>
                         <button
+                          onClick={() => { setTileCtx(null); handleTidy(); }}
+                          disabled={selectedIds.length < 2}
+                          title={selectedIds.length >= 2
+                            ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                            : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                          style={{ ...menuItem, cursor: selectedIds.length >= 2 ? 'pointer' : 'not-allowed', opacity: selectedIds.length >= 2 ? 1 : 0.4 }}
+                        >
+                          <IconGridDots size={14} />
+                          Ordina sulla griglia
+                        </button>
+                        <button
                           onClick={() => { setTileCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Servono almeno due elementi selezionati' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -1646,6 +2213,27 @@ export default function CanvasPage() {
                         <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                       </>
                     )}
+                    {/* FOCUS — l'attività su cui si sta lavorando adesso. Prima
+                        voce del menu: è l'unica che si usa mentre si lavora, le
+                        altre riguardano il posto del tile sulla lavagna. */}
+                    {(() => {
+                      const focused = !!allTagTiles.find((t) => t.id === tileCtx.tileId)?.is_focused;
+                      return (
+                        <button
+                          onClick={() => { const id = tileCtx.tileId; setTileCtx(null); handleToggleFocus(id, !focused); }}
+                          style={{ ...menuItem, color: focused ? 'var(--ob-focus)' : theme.ink2 }}
+                          title={focused
+                            ? 'Togli la cornice rossa: non è più l’attività di adesso'
+                            : 'Segna questa come l’attività su cui stai lavorando'}
+                        >
+                          {/* Il quadrato tratteggiato è la cornice che il
+                              comando accende, vista da lontano. */}
+                          <IconSquareDashed size={14} style={{ color: focused ? 'var(--ob-focus)' : theme.ink3 }} />
+                          {focused ? 'Focus off' : 'Focus on'}
+                        </button>
+                      );
+                    })()}
+                    <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                     {tileCtx.inGroup && (
                       <button onClick={handleUngroupTile} style={menuItem}>
                         <IconBoxOff size={14} />
@@ -1740,9 +2328,20 @@ export default function CanvasPage() {
                           {selectedIds.length} selezionati
                         </div>
                         <button
+                          onClick={() => { setTbCtx(null); handleTidy(); }}
+                          disabled={selectedIds.length < 2}
+                          title={selectedIds.length >= 2
+                            ? 'Allinea sulla griglia e regolarizza le distanze, senza cambiare la disposizione'
+                            : 'Serve più di un oggetto: uno solo non ha vicini rispetto a cui allinearsi'}
+                          style={{ ...menuItem, cursor: selectedIds.length >= 2 ? 'pointer' : 'not-allowed', opacity: selectedIds.length >= 2 ? 1 : 0.4 }}
+                        >
+                          <IconGridDots size={14} />
+                          Ordina sulla griglia
+                        </button>
+                        <button
                           onClick={() => { setTbCtx(null); handleCreateGroupFromSelection(); }}
                           disabled={!groupAllowed}
-                          title={!groupAllowed ? 'Un gruppo può contenere tile e immagini (i box di testo restano fuori)' : undefined}
+                          title={!groupAllowed ? 'Servono almeno due elementi selezionati' : undefined}
                           style={{ ...menuItem, cursor: groupAllowed ? 'pointer' : 'not-allowed', color: groupAllowed ? theme.ink2 : theme.ink3, opacity: groupAllowed ? 1 : 0.4 }}
                         >
                           <IconBoxMultiple size={14} />
@@ -1755,7 +2354,7 @@ export default function CanvasPage() {
                         <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
                       </>
                     )}
-                    {/* Un'immagine dentro un gruppo si sfila come un tile. */}
+                    {/* Un box dentro un gruppo si sfila come un tile. */}
                     {tbCtx.inGroup && (
                       <button onClick={handleUngroupBox} style={menuItem}>
                         <IconBoxOff size={14} />
@@ -1813,7 +2412,11 @@ export default function CanvasPage() {
                   }}
                 >
                   <IconClipboard size={14} />
-                  Incolla {clipboard?.kind === 'tile' ? 'tile' : clipboard?.kind === 'image' ? 'immagine' : 'testo'}
+                  Incolla {clipboard?.kind === 'tile' ? 'tile'
+                    : clipboard?.kind === 'image' ? 'immagine'
+                    : clipboard?.kind === 'marker' ? 'marcatore'
+                    : clipboard?.kind === 'subject' ? 'soggetto'
+                    : 'testo'}
                 </button>
               </div>
             </>,
@@ -1863,14 +2466,14 @@ export default function CanvasPage() {
                       Rinomina gruppo
                     </button>
                     {/* Sciogliere un gruppo NON cancella niente: toglie solo il
-                        contenitore e lascia tile e immagini dove sono. Era
+                        contenitore e lascia i membri dove sono. Era
                         etichettato "Elimina gruppo" in rosso col cestino —
                         l'azione giusta con il nome di quella sbagliata, e quindi
                         un ungroup che nessuno osava premere. */}
                     <button
                       onClick={() => { handleDeleteGroup(groupCtx.groupId); setGroupCtx(null); }}
                       style={menuItem}
-                      title="Toglie il gruppo: tile e immagini restano sul canvas"
+                      title="Toglie il gruppo: i membri restano sul canvas"
                     >
                       <IconBoxOff size={14} />
                       Sciogli gruppo (Ungroup)

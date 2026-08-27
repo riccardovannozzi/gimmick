@@ -285,7 +285,28 @@ function StatusGlyphView({ name, size = 18 }: { name: string; size?: number }) {
   return <span style={box}>{Icon ? <Icon size={Math.round(size * 0.72)} color={meta.hex} /> : null}</span>;
 }
 
-function StatusPicker({ value, onChange }: { value: string | null; onChange: (statusId: string) => void }) {
+/**
+ * Il picker dello STATUS, più l'interruttore del FOCUS.
+ *
+ * Focus e status stanno nello stesso menu ma NON nella stessa lista, e il filo
+ * che li separa è la sostanza della cosa: gli status sono uno solo per volta e
+ * si escludono a vicenda (scegliere «bloccato» toglie «attivo»), il focus è un
+ * interruttore che vale insieme a qualunque di loro. Metterlo in fila con gli
+ * altri lo avrebbe fatto leggere come un settimo status, cioè come qualcosa che
+ * sostituisce quello che c'era — e «in focus» al posto di «bloccato» perde
+ * l'unica informazione che contava.
+ *
+ * Sta nel menu e non fuori perché è lì che si va a dire com'è messa
+ * un'attività: dover cercare il focus da un'altra parte avrebbe voluto dire due
+ * viaggi per una risposta sola.
+ */
+function StatusPicker({ value, onChange, focused, onToggleFocus }: {
+  value: string | null;
+  onChange: (statusId: string) => void;
+  focused?: boolean;
+  /** Assente: l'interruttore non compare (anteprime senza dati veri). */
+  onToggleFocus?: (next: boolean) => void;
+}) {
   const theme = usePixelTheme();
   const { statuses } = useStatuses();
   const [open, setOpen] = useState(false);
@@ -379,6 +400,37 @@ function StatusPicker({ value, onChange }: { value: string | null; onChange: (st
               </button>
             );
           })}
+          {onToggleFocus && (
+            <>
+              {/* Il filo: di là gli status, che si escludono a vicenda; di qua un
+                  interruttore che vale insieme a qualunque di loro. */}
+              <div style={{ margin: '4px 0', borderTop: `1px solid ${theme.border}` }} />
+              <button
+                onClick={() => { onToggleFocus(!focused); setOpen(false); }}
+                style={popupItem(!!focused)}
+                title={focused
+                  ? 'Togli la cornice rossa: non è più l’attività di adesso'
+                  : 'Segna questa come l’attività su cui stai lavorando'}
+              >
+                {/* La stessa cornice che finisce sulla card, in miniatura: il
+                    glifo è il segno che il comando accende, non un pallino da
+                    imparare a parte. La FORMA non cambia con lo stato — cambia
+                    il colore, insieme a quello dell'etichetta: è un
+                    interruttore, e un interruttore spento resta al suo posto. */}
+                <span style={{ width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span
+                    style={{
+                      width: 12, height: 12, borderRadius: 3,
+                      border: `2px dashed ${focused ? 'var(--ob-focus)' : theme.ink3}`,
+                    }}
+                  />
+                </span>
+                <span style={{ flex: 1, color: focused ? 'var(--ob-focus)' : undefined }}>
+                  {focused ? 'Focus off' : 'Focus on'}
+                </span>
+              </button>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -1682,6 +1734,8 @@ export function TileSidebar({
               <StatusPicker
                 value={tile.status_id ?? null}
                 onChange={(statusId) => updateTileMutation.mutate({ status_id: statusId })}
+                focused={!!tile.is_focused}
+                onToggleFocus={(next) => updateTileMutation.mutate({ is_focused: next })}
               />
 
               <div style={{ borderTop: `1px solid ${theme.border}` }} />

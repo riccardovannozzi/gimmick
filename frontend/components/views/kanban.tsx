@@ -30,7 +30,7 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 import {
   IconGripVertical, IconDots, IconArrowAutofitWidth,
-  IconColumnInsertRight, IconRowInsertBottom, IconLayoutGrid, IconTransform,
+  IconColumnInsertRight, IconRowInsertBottom, IconCube, IconTransform,
 } from '@tabler/icons-react';
 import { ToolButton, ToolWord } from '@/components/primitives';
 import { SparkIconsToggle } from '@/components/tiles/SparkIconsToggle';
@@ -76,6 +76,11 @@ export interface CardData {
   sparks?: SparkType[];
   /** Colore che tinge fondo, bordo e badge. Dalle impostazioni, mai un hex qui. */
   accent?: string;
+  /** In FOCUS: l'attività su cui si sta lavorando adesso → cornice rossa
+   *  tratteggiata tutt'intorno al tile. Vive sul tile, quindi si vede in ogni
+   *  vista che lo disegna — un segno che sparisce cambiando scheda non è un
+   *  segno. */
+  focused?: boolean;
   /**
    * Card PROVVISORIA: la tile che il doppio click ha appena chiesto, disegnata
    * mentre il server la crea. Non si trascina e non si apre — il suo `id` non
@@ -136,7 +141,7 @@ const LANES: Lane[] = [
 
 /**
  * La card della lane è il `Tile` del sistema visivo, come in Chrono, nel canvas
- * e nello staging. Misura già 150×80 come il Tile, quindi l'ingombro nella lane
+ * e nello staging. Misura già 160×90 come il Tile, quindi l'ingombro nella lane
  * non cambia: cambia cosa la card dice.
  *
  * ⚠️ Quattro segnali che la card del Kanban aveva e che il Tile NON ha:
@@ -186,6 +191,7 @@ function TileCard({ t, onClick, onMenu, active }: {
         meta={t.meta}
         sparks={t.sparks}
         accent={t.accent ?? (t.amber ? 'var(--ob-warning)' : undefined)}
+        focused={t.focused}
         ghost={t.ghost}
         active={active}
         onClick={onClick}
@@ -796,7 +802,7 @@ export function KanbanView({
             ma non aggiungi COSA. */}
         <div className="ob-tools">
           <ToolButton
-            icon={<IconLayoutGrid size={16} stroke={1.6} />}
+            icon={<IconCube size={16} stroke={1.6} />}
             label="Nuovo tile"
             onClick={onAddTile}
             disabled={!onAddTile}

@@ -100,7 +100,7 @@ canvasRouter.get('/edges/:tagId', async (req: AuthenticatedRequest, res: Respons
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_edges')
-      .select('id, source_id, target_id, source_port, target_port, color, line_style, line_width, label')
+      .select('id, source_id, target_id, source_port, target_port, color, line_style, line_width, label, arrow, arrow_size, label_align')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
 
@@ -148,7 +148,7 @@ canvasRouter.post('/edges/:tagId', async (req: AuthenticatedRequest, res: Respon
 
 /**
  * PATCH /api/canvas/edges/:id
- * Aggiorna lo stile di un edge (colore, tipologia/spessore linea, etichetta).
+ * Aggiorna lo stile di un edge (colore, tipologia/spessore linea, etichetta, freccia).
  */
 canvasRouter.patch('/edges/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -158,6 +158,9 @@ canvasRouter.patch('/edges/:id', async (req: AuthenticatedRequest, res: Response
     if (req.body.line_style !== undefined) updates.line_style = req.body.line_style;
     if (req.body.line_width !== undefined) updates.line_width = req.body.line_width;
     if (req.body.label !== undefined) updates.label = req.body.label;
+    if (req.body.arrow !== undefined) updates.arrow = req.body.arrow;
+    if (req.body.arrow_size !== undefined) updates.arrow_size = req.body.arrow_size;
+    if (req.body.label_align !== undefined) updates.label_align = req.body.label_align;
     const { error } = await supabaseAdmin
       .from('canvas_edges')
       .update(updates)
@@ -282,8 +285,8 @@ canvasRouter.post('/boxes/:tagId', async (req: AuthenticatedRequest, res: Respon
   try {
     const { tagId } = req.params;
     const { type, content, x, y, w, h } = req.body;
-    if (type !== 'text' && type !== 'image') {
-      return res.status(400).json({ success: false, error: 'type must be text or image' });
+    if (type !== 'text' && type !== 'image' && type !== 'marker' && type !== 'subject') {
+      return res.status(400).json({ success: false, error: 'type must be text, image, marker or subject' });
     }
     await assertTagOwned(req.user!.id, tagId as string);
     const { data, error } = await supabaseAdmin
@@ -310,8 +313,8 @@ canvasRouter.patch('/boxes/:id', async (req: AuthenticatedRequest, res: Response
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
     if (req.body.type !== undefined) {
-      if (req.body.type !== 'text' && req.body.type !== 'image') {
-        return res.status(400).json({ success: false, error: 'type must be text or image' });
+      if (req.body.type !== 'text' && req.body.type !== 'image' && req.body.type !== 'marker' && req.body.type !== 'subject') {
+        return res.status(400).json({ success: false, error: 'type must be text, image, marker or subject' });
       }
       updates.type = req.body.type;
     }

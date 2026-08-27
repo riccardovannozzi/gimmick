@@ -1,7 +1,10 @@
 'use client';
 
 /**
- * Gimmick · Obsidian — Settings view collegata ai dati reali (Fase 6).
+ * Gimmick · Obsidian — Settings collegati ai dati reali (Fase 6).
+ *
+ * Il contenuto, non la cornice: da `settings-modal.tsx` in poi vive dentro una
+ * modale, non più nel corpo di una pagina.
  *
  * Collega la `SettingsView`:
  *   - Tema (Aspetto) → `useObsidianTheme` (light/dark persistiti via settingsApi,
@@ -21,7 +24,12 @@ import { useAuthStore } from '@/store/auth-store';
 import { useViewPrefs } from '@/store/view-prefs-store';
 import type { ObsidianMode } from '@/lib/theme/obsidian';
 
-export function SettingsLive() {
+export interface SettingsLiveProps {
+  /** Chiude la cornice che ospita i settings (la modale). */
+  onClose?: () => void;
+}
+
+export function SettingsLive({ onClose }: SettingsLiveProps = {}) {
   const router = useRouter();
   const { mode, setMode } = useObsidianTheme();
   const user = useAuthStore((s) => s.user);
@@ -44,9 +52,12 @@ export function SettingsLive() {
   );
 
   const onLogout = useCallback(async () => {
+    // Prima si chiude, poi si esce: la modale vive in uno store che sopravvive
+    // al cambio di rotta, e lasciata aperta riaffiorerebbe sul login successivo.
+    onClose?.();
     await signOut();
     router.push('/login');
-  }, [signOut, router]);
+  }, [signOut, router, onClose]);
 
   return (
     <SettingsView
