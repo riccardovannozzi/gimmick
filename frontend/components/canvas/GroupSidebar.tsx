@@ -13,7 +13,8 @@ import { IconLayoutSidebarRightCollapse, IconLayoutSidebarRightExpand, IconBoxOf
 import { usePixelTheme } from '@/components/pixel';
 import { OB_WEIGHT, OB_TEXT, obLabel } from '@/lib/theme/ob-typography';
 import { GIMMICK_PALETTE } from '@/lib/palette';
-import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBoard';
+import { MarkerBadge } from '@/components/canvas/CanvasBoard';
+import type { CanvasGroup, GroupBorderStyle, MarkerKind } from '@/components/canvas/CanvasBoard';
 
 // C'era qui `GROUP_BG_PALETTE`: dieci toni scuri e desaturati, scelti perché
 // un pastello chiaro dietro i tile li faceva "sparire". È stata ritirata — il
@@ -24,12 +25,25 @@ import type { CanvasGroup, GroupBorderStyle } from '@/components/canvas/CanvasBo
 interface GroupSidebarProps {
   group: CanvasGroup;
   tiles: { id: string; title?: string }[];
-  /** Tutti i box del canvas che possono essere membri (testo, immagini e
-   *  soggetti): il pannello pesca quelli del gruppo (membri `tb:<id>`) e li
-   *  elenca accanto ai tile. `label` è già pronta da mostrare — ricavarla qui
-   *  avrebbe voluto dire ripulire l'HTML di una nota dentro un pannello di
-   *  stile. */
-  boxes?: { id: string; type: 'text' | 'image' | 'subject'; src?: string; label: string }[];
+  /**
+   * Tutti i box del canvas — ogni tipo può essere membro di un gruppo. Il
+   * pannello pesca quelli del gruppo (membri `tb:<id>`) e li elenca accanto ai
+   * tile.
+   *
+   * `label` arriva già pronta da mostrare: ricavarla qui avrebbe voluto dire
+   * ripulire l'HTML di una nota dentro un pannello di stile.
+   *
+   * È un'UNIONE e non un oggetto con tutti i campi facoltativi perché ogni tipo
+   * porta ciò che serve a disegnarne la riga — la miniatura per un'immagine, il
+   * tipo di marcatore per un marcatore — e così non si può costruire una riga a
+   * metà che poi ripiegherebbe in silenzio sul glifo sbagliato.
+   */
+  boxes?: (
+    | { id: string; type: 'text'; label: string }
+    | { id: string; type: 'image'; src?: string; label: string }
+    | { id: string; type: 'subject'; label: string }
+    | { id: string; type: 'marker'; kind: MarkerKind; label: string }
+  )[];
   open: boolean;
   onToggle: () => void;
   onUpdate: (patch: Partial<CanvasGroup>) => void;
@@ -414,15 +428,20 @@ export function GroupSidebar({ group, tiles, boxes = [], open, onToggle, onUpdat
                         />
                       ) : (
                         // Stessa impronta della miniatura (36×24) così le righe
-                        // si incolonnano invece di sfalsarsi. Il glifo dice il
-                        // tipo: la nota o la persona.
+                        // si incolonnano invece di sfalsarsi. Dentro, il segno
+                        // del tipo: la nota, la persona, o il marcatore vero e
+                        // proprio — quelli sono un vocabolario di quattro simboli
+                        // che si distinguono a colpo d'occhio, e un glifo
+                        // generico avrebbe fatto quattro righe identiche.
                         <span
                           style={{
                             width: 36, height: 24, flexShrink: 0, borderRadius: 2, background: theme.bg1,
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: theme.ink3,
                           }}
                         >
-                          {b.type === 'subject' ? <IconUser size={14} /> : <IconArticle size={14} />}
+                          {b.type === 'marker' ? <MarkerBadge kind={b.kind} size={16} />
+                            : b.type === 'subject' ? <IconUser size={14} />
+                            : <IconArticle size={14} />}
                         </span>
                       )}
                       <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.label}</span>

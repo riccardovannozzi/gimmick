@@ -109,27 +109,26 @@ const BOX_ID_PREFIX = 'tb:';
 const isBoxId = (id: string) => id.startsWith(BOX_ID_PREFIX);
 const boxIdOf = (id: string) => id.slice(BOX_ID_PREFIX.length);
 
-/**
- * Quali box possono stare dentro un gruppo: TESTO, IMMAGINE e SOGGETTO,
- * esattamente come un tile — stessa cattura col contorno, stesso drop
- * trascinandoli dentro, stesso «sfila» per uscirne.
+/*
+ * QUI STAVA `isGroupableBox`, il filtro che diceva quali box potevano entrare in
+ * un gruppo. Non c'è più perché la risposta è diventata "tutti": testo,
+ * immagine, soggetto e — da ultimo — marcatore sono i quattro tipi che
+ * esistono, e un filtro che non filtra niente è peggio di nessun filtro, perché
+ * chi legge lo crede ancora in vigore. Con lui se ne sono andati la condizione
+ * sempre vera che lo interrogava, il messaggio «i marcatori non entrano nei
+ * gruppi» che nessuno poteva più vedere e tre tooltip che spiegavano
+ * un'esclusione finita.
  *
- * Il soggetto è entrato quando `boxExtent` ha imparato a misurare la scritta
- * che gli esce dal riquadro: prima restava fuori perché il gruppo si
- * auto-dimensiona sui rettangoli dei membri, e un rettangolo che non teneva
- * conto della denominazione avrebbe tagliato il nome della persona proprio nel
- * momento in cui la si mette in un gruppo per dire di chi è quella zona.
+ * L'ultimo ostacolo era geometrico e l'ha tolto `boxExtent`: il riquadro di un
+ * gruppo si auto-dimensiona sui membri, e finché misurava la sola scatola
+ * disegnata avrebbe tagliato la didascalia che a marcatori e soggetti esce dal
+ * riquadro.
  *
- * Fuori restano i MARCATORI, e ormai per una ragione sola: nessuno l'ha
- * chiesto. La geometria non è più un ostacolo — `boxExtent` misura anche la
- * loro didascalia — quindi aggiungerli è una parola qui.
- *
- * Esportato perché la stessa domanda se la fanno la lavagna (contorno e drop) e
- * la pagina (voce «Crea gruppo» sulla selezione): con due liste separate una
- * delle due sarebbe rimasta indietro al primo tipo di box aggiunto.
+ * ⚠️ Un tipo di box NUOVO nasce quindi raggruppabile senza che nessuno lo
+ * decida. Se un giorno ne servisse uno che non deve entrarci, il posto dove
+ * fermarlo sono i due punti che raccolgono i membri: il contorno di cattura e
+ * il drop di fine trascinamento, entrambi in questo file.
  */
-export const isGroupableBox = (tb: { type: string }) =>
-  tb.type === 'text' || tb.type === 'image' || tb.type === 'subject';
 
 export interface CanvasNode { id: string; title: string; actionType: string; statusShape?: string; statusName?: string; isCompleted?: boolean; typeIcon?: string; typeColor?: string; startAt?: string; endAt?: string; allDay?: boolean; subtasks?: Tile['subtasks']; /** Tipi degli spark allegati → pallini nel footer della card. */ sparks?: SparkType[]; /** In FOCUS: cornice rossa tratteggiata intorno alla card (migration 045). */ isFocused?: boolean; x: number; y: number; }
 export type PortKey = 'top' | 'right' | 'bottom' | 'left';
@@ -1474,19 +1473,20 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           ? (bx < x2 && bx + bw > x1 && by < y2 && by + bh > y1)
           : (bx >= x1 && by >= y1 && bx + bw <= x2 && by + bh <= y2);
       const insideTiles = nodes.filter((n) => hit(n.x, n.y, TILE_W, TILE_H));
+      // Un filtro solo per i due usi del contorno: la selezione e il gruppo
+      // catturano ORA le stesse cose, e tenerne due voleva dire tenere allineate
+      // due liste che nessuno costringeva a restare uguali.
+      const insideTbs = textBoxes.filter((tb) => hit(tb.x, tb.y, tb.w, tb.h));
       // Modalità "Group" (pulsante toolbar): ogni contorno valido chiude
       // l'operazione — il parent disattiva il pulsante. Entrano nel gruppo i
-      // tile E i box catturati (≥2 in tutto, guardia lato parent), esclusi i
-      // marcatori — vedi `isGroupableBox`.
+      // tile E tutti i box catturati (≥2 in tutto, guardia lato parent).
       if (selectModeRef.current) {
-        const insideBoxes = textBoxes.filter((tb) => isGroupableBox(tb) && hit(tb.x, tb.y, tb.w, tb.h));
         onGroupTilesRef.current?.([
           ...insideTiles.map((n) => n.id),
-          ...insideBoxes.map((tb) => `${BOX_ID_PREFIX}${tb.id}`),
+          ...insideTbs.map((tb) => `${BOX_ID_PREFIX}${tb.id}`),
         ]);
         return;
       }
-      const insideTbs = textBoxes.filter((tb) => hit(tb.x, tb.y, tb.w, tb.h));
       if (insideTiles.length + insideTbs.length < 1) return;
       const ids = [...insideTiles.map((n) => n.id), ...insideTbs.map((tb) => `tb:${tb.id}`)];
       selectedIdsRef.current = ids;
@@ -2717,9 +2717,12 @@ export const CanvasBoard = React.memo(function CanvasBoard({
               // ── Drop-into-group ──
               // Stesso gesto dei tile: un BOX lasciato cadere dentro un gruppo
               // (drag singolo, centro del box dentro il riquadro) ne diventa
-              // membro. Testo, immagine e soggetto allo stesso modo; i
-              // marcatori restano fuori (vedi `isGroupableBox`).
-              if (wasMulti || !isGroupableBox(tb)) return;
+              // membro. Vale per TUTTI i tipi di box, marcatori compresi.
+              // Un marcatore può quindi, con lo stesso rilascio, innestarsi su un
+              // edge (qui sopra) ed entrare nel gruppo che lo contiene: sono due
+              // fatti indipendenti — sta sul percorso E sta in quella zona — e i
+              // tile si comportano già così da quando spezzano anche loro.
+              if (wasMulti) return;
               const memberId = `${BOX_ID_PREFIX}${tb.id}`;
               const currentGroups = groupsRef.current;
               if (currentGroups.some((gr) => gr.nodeIds.includes(memberId))) return;
