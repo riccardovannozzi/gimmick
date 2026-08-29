@@ -953,6 +953,24 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const overlayInnerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  /**
+   * C'è una gesture di pan/zoom IN CORSO — mano premuta, rotella che gira, o la
+   * transizione di Adatta/100%.
+   *
+   * Serve a non ricostruire l'SVG in mezzo a una gesture. d3 lega la gesture
+   * agli elementi che esistevano quando è cominciata: rimuoverli a metà strada
+   * la lascia a dipingere su un `<g>` staccato dal documento, e la lavagna resta
+   * ferma su una trasformazione vecchia mentre la mano continua a muoversi.
+   */
+  const zoomingRef = useRef(false);
+  /** Ridisegno CHIESTO mentre la gesture era in corso, e rimandato alla sua
+   *  fine. Il canvas si ridisegna a ogni cambio di dati, e i dati cambiano
+   *  eccome a mano premuta: basta che un campo della sidebar perda il fuoco e
+   *  salvi. */
+  const pendingRenderRef = useRef(false);
+  /** Sempre l'ULTIMO `render`. Il ridisegno rinviato deve ripartire dai dati di
+   *  adesso, non da quelli del momento in cui è stato rimandato. */
+  const renderRef = useRef<() => void>(() => {});
   // Chiave del canvas attualmente montato. Il grande effect di disegno gira a
   // ogni render: solo quando questa cambia (primo montaggio o passaggio a un
   // altro tag) la vista va ricaricata da localStorage invece di riusare quella
@@ -1346,6 +1364,32 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
+      /**
+       * MISURA DELLA LAVAGNA — dichiarata, non quella che d3 si calcola da sé.
+       *
+       * Il `defaultExtent` di d3-zoom legge `svg.width.baseVal.value`. Il nostro
+       * `<svg>` è dimensionato in CSS (`w-full h-full`) e non ha l'attributo
+       * `width`: per il DOM quella larghezza è quindi la lunghezza RELATIVA
+       * `100%`, e il browser sa risolverla solo mentre l'elemento è impaginato.
+       * Quando non lo è — un antenato `display:none`, un montaggio prima del
+       * layout, una copia staccata dal documento — non ripiega su zero: LANCIA
+       * `NotSupportedError: Could not resolve relative length`, e la gesture
+       * muore a metà portandosi dietro l'interazione.
+       *
+       * d3 lo legge spesso e in punti che non si possono evitare: apre una
+       * gesture a ogni `mousedown`, a ogni giro di rotella e a ogni tween di
+       * Adatta/100%. Non c'è un momento sbagliato da schivare — c'è una lettura
+       * fragile da non fare più.
+       *
+       * Il rettangolo di layout dà gli stessi numeri e non ha quel difetto:
+       * quando non c'è niente da misurare vale zero. Ed è già la misura con cui
+       * Adatta e 100% calcolano la vista, quindi la lavagna ora si misura in un
+       * modo solo.
+       */
+      .extent((): [[number, number], [number, number]] => {
+        const r = svg.getBoundingClientRect();
+        return [[0, 0], [r.width, r.height]];
+      })
       .filter((ev) => {
         if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
@@ -1368,11 +1412,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
         }
       })
+      .on('start', () => { zoomingRef.current = true; })
       // Fine di ogni pan/zoom → la vista viene persistita. Sull'`end` e non sullo
       // `zoom` per non scrivere su localStorage a ogni frame della rotella. Vale
       // anche per Fit e 100%, che sono a tutti gli effetti l'ultima vista scelta.
+      //
+      // È anche il momento in cui si paga il debito: se durante la gesture sono
+      // arrivati dati nuovi, il ridisegno è stato rimandato fin qui — ora la
+      // mano è aperta e l'SVG si può ricostruire senza staccare niente.
       .on('end', () => {
+        zoomingRef.current = false;
         saveView(viewKeyPropRef.current, zoomTransformRef.current);
+        if (pendingRenderRef.current) {
+          pendingRenderRef.current = false;
+          renderRef.current();
+        }
       });
     d3svg.call(zoom);
     zoomRef.current = zoom;
@@ -1386,14 +1440,35 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       viewKeyRef.current = viewKey;
       zoomTransformRef.current = loadView(viewKey) ?? d3.zoomIdentity;
     }
-    if (zoomTransformRef.current !== d3.zoomIdentity) {
-      d3svg.call(zoom.transform as any, zoomTransformRef.current);
+    // Il ripristino è MUTO: la trasformazione si scrive a mano nei tre posti che
+    // la portano — il nodo (dove d3 la tiene, come `__zoom`), il gruppo del
+    // disegno, l'overlay degli editor — invece di passare da `zoom.transform`,
+    // che EMETTE un evento di zoom.
+    //
+    // Emetterlo era un bug vero. Un evento di zoom viene consegnato ai listener
+    // della gesture eventualmente in corso, cioè a quelli registrati PRIMA di
+    // questa ricostruzione: scrivevano sul `<g>` di prima, che tre righe sopra
+    // è stato rimosso dal documento. Il gruppo nuovo restava senza
+    // trasformazione e la lavagna tornava a 1:1 da sola. Bastava scrivere in un
+    // campo della sidebar e premere sul vuoto: il `mousedown` apre la gesture,
+    // il campo perde il fuoco e salva, i dati cambiano, e la ricostruzione
+    // arrivava a mano ancora premuta. Muto, non c'è nessun evento da consegnare
+    // a nessuno, e il ridisegno non può più spostare la vista.
+    //
+    // In più `zoom.transform` chiudeva con un `end`, e su `end` la vista viene
+    // PERSISTITA: ogni ridisegno riscriveva localStorage per una vista che
+    // nessuno aveva toccato.
+    const view = zoomTransformRef.current;
+    d3svg.property('__zoom', view);
+    board.attr('transform', view.toString());
+    if (overlayInnerRef.current) {
+      overlayInnerRef.current.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.k})`;
     }
     // Anche il ripristino della vista salvata deve rispettare la soglia: senza,
     // riaprendo un canvas lasciato a scala 0.4 i badge tornerebbero accesi
     // finché non tocchi la rotella.
-    applyLod(zoomTransformRef.current.k);
-    applyDots(zoomTransformRef.current);
+    applyLod(view.k);
+    applyDots(view);
     const boardNode = board.node()!;
     const nodes = buildNodes();
     nodesRef.current = nodes;
@@ -3166,7 +3241,17 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, theme, viewKey]);
 
-  useEffect(() => { render(); }, [render]);
+  // Sempre l'ultimo, per il ridisegno rinviato: assegnato in fase di render,
+  // quindi già aggiornato quando l'effect qui sotto gira.
+  renderRef.current = render;
+  useEffect(() => {
+    // A mano premuta si aspetta. Ricostruire l'SVG adesso staccherebbe la
+    // gesture dal disegno che sta muovendo — vedi `zoomingRef`. Il debito viene
+    // pagato dall'`end` della gesture, e con i dati PIÙ RECENTI: `renderRef`
+    // punta sempre all'ultimo render, non a quello che ha chiesto il rinvio.
+    if (zoomingRef.current) { pendingRenderRef.current = true; return; }
+    render();
+  }, [render]);
 
   // Cambio di formato/orientamento → ridisegna SOLO l'anteprima del foglio.
   useEffect(() => { drawPdfPreviewRef.current?.(); }, [pdfPreview]);
