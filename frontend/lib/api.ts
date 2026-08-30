@@ -774,14 +774,14 @@ export const canvasApi = {
     return apiRequest<{ id: string; type: 'text' | 'image'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }[]>(`/api/canvas/boxes/${tagId}`);
   },
 
-  async addBox(tagId: string, data: { type: 'text' | 'image' | 'marker' | 'subject'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number }) {
+  async addBox(tagId: string, data: { type: 'text' | 'image' | 'marker' | 'subject' | 'organization'; content: Record<string, unknown>; x: number; y: number; w?: number; h?: number; contact_id?: string | null }) {
     return apiRequest<{ id: string; type: 'text' | 'image' | 'marker' | 'subject'; content: Record<string, unknown>; x: number; y: number; w: number; h: number }>(`/api/canvas/boxes/${tagId}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  async updateBox(id: string, updates: { type?: 'text' | 'image' | 'marker' | 'subject'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number }) {
+  async updateBox(id: string, updates: { type?: 'text' | 'image' | 'marker' | 'subject' | 'organization'; content?: Record<string, unknown>; x?: number; y?: number; w?: number; h?: number; contact_id?: string | null }) {
     return apiRequest(`/api/canvas/boxes/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),
@@ -900,6 +900,30 @@ export const contactsApi = {
   },
   async archive(id: string) {
     return apiRequest<Contact>(`/api/contacts/${id}/archive`, { method: 'POST' });
+  },
+  /**
+   * TUTTE le appartenenze dell'utente in una richiesta sola.
+   *
+   * Non «le organizzazioni di questo contatto»: la lavagna disegna venti
+   * soggetti insieme e ognuno vuole sapere di che cosa fa parte — un endpoint
+   * per contatto sarebbe stato venti richieste per aprire un canvas. Sono coppie
+   * di due UUID: anche una rubrica grande sta in pochi kilobyte.
+   */
+  async memberships() {
+    return apiRequest<{ member_id: string; org_id: string }[]>('/api/contacts/memberships');
+  },
+  /**
+   * SOSTITUISCE le organizzazioni di un contatto — non ne aggiunge una.
+   *
+   * È la forma del gesto: davanti c'è un elenco con delle spunte, e quello che
+   * l'utente comunica è «le sue organizzazioni ora sono queste». Idempotente,
+   * quindi due schede aperte sullo stesso soggetto non si sommano a vicenda.
+   */
+  async setOrganizations(id: string, orgIds: string[]) {
+    return apiRequest<{ member_id: string; org_id: string }[]>(`/api/contacts/${id}/organizations`, {
+      method: 'PUT',
+      body: JSON.stringify({ org_ids: orgIds }),
+    });
   },
   async unarchive(id: string) {
     return apiRequest<Contact>(`/api/contacts/${id}/unarchive`, { method: 'POST' });

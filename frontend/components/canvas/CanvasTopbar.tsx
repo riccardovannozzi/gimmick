@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots, IconUser } from '@tabler/icons-react';
+import { IconArticle, IconCube, IconPinnedOff, IconPhoto, IconLasso, IconFileTypePdf, IconFlag, IconX, IconGridDots, IconUser, IconBuilding } from '@tabler/icons-react';
 import { MARKER_SPEC, MARKER_KINDS, MarkerBadge } from '@/components/canvas/CanvasBoard';
 import type { MarkerKind } from '@/components/canvas/CanvasBoard';
 import { usePixelTheme } from '@/components/pixel';
@@ -31,6 +31,16 @@ interface CanvasTopbarProps {
    */
   subjectMode?: boolean;
   onToggleSubjectMode?: () => void;
+  /**
+   * ORGANIZZAZIONE — un insieme di soggetti.
+   *
+   * Accanto al soggetto e per la stessa ragione per cui il soggetto sta fuori
+   * dai marcatori: sono anagrafica, non segni del percorso. Dietro i due c'è una
+   * riga della stessa rubrica — `kind` person contro company — e a distinguerli
+   * sulla lavagna è la forma: tondo un individuo, squadrato un insieme.
+   */
+  organizationMode?: boolean;
+  onToggleOrganizationMode?: () => void;
   selectMode: boolean;
   onToggleTextMode: () => void;
   onToggleTileMode: () => void;
@@ -67,7 +77,7 @@ interface CanvasTopbarProps {
   onReorderPinned?: (orderedIds: string[]) => void;
 }
 
-export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, subjectMode = false, onToggleSubjectMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
+export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, markerMode = null, onPickMarker, subjectMode = false, onToggleSubjectMode, organizationMode = false, onToggleOrganizationMode, onToggleTextMode, onToggleTileMode, onToggleImageMode, onToggleSelectMode, pdfMode = false, onTogglePdfMode, onTidy, tidyLabel, doneHighlight = false, onToggleDoneHighlight, pinnedTags = [], onPinnedTagClick, onUnpinTag, onReorderPinned }: CanvasTopbarProps) {
   const theme = usePixelTheme();
   const chipBorderW = 1;
   /**
@@ -302,6 +312,14 @@ export function CanvasTopbar({ tag, textMode, tileMode, imageMode, selectMode, m
             label="Soggetto"
             active={subjectMode}
             onClick={onToggleSubjectMode}
+          />
+        )}
+        {onToggleOrganizationMode && (
+          <ToolButton
+            icon={<IconBuilding size={16} stroke={1.6} />}
+            label="Organizzazione"
+            active={organizationMode}
+            onClick={onToggleOrganizationMode}
           />
         )}
         {onTidy && (

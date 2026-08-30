@@ -283,6 +283,19 @@
 }
 .ob-seg-item:hover:not(.ob-seg-item--active) { color: var(--ob-text); }
 .ob-seg-item--active { background: var(--ob-accent-soft); color: var(--ob-accent); }
+/* Variante da TABELLA — stessa forma, rimpicciolita.
+   Il segmentato normale con i suoi 6px di padding e il corpo `control` viene
+   alto 32: in una riga di dati da 44 pesa più del dato che descrive, e due
+   celle vicine si toccano. Qui il corpo scende a `meta` (11px), lo stesso dei
+   metadati, e l'altezza a 24. */
+.ob-seg--sm .ob-seg-item { padding: 3px 8px; font-size: var(--ob-text-meta); gap: 4px; }
+/* Variante da BARRA — quota 30, la stessa di `.ob-tool`, `.ob-toolword` e
+   `.ob-toolinput`, così che una fila di comandi resti una fila.
+   Il segmentato normale viene alto 34 (2 di bordo + 4 di gronda + 6+6 di
+   padding + 18 di riga) e in una fascia da 44 sporgerebbe sopra e sotto le
+   parole che gli stanno accanto. Qui l'altezza la dichiara la voce — 24 — e i
+   conti tornano: 1 + 2 + 24 + 2 + 1 = 30. */
+.ob-seg--tool .ob-seg-item { height: 24px; padding: 0 10px; gap: 5px; }
 
 /* ── Avatar ── */
 .ob-avatar {
