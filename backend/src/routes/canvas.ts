@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-import { assertTagOwned, assertTilesOwned } from '../utils/ownership.js';
+import { assertTagOwned, assertTilesOwned, assertContactOwned } from '../utils/ownership.js';
 
 export const canvasRouter = Router();
 canvasRouter.use(authenticate);
@@ -268,12 +268,32 @@ canvasRouter.put('/groups/:tagId', async (req: AuthenticatedRequest, res: Respon
 //   text:  { html: string }
 //   image: { src: string, alt?: string }
 
+/**
+ * I tipi di box che la lavagna sa disegnare.
+ *
+ * Erano una catena di `!==` ripetuta in due punti (POST e PATCH), e il messaggio
+ * d'errore era una terza copia da tenere allineata a mano: al quinto tipo la
+ * frase «...text, image, marker or subject» sarebbe rimasta giusta in un posto e
+ * sbagliata nell'altro, che è il modo peggiore di sbagliare.
+ *
+ * ⚠️ Gemello del CHECK `canvas_boxes_type_check` (migration 048). Il database
+ * rifiuta comunque un tipo che non conosce — questa lista serve a rifiutarlo con
+ * una frase che si capisce.
+ */
+const BOX_TYPES = ['text', 'image', 'marker', 'subject', 'organization'] as const;
+const isBoxType = (t: unknown): t is (typeof BOX_TYPES)[number] =>
+  typeof t === 'string' && (BOX_TYPES as readonly string[]).includes(t);
+const BOX_TYPE_ERROR = `type must be one of: ${BOX_TYPES.join(', ')}`;
+
 canvasRouter.get('/boxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tagId } = req.params;
     const { data, error } = await supabaseAdmin
       .from('canvas_boxes')
-      .select('id, type, content, x, y, w, h')
+      // `contact_id`: soggetti e organizzazioni non contengono i propri dati, li
+      // PUNTANO in rubrica (migration 048). Senza questa colonna la lavagna
+      // disegnerebbe figure senza nome.
+      .select('id, type, content, x, y, w, h, contact_id')
       .eq('user_id', req.user!.id)
       .eq('tag_id', tagId);
     if (error) throw error;
@@ -284,11 +304,12 @@ canvasRouter.get('/boxes/:tagId', async (req: AuthenticatedRequest, res: Respons
 canvasRouter.post('/boxes/:tagId', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const { tagId } = req.params;
-    const { type, content, x, y, w, h } = req.body;
-    if (type !== 'text' && type !== 'image' && type !== 'marker' && type !== 'subject') {
-      return res.status(400).json({ success: false, error: 'type must be text, image, marker or subject' });
+    const { type, content, x, y, w, h, contact_id } = req.body;
+    if (!isBoxType(type)) {
+      return res.status(400).json({ success: false, error: BOX_TYPE_ERROR });
     }
     await assertTagOwned(req.user!.id, tagId as string);
+    if (contact_id) await assertContactOwned(req.user!.id, contact_id as string);
     const { data, error } = await supabaseAdmin
       .from('canvas_boxes')
       .insert({
@@ -300,6 +321,7 @@ canvasRouter.post('/boxes/:tagId', async (req: AuthenticatedRequest, res: Respon
         y: y || 0,
         w: w || 200,
         h: h || 60,
+        contact_id: contact_id || null,
       })
       .select()
       .single();
@@ -313,10 +335,14 @@ canvasRouter.patch('/boxes/:id', async (req: AuthenticatedRequest, res: Response
     const { id } = req.params;
     const updates: Record<string, unknown> = {};
     if (req.body.type !== undefined) {
-      if (req.body.type !== 'text' && req.body.type !== 'image' && req.body.type !== 'marker' && req.body.type !== 'subject') {
-        return res.status(400).json({ success: false, error: 'type must be text, image, marker or subject' });
+      if (!isBoxType(req.body.type)) {
+        return res.status(400).json({ success: false, error: BOX_TYPE_ERROR });
       }
       updates.type = req.body.type;
+    }
+    if (req.body.contact_id !== undefined) {
+      if (req.body.contact_id) await assertContactOwned(req.user!.id, req.body.contact_id as string);
+      updates.contact_id = req.body.contact_id || null;
     }
     if (req.body.content !== undefined) updates.content = req.body.content;
     if (req.body.x !== undefined) updates.x = req.body.x;

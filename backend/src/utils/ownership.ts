@@ -55,6 +55,45 @@ export async function assertTagOwned(userId: string, tagId: string): Promise<voi
   if (!data) throw new NotFoundError('Tag not found');
 }
 
+/** Come sopra, per un contatto. Serve da quando un box del canvas non contiene
+ *  più i dati di una persona ma li PUNTA (migration 048): la foreign key
+ *  garantisce che la riga esista, non che sia tua. */
+export async function assertContactOwned(userId: string, contactId: string): Promise<void> {
+  const { data, error } = await supabaseAdmin
+    .from('contacts')
+    .select('id')
+    .eq('id', contactId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) throw new NotFoundError('Contact not found');
+}
+
+/**
+ * Come `assertTilesOwned`, per i contatti: una query sola per un insieme.
+ *
+ * La usa la sostituzione delle appartenenze, che arriva con la lista intera
+ * delle organizzazioni di un soggetto — un ciclo di verifiche singole avrebbe
+ * fatto una query per organizzazione a ogni spunta messa in un menu.
+ */
+export async function assertContactsOwned(userId: string, contactIds: string[]): Promise<void> {
+  const unique = [...new Set(contactIds)];
+  if (unique.length === 0) return;
+
+  const { data, error } = await supabaseAdmin
+    .from('contacts')
+    .select('id')
+    .eq('user_id', userId)
+    .in('id', unique);
+  if (error) throw error;
+
+  const owned = new Set((data ?? []).map((c) => c.id as string));
+  const missing = unique.filter((id) => !owned.has(id));
+  if (missing.length > 0) {
+    throw new NotFoundError(`Contact not found: ${missing.join(', ')}`);
+  }
+}
+
 /**
  * Verifica in UNA sola query che tutti i tile passati appartengano all'utente.
  *

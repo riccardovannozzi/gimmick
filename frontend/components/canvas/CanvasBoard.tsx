@@ -16,7 +16,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { Tile as TileCard } from '@/components/tiles/Tile';
 import { tileVisualKey, subtaskToStep, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
-import { IconChevronsDown, IconFlag, IconCircle, IconUser } from '@tabler/icons-react';
+import { IconChevronsDown, IconFlag, IconCircle, IconUser, IconBuilding } from '@tabler/icons-react';
 import { TextEditor, BOX_FONT_SIZE } from './TextEditor';
 import { OB_TEXT, OB_WEIGHT } from '@/lib/theme/ob-typography';
 
@@ -462,6 +462,52 @@ function paintSubject(node: SVGGElement, w: number, h: number) {
 }
 
 /**
+ * L'ORGANIZZAZIONE — un insieme di soggetti, disegnato come un quadrato con gli
+ * angoli tondi e un palazzo dentro.
+ *
+ * Stessa ricetta del soggetto (fondo di superficie, contorno hairline, glifo in
+ * `foreignObject`) e stessa scelta di NON colorarlo: soggetti e organizzazioni
+ * non sono un vocabolario chiuso come i marcatori, sono anagrafica — dargli un
+ * colore avrebbe fatto credere a una classificazione che non c'è.
+ *
+ * Quello che cambia è il PERIMETRO, ed è deliberato: tondo = un individuo,
+ * squadrato = un insieme. È la sola differenza che sopravvive a una lavagna
+ * rimpicciolita, quando del glifo resta una macchia.
+ *
+ * Il palazzo e non un gruppo di persone: tre figure sovrapposte a questa misura
+ * diventano un grumo, mentre la sagoma di un edificio resta riconoscibile anche
+ * quando è alta dodici pixel.
+ */
+function paintOrganization(node: SVGGElement, w: number, h: number) {
+  const g = d3.select(node);
+  g.append('rect')
+    .attr('x', 0.75).attr('y', 0.75)
+    .attr('width', w - 1.5).attr('height', h - 1.5)
+    // Lo stesso raggio dei tile e dei gruppi (`RX`, dichiarato dentro il
+    // componente e qui non raggiungibile): un box dell'anagrafica appartiene
+    // alla stessa famiglia di rettangoli, non è una forma a sé.
+    .attr('rx', 5)
+    .style('fill', 'var(--ob-surface-2)')
+    .style('stroke', 'var(--ob-line-2)')
+    .style('stroke-width', 1.5);
+  const GS = Math.round(Math.min(w, h) * 0.52);
+  const fo = g.append('foreignObject')
+    .attr('x', (w - GS) / 2).attr('y', (h - GS) / 2)
+    .attr('width', GS).attr('height', GS)
+    .style('pointer-events', 'none')
+    .style('overflow', 'visible');
+  const host = document.createElement('div');
+  host.style.cssText = `width:${GS}px;height:${GS}px;display:flex;align-items:center;justify-content:center;color:var(--ob-muted);`;
+  try {
+    host.innerHTML = renderToString(React.createElement(IconBuilding, { size: GS, stroke: 1.8 }));
+  } catch {
+    // Come per il soggetto: un glifo che non si renderizza non deve togliere il
+    // box — restano posizione, aggancio e menu contestuale.
+  }
+  (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+}
+
+/**
  * Quante righe occuperà una didascalia. È una STIMA, e non può essere altro: le
  * righe vere le decide il browser mandando a capo il testo dentro un
  * `foreignObject`, e chi misura qui — il riquadro del gruppo — deve saperlo
@@ -492,15 +538,19 @@ const boxLabelLines = (text: string) => {
  * appartiene. Misurare la sola scatola voleva dire tagliare proprio il nome della
  * persona che si è appena messa nel gruppo per dire di chi è quella zona.
  */
-const boxExtent = (tb: CanvasBox) => {
+const boxExtent = (tb: CanvasBox, nameOf: (contactId?: string | null) => string) => {
   if (tb.type === 'image') {
     // Il titolo dell'immagine sta SOPRA il bordo, su una riga sola e troncato a
     // caratteri dal disegno: l'ingombro comincia più in alto, non più in basso.
     const cap = tb.content.showTitle && (tb.content.title || '').trim() ? CAPTION_H : 0;
     return { x: tb.x, y: tb.y - cap, w: tb.w, h: tb.h + cap };
   }
-  const caption = tb.type === 'subject'
-    ? (tb.content.name || '')
+  // Soggetti e organizzazioni non portano più il proprio nome nel box: lo
+  // puntano in rubrica (migration 048). Chi misura deve quindi saper risolvere
+  // un `contact_id`, ed è il motivo del secondo parametro — la geometria di un
+  // box ora dipende da una riga che sta altrove.
+  const caption = tb.type === 'subject' || tb.type === 'organization'
+    ? nameOf(tb.contact_id)
     : tb.type === 'marker' ? (tb.content.label || '') : '';
   const text = caption.trim();
   if (!text) return { x: tb.x, y: tb.y, w: tb.w, h: tb.h };
@@ -734,30 +784,73 @@ const BOX_LABEL_LH = 13;
 const BOX_LABEL_GAP = 5;
 
 /**
- * IL SOGGETTO — la persona a cui una parte della lavagna fa capo.
+ * Il contenuto di un box dell'ANAGRAFICA — soggetto o organizzazione. È VUOTO,
+ * ed è la cosa interessante che ha da dire.
  *
- * Tutti e quattro i campi sono facoltativi, `name` compreso: un soggetto si
- * posa prima di sapere come si chiama, e un box che rifiuta di esistere finché
- * non gli si dà un nome costringe a inventarlo. Senza nome resta un'icona
- * anonima, che è esattamente ciò che si sta dicendo.
+ * Fino alla migration 048 qui dentro c'erano nome, mail, telefono e note: una
+ * scheda per lavagna, che nasceva e moriva col disegno. Il commento di allora
+ * diceva che era deliberatamente separata dalla rubrica, «perché disegnare uno
+ * schema non vuol dire mettere qualcuno in rubrica». Era una posizione
+ * difendibile finché il soggetto era solo un'icona con un nome sotto; è caduta
+ * appena si è dovuto dire che UN soggetto fa parte di UN'organizzazione —
+ * un'appartenenza fra due schede locali a due lavagne diverse non significa
+ * niente.
  *
- * ⚠️ Non è un `Contact`. La rubrica (`contacts`) è una riga condivisa e
- * referenziata dai passi dei flow; questo è un segno su UNA lavagna, che vive e
- * muore con lei. Vedi la nota sulla migrazione 046.
+ * Ora i dati stanno in `contacts`, la stessa rubrica dei passi dei tile, e il
+ * box la PUNTA con `contact_id`. Il tipo resta — al suo posto nella union — per
+ * dire che il contenuto è vuoto per costruzione e non per dimenticanza:
+ * `Record<string, never>` fa fallire la compilazione a chi provi a rimetterci
+ * un campo, che è esattamente il ripensamento da fermare.
  */
-export type CanvasBoxSubjectContent = { name?: string; email?: string; phone?: string; notes?: string };
+export type CanvasBoxSubjectContent = Record<string, never>;
+/**
+ * L'ANAGRAFICA di un soggetto o di un'organizzazione, come serve alla lavagna.
+ *
+ * È una riga di `contacts` — la stessa rubrica dei passi dei tile — ridotta ai
+ * campi che il canvas usa. Il box non la contiene: la punta con `contact_id`
+ * (migration 048), e chi disegna riceve la mappa id → anagrafica.
+ *
+ * `kind` decide che cosa si può proporre come organizzazione nei menu; la FORMA
+ * del box invece la decide il suo `type`, che non cambia se un domani quel
+ * contatto viene riclassificato in rubrica.
+ */
+export type CanvasContact = {
+  id: string;
+  name: string;
+  kind: string;
+  email?: string | null;
+  phone?: string | null;
+  notes?: string | null;
+  /** Il contatto «io», uno per utente. Qui serve a una cosa sola: il menu della
+   *  lavagna non deve offrire di eliminarlo dalla rubrica — il backend lo
+   *  rifiuterebbe con un 400, e un comando che esiste solo per fallire è peggio
+   *  di un comando spento. */
+  is_self?: boolean;
+};
 /**
  * Lato del riquadro di un soggetto. Quadrato, come il marcatore, e appena più
  * grande: dentro non c'è un simbolo astratto ma una figura, che a 36px si
  * chiude su se stessa.
  */
 export const SUBJECT_SIZE = 44;
+/**
+ * Lato del riquadro di un'organizzazione. Più grande del soggetto, e non per
+ * gerarchia: un quadrato con gli angoli tondi ha meno area utile di un cerchio
+ * dello stesso lato una volta che dentro ci sta un glifo con dei dettagli
+ * (finestre, tetto), e a 44 il palazzo si impastava.
+ *
+ * La differenza di FORMA però è quella che conta: il soggetto è un disco,
+ * l'organizzazione un quadrato. Si distinguono da lontano, prima ancora che
+ * l'occhio risolva il glifo — che a scala ridotta è l'unico momento che conta.
+ */
+export const ORGANIZATION_SIZE = 52;
 
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
   | { id: string; type: 'image'; content: CanvasBoxImageContent; x: number; y: number; w: number; h: number }
   | { id: string; type: 'marker'; content: CanvasBoxMarkerContent; x: number; y: number; w: number; h: number }
-  | { id: string; type: 'subject'; content: CanvasBoxSubjectContent; x: number; y: number; w: number; h: number };
+  | { id: string; type: 'subject'; content: CanvasBoxSubjectContent; x: number; y: number; w: number; h: number; contact_id?: string | null }
+  | { id: string; type: 'organization'; content: CanvasBoxSubjectContent; x: number; y: number; w: number; h: number; contact_id?: string | null };
 // Backward-compat alias (kept until all consumers are migrated).
 export type CanvasTextBox = CanvasBox;
 
@@ -813,6 +906,14 @@ interface CanvasBoardProps {
   markerMode?: MarkerKind | null;
   /** SOGGETTO armato: il prossimo click sulla lavagna posa una persona. */
   subjectMode?: boolean;
+  /** Vero mentre lo strumento «Organizzazione» è armato. */
+  organizationMode?: boolean;
+  /**
+   * L'anagrafica, per NOME. La lavagna non la modifica: le serve solo per
+   * scrivere sotto ogni soggetto e ogni organizzazione chi è — il box porta un
+   * `contact_id`, non un nome (migration 048).
+   */
+  contacts?: CanvasContact[];
   /**
    * Posa un oggetto. `splitEdgeId` arriva valorizzato quando l'oggetto è stato
    * lasciato su un edge armato: chi lo riceve deve prima crearlo e poi spezzare
@@ -820,9 +921,18 @@ interface CanvasBoardProps {
    * creazione, quindi l'innesto non può essere deciso qui.
    */
   onAddMarkerAt?: (x: number, y: number, kind: MarkerKind, splitEdgeId?: string) => void;
-  /** Posa un soggetto. Nessun `splitEdgeId`: un soggetto non innesta — vedi la
-   *  nota su `currentPlacing`. */
-  onAddSubjectAt?: (x: number, y: number) => void;
+  /**
+   * Posa un soggetto. Nessun `splitEdgeId`: un soggetto non innesta — vedi la
+   * nota su `currentPlacing`.
+   *
+   * `at` è il punto dello SCHERMO in cui si è cliccato, e serve perché posare
+   * un'anagrafica non è un gesto che si chiude qui: chi riceve deve prima
+   * chiedere DI CHI si tratta, e la domanda va fatta dove si stava guardando.
+   * Le coordinate della lavagna non bastano a saperlo — sono al netto di zoom
+   * e pan, e il pannello vive fuori dall'SVG.
+   */
+  onAddSubjectAt?: (x: number, y: number, at: { clientX: number; clientY: number }) => void;
+  onAddOrganizationAt?: (x: number, y: number, at: { clientX: number; clientY: number }) => void;
   onAddImageBox?: (file: File, x: number, y: number, w: number, h: number) => void;
   /** Modalità "Raggruppa a contorno": il drag sullo sfondo disegna un rettangolo
    *  SENZA bisogno di modificatori e gli elementi catturati formano subito un
@@ -902,6 +1012,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   onGroupsChange, onAddTextBox, onUpdateTextBox, onTextBoxContextMenu, onAddImageBox,
   onGroupTiles, onGroupContextMenu, onGroupClick, selectedGroupId, selectedTileId,
   pdfMode, onPdfArea, pdfPreview, boardRootRef, markerMode, onAddMarkerAt, subjectMode, onAddSubjectAt,
+  organizationMode, onAddOrganizationAt, contacts,
   onEdgeClick, selectedEdgeId,
   selectedTextBoxId, onTextBoxClick,
   selectedIds, onSelectionChange,
@@ -953,6 +1064,24 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const overlayInnerRef = useRef<HTMLDivElement>(null);
   const zoomRef = useRef<d3.ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const zoomTransformRef = useRef<d3.ZoomTransform>(d3.zoomIdentity);
+  /**
+   * C'è una gesture di pan/zoom IN CORSO — mano premuta, rotella che gira, o la
+   * transizione di Adatta/100%.
+   *
+   * Serve a non ricostruire l'SVG in mezzo a una gesture. d3 lega la gesture
+   * agli elementi che esistevano quando è cominciata: rimuoverli a metà strada
+   * la lascia a dipingere su un `<g>` staccato dal documento, e la lavagna resta
+   * ferma su una trasformazione vecchia mentre la mano continua a muoversi.
+   */
+  const zoomingRef = useRef(false);
+  /** Ridisegno CHIESTO mentre la gesture era in corso, e rimandato alla sua
+   *  fine. Il canvas si ridisegna a ogni cambio di dati, e i dati cambiano
+   *  eccome a mano premuta: basta che un campo della sidebar perda il fuoco e
+   *  salvi. */
+  const pendingRenderRef = useRef(false);
+  /** Sempre l'ULTIMO `render`. Il ridisegno rinviato deve ripartire dai dati di
+   *  adesso, non da quelli del momento in cui è stato rimandato. */
+  const renderRef = useRef<() => void>(() => {});
   // Chiave del canvas attualmente montato. Il grande effect di disegno gira a
   // ogni render: solo quando questa cambia (primo montaggio o passaggio a un
   // altro tag) la vista va ricaricata da localStorage invece di riusare quella
@@ -975,7 +1104,26 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   const markerModeRef = useRef(markerMode); markerModeRef.current = markerMode;
   const onAddMarkerAtRef = useRef(onAddMarkerAt); onAddMarkerAtRef.current = onAddMarkerAt;
   const subjectModeRef = useRef(subjectMode); subjectModeRef.current = subjectMode;
+  const organizationModeRef = useRef(organizationMode); organizationModeRef.current = organizationMode;
+  /**
+   * Da `contact_id` al nome da scrivere sotto la figura.
+   *
+   * In un ref e non fra le dipendenze del disegno: rinominare un contatto deve
+   * aggiornare la lavagna — e lo fa, perché `contacts` è fra le dipendenze di
+   * `render` — ma il disegno legge la funzione al momento in cui traccia, non al
+   * momento in cui è stato costruito.
+   *
+   * Un contatto che non si trova dà stringa vuota e non un segnaposto: il box
+   * resta muto invece di annunciare un guasto. Succede solo nella finestra fra
+   * la creazione ottimistica di un contatto e la sua comparsa nell'elenco.
+   */
+  const contactNameRef = useRef<(id?: string | null) => string>(() => '');
+  contactNameRef.current = (id) => {
+    if (!id) return '';
+    return (contacts ?? []).find((c) => c.id === id)?.name?.trim() ?? '';
+  };
   const onAddSubjectAtRef = useRef(onAddSubjectAt); onAddSubjectAtRef.current = onAddSubjectAt;
+  const onAddOrganizationAtRef = useRef(onAddOrganizationAt); onAddOrganizationAtRef.current = onAddOrganizationAt;
   const onPdfAreaRef = useRef(onPdfArea); onPdfAreaRef.current = onPdfArea;
   const pdfPreviewRef = useRef(pdfPreview); pdfPreviewRef.current = pdfPreview;
   /** Come drawGroupsRef: ridisegna SOLO l'anteprima del foglio quando cambia il
@@ -1210,7 +1358,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
    *  comprese — vedi `boxExtent`. */
   const getGroupRects = (g: CanvasGroup, ns: CanvasNode[], tbs: CanvasBox[]) => [
     ...ns.filter((n) => g.nodeIds.includes(n.id)).map((n) => ({ x: n.x, y: n.y, w: TILE_W, h: TILE_H })),
-    ...getGroupBoxes(g, tbs).map(boxExtent),
+    ...getGroupBoxes(g, tbs).map((tb) => boxExtent(tb, contactNameRef.current)),
   ];
 
   const getGroupBounds = (g: CanvasGroup, ns: CanvasNode[]) => {
@@ -1346,8 +1494,34 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
     const zoom = d3.zoom<SVGSVGElement, unknown>()
       .scaleExtent([0.3, 2])
+      /**
+       * MISURA DELLA LAVAGNA — dichiarata, non quella che d3 si calcola da sé.
+       *
+       * Il `defaultExtent` di d3-zoom legge `svg.width.baseVal.value`. Il nostro
+       * `<svg>` è dimensionato in CSS (`w-full h-full`) e non ha l'attributo
+       * `width`: per il DOM quella larghezza è quindi la lunghezza RELATIVA
+       * `100%`, e il browser sa risolverla solo mentre l'elemento è impaginato.
+       * Quando non lo è — un antenato `display:none`, un montaggio prima del
+       * layout, una copia staccata dal documento — non ripiega su zero: LANCIA
+       * `NotSupportedError: Could not resolve relative length`, e la gesture
+       * muore a metà portandosi dietro l'interazione.
+       *
+       * d3 lo legge spesso e in punti che non si possono evitare: apre una
+       * gesture a ogni `mousedown`, a ogni giro di rotella e a ogni tween di
+       * Adatta/100%. Non c'è un momento sbagliato da schivare — c'è una lettura
+       * fragile da non fare più.
+       *
+       * Il rettangolo di layout dà gli stessi numeri e non ha quel difetto:
+       * quando non c'è niente da misurare vale zero. Ed è già la misura con cui
+       * Adatta e 100% calcolano la vista, quindi la lavagna ora si misura in un
+       * modo solo.
+       */
+      .extent((): [[number, number], [number, number]] => {
+        const r = svg.getBoundingClientRect();
+        return [[0, 0], [r.width, r.height]];
+      })
       .filter((ev) => {
-        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
+        if ((textModeRef.current || tileModeRef.current || imageModeRef.current || selectModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current || organizationModeRef.current) && ev.type === 'mousedown') return false; // con un modo armato il trascinamento posa, non sposta la vista
         return ev.type === 'wheel' || ev.type?.startsWith('touch') || (ev.type === 'mousedown' && ev.button === 0 && !ev.shiftKey && !ev.ctrlKey && !ev.metaKey && ev.target === svg);
       })
       .on('zoom', (ev) => {
@@ -1368,11 +1542,21 @@ export const CanvasBoard = React.memo(function CanvasBoard({
           onSelectionChangeRef.current?.(selectedIdsRef.current, computeSelectionScreenBbox());
         }
       })
+      .on('start', () => { zoomingRef.current = true; })
       // Fine di ogni pan/zoom → la vista viene persistita. Sull'`end` e non sullo
       // `zoom` per non scrivere su localStorage a ogni frame della rotella. Vale
       // anche per Fit e 100%, che sono a tutti gli effetti l'ultima vista scelta.
+      //
+      // È anche il momento in cui si paga il debito: se durante la gesture sono
+      // arrivati dati nuovi, il ridisegno è stato rimandato fin qui — ora la
+      // mano è aperta e l'SVG si può ricostruire senza staccare niente.
       .on('end', () => {
+        zoomingRef.current = false;
         saveView(viewKeyPropRef.current, zoomTransformRef.current);
+        if (pendingRenderRef.current) {
+          pendingRenderRef.current = false;
+          renderRef.current();
+        }
       });
     d3svg.call(zoom);
     zoomRef.current = zoom;
@@ -1386,14 +1570,35 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       viewKeyRef.current = viewKey;
       zoomTransformRef.current = loadView(viewKey) ?? d3.zoomIdentity;
     }
-    if (zoomTransformRef.current !== d3.zoomIdentity) {
-      d3svg.call(zoom.transform as any, zoomTransformRef.current);
+    // Il ripristino è MUTO: la trasformazione si scrive a mano nei tre posti che
+    // la portano — il nodo (dove d3 la tiene, come `__zoom`), il gruppo del
+    // disegno, l'overlay degli editor — invece di passare da `zoom.transform`,
+    // che EMETTE un evento di zoom.
+    //
+    // Emetterlo era un bug vero. Un evento di zoom viene consegnato ai listener
+    // della gesture eventualmente in corso, cioè a quelli registrati PRIMA di
+    // questa ricostruzione: scrivevano sul `<g>` di prima, che tre righe sopra
+    // è stato rimosso dal documento. Il gruppo nuovo restava senza
+    // trasformazione e la lavagna tornava a 1:1 da sola. Bastava scrivere in un
+    // campo della sidebar e premere sul vuoto: il `mousedown` apre la gesture,
+    // il campo perde il fuoco e salva, i dati cambiano, e la ricostruzione
+    // arrivava a mano ancora premuta. Muto, non c'è nessun evento da consegnare
+    // a nessuno, e il ridisegno non può più spostare la vista.
+    //
+    // In più `zoom.transform` chiudeva con un `end`, e su `end` la vista viene
+    // PERSISTITA: ogni ridisegno riscriveva localStorage per una vista che
+    // nessuno aveva toccato.
+    const view = zoomTransformRef.current;
+    d3svg.property('__zoom', view);
+    board.attr('transform', view.toString());
+    if (overlayInnerRef.current) {
+      overlayInnerRef.current.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.k})`;
     }
     // Anche il ripristino della vista salvata deve rispettare la soglia: senza,
     // riaprendo un canvas lasciato a scala 0.4 i badge tornerebbero accesi
     // finché non tocchi la rotella.
-    applyLod(zoomTransformRef.current.k);
-    applyDots(zoomTransformRef.current);
+    applyLod(view.k);
+    applyDots(view);
     const boardNode = board.node()!;
     const nodes = buildNodes();
     nodesRef.current = nodes;
@@ -1502,7 +1707,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     d3svg.on('click.clearsel', (e: MouseEvent) => {
       if (e.target !== svg) return;
       if (isSelectModifier(e)) return;
-      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current) return;
+      if (textModeRef.current || tileModeRef.current || imageModeRef.current || pdfModeRef.current || markerModeRef.current || subjectModeRef.current || organizationModeRef.current) return;
       if (!hasAnySelection()) return;
       selectedIdsRef.current = [];
       // onSelectionChange([]) azzera lato parent selezione tile/gruppo/box.
@@ -2081,7 +2286,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // passaggio (l'unica accensione che deve contare è quella dell'innesto,
         // che è d'accento) e niente click rubato — sopra un collegamento il
         // click POSA, ed è anzi il gesto con cui ci si innesta.
-        g.on('mouseenter', () => { if (markerModeRef.current || subjectModeRef.current) return; vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)); })
+        g.on('mouseenter', () => { if (markerModeRef.current || subjectModeRef.current || organizationModeRef.current) return; vl.attr('stroke', '#E24B4A').attr('stroke-width', Math.max(baseWidth, 2.5)); })
          .on('mouseleave', () => {
            // Ripristina il baseline consapevole della selezione (può cambiare in hover).
            const sel = selectedIdsRef.current;
@@ -2089,7 +2294,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
            vl.attr('stroke', ms ? selAccent : edgeColor).attr('stroke-width', ms ? Math.max(edgeWidth, 2.5) : edgeWidth);
          });
         g.on('click', (ev: MouseEvent) => {
-          if (markerModeRef.current || subjectModeRef.current) return;   // il click scende al piano di sotto
+          if (markerModeRef.current || subjectModeRef.current || organizationModeRef.current) return;   // il click scende al piano di sotto
           ev.stopPropagation(); onEdgeClickRef.current?.(edge.id);
         });
         g.on('contextmenu', (ev: MouseEvent) => { ev.preventDefault(); ev.stopPropagation(); onEdgeContextMenuRef.current({ x: ev.clientX, y: ev.clientY, edgeId: edge.id }); });
@@ -2461,18 +2666,27 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const isTextBox = tb.type === 'text';
         const isMarker = tb.type === 'marker';
         const isSubject = tb.type === 'subject';
-        // Marcatore e soggetto sono TONDI e piccoli, e tutto il resto del file
-        // li tratta allo stesso modo: niente maniglie di ridimensionamento
-        // (la misura è quella e basta) e anello di selezione a raggio pieno.
+        const isOrg = tb.type === 'organization';
+        // Marcatore e soggetto sono TONDI: anello di selezione a raggio pieno.
+        // L'organizzazione è squadrata e prende l'anello rettangolare come i box.
         const isDisc = isMarker || isSubject;
-        if (isSubject) {
-          // Disco di superficie con la figura di una persona: vedi `paintSubject`
-          // per il perché non è colorato come i marcatori.
-          paintSubject(g.node()!, tw, th);
-          // La DENOMINAZIONE sotto il disco, con la stessa didascalia del
+        // Chi ha una MISURA FISSA: nessuna maniglia di ridimensionamento. È un
+        // insieme diverso da `isDisc` da quando esiste l'organizzazione, che è
+        // quadrata ma non per questo ridimensionabile — tenerli uniti avrebbe
+        // dato all'organizzazione otto maniglie e un anello tondo.
+        const isFixed = isDisc || isOrg;
+        if (isSubject || isOrg) {
+          // Disco con una persona, o quadrato con un palazzo. Vedi `paintSubject`
+          // e `paintOrganization` per il perché non sono colorati come i marcatori.
+          if (isOrg) paintOrganization(g.node()!, tw, th);
+          else paintSubject(g.node()!, tw, th);
+          // La DENOMINAZIONE sotto la figura, con la stessa didascalia del
           // marcatore: un'icona anonima su una lavagna con quattro persone non
-          // dice niente, ed è l'unico dei quattro campi che si legge da lontano.
-          const sName = ((tb.content as { name?: string }).name || '').trim();
+          // dice niente, ed è il solo campo dell'anagrafica che si legga da
+          // lontano. Arriva dalla RUBRICA, non dal box: cambiare il nome di un
+          // contatto lo cambia su ogni lavagna dove compare, che è il punto di
+          // averli messi in un posto solo.
+          const sName = contactNameRef.current(tb.contact_id);
           if (sName) paintBoxLabel(g.node()!, sName, tw, th, theme.ink);
         } else if (isMarker) {
           // Fondo ROTONDO. Il riquadro resta quadrato (w = h = MARKER_SIZE) e il
@@ -2774,7 +2988,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // cerchio è tracciato su `min(w,h)` ma centrato su `w/2, h/2`). I punti
         // a metà bordo gli restano come nodi d'aggancio degli archi, che è
         // l'unica cosa che deve sapere fare oltre a stare dov'è.
-        const resizeEdges = (tb.type === 'image' || isDisc) ? [] : [
+        const resizeEdges = (tb.type === 'image' || isFixed) ? [] : [
           { key: 'right', x: tw - RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
           { key: 'bottom', x: PORT_R + 4, y: th - RESIZE_W / 2, w: tw - PORT_R * 2 - 8, h: RESIZE_W, cursor: 'ns-resize' },
           { key: 'left', x: -RESIZE_W / 2, y: PORT_R + 4, w: RESIZE_W, h: th - PORT_R * 2 - 8, cursor: 'ew-resize' },
@@ -2852,7 +3066,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         // sopra, questi sono solo il suo segno (pointer-events: none, così non
         // rubano il drag alla striscia né il click alla porta). Niente sulle
         // immagini: là quelle strisce non esistono più.
-        ((tb.type === 'image' || isDisc) ? [] : [
+        ((tb.type === 'image' || isFixed) ? [] : [
           { hx: tw, hy: th / 2 }, { hx: tw / 2, hy: th },
           { hx: 0, hy: th / 2 }, { hx: tw / 2, hy: 0 },
         ]).forEach(({ hx, hy }) => {
@@ -2865,7 +3079,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
 
         // Angoli: scala tenendo fermo l'angolo OPPOSTO. Prima ce n'era uno solo
         // (in basso a destra) e invisibile.
-        const corners = isDisc ? [] : [
+        const corners = isFixed ? [] : [
           { key: 'br', hx: tw, hy: th, cursor: 'nwse-resize' },
           { key: 'bl', hx: 0, hy: th, cursor: 'nesw-resize' },
           { key: 'tr', hx: tw, hy: 0, cursor: 'nesw-resize' },
@@ -3054,19 +3268,30 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     type PlaceSpec = {
       key: string; w: number; h: number; split: boolean;
       paint: (node: SVGGElement) => void;
-      place: (x: number, y: number, splitEdgeId?: string) => void;
+      place: (
+        x: number, y: number,
+        splitEdgeId: string | undefined,
+        /** Il punto dello schermo del click. Lo ignora chi posa e basta; lo usa
+         *  chi deve aprire un pannello lì sopra. */
+        at: { clientX: number; clientY: number },
+      ) => void;
     };
     const currentPlacing = (): PlaceSpec | null => {
       const kind = markerModeRef.current;
       if (kind) return {
         key: `marker:${kind}`, w: MARKER_SIZE, h: MARKER_SIZE, split: true,
         paint: (node) => paintMarker(node, kind, MARKER_SIZE, MARKER_SIZE),
-        place: (x, y, splitEdgeId) => onAddMarkerAtRef.current?.(x, y, kind, splitEdgeId),
+        place: (x, y, splitEdgeId) => onAddMarkerAtRef.current?.(x, y, kind, splitEdgeId),  // il punto dello schermo non gli serve: un marcatore posato è già completo
       };
       if (subjectModeRef.current && onAddSubjectAtRef.current) return {
         key: 'subject', w: SUBJECT_SIZE, h: SUBJECT_SIZE, split: false,
         paint: (node) => paintSubject(node, SUBJECT_SIZE, SUBJECT_SIZE),
-        place: (x, y) => onAddSubjectAtRef.current?.(x, y),
+        place: (x, y, _split, at) => onAddSubjectAtRef.current?.(x, y, at),
+      };
+      if (organizationModeRef.current && onAddOrganizationAtRef.current) return {
+        key: 'organization', w: ORGANIZATION_SIZE, h: ORGANIZATION_SIZE, split: false,
+        paint: (node) => paintOrganization(node, ORGANIZATION_SIZE, ORGANIZATION_SIZE),
+        place: (x, y, _split, at) => onAddOrganizationAtRef.current?.(x, y, at),
       };
       return null;
     };
@@ -3111,7 +3336,7 @@ export const CanvasBoard = React.memo(function CanvasBoard({
       const armed = clearSplit();
       clearGhost();
       if (armed) drawEdges();
-      spec.place(mx - spec.w / 2, my - spec.h / 2, armed ?? undefined);
+      spec.place(mx - spec.w / 2, my - spec.h / 2, armed ?? undefined, { clientX: ev.clientX, clientY: ev.clientY });
     });
 
     d3svg.on('click.tile', (ev: MouseEvent) => {
@@ -3164,9 +3389,19 @@ export const CanvasBoard = React.memo(function CanvasBoard({
     pdfG.raise();
     drawPdfPreview();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tiles, edges, groups, textBoxes, buildNodes, getColor, hitTest, theme, viewKey]);
+  }, [tiles, edges, groups, textBoxes, contacts, buildNodes, getColor, hitTest, theme, viewKey]);
 
-  useEffect(() => { render(); }, [render]);
+  // Sempre l'ultimo, per il ridisegno rinviato: assegnato in fase di render,
+  // quindi già aggiornato quando l'effect qui sotto gira.
+  renderRef.current = render;
+  useEffect(() => {
+    // A mano premuta si aspetta. Ricostruire l'SVG adesso staccherebbe la
+    // gesture dal disegno che sta muovendo — vedi `zoomingRef`. Il debito viene
+    // pagato dall'`end` della gesture, e con i dati PIÙ RECENTI: `renderRef`
+    // punta sempre all'ultimo render, non a quello che ha chiesto il rinvio.
+    if (zoomingRef.current) { pendingRenderRef.current = true; return; }
+    render();
+  }, [render]);
 
   // Cambio di formato/orientamento → ridisegna SOLO l'anteprima del foglio.
   useEffect(() => { drawPdfPreviewRef.current?.(); }, [pdfPreview]);

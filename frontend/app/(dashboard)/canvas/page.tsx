@@ -5,13 +5,15 @@ import { createPortal } from 'react-dom';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots, IconSquareDashed } from '@tabler/icons-react';
+import { IconComponents, IconTrash, IconCopy, IconBoxMultiple, IconBoxOff, IconInbox, IconClipboard, IconPencil, IconGridDots, IconSquareDashed, IconEraser } from '@tabler/icons-react';
 import { usePixelTheme } from '@/components/pixel';
 import { Modal } from '@/components/primitives/overlays';
-import { tagsApi, canvasApi, tilesApi, uploadApi } from '@/lib/api';
+import { tagsApi, canvasApi, tilesApi, uploadApi, contactsApi } from '@/lib/api';
+import { contactRole, isOrganizationKind, KIND_FOR_ROLE } from '@/types/contact';
+import { useContactMemberships, type ContactMembership } from '@/lib/hooks/useContacts';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasBoxSubjectContent, SUBJECT_SIZE, MARKER_SPEC, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasContact, SUBJECT_SIZE, ORGANIZATION_SIZE, MARKER_SPEC, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
 import { tidy, type TidyRect } from '@/lib/canvas-tidy';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
@@ -22,7 +24,8 @@ import { GroupSidebar } from '@/components/canvas/GroupSidebar';
 import { TextSidebar } from '@/components/canvas/TextSidebar';
 import { ImageSidebar } from '@/components/canvas/ImageSidebar';
 import { MarkerSidebar } from '@/components/canvas/MarkerSidebar';
-import { SubjectSidebar } from '@/components/canvas/SubjectSidebar';
+import { ContactSidebar } from '@/components/canvas/ContactSidebar';
+import { ContactPicker } from '@/components/canvas/ContactPicker';
 import { EdgeSidebar } from '@/components/canvas/EdgeSidebar';
 import { TileSidebar } from '@/components/tileview/TileSidebar';
 import { MultiTileSidebar } from '@/components/tileview/MultiTileSidebar';
@@ -73,13 +76,14 @@ export default function CanvasPage() {
   // I marcatori rientrano qui come qualunque altro box: il ramo di incollaggio
   // dei box è già generico (tipo, contenuto e misure del sorgente), quindi non
   // ha avuto bisogno di sapere che esistono.
-  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker' | 'subject'; id: string } | null>(null);
+  const [clipboard, setClipboard] = useState<{ kind: 'tile' | 'text' | 'image' | 'marker' | 'subject' | 'organization'; id: string } | null>(null);
   // Menu contestuale "Incolla" sullo sfondo del canvas (posizione + coord locali).
   const [pasteMenu, setPasteMenu] = useState<{ x: number; y: number; localX: number; localY: number } | null>(null);
   const [imageMode, setImageMode] = useState(false);
   /** Tipo di marcatore armato dalla barra, o null. */
   const [markerMode, setMarkerMode] = useState<MarkerKind | null>(null);
   const [subjectMode, setSubjectMode] = useState(false);
+  const [organizationMode, setOrganizationMode] = useState(false);
   // Modalità "Seleziona a contorno": il drag sullo sfondo disegna un rettangolo
   // di selezione (sinistra→destra = tile contenuti; destra→sinistra = intersecati).
   const [selectMode, setSelectMode] = useState(false);
@@ -589,14 +593,65 @@ export default function CanvasPage() {
     staleTime: 60 * 1000,
   });
   const textBoxes = useMemo(() => (boxesData?.data || []) as unknown as CanvasTextBox[], [boxesData]);
+
+  // ── L'ANAGRAFICA ───────────────────────────────────────────────
+  //
+  // Soggetti e organizzazioni non contengono i propri dati: puntano una riga di
+  // `contacts` (migration 048). Sono la stessa rubrica dei passi dei tile e
+  // della modale dei contatti — una persona, un posto solo.
+  //
+  // La chiave NON è legata al tag: la rubrica è dell'utente, non della lavagna,
+  // e passando da un canvas all'altro non ha motivo di essere riscaricata.
+  const { data: contactsData } = useQuery({
+    queryKey: ['contacts'],
+    queryFn: () => contactsApi.list(),
+    staleTime: 60 * 1000,
+  });
+  const contacts = useMemo(
+    () => ((contactsData?.data || []) as unknown as CanvasContact[]),
+    [contactsData],
+  );
+  // La definizione sta in `useContactMemberships`, non qui: questa chiave è
+  // condivisa con la tabella dei contatti, e due `queryFn` diverse sulla stessa
+  // chiave si sovrascrivono a vicenda in cache — vedi la nota sul hook.
+  const { data: membershipsData } = useContactMemberships();
+  const memberships = useMemo(() => membershipsData ?? [], [membershipsData]);
+  /** Le organizzazioni fra cui si può scegliere: i contatti che sono un
+   *  INSIEME, non un individuo.
+   *
+   *  La regola arriva da `types/contact.ts` e non è riscritta qui: la usano
+   *  anche la tabella dei contatti e il suo selettore Tipo, e tre copie
+   *  sarebbero divergenti al primo `kind` aggiunto. È una convenzione
+   *  dell'interfaccia e non un vincolo del modello — vedi la migration 047. */
+  const organizationContacts = useMemo(
+    () => contacts.filter((c) => isOrganizationKind(c.kind)),
+    [contacts],
+  );
+  /** I contatti già puntati da una figura di QUESTA lavagna. Il selettore li
+   *  mostra spenti: due figure per la stessa persona sarebbero due segni che si
+   *  rinominano a vicenda, e nessuno dei due direbbe qual è quello buono. */
+  const contactsOnBoard = useMemo(
+    () => textBoxes
+      .filter((b) => b.type === 'subject' || b.type === 'organization')
+      .map((b) => (b as { contact_id?: string | null }).contact_id)
+      .filter((id): id is string => !!id),
+    [textBoxes],
+  );
   // Box di TESTO attualmente selezionato → alimenta la TextSidebar destra.
   const selectedTextBox = useMemo(
     () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'text') || null,
     [textBoxes, selectedTextBoxId],
   );
-  // SOGGETTO selezionato → SubjectSidebar (denominazione, mail, telefono, note).
-  const selectedSubjectBox = useMemo(
-    () => textBoxes.find((b) => b.id === selectedTextBoxId && b.type === 'subject') || null,
+  // SOGGETTO o ORGANIZZAZIONE selezionati → ContactSidebar. Un pannello solo
+  // per i due: dietro c'è la stessa riga di rubrica, e cambia il vocabolario.
+  // Il predicato è un TYPE GUARD e non un semplice booleano: senza, il risultato
+  // resterebbe l'unione di tutti i tipi di box e `contact_id` — che esiste solo
+  // sui due dell'anagrafica — non sarebbe leggibile.
+  const selectedContactBox = useMemo(
+    () => textBoxes.find(
+      (b): b is Extract<CanvasTextBox, { type: 'subject' | 'organization' }> =>
+        b.id === selectedTextBoxId && (b.type === 'subject' || b.type === 'organization'),
+    ) || null,
     [textBoxes, selectedTextBoxId],
   );
   // MARCATORE selezionato → MarkerSidebar (didascalia sotto il disco).
@@ -731,36 +786,199 @@ export default function CanvasPage() {
   }, [tagId, queryClient, commitBox, handleSplitEdge]);
 
   /**
-   * Posa un SOGGETTO. Scrittura ottimistica come per gli altri box.
+   * Posa un SOGGETTO o un'ORGANIZZAZIONE su un contatto GIÀ DECISO.
    *
-   * Due differenze dal marcatore, e sono la stessa: un marcatore appena posato
-   * è già completo (la sua forma dice tutto), un soggetto è un'icona anonima
-   * finché non gli si dà un nome. Quindi lo strumento si disarma subito E il
-   * pannello si apre da solo sul soggetto appena nato — la posa e il battezzarlo
-   * sono un gesto unico, e separarli voleva dire lasciare sulla lavagna una fila
-   * di persone senza nome.
+   * Il box porta una foreign key, quindi il contatto deve esistere prima: chi
+   * chiama o ne ha scelto uno dall'elenco, o ne ha appena creato uno. Non c'è
+   * scrittura ottimistica come per gli altri box — l'id lo decide il server, e
+   * disegnare la figura prima di averlo vorrebbe dire disegnare qualcosa che non
+   * sa ancora chi è.
+   *
+   * Il pannello si apre da solo sul nuovo nato: il nome ce l'ha già, ma mail,
+   * telefono e appartenenze sono quello che si sta per scrivere.
    */
-  const handleAddSubjectAt = useCallback(async (x: number, y: number) => {
+  const placeContactBox = useCallback(async (
+    x: number, y: number,
+    variant: 'subject' | 'organization',
+    contactId: string,
+  ) => {
     if (!tagId) return;
-    setSubjectMode(false);
-    const payload = { type: 'subject' as const, content: {}, x, y, w: SUBJECT_SIZE, h: SUBJECT_SIZE };
-    const tempId = `temp-subject-${Date.now()}`;
-    queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
-      data: [...(old?.data || []), { id: tempId, ...payload }],
-    }));
-    const res = await canvasApi.addBox(tagId, payload);
-    if (!commitBox(tempId, res, 'Soggetto non salvato')) return;
+    const isOrg = variant === 'organization';
+    const size = isOrg ? ORGANIZATION_SIZE : SUBJECT_SIZE;
+    const res = await canvasApi.addBox(tagId, {
+      type: variant, content: {}, x, y, w: size, h: size, contact_id: contactId,
+    });
     const newId = (res?.data as any)?.id;
-    if (newId) {
-      setSelectedTextBoxId(newId);
-      setSelectedTileId(null);
-      setSelectedGroupId(null);
-      setSelectedEdgeId(null);
-      setSelectedIds([]);
-      setSelectionBbox(null);
-      setSidebarOpen(true);
+    if (!newId) { toast.error(isOrg ? 'Organizzazione non salvata' : 'Soggetto non salvato'); return; }
+    queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
+
+    // Il pannello si apre sul nuovo nato, e su nient'altro.
+    setSelectedTextBoxId(newId);
+    setSelectedTileId(null);
+    setSelectedGroupId(null);
+    setSelectedEdgeId(null);
+    setSelectedIds([]);
+    setSelectionBbox(null);
+    setSidebarOpen(true);
+  }, [tagId, queryClient]);
+
+  /**
+   * LA DOMANDA APERTA: dove si è cliccato, e che cosa si stava posando.
+   *
+   * Fra il click e la figura c'è ora un passaggio: di CHI si tratta. Prima non
+   * c'era, e ogni click fabbricava una riga nuova in rubrica chiamata «Soggetto
+   * senza nome» — il che voleva dire che la stessa persona posata su due
+   * lavagne diventava due persone, e che un click andato a vuoto lasciava un
+   * senza nome in rubrica per sempre.
+   *
+   * Finché questo stato è pieno non è stato scritto NIENTE, né il box né il
+   * contatto: annullare è davvero annullare.
+   */
+  const [pendingContact, setPendingContact] = useState<
+    { variant: 'subject' | 'organization'; x: number; y: number; sx: number; sy: number } | null
+  >(null);
+
+  const handleAddSubjectAt = useCallback((x: number, y: number, at: { clientX: number; clientY: number }) => {
+    setSubjectMode(false);
+    setPendingContact({ variant: 'subject', x, y, sx: at.clientX, sy: at.clientY });
+  }, []);
+
+  const handleAddOrganizationAt = useCallback((x: number, y: number, at: { clientX: number; clientY: number }) => {
+    setOrganizationMode(false);
+    setPendingContact({ variant: 'organization', x, y, sx: at.clientX, sy: at.clientY });
+  }, []);
+
+  /** Risposta «questo qui»: si posa e basta, in rubrica non cambia niente. */
+  const handlePickContact = useCallback((contactId: string) => {
+    const pend = pendingContact;
+    setPendingContact(null);
+    if (pend) placeContactBox(pend.x, pend.y, pend.variant, contactId);
+  }, [pendingContact, placeContactBox]);
+
+  /** Risposta «uno nuovo, si chiama così»: prima la riga in rubrica, poi il
+   *  segno che la punta. L'ordine non è negoziabile, è una foreign key. */
+  const handleCreateContact = useCallback(async (name: string) => {
+    const pend = pendingContact;
+    setPendingContact(null);
+    if (!pend) return;
+    const isOrg = pend.variant === 'organization';
+    const created = await contactsApi.create({
+      name, kind: KIND_FOR_ROLE[isOrg ? 'organization' : 'subject'],
+    });
+    const contactId = (created?.data as any)?.id as string | undefined;
+    if (!contactId) { toast.error(isOrg ? 'Organizzazione non creata' : 'Soggetto non creato'); return; }
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    await placeContactBox(pend.x, pend.y, pend.variant, contactId);
+  }, [pendingContact, placeContactBox, queryClient]);
+
+  /**
+   * I campi dell'anagrafica che si DIGITANO, con lo stesso ritardo dei campi di
+   * un box (`handleBoxFieldChange`): specchio in cache subito, salvataggio a
+   * fine battuta.
+   *
+   * Un salvataggio a tasto avrebbe fatto una PATCH per lettera; senza specchio,
+   * il nome sotto la figura sarebbe comparso solo alla fine.
+   *
+   * ⚠️ Scrive sulla RUBRICA, non sul box: rinominare da qui cambia quel contatto
+   * ovunque compaia. È il punto di averli in un posto solo, ma va saputo.
+   */
+  /** I soli campi dell'anagrafica che il canvas modifica. `kind` e il resto si
+   *  cambiano dalla rubrica, che è dove si vede l'effetto sull'intera app. */
+  type ContactFields = Partial<Record<'name' | 'email' | 'phone' | 'notes', string>>;
+  const contactFieldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const contactFieldPending = useRef<{ id: string; patch: ContactFields } | null>(null);
+
+  const flushContactField = useCallback(() => {
+    if (contactFieldTimer.current) { clearTimeout(contactFieldTimer.current); contactFieldTimer.current = null; }
+    const pending = contactFieldPending.current;
+    contactFieldPending.current = null;
+    if (!pending) return;
+    contactsApi.update(pending.id, pending.patch as ContactFields)
+      // Prefisso `['contacts']`, non la chiave esatta: la tabella dei contatti
+      // tiene la sua lista sotto `['contacts', { archived }]`, e senza questo
+      // un nome cambiato dalla lavagna restava vecchio là dentro fino al
+      // prossimo giro. La rubrica è una sola: deve leggersi uguale ovunque.
+      .then(() => queryClient.invalidateQueries({ queryKey: ['contacts'] }))
+      .catch(() => toast.error('Modifica al contatto non salvata'));
+  }, [queryClient]);
+
+  const handleContactFieldChange = useCallback((id: string, patch: ContactFields) => {
+    // Altro contatto rispetto a quello in attesa → prima si chiude il conto col
+    // precedente, così non perde l'ultima riga scritta.
+    if (contactFieldPending.current && contactFieldPending.current.id !== id) flushContactField();
+    contactFieldPending.current = { id, patch: { ...(contactFieldPending.current?.patch || {}), ...patch } };
+    queryClient.setQueryData(['contacts'], (old: any) =>
+      old?.data ? { ...old, data: old.data.map((c: any) => (c.id === id ? { ...c, ...patch } : c)) } : old,
+    );
+    if (contactFieldTimer.current) clearTimeout(contactFieldTimer.current);
+    contactFieldTimer.current = setTimeout(flushContactField, 400);
+  }, [queryClient, flushContactField]);
+
+  // Uscire dal canvas mentre si scrive non deve costare l'ultima modifica.
+  useEffect(() => () => { flushContactField(); }, [flushContactField]);
+
+  /**
+   * Sposta una figura su un ALTRO contatto.
+   *
+   * Non tocca la rubrica: cambia a chi punta il box. Il contatto lasciato resta
+   * dov'era, con tutto quello che ha — può essere su altre lavagne, e questa non
+   * ha titolo per cancellarlo.
+   *
+   * Serve dopo il fatto: la scelta «chi è» si fa posando (vedi `ContactPicker`),
+   * ma una figura posata sulla persona sbagliata non deve costare cancellarla e
+   * rifarla — le linee che le arrivano non sopravvivrebbero.
+   */
+  const handleRelinkContactBox = useCallback(async (boxId: string, contactId: string) => {
+    if (!tagId) return;
+    const res = await canvasApi.updateBox(boxId, { contact_id: contactId });
+    if (!res?.success) { toast.error('Collegamento non aggiornato'); return; }
+    queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
+  }, [tagId, queryClient]);
+
+  /**
+   * L'ELIMINAZIONE VERA, quella dalla rubrica — in attesa di conferma.
+   *
+   * Sulla figura di un soggetto ci sono due gesti che si somigliano e non lo
+   * sono affatto: togliere il segno da questa lavagna, e cancellare la persona.
+   * Il primo è un ripensamento sul disegno; il secondo tocca dati che vivono
+   * fuori di qui, e `canvas_boxes.contact_id` è ON DELETE CASCADE — la stessa
+   * persona sparisce da OGNI lavagna in cui è posata, non solo da questa.
+   *
+   * Per questo il secondo non parte dal menu: apre una finestra che dice che
+   * cosa sta per succedere, e la si conferma lì. Due passaggi, e il secondo con
+   * i conti in mano.
+   */
+  const [deleteContact, setDeleteContact] = useState<
+    { boxId: string; contactId: string; name: string; isOrg: boolean } | null
+  >(null);
+
+  const handleDeleteContactEverywhere = useCallback(async () => {
+    const pend = deleteContact;
+    if (!pend) return;
+    setDeleteContact(null);
+    const res = await contactsApi.remove(pend.contactId);
+    if (!res?.success) { toast.error('Contatto non eliminato'); return; }
+    // La cascata sul database ha già portato via i box: qui si rilegge.
+    queryClient.invalidateQueries({ queryKey: ['contacts'] });
+    queryClient.invalidateQueries({ queryKey: ['contact-memberships'] });
+    if (tagId) queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
+    setSelectedTextBoxId(null);
+    toast.success(`${pend.name} eliminato dalla rubrica`);
+  }, [deleteContact, tagId, queryClient]);
+
+  /** Sostituisce le organizzazioni di un contatto. L'insieme intero, non
+   *  un'aggiunta: è la forma del gesto e quella dell'endpoint. */
+  const handleSetOrganizations = useCallback(async (contactId: string, orgIds: string[]) => {
+    queryClient.setQueryData<ContactMembership[]>(['contact-memberships'], (old) => [
+      ...(old ?? []).filter((m) => m.member_id !== contactId),
+      ...orgIds.map((org_id) => ({ member_id: contactId, org_id })),
+    ]);
+    try { await contactsApi.setOrganizations(contactId, orgIds); }
+    catch {
+      toast.error('Appartenenze non salvate');
+      queryClient.invalidateQueries({ queryKey: ['contact-memberships'] });
     }
-  }, [tagId, queryClient, commitBox]);
+  }, [queryClient]);
 
   const handleDeleteTextBox = useCallback(async (id: string) => {
     if (!tagId) return;
@@ -999,7 +1217,15 @@ export default function CanvasPage() {
       // Box di qualunque tipo: replica contenuto e dimensioni del sorgente.
       const src = textBoxes.find((b) => b.id === id);
       if (!src) return;
-      const payload = { type: kind, content: src.content as Record<string, unknown>, x: localX, y: localY, w: src.w, h: src.h };
+      // `contact_id` viaggia con la copia: incollare un soggetto rimette la
+      // STESSA persona in un altro punto, non ne fabbrica una gemella. Due
+      // schede della stessa persona in rubrica sarebbero un doppione nato da un
+      // gesto che di anagrafica non parlava.
+      const payload = {
+        type: kind, content: src.content as Record<string, unknown>,
+        x: localX, y: localY, w: src.w, h: src.h,
+        contact_id: (src as { contact_id?: string | null }).contact_id ?? null,
+      };
       const tempId = `temp-paste-${Date.now()}`;
       queryClient.setQueryData(['canvas-boxes', tagId], (old: any) => ({
         data: [...(old?.data || []), { id: tempId, ...payload }],
@@ -1110,15 +1336,15 @@ export default function CanvasPage() {
     return () => document.removeEventListener('keydown', onKey);
   }, [selectedIds.length, selectedGroupId, selectedTileId, selectedTextBoxId, selectedEdgeId, clearSelection]);
 
-  // Esc disarma +Tile, svuota gli appunti e chiude il menu "Incolla".
+  // Esc disarma +Tile, svuota gli appunti e chiude i pannelli al volo.
   useEffect(() => {
-    if (!tileMode && !subjectMode && !clipboard && !pasteMenu) return;
+    if (!tileMode && !subjectMode && !organizationMode && !clipboard && !pasteMenu && !pendingContact) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setSubjectMode(false); setClipboard(null); setPasteMenu(null); }
+      if (e.key === 'Escape') { setTileMode(false); setMarkerMode(null); setSubjectMode(false); setOrganizationMode(false); setClipboard(null); setPasteMenu(null); setPendingContact(null); }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [tileMode, subjectMode, clipboard, pasteMenu]);
+  }, [tileMode, subjectMode, organizationMode, clipboard, pasteMenu, pendingContact]);
 
   const handleBulkDeleteSelected = useCallback(async () => {
     if (selectedIds.length === 0 || !tagId) return;
@@ -1653,7 +1879,9 @@ export default function CanvasPage() {
             markerMode={markerMode}
             onPickMarker={setMarkerMode}
             subjectMode={subjectMode}
-            onToggleSubjectMode={() => { setSubjectMode((v) => !v); setMarkerMode(null); setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
+            onToggleSubjectMode={() => { setSubjectMode((v) => !v); setOrganizationMode(false); setMarkerMode(null); setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
+            organizationMode={organizationMode}
+            onToggleOrganizationMode={() => { setOrganizationMode((v) => !v); setSubjectMode(false); setMarkerMode(null); setTextMode(false); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             selectMode={selectMode}
             onToggleTextMode={() => { setTextMode((v) => !v); setTileMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
             onToggleTileMode={() => { setTileMode((v) => !v); setTextMode(false); setImageMode(false); setSelectMode(false); closePdf(); }}
@@ -1692,7 +1920,7 @@ export default function CanvasPage() {
             // e' disegnata da D3 e rimontarla per cambiare un colore sarebbe
             // sproporzionato — qui cambia solo una regola CSS.
             className={`flex-1 relative overflow-hidden${doneHl ? ' ob-done-hl' : ''}`}
-            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode || subjectMode) ? 'crosshair' : undefined }}
+            style={{ cursor: (textMode || tileMode || imageMode || selectMode || pdfMode || markerMode || subjectMode || organizationMode) ? 'crosshair' : undefined }}
             // Disabilita il menu contestuale del browser su TUTTO il canvas.
             // I menu di tile/box/edge partono dai loro handler D3 (che fanno
             // stopPropagation) e non arrivano qui: qui gestiamo solo il tasto
@@ -1747,6 +1975,11 @@ export default function CanvasPage() {
               onAddMarkerAt={handleAddMarkerAt}
               subjectMode={subjectMode}
               onAddSubjectAt={handleAddSubjectAt}
+              organizationMode={organizationMode}
+              onAddOrganizationAt={handleAddOrganizationAt}
+              // La rubrica: la lavagna non la modifica, le serve per scrivere
+              // sotto ogni figura chi è.
+              contacts={contacts}
               selectMode={selectMode}
               pdfMode={pdfMode}
               onPdfArea={handlePdfArea}
@@ -1886,11 +2119,17 @@ export default function CanvasPage() {
                   src: (bx.content as CanvasBoxImageContent).src,
                   label: ((bx.content as CanvasBoxImageContent).title || '').trim() || 'Immagine',
                 };
-                if (bx.type === 'subject') return {
-                  id: bx.id,
-                  type: 'subject' as const,
-                  label: ((bx.content as CanvasBoxSubjectContent).name || '').trim() || 'Soggetto senza nome',
-                };
+                if (bx.type === 'subject' || bx.type === 'organization') {
+                  // Il nome viene dalla RUBRICA, non dal box: è lì che vive da
+                  // quando soggetti e organizzazioni la puntano (migration 048).
+                  const c = contacts.find((k) => k.id === bx.contact_id);
+                  return {
+                    id: bx.id,
+                    type: 'subject' as const,
+                    label: (c?.name || '').trim()
+                      || (bx.type === 'organization' ? 'Organizzazione senza nome' : 'Soggetto senza nome'),
+                  };
+                }
                 if (bx.type === 'marker') {
                   // Senza didascalia resta il nome del tipo («Start», «Stop»…):
                   // sono quattro e si ripetono, ma la riga porta accanto il
@@ -1957,19 +2196,49 @@ export default function CanvasPage() {
               }}
               onDelete={() => { handleDeleteTextBox(selectedImageBox.id); setSelectedTextBoxId(null); }}
             />
-          ) : selectedSubjectBox ? (
-            <SubjectSidebar
-              key={selectedSubjectBox.id}
-              boxId={selectedSubjectBox.id}
-              content={selectedSubjectBox.content as CanvasBoxSubjectContent}
-              open={sidebarOpen}
-              onToggle={() => setSidebarOpen(!sidebarOpen)}
-              // Campi che si DIGITANO → stessa via del titolo dell'immagine:
-              // specchio in cache e salvataggio a fine battuta, uno solo per
-              // entrambi (il canvas si ridisegna per intero a ogni scrittura).
-              onChange={(patch) => handleBoxFieldChange(selectedSubjectBox.id, patch)}
-              onDelete={() => { handleDeleteTextBox(selectedSubjectBox.id); setSelectedTextBoxId(null); }}
-            />
+          ) : selectedContactBox ? (
+            (() => {
+              const cid = selectedContactBox.contact_id ?? null;
+              const contact = contacts.find((c) => c.id === cid) ?? null;
+              const isOrg = selectedContactBox.type === 'organization';
+              return (
+                <ContactSidebar
+                  key={selectedContactBox.id}
+                  boxId={selectedContactBox.id}
+                  variant={isOrg ? 'organization' : 'subject'}
+                  contact={contact}
+                  // Mai sé stesso fra le proprie organizzazioni: il CHECK sulla
+                  // tabella lo rifiuterebbe, ma una casella che non si può
+                  // spuntare è peggio di una casella che non c'è.
+                  organizations={organizationContacts.filter((o) => o.id !== cid)}
+                  // Su chi si può spostare la figura: stesso ruolo (un soggetto
+                  // resta un soggetto), non sé stessa, e non chi è già posato
+                  // qui — due figure per la stessa persona sarebbero due segni
+                  // che si rinominano a vicenda.
+                  linkable={contacts.filter((c) => (
+                    contactRole(c.kind) === (isOrg ? 'organization' : 'subject')
+                    && c.id !== cid
+                    && !contactsOnBoard.includes(c.id)
+                  ))}
+                  memberOf={memberships.filter((m) => m.member_id === cid).map((m) => m.org_id)}
+                  members={isOrg
+                    ? memberships
+                        .filter((m) => m.org_id === cid)
+                        .map((m) => contacts.find((c) => c.id === m.member_id))
+                        .filter((c): c is CanvasContact => !!c)
+                    : []}
+                  open={sidebarOpen}
+                  onToggle={() => setSidebarOpen(!sidebarOpen)}
+                  // Campi che si DIGITANO → stesso ritardo dei campi di un box,
+                  // ma la destinazione è la RUBRICA: questi dati non stanno più
+                  // nel disegno.
+                  onChange={(patch) => { if (cid) handleContactFieldChange(cid, patch); }}
+                  onOrganizationsChange={(ids) => { if (cid) handleSetOrganizations(cid, ids); }}
+                  onRelink={(nid) => handleRelinkContactBox(selectedContactBox.id, nid)}
+                  onRemoveFromBoard={() => { handleDeleteTextBox(selectedContactBox.id); setSelectedTextBoxId(null); }}
+                />
+              );
+            })()
           ) : selectedMarkerBox ? (
             <MarkerSidebar
               key={selectedMarkerBox.id}
@@ -2280,6 +2549,13 @@ export default function CanvasPage() {
             (() => {
               const inMultiSel = selectedIds.length > 1 && selectedTextBoxIds.includes(tbCtx.textBoxId);
               const groupAllowed = groupFromSelectionAllowed;
+              // La figura di un'ANAGRAFICA ha due eliminazioni, non una: il
+              // segno sulla lavagna e la persona in rubrica sono due cose, e il
+              // menu deve dirlo invece di scegliere per conto suo.
+              const ctxBox = textBoxes.find((b) => b.id === tbCtx.textBoxId);
+              const ctxIsContact = ctxBox?.type === 'subject' || ctxBox?.type === 'organization';
+              const ctxContactId = ctxIsContact ? (ctxBox as { contact_id?: string | null }).contact_id ?? null : null;
+              const ctxContact = ctxContactId ? contacts.find((c) => c.id === ctxContactId) ?? null : null;
               const menuItem: React.CSSProperties = {
                 display: 'flex',
                 alignItems: 'center',
@@ -2365,15 +2641,67 @@ export default function CanvasPage() {
                       <IconCopy size={14} />
                       Copia
                     </button>
-                    <button onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }} style={dangerItem}>
-                      <IconTrash size={14} />
-                      Elimina
-                    </button>
+                    {ctxContact ? (
+                      <>
+                        {/* NON in rosso: togliere la figura dalla lavagna non
+                            distrugge niente — il contatto resta in rubrica con
+                            tutto quello che ha. Il rosso qui sotto è riservato
+                            all'unico comando che perde davvero qualcosa. */}
+                        <button onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }} style={menuItem}>
+                          <IconEraser size={14} />
+                          Togli dalla lavagna
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (ctxContact.is_self) return;
+                            setTbCtx(null);
+                            setDeleteContact({
+                              boxId: tbCtx.textBoxId,
+                              contactId: ctxContact.id,
+                              name: ctxContact.name,
+                              isOrg: ctxBox?.type === 'organization',
+                            });
+                          }}
+                          disabled={ctxContact.is_self}
+                          title={ctxContact.is_self
+                            ? 'Il contatto «io» non si elimina'
+                            : 'Elimina la persona dalla rubrica: sparisce da ogni lavagna'}
+                          style={{
+                            ...dangerItem,
+                            cursor: ctxContact.is_self ? 'not-allowed' : 'pointer',
+                            opacity: ctxContact.is_self ? 0.4 : 1,
+                          }}
+                        >
+                          <IconTrash size={14} />
+                          Elimina dai contatti
+                        </button>
+                      </>
+                    ) : (
+                      <button onClick={() => { handleDeleteTextBox(tbCtx.textBoxId); setTbCtx(null); }} style={dangerItem}>
+                        <IconTrash size={14} />
+                        Elimina
+                      </button>
+                    )}
                   </div>
                 </>
               );
             })(),
             document.body
+          )}
+
+          {/* DI CHI SI TRATTA — la domanda che precede la figura, posta dove si è
+              cliccato e non nel pannello a destra: in quel momento si sta
+              guardando la lavagna, non la barra laterale. */}
+          {pendingContact && (
+            <ContactPicker
+              variant={pendingContact.variant}
+              at={{ x: pendingContact.sx, y: pendingContact.sy }}
+              contacts={contacts}
+              onBoard={contactsOnBoard}
+              onPick={handlePickContact}
+              onCreate={handleCreateContact}
+              onCancel={() => setPendingContact(null)}
+            />
           )}
 
           {/* Paste context menu — tasto destro sullo sfondo con appunti attivi */}
@@ -2553,6 +2881,72 @@ export default function CanvasPage() {
                 </button>
               </div>
             </form>
+          </Modal>
+
+          {/* ── LA CONFERMA DELL'ELIMINAZIONE DALLA RUBRICA ──────────────────
+              Una finestra e non il doppio clic che usiamo altrove: il doppio
+              clic va bene per un'azione locale e rifacibile, questa non è né
+              l'una né l'altra. E soprattutto è il posto dove si possono dire i
+              CONTI — quanti membri perdono l'appartenenza — che in una voce di
+              menu non ci starebbero. */}
+          <Modal
+            open={!!deleteContact}
+            onClose={() => setDeleteContact(null)}
+            title="Elimina dai contatti"
+            maxWidth={400}
+          >
+            {deleteContact && (() => {
+              const members = deleteContact.isOrg
+                ? memberships.filter((m) => m.org_id === deleteContact.contactId).length
+                : 0;
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <p style={{ margin: 0, color: theme.ink, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.control, lineHeight: 1.6 }}>
+                    <strong style={{ fontWeight: OB_WEIGHT.emphasis }}>{deleteContact.name}</strong>
+                    {' '}esce dalla rubrica. Non è lo stesso che toglierlo da questa
+                    lavagna:
+                  </p>
+                  <ul style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6, color: theme.ink2, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.card, lineHeight: 1.55 }}>
+                    <li>sparisce da <strong style={{ color: theme.ink }}>ogni lavagna</strong> in cui è posato, non solo da questa;</li>
+                    {members > 0 && (
+                      <li>{members} contatt{members === 1 ? 'o smette' : 'i smettono'} di farne parte;</li>
+                    )}
+                    <li>i passi dei flow che lo citano restano senza contatto.</li>
+                  </ul>
+                  <p style={{ margin: 0, color: theme.ink3, fontFamily: 'var(--ob-font-sans)', fontSize: OB_TEXT.meta, lineHeight: 1.5 }}>
+                    Non si annulla. Se ti serve solo toglierlo di mezzo, in rubrica
+                    c&apos;è l&apos;archiviazione.
+                  </p>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => setDeleteContact(null)}
+                      style={{
+                        padding: '8px 14px', background: 'transparent',
+                        border: `1px solid ${theme.border}`, borderRadius: 'var(--ob-radius-sm)',
+                        color: theme.ink2, fontFamily: 'var(--ob-font-sans)',
+                        fontSize: OB_TEXT.control, cursor: 'pointer',
+                      }}
+                    >
+                      Annulla
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDeleteContactEverywhere}
+                      style={{
+                        padding: '8px 14px', background: 'var(--ob-danger)',
+                        border: '1px solid var(--ob-danger)', borderRadius: 'var(--ob-radius-sm)',
+                        color: '#FFFFFF', fontFamily: 'var(--ob-font-sans)',
+                        fontSize: OB_TEXT.control, fontWeight: OB_WEIGHT.emphasis,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Elimina definitivamente
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
           </Modal>
 
           {/* Edge context menu */}
