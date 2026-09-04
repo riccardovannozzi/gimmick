@@ -614,13 +614,20 @@ export function ContactSidebar({
                 squadrato un insieme di persone. */}
             <span
               style={{
-                width: 18, height: 18, flexShrink: 0,
+                width: 18, height: 18, flexShrink: 0, overflow: 'hidden',
                 borderRadius: isOrg ? 3 : '50%',
                 background: 'var(--ob-surface-2)', border: `1px solid ${theme.border}`,
                 color: theme.ink2, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
               }}
             >
-              <Glyph size={11} stroke={1.8} />
+              {/* Il logo se c'è, il glifo altrimenti: la stessa regola della
+                  figura sulla lavagna, così il pannello e il segno che descrive
+                  si somigliano. Il logo si CARICA dalla rubrica, non da qui —
+                  vedi `ContactEditModal`. */}
+              {contact?.avatar_url
+                /* eslint-disable-next-line @next/next/no-img-element */
+                ? <img src={contact.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <Glyph size={11} stroke={1.8} />}
             </span>
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {draft.name.trim() || (isOrg ? 'Organizzazione' : 'Soggetto')}

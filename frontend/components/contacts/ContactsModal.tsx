@@ -24,7 +24,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  IconPlus, IconTrash, IconArchive, IconArchiveOff, IconUser, IconBuilding, IconCheck,
+  IconPlus, IconTrash, IconArchive, IconArchiveOff, IconUser, IconBuilding, IconCheck, IconPencil,
 } from '@tabler/icons-react';
 import {
   Modal, ToolButton, ToolWord, SegmentedControl,
@@ -36,6 +36,7 @@ import { usePixelTheme } from '@/components/pixel';
 import { useContacts } from '@/lib/hooks/useContacts';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 import { ContactGraph } from '@/components/contacts/ContactGraph';
+import { ContactEditModal, type ContactPatch } from '@/components/contacts/ContactEditModal';
 import { contactRole, isOrganizationKind, KIND_FOR_ROLE, ROLE_LABEL, ROLE_LABEL_PLURAL } from '@/types/contact';
 import type { Contact, ContactRole } from '@/types/contact';
 
@@ -52,7 +53,8 @@ const COLUMNS: TableColumn[] = [
   { key: 'orgs', label: 'Appartiene a', width: 200 },
   { key: 'phone', label: 'Telefono', width: 140 },
   { key: 'email', label: 'Email' },
-  { key: 'actions', width: 72 },
+  // Tre icone: scheda, archivia, elimina.
+  { key: 'actions', width: 96 },
 ];
 
 /**
@@ -172,6 +174,10 @@ export function ContactsModal({ open, onClose }: { open: boolean; onClose: () =>
   /** Menu delle appartenenze aperto: riga e rettangolo del pulsante che l'ha
    *  aperto (il menu vive in un portale e non può misurarsi da sé). */
   const [orgMenu, setOrgMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
+  /** La riga aperta in SCHEDA. La modifica in cella resta per le correzioni al
+   *  volo; la scheda serve a ciò che in una cella non ci sta — le note e il
+   *  logo. */
+  const [sheetId, setSheetId] = useState<string | null>(null);
 
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
   const [draft, setDraft] = useState('');
@@ -437,7 +443,30 @@ export function ContactsModal({ open, onClose }: { open: boolean; onClose: () =>
                         style={cellInput}
                       />
                     ) : (
-                      <TableText>{c.is_self ? `[ ${c.name} ]` : c.name}</TableText>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 7, minWidth: 0 }}>
+                        {/* La miniatura è il riscontro che il logo è arrivato:
+                            senza, l'unico posto dove verificarlo sarebbe una
+                            lavagna che ha quel contatto sopra. Forma tonda o
+                            squadrata come altrove — la stessa distinzione, alla
+                            stessa occhiata. */}
+                        <span
+                          style={{
+                            width: 20, height: 20, flexShrink: 0, overflow: 'hidden',
+                            borderRadius: isOrganizationKind(c.kind) ? 4 : '50%',
+                            background: 'var(--ob-surface-2)', border: `1px solid ${theme.border}`,
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            color: theme.ink3,
+                          }}
+                        >
+                          {c.avatar_url
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            ? <img src={c.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : isOrganizationKind(c.kind)
+                              ? <IconBuilding size={12} stroke={1.8} />
+                              : <IconUser size={12} stroke={1.8} />}
+                        </span>
+                        <TableText>{c.is_self ? `[ ${c.name} ]` : c.name}</TableText>
+                      </span>
                     )}
                   </TableCell>
 
@@ -510,6 +539,14 @@ export function ContactsModal({ open, onClose }: { open: boolean; onClose: () =>
                   {/* Azioni */}
                   <TableCell style={{ padding: '0 8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                      <button
+                        type="button"
+                        onClick={() => setSheetId(c.id)}
+                        title="Apri la scheda: note e logo"
+                        style={rowAction}
+                      >
+                        <IconPencil size={13} />
+                      </button>
                       {showArchived ? (
                         <button type="button" onClick={() => unarchive.mutate(c.id)} title="Riporta fra gli attivi" style={rowAction}>
                           <IconArchiveOff size={13} />
@@ -581,6 +618,16 @@ export function ContactsModal({ open, onClose }: { open: boolean; onClose: () =>
             </>
           )}
         </p>
+
+        {/* LA SCHEDA — montata una volta sola e alimentata dall'id della riga:
+            tenerne una per riga avrebbe voluto dire quaranta finestre chiuse in
+            attesa. Il salvataggio passa dalla stessa mutazione della modifica
+            in cella, quindi la tabella si aggiorna allo stesso modo. */}
+        <ContactEditModal
+          contact={contacts.find((c) => c.id === sheetId) ?? null}
+          onClose={() => setSheetId(null)}
+          onSave={(id, patch: ContactPatch) => update.mutate({ id, updates: patch })}
+        />
 
         {/* Il menu delle appartenenze è montato UNA volta qui, non dentro la
             cella: vive comunque in un portale su `document.body`, e tenerne una

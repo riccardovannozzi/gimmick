@@ -18,13 +18,30 @@ import {
   IconList, IconListNumbers, IconListCheck, IconQuote, IconLink, IconHighlight,
   IconTable, IconArrowBackUp, IconArrowForwardUp, IconSeparator,
   IconMicrophone, IconMicrophoneOff, IconSparkles, IconLoader2,
-  IconMail, IconBrandWhatsapp,
+  IconMail, IconBrandWhatsapp, IconTextSize,
 } from '@tabler/icons-react';
 import { toast } from 'sonner';
 import { usePixelTheme } from '@/components/pixel';
 import { aiApi } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
+
+/**
+ * IL CORPO DEL TESTO nell'editor, e le misure fra cui si sceglie.
+ *
+ * È una preferenza di LETTURA, non una proprietà del documento: il markdown non
+ * ha un modo di dire «questo paragrafo è a 18px», e uno che ce l'avesse lo
+ * perderebbe al salvataggio. Per questo vale per tutto il testo insieme e si
+ * ricorda nel browser di chi scrive — non viaggia col contenuto.
+ *
+ * Il ripiego è 16: era 12, e per un pannello dove si scrive (non si sbircia) 12
+ * è la misura dei controlli, non quella della prosa.
+ * ⚠️ Lo stesso numero sta nel ripiego di `--md-size` in globals.css — quello
+ * vale per chi usa la classe fuori di qui, questo per chi non ha ancora scelto.
+ */
+const EDITOR_SIZES = [12, 13, 14, 16, 18, 20] as const;
+const DEFAULT_EDITOR_SIZE = 16;
+const EDITOR_SIZE_KEY = 'gimmick:md-editor-size';
 
 // Soft pastel highlight palette — the Light2 row of GIMMICK_PALETTE.
 // "Remove" (null) clears the mark.
@@ -253,6 +270,19 @@ interface MarkdownEditorProps {
 export function MarkdownEditor({ value, onChange, autoFocus, className }: MarkdownEditorProps) {
   const theme = usePixelTheme();
 
+  // Letta DOPO il montaggio e non nell'inizializzatore: sul server
+  // `localStorage` non esiste, e un primo render diverso fra server e client
+  // è un errore di idratazione.
+  const [size, setSize] = useState<number>(DEFAULT_EDITOR_SIZE);
+  useEffect(() => {
+    const saved = Number(window.localStorage.getItem(EDITOR_SIZE_KEY));
+    if (EDITOR_SIZES.includes(saved as typeof EDITOR_SIZES[number])) setSize(saved);
+  }, []);
+  const chooseSize = (n: number) => {
+    setSize(n);
+    try { window.localStorage.setItem(EDITOR_SIZE_KEY, String(n)); } catch { /* modalità privata: pazienza */ }
+  };
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
@@ -302,7 +332,7 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
 
   return (
     <div className={cn('flex flex-col h-full', className)}>
-      <Toolbar editor={editor} theme={theme} />
+      <Toolbar editor={editor} theme={theme} size={size} onSize={chooseSize} />
       {/* Menu flottante sulla selezione di testo: azioni AI mirate alla porzione. */}
       <BubbleMenu editor={editor} shouldShow={() => !editor.state.selection.empty}>
         <div
@@ -312,6 +342,11 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
           <AiMenu editor={editor} theme={theme} compact />
         </div>
       </BubbleMenu>
+      {/* ⚠️ Il corpo NON si dichiara qui. Un `fontSize` su questo contenitore
+          c'era, valeva 14, e non si è mai visto: l'elemento di ProseMirror là
+          dentro porta la classe `tiptap-md`, che ridichiara `font-size` per
+          conto suo — e il figlio vince. Quello che si imposta qui è la
+          VARIABILE che quella classe legge. */}
       <div
         className="flex-1 overflow-auto"
         style={{
@@ -319,9 +354,9 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
           padding: 16,
           fontFamily: 'var(--ob-font-sans)',
           color: theme.ink,
-          fontSize: OB_TEXT.title,
           lineHeight: OB_LEADING.text,
-        }}
+          ['--md-size' as string]: `${size}px`,
+        } as React.CSSProperties}
       >
         <EditorContent editor={editor} />
       </div>
@@ -329,9 +364,14 @@ export function MarkdownEditor({ value, onChange, autoFocus, className }: Markdo
   );
 }
 
-interface ToolbarProps { editor: Editor; theme: ReturnType<typeof usePixelTheme>; }
+interface ToolbarProps {
+  editor: Editor;
+  theme: ReturnType<typeof usePixelTheme>;
+  size: number;
+  onSize: (n: number) => void;
+}
 
-function Toolbar({ editor, theme }: ToolbarProps) {
+function Toolbar({ editor, theme, size, onSize }: ToolbarProps) {
   const btnStyle = (active: boolean): React.CSSProperties => ({
     width: 30,
     height: 30,
@@ -399,6 +439,12 @@ function Toolbar({ editor, theme }: ToolbarProps) {
       <button type="button" title="Tabella" style={btnStyle(false)} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><IconTable size={14} /></button>
       {sep}
       <DictationButton editor={editor} btnStyle={btnStyle} />
+      {sep}
+      {/* In fondo, e staccato dai comandi di formattazione: quelli cambiano il
+          DOCUMENTO, questo cambia solo come lo si vede. Messo accanto a
+          grassetto e corsivo si leggerebbe come una proprietà della selezione,
+          che è esattamente quello che non è. */}
+      <FontSizePicker size={size} onSize={onSize} btnStyle={btnStyle} theme={theme} />
       {sep}
       <ShareButtons editor={editor} />
     </div>
@@ -499,6 +545,106 @@ function DictationButton({ editor, btnStyle }: DictationButtonProps) {
     >
       {listening ? <IconMicrophone size={14} /> : <IconMicrophone size={14} />}
     </button>
+  );
+}
+
+/**
+ * IL CORPO DEL TESTO — un menu con le misure, e la lettera alla misura giusta.
+ *
+ * Le voci mostrano «Aa» nel corpo che rappresentano: leggere «18» non dice
+ * quanto sarà grande, vederlo sì.
+ */
+function FontSizePicker({ size, onSize, btnStyle, theme }: {
+  size: number;
+  onSize: (n: number) => void;
+  btnStyle: (active: boolean) => React.CSSProperties;
+  theme: ReturnType<typeof usePixelTheme>;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapRef} style={{ position: 'relative', display: 'inline-block' }}>
+      <button
+        type="button"
+        title="Corpo del testo — cambia come lo vedi, non il documento"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          ...btnStyle(open),
+          width: 'auto', padding: '0 7px', gap: 5,
+          fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta,
+        }}
+      >
+        <IconTextSize size={14} />
+        {size}
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 100,
+            minWidth: 118,
+            background: theme.surface,
+            border: `1px solid ${theme.border}`,
+            borderRadius: 'var(--ob-radius-md)',
+            boxShadow: 'var(--ob-shadow-card)',
+            padding: 4,
+          }}
+        >
+          <div
+            style={{
+              padding: '4px 8px 6px', color: theme.ink3,
+              fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.eyebrow,
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+            }}
+          >
+            Corpo del testo
+          </div>
+          {EDITOR_SIZES.map((n) => {
+            const on = n === size;
+            return (
+              <button
+                key={n}
+                type="button"
+                onClick={() => { onSize(n); setOpen(false); }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                  padding: '4px 8px', textAlign: 'left',
+                  background: on ? theme.surfaceVariant : 'transparent',
+                  border: `1px solid ${on ? theme.accent : 'transparent'}`,
+                  borderRadius: 'var(--ob-radius-sm)',
+                  color: on ? theme.ink : theme.ink2,
+                  cursor: 'pointer',
+                }}
+              >
+                <span style={{ fontFamily: 'var(--ob-font-sans)', fontSize: n, lineHeight: 1.3 }}>Aa</span>
+                <span
+                  style={{
+                    marginLeft: 'auto', color: theme.ink3,
+                    fontFamily: 'var(--ob-font-mono)', fontSize: OB_TEXT.meta,
+                  }}
+                >
+                  {n}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

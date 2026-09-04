@@ -437,13 +437,49 @@ function paintBoxLabel(node: SVGGElement, text: string, w: number, h: number, in
  * è un'icona vera, e ridisegnarne il tracciato a mano avrebbe voluto dire
  * tenerne una copia allineata alla libreria.
  */
-function paintSubject(node: SVGGElement, w: number, h: number) {
+function paintSubject(node: SVGGElement, w: number, h: number, avatar?: string | null) {
   const g = d3.select(node);
+  if (avatar) {
+    // Cerchio se il riquadro è quadrato, smusso se è una fascia — vedi
+    // `subjectRadius`. È quel che tiene in piedi la distinzione che conta
+    // (tondeggiante un individuo, spigoloso un insieme) senza tagliare i
+    // marchi scritti.
+    const rx = subjectRadius(w, h);
+    g.append('rect')
+      .attr('x', 0.75).attr('y', 0.75)
+      .attr('width', w - 1.5).attr('height', h - 1.5)
+      .attr('rx', rx)
+      .style('fill', 'var(--ob-surface-2)')
+      .style('stroke', 'var(--ob-line-2)')
+      .style('stroke-width', 1.5);
+    paintAvatar(g, w, h, avatar, (defs, id) => {
+      defs.append('clipPath').attr('id', id)
+        .append('rect')
+        .attr('x', 1.5).attr('y', 1.5)
+        .attr('width', w - 3).attr('height', h - 3)
+        .attr('rx', Math.max(0, rx - 1.5));
+    });
+    return;
+  }
   g.append('circle')
     .attr('cx', w / 2).attr('cy', h / 2).attr('r', Math.min(w, h) / 2 - 0.75)
     .style('fill', 'var(--ob-surface-2)')
     .style('stroke', 'var(--ob-line-2)')
     .style('stroke-width', 1.5);
+  paintGlyph(g, w, h, IconUser);
+}
+
+/**
+ * IL GLIFO dentro la figura: la persona o il palazzo, quando non c'è un logo.
+ *
+ * In `foreignObject` e non in SVG puro perché le icone di tabler sono componenti
+ * React: `renderToString` è la strada già usata dai tile per lo stesso motivo.
+ */
+function paintGlyph(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  w: number, h: number,
+  Icon: React.ComponentType<{ size?: number; stroke?: number }>,
+) {
   const GS = Math.round(Math.min(w, h) * 0.52);
   const fo = g.append('foreignObject')
     .attr('x', (w - GS) / 2).attr('y', (h - GS) / 2)
@@ -453,12 +489,53 @@ function paintSubject(node: SVGGElement, w: number, h: number) {
   const host = document.createElement('div');
   host.style.cssText = `width:${GS}px;height:${GS}px;display:flex;align-items:center;justify-content:center;color:var(--ob-muted);`;
   try {
-    host.innerHTML = renderToString(React.createElement(IconUser, { size: GS, stroke: 1.8 }));
+    host.innerHTML = renderToString(React.createElement(Icon, { size: GS, stroke: 1.8 }));
   } catch {
-    // Un glifo che non si renderizza non deve togliere il soggetto: il disco
-    // resta, e con lui posizione, aggancio e menu contestuale.
+    // Un glifo che non si renderizza non deve togliere la figura: la forma
+    // resta, e con lei posizione, aggancio e menu contestuale.
   }
   (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+}
+
+/**
+ * IL LOGO dentro la figura, al posto del glifo.
+ *
+ * È la faccia dell'anagrafica su una lavagna: a 36-52 pixel un logo si
+ * riconosce e un'icona generica no, e su una lavagna con sei enti erano sei
+ * palazzi identici.
+ *
+ * · RITAGLIATO sulla forma — tondo un soggetto, squadrato un'organizzazione:
+ *   è la sola differenza che sopravvive a una lavagna rimpicciolita, e un logo
+ *   quadrato dentro un contorno tondo la cancellerebbe.
+ * · `meet` e non `slice`: l'immagine ci sta DENTRO tutta, e se le sue
+ *   proporzioni non stanno nei limiti del riquadro (vedi `MAX_BOX_ASPECT`)
+ *   restano due bande di fondo invece di due pezzi di marchio tagliati via.
+ *   Finché il logo sta nei limiti — quasi sempre — il riquadro ha già le sue
+ *   proporzioni esatte e `meet` e `slice` disegnano la stessa cosa: la banda
+ *   compare solo dove servirebbe la forbice.
+ * · il ritaglio è rientrato di 1,5 — lo spessore del contorno — così la
+ *   hairline resta visibile sopra l'immagine e la forma non si perde su un logo
+ *   a fondo pieno.
+ *
+ * ⚠️ L'id del `clipPath` è unico per chiamata. Un id fisso funzionerebbe con
+ * una figura sola e sbaglierebbe con due: gli id in SVG sono globali al
+ * documento, e il secondo ritaglio vincerebbe anche sul primo.
+ */
+let avatarClipSeq = 0;
+function paintAvatar(
+  g: d3.Selection<SVGGElement, unknown, null, undefined>,
+  w: number, h: number, href: string,
+  clip: (defs: d3.Selection<SVGDefsElement, unknown, null, undefined>, id: string) => void,
+) {
+  const id = `ob-av-${++avatarClipSeq}`;
+  const defs = g.append('defs');
+  clip(defs, id);
+  g.append('image')
+    .attr('href', href)
+    .attr('x', 0).attr('y', 0).attr('width', w).attr('height', h)
+    .attr('preserveAspectRatio', 'xMidYMid meet')
+    .attr('clip-path', `url(#${id})`)
+    .style('pointer-events', 'none');
 }
 
 /**
@@ -478,7 +555,7 @@ function paintSubject(node: SVGGElement, w: number, h: number) {
  * diventano un grumo, mentre la sagoma di un edificio resta riconoscibile anche
  * quando è alta dodici pixel.
  */
-function paintOrganization(node: SVGGElement, w: number, h: number) {
+function paintOrganization(node: SVGGElement, w: number, h: number, avatar?: string | null) {
   const g = d3.select(node);
   g.append('rect')
     .attr('x', 0.75).attr('y', 0.75)
@@ -490,21 +567,17 @@ function paintOrganization(node: SVGGElement, w: number, h: number) {
     .style('fill', 'var(--ob-surface-2)')
     .style('stroke', 'var(--ob-line-2)')
     .style('stroke-width', 1.5);
-  const GS = Math.round(Math.min(w, h) * 0.52);
-  const fo = g.append('foreignObject')
-    .attr('x', (w - GS) / 2).attr('y', (h - GS) / 2)
-    .attr('width', GS).attr('height', GS)
-    .style('pointer-events', 'none')
-    .style('overflow', 'visible');
-  const host = document.createElement('div');
-  host.style.cssText = `width:${GS}px;height:${GS}px;display:flex;align-items:center;justify-content:center;color:var(--ob-muted);`;
-  try {
-    host.innerHTML = renderToString(React.createElement(IconBuilding, { size: GS, stroke: 1.8 }));
-  } catch {
-    // Come per il soggetto: un glifo che non si renderizza non deve togliere il
-    // box — restano posizione, aggancio e menu contestuale.
+  if (avatar) {
+    paintAvatar(g, w, h, avatar, (defs, id) => {
+      defs.append('clipPath').attr('id', id)
+        .append('rect')
+        .attr('x', 1.5).attr('y', 1.5)
+        .attr('width', w - 3).attr('height', h - 3)
+        .attr('rx', 4);
+    });
+    return;
   }
-  (fo.node() as SVGForeignObjectElement)?.appendChild(host);
+  paintGlyph(g, w, h, IconBuilding);
 }
 
 /**
@@ -821,6 +894,9 @@ export type CanvasContact = {
   email?: string | null;
   phone?: string | null;
   notes?: string | null;
+  /** Il LOGO, o la fotografia. URL pubblico del bucket `canvas-assets`: la
+   *  lavagna lo disegna dentro la figura al posto del glifo generico. */
+  avatar_url?: string | null;
   /** Il contatto «io», uno per utente. Qui serve a una cosa sola: il menu della
    *  lavagna non deve offrire di eliminarlo dalla rubrica — il backend lo
    *  rifiuterebbe con un 400, e un comando che esiste solo per fallire è peggio
@@ -844,6 +920,63 @@ export const SUBJECT_SIZE = 44;
  * l'occhio risolva il glifo — che a scala ridotta è l'unico momento che conta.
  */
 export const ORGANIZATION_SIZE = 52;
+
+/**
+ * LA MISURA di una figura dell'anagrafica, date le proporzioni del suo logo.
+ *
+ * Senza logo è un quadrato del lato di partenza: il glifo generico è quadrato e
+ * non ha niente da dire sulla forma.
+ *
+ * Con un logo: l'ALTEZZA resta quella, la LARGHEZZA segue l'immagine. È la
+ * regola che tiene i loghi leggibili — un marchio steso, tipo una scritta su
+ * fondo pieno, o lo si mostra largo o non lo si legge, e ridurne l'altezza per
+ * contenerne l'ingombro lo trasforma in un francobollo.
+ *
+ * È anche la regola che tiene ORDINATA la lavagna: con l'altezza fissa, una
+ * fila di soggetti resta una fila — stessa quota, stessa linea di base, le
+ * didascalie tutte allineate. Facendo variare tutt'e due i lati (una prima
+ * versione lo faceva, ad area costante) ogni figura stava a un'altezza diversa
+ * e la fila si sfrangiava.
+ *
+ * ⚠️ La larghezza ha però un TETTO: una volta e mezza l'altezza. Senza, un
+ * marchio 4:1 veniva 176 pixel — più largo di un tile — e su una lavagna dove
+ * la figura di una persona è un segno di servizio finiva per dominarla. Il
+ * limite vale in tutt'e due i versi: fino a 1,5 di larghezza, fino a 1,5 di
+ * altezza.
+ *
+ * Un logo più steso di così NON viene rifilato: entra nel riquadro per intero e
+ * lascia due bande di fondo sopra e sotto — vedi `paintAvatar`. È la metà che
+ * conta della mediazione: si accetta che il riquadro non sia pieno, non che il
+ * marchio sia tagliato. Un logo completo e piccolo si riconosce, mezzo logo
+ * grande no.
+ */
+const MAX_BOX_ASPECT = 1.5;
+
+export function contactBoxSize(base: number, aspect?: number | null): { w: number; h: number } {
+  if (!aspect || !Number.isFinite(aspect) || aspect <= 0) return { w: base, h: base };
+  const a = Math.min(MAX_BOX_ASPECT, Math.max(1 / MAX_BOX_ASPECT, aspect));
+  return { w: Math.round(base * a), h: base };
+}
+
+/**
+ * Il RAGGIO degli angoli di un soggetto con logo.
+ *
+ * Non può essere sempre «metà del lato corto»: su un riquadro quadrato quello
+ * dà il cerchio che serve, ma su uno steso dà una pastiglia, e le due estremità
+ * tonde si mangiano proprio le lettere di testa e di coda di un marchio scritto.
+ * Sarebbe lo stesso ritaglio che si voleva togliere, spostato dai lati agli
+ * angoli.
+ *
+ * Quindi il raggio segue quanto il riquadro è QUADRATO: pieno quando lo è
+ * (cerchio, la forma di sempre per una persona), giù fino a un semplice smusso
+ * quando è una fascia. Al quadrato la curva vale 1, e la transizione è dolce
+ * abbastanza che una fotografia 4:3 resti tondeggiante.
+ */
+function subjectRadius(w: number, h: number): number {
+  const squareness = Math.min(w, h) / Math.max(w, h);
+  const full = Math.min(w, h) / 2;
+  return 6 + (full - 6) * squareness * squareness;
+}
 
 export type CanvasBox =
   | { id: string; type: 'text'; content: CanvasBoxTextContent; x: number; y: number; w: number; h: number }
@@ -1121,6 +1254,14 @@ export const CanvasBoard = React.memo(function CanvasBoard({
   contactNameRef.current = (id) => {
     if (!id) return '';
     return (contacts ?? []).find((c) => c.id === id)?.name?.trim() ?? '';
+  };
+  /** Il LOGO di un contatto, per id. Gemella di `contactNameRef` e per la
+   *  stessa ragione: il disegno la legge quando traccia, non quando è stato
+   *  costruito. Assente → la figura mostra il glifo generico. */
+  const contactAvatarRef = useRef<(id?: string | null) => string | null>(() => null);
+  contactAvatarRef.current = (id) => {
+    if (!id) return null;
+    return (contacts ?? []).find((c) => c.id === id)?.avatar_url || null;
   };
   const onAddSubjectAtRef = useRef(onAddSubjectAt); onAddSubjectAtRef.current = onAddSubjectAt;
   const onAddOrganizationAtRef = useRef(onAddOrganizationAt); onAddOrganizationAtRef.current = onAddOrganizationAt;
@@ -2669,7 +2810,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         const isOrg = tb.type === 'organization';
         // Marcatore e soggetto sono TONDI: anello di selezione a raggio pieno.
         // L'organizzazione è squadrata e prende l'anello rettangolare come i box.
-        const isDisc = isMarker || isSubject;
+        // ⚠️ Un soggetto è tondo finché è QUADRATO: da quando il riquadro prende le
+        // proporzioni del logo (vedi `contactBoxSize`) può essere una pastiglia,
+        // e un anello circolare attorno a una pastiglia le taglierebbe i fianchi.
+        const isDisc = isMarker || (isSubject && tw === th);
         // Chi ha una MISURA FISSA: nessuna maniglia di ridimensionamento. È un
         // insieme diverso da `isDisc` da quando esiste l'organizzazione, che è
         // quadrata ma non per questo ridimensionabile — tenerli uniti avrebbe
@@ -2678,8 +2822,9 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (isSubject || isOrg) {
           // Disco con una persona, o quadrato con un palazzo. Vedi `paintSubject`
           // e `paintOrganization` per il perché non sono colorati come i marcatori.
-          if (isOrg) paintOrganization(g.node()!, tw, th);
-          else paintSubject(g.node()!, tw, th);
+          const av = contactAvatarRef.current(tb.contact_id);
+          if (isOrg) paintOrganization(g.node()!, tw, th, av);
+          else paintSubject(g.node()!, tw, th, av);
           // La DENOMINAZIONE sotto la figura, con la stessa didascalia del
           // marcatore: un'icona anonima su una lavagna con quattro persone non
           // dice niente, ed è il solo campo dell'anagrafica che si legga da

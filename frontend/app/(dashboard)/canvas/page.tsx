@@ -13,8 +13,9 @@ import { contactRole, isOrganizationKind, KIND_FOR_ROLE } from '@/types/contact'
 import { useContactMemberships, type ContactMembership } from '@/lib/hooks/useContacts';
 import { CanvasTopbar } from '@/components/canvas/CanvasTopbar';
 import { CanvasZoomControls } from '@/components/canvas/CanvasZoomControls';
-import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasContact, SUBJECT_SIZE, ORGANIZATION_SIZE, MARKER_SPEC, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
+import { CanvasBoard, type CanvasEdge, type EdgeArrow, type EdgeLabelAlign, type MarkerKind, MARKER_SIZE, DOT_STEP, type CanvasGroup, type CanvasTextBox, type CanvasBoxImageContent, type CanvasBoxMarkerContent, type CanvasContact, SUBJECT_SIZE, ORGANIZATION_SIZE, contactBoxSize, MARKER_SPEC, resolveMarkerKind } from '@/components/canvas/CanvasBoard';
 import { tidy, type TidyRect } from '@/lib/canvas-tidy';
+import { imageAspect } from '@/lib/image-aspect';
 import { StagingPanel, STAGING_MIN_W } from '@/components/canvas/StagingPanel';
 import { PdfExportPanel } from '@/components/canvas/PdfExportPanel';
 import { CanvasPrintSheet } from '@/components/canvas/CanvasPrintSheet';
@@ -804,9 +805,17 @@ export default function CanvasPage() {
   ) => {
     if (!tagId) return;
     const isOrg = variant === 'organization';
-    const size = isOrg ? ORGANIZATION_SIZE : SUBJECT_SIZE;
+    // Se il contatto ha un logo, la figura nasce già con le sue proporzioni:
+    // misurarlo ADESSO costa il caricamento di un'immagine (di solito già in
+    // cache del browser) e risparmia di vederla comparire quadrata e poi
+    // cambiare forma sotto gli occhi.
+    const logo = contacts.find((c) => c.id === contactId)?.avatar_url;
+    const { w, h } = contactBoxSize(
+      isOrg ? ORGANIZATION_SIZE : SUBJECT_SIZE,
+      logo ? await imageAspect(logo) : null,
+    );
     const res = await canvasApi.addBox(tagId, {
-      type: variant, content: {}, x, y, w: size, h: size, contact_id: contactId,
+      type: variant, content: {}, x, y, w, h, contact_id: contactId,
     });
     const newId = (res?.data as any)?.id;
     if (!newId) { toast.error(isOrg ? 'Organizzazione non salvata' : 'Soggetto non salvato'); return; }
@@ -820,7 +829,49 @@ export default function CanvasPage() {
     setSelectedIds([]);
     setSelectionBbox(null);
     setSidebarOpen(true);
-  }, [tagId, queryClient]);
+  }, [tagId, queryClient, contacts]);
+
+  /**
+   * LE FIGURE GIÀ POSATE si adeguano al logo che nel frattempo hanno preso.
+   *
+   * Un soggetto posato prima che il suo contatto avesse un logo — o prima che
+   * questa regola esistesse — è un quadrato, e il logo dentro un quadrato viene
+   * tagliato ai lati. Senza questo passaggio l'unico rimedio sarebbe cancellare
+   * la figura e riposarla, perdendo le linee che le arrivano.
+   *
+   * È un passaggio di RIALLINEAMENTO, non un ciclo: ogni box viene toccato al
+   * massimo una volta per sessione (`resized`), e solo se le sue proporzioni
+   * sono davvero diverse da quelle del logo — la soglia del 2% evita che un
+   * arrotondamento faccia ripartire tutto a ogni caricamento.
+   */
+  const resizedForLogo = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!tagId || contacts.length === 0) return;
+    let alive = true;
+    (async () => {
+      let touched = false;
+      for (const b of textBoxes) {
+        if (b.type !== 'subject' && b.type !== 'organization') continue;
+        if (resizedForLogo.current.has(b.id)) continue;
+        const logo = contacts.find((c) => c.id === b.contact_id)?.avatar_url;
+        if (!logo) continue;
+        const aspect = await imageAspect(logo);
+        if (!alive) return;
+        // Segnato come fatto ANCHE se la misura non è arrivata: un URL rotto
+        // non deve far ritentare il caricamento a ogni ridisegno della lavagna.
+        // La figura resta della misura che ha, che è il male minore.
+        resizedForLogo.current.add(b.id);
+        if (!aspect) continue;
+        const base = b.type === 'organization' ? ORGANIZATION_SIZE : SUBJECT_SIZE;
+        const next = contactBoxSize(base, aspect);
+        if (Math.abs(next.w - b.w) <= b.w * 0.02 && Math.abs(next.h - b.h) <= b.h * 0.02) continue;
+        await canvasApi.updateBox(b.id, { w: next.w, h: next.h });
+        touched = true;
+      }
+      if (alive && touched) queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
+    })();
+    return () => { alive = false; };
+  }, [tagId, textBoxes, contacts, queryClient]);
 
   /**
    * LA DOMANDA APERTA: dove si è cliccato, e che cosa si stava posando.
@@ -930,10 +981,18 @@ export default function CanvasPage() {
    */
   const handleRelinkContactBox = useCallback(async (boxId: string, contactId: string) => {
     if (!tagId) return;
-    const res = await canvasApi.updateBox(boxId, { contact_id: contactId });
+    // La forma segue il nuovo contatto: spostando la figura su un'anagrafica
+    // con un logo diverso, un riquadro tarato sul logo di prima taglierebbe
+    // quello di adesso.
+    const box = textBoxes.find((b) => b.id === boxId);
+    const logo = contacts.find((c) => c.id === contactId)?.avatar_url;
+    const base = box?.type === 'organization' ? ORGANIZATION_SIZE : SUBJECT_SIZE;
+    const { w, h } = contactBoxSize(base, logo ? await imageAspect(logo) : null);
+    resizedForLogo.current.add(boxId);
+    const res = await canvasApi.updateBox(boxId, { contact_id: contactId, w, h });
     if (!res?.success) { toast.error('Collegamento non aggiornato'); return; }
     queryClient.invalidateQueries({ queryKey: ['canvas-boxes', tagId] });
-  }, [tagId, queryClient]);
+  }, [tagId, queryClient, textBoxes, contacts]);
 
   /**
    * L'ELIMINAZIONE VERA, quella dalla rubrica — in attesa di conferma.

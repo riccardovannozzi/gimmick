@@ -281,6 +281,30 @@
    when a block (image, table, etc.) is picked — make that visible too. */
 .tiptap-md .ProseMirror-selectednode { outline: 2px solid #2D7FF9; outline-offset: 2px; }
 
+/* ── Corpo dell'EDITOR — 16px, e regolabile ──────────────────────────
+   Solo `.tiptap-md`: la preview ha la sua misura più sotto, e sono due cose
+   diverse — una si legge di sfuggita in una sidebar, l'altra ci si scrive
+   dentro per dieci minuti.
+
+   ⚠️ La misura arriva da `--md-size`, che l'editor mette sul contenitore
+   dell'area di scrittura (vedi `MarkdownEditor`): è quella la variabile che il
+   selettore in barra cambia. Il valore di ripiego — 16px — vale se la classe
+   viene usata fuori dall'editor, dove nessuno imposta la variabile, e va tenuto
+   allineato a `DEFAULT_EDITOR_SIZE`: sono lo stesso numero detto due volte, una
+   per il CSS e una per chi sceglie.
+
+   Titoli, codice e blocchi passano a misure RELATIVE (`em`). Erano assolute, e
+   con un corpo regolabile sarebbe bastato scegliere 20px per avere un H1 più
+   piccolo del testo normale: i titoli devono seguire il corpo, non farsi
+   raggiungere. Le regole condivise qui sopra restano come sono — la preview
+   non deve muoversi. */
+.tiptap-md { font-size: var(--md-size, 16px); }
+.tiptap-md h1 { font-size: 1.5em; }
+.tiptap-md h2 { font-size: 1.25em; }
+.tiptap-md h3 { font-size: 1.08em; }
+.tiptap-md code { font-size: 0.88em; }
+.tiptap-md pre { font-size: 0.88em; }
+
 /* ── Preview compatta ────────────────────────────────────────────────────────
    Solo `.markdown-preview` (l'editor `.tiptap-md` resta comodo): testo più
    piccolo, niente grassetti e interlinea/margini ridotti per mostrare più
