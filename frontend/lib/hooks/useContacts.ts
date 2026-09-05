@@ -54,7 +54,15 @@ export function useContactMemberships() {
   });
 }
 
-export function useContacts(opts?: { archived?: boolean }) {
+/**
+ * `enabled` esiste perché questo hook viene chiamato anche da posti che la
+ * rubrica non sempre la usano — la palla dei passi la mostra solo sui tile
+ * `flow`. Sta QUI e non nel chiamante di proposito: registrare altrove un
+ * `useQuery` sulla stessa chiave con una `queryFn` propria è la trappola
+ * descritta nel commento in cima a questo file, e ne esiste già un caso.
+ * Le mutazioni restano attive comunque: non dipendono dalla lettura.
+ */
+export function useContacts(opts?: { archived?: boolean; enabled?: boolean }) {
   const qc = useQueryClient();
   const archived = opts?.archived ?? false;
   const key = ['contacts', { archived }] as const;
@@ -66,6 +74,7 @@ export function useContacts(opts?: { archived?: boolean }) {
       if (!res.success) throw new Error(res.error || 'Errore caricamento contatti');
       return (res.data as Contact[]) ?? [];
     },
+    enabled: opts?.enabled ?? true,
   });
 
   const invalidate = () => {

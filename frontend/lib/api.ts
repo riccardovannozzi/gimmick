@@ -329,13 +329,21 @@ export const subtasksApi = {
   async list(tileId: string) {
     return apiRequest<Subtask[]>(`/api/subtasks?tile_id=${encodeURIComponent(tileId)}`);
   },
+  /**
+   * I passi di TUTTI i tile `flow`, in una richiesta sola. Serve al Cockpit,
+   * che deve leggere `contact_id` e `is_theirs` — campi che la proiezione
+   * compatta di `GET /api/tiles` non porta.
+   */
+  async listFlow() {
+    return apiRequest<Subtask[]>('/api/subtasks/flow');
+  },
   async create(data: { tile_id: string; content?: string; is_done?: boolean }) {
     return apiRequest<Subtask>('/api/subtasks', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
-  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number; contact_id?: string | null; occurred_at?: string | null; state?: 'blocked' | 'cancelled' | null }) {
+  async update(id: string, updates: { content?: string; is_done?: boolean; sort_order?: number; contact_id?: string | null; is_theirs?: boolean; occurred_at?: string | null; state?: 'blocked' | 'cancelled' | null }) {
     return apiRequest<Subtask>(`/api/subtasks/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(updates),

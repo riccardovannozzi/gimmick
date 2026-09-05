@@ -23,6 +23,7 @@ import {
   IconCamera, IconVideo, IconPhoto, IconAlignLeft, IconMicrophone, IconPaperclip,
   IconSend, IconPlayerStopFilled, IconVolume, IconVolumeOff, IconX,
   IconCopy, IconClipboard, IconTrash,
+  IconArrowsExchange,
   type IconProps as TablerIconProps,
 } from '@tabler/icons-react';
 
@@ -35,7 +36,7 @@ export type ShellIconName =
   | 'edit' | 'list' | 'flow' | 'note' | 'todo'
   | 'calendar' | 'allday' | 'chrono' | 'clock' | 'timed'
   | 'tags' | 'call' | 'check' | 'due'
-  | 'tiles' | 'canvas' | 'kanban' | 'panopticon'
+  | 'tiles' | 'canvas' | 'kanban' | 'cockpit' | 'panopticon'
   | 'sort' | 'filter' | 'group'
   | 'photo' | 'video' | 'gallery' | 'text' | 'voice' | 'file'
   | 'send' | 'stop' | 'speaker' | 'speakerOff' | 'x'
@@ -51,6 +52,9 @@ const MAP: Record<ShellIconName, React.ComponentType<TablerIconProps>> = {
   calendar: IconCalendar, allday: IconCalendarEvent, chrono: IconCalendarTime, clock: IconClock, timed: IconClock,
   tags: IconTag, call: IconPhone, check: IconCircleCheck, due: IconAlertCircle,
   tiles: IconCube, canvas: IconLayoutDashboard, kanban: IconLayoutKanban, panopticon: IconEye,
+  // La palla che passa di mano. NON `flow` (IconAffiliate): quello marca il TIPO
+  // di tile, e riusarlo qui confonderebbe il tipo con la vista che lo raccoglie.
+  cockpit: IconArrowsExchange,
   sort: IconArrowsSort, filter: IconFilter, group: IconCategory,
   photo: IconCamera, video: IconVideo, gallery: IconPhoto, text: IconAlignLeft, voice: IconMicrophone, file: IconPaperclip,
   send: IconSend, stop: IconPlayerStopFilled, speaker: IconVolume, speakerOff: IconVolumeOff, x: IconX,

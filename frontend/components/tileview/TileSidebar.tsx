@@ -1453,7 +1453,10 @@ export function TileSidebar({
           ) : activeTab === 'list' ? (
             // Una sola forma di lista per ogni tipo di tile, flow compresi:
             // una riga, un campo. Vedi la nota in cima a SubtaskList.
-            <SubtaskList tileId={tileId} />
+            // L'`action_type` serve alla sola PALLA, che compare unicamente sui
+            // flow: qui il tile c'è già, e riprenderlo di là sarebbe una seconda
+            // lettura della stessa cache.
+            <SubtaskList tileId={tileId} actionType={tile.action_type} />
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>

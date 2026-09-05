@@ -47,6 +47,7 @@ const VIEW_TO_PATH: Record<ViewId, string> = {
   chrono: '/calendar',
   canvas: '/canvas',
   kanban: '/kanban',
+  cockpit: '/cockpit',
   panopticon: '/graph',
 };
 

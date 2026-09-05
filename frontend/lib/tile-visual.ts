@@ -152,6 +152,153 @@ export function subtaskToStep(s: { is_done?: boolean | null; state?: 'blocked' |
   return s.state ?? (s.is_done ? 'done' : 'pending');
 }
 
+// ─── LA PALLA ────────────────────────────────────────────────────────────────
+
+/** Di chi è la mossa successiva. Due sole zone, per scelta: «Tocca a me» e
+ *  «Tocca a te» sono le due liste che il Cockpit deve produrre. */
+export type SubtaskBall = 'mine' | 'theirs';
+
+/**
+ * Di chi è la palla su un passo.
+ *
+ * Vale solo dentro un tile `action_type = 'flow'`: un flusso è un rimpallo di
+ * responsabilità fra più soggetti, e solo lì la domanda ha senso. Su una
+ * checklist della spesa la palla è sempre di chi l'ha scritta. La funzione resta
+ * pura e non lo verifica: a non chiamarla è chi disegna.
+ *
+ * ─── Le tre risposte, e come sono salvate ────────────────────────────────────
+ *
+ *   niente                          → tocca a me
+ *   is_theirs = true                → tocca a te, ma non dico a chi
+ *   contact_id = <qualcuno>         → tocca a te, a quella persona
+ *
+ * ⚠️ L'ORDINE DEI RAMI È VINCOLANTE, e non è una preferenza: `is_theirs` è la
+ * marcatura ESPLICITA dell'utente e vince sul contatto, che è un dato dedotto.
+ * Chi ha premuto il pulsante ha detto una cosa; chi ha lasciato un contatto
+ * attaccato da una vecchia migrazione non ha detto niente. Invertire i rami
+ * significherebbe far scavalcare la seconda alla prima.
+ *
+ * ⚠️ `contact_id IS NULL` significa «tocca a me» — il default muto. La semantica
+ * è dichiarata dalla migration 027 (riga 7, «default-mine semantics»), ma quella
+ * frase parlava di `flow_nodes`, che nel frattempo è in via di ritiro. La
+ * colonna sui `tile_subtasks` arriva dieci migration dopo, con la 037, che la
+ * regola non la ripete: fino a questo commento i subtask l'avevano ereditata per
+ * convenzione e mai per iscritto. Adesso è scritta qui.
+ *
+ * Il contatto «io» (`contacts.is_self`, uno per utente) vale come nessun
+ * contatto: un passo assegnato a me stesso tocca a me. Se `selfContactId` non è
+ * ancora arrivato — la rubrica si carica in modo asincrono — un contatto
+ * qualsiasi conta come «altri»: è il caso maggioritario, e sbagliare per un
+ * fotogramma sul proprio contatto è meno grave che mostrare vuota una lista che
+ * piena lo è.
+ */
+export function subtaskBall(
+  s: { is_theirs?: boolean | null; contact_id?: string | null },
+  selfContactId?: string | null,
+): SubtaskBall {
+  if (s.is_theirs === true) return 'theirs';
+  if (s.contact_id && s.contact_id !== selfContactId) return 'theirs';
+  return 'mine';
+}
+
+/** La forma minima di passo che le regole qui sotto sanno leggere. */
+export type StepRow = {
+  id: string;
+  is_done?: boolean | null;
+  state?: 'blocked' | 'cancelled' | null;
+  sort_order?: number | null;
+  created_at?: string | null;
+  occurred_at?: string | null;
+  is_theirs?: boolean | null;
+  contact_id?: string | null;
+};
+
+/**
+ * IL PASSO CORRENTE: il primo che resta da fare.
+ *
+ * È la riga su cui il Cockpit costruisce tutto — di chi è la palla lo dice il
+ * passo corrente, non il tile.
+ *
+ *   aperto   = `is_done` falso E stato nullo o `blocked`
+ *   chiuso   = `is_done` vero
+ *   annullato= `cancelled`, e NON CONTA MAI: non è fatto e non è da fare
+ *
+ * Un passo `blocked` è aperto e può essere il corrente: è fermo, non chiuso, ed
+ * è semmai quello che ha più bisogno di essere guardato. Saltarlo nasconderebbe
+ * proprio i processi incagliati.
+ *
+ * ⚠️ L'ORDINAMENTO DEVE ESSERE TOTALE, e non è pedanteria. `sort_order` si
+ * ripete: nasce da `max + 1` ma il riordino lo riscrive per indice, e due righe
+ * con lo stesso numero esistono. Con il solo `sort_order` l'esito dipenderebbe
+ * dall'ordine in cui il database ha restituito le righe, e lo stesso tile
+ * mostrerebbe passi diversi a due caricamenti identici. Finora non si vedeva
+ * perché nessuno chiedeva IL PRIMO: si disegnava una barra, e due segmenti
+ * scambiati fra loro sono invisibili.
+ *
+ * Da qui i tre criteri: `sort_order`, poi `created_at`, poi `id`. L'ultimo è
+ * arbitrario ma unico, ed è quel che rende l'ordine totale davvero.
+ *
+ * ⚠️ Su un tile CHIUSO non si chiede: i suoi passi non sono da fare, sono
+ * neutri. La decisione sta in chi chiama, che il tile ce l'ha — vedi
+ * `cockpitLane`.
+ */
+export function currentStep<T extends StepRow>(steps: T[]): T | null {
+  const open = steps.filter((s) => !s.is_done && (s.state == null || s.state === 'blocked'));
+  if (open.length === 0) return null;
+  return open.slice().sort((a, b) => (
+    (a.sort_order ?? 0) - (b.sort_order ?? 0)
+    || (a.created_at ?? '').localeCompare(b.created_at ?? '')
+    || a.id.localeCompare(b.id)
+  ))[0];
+}
+
+/**
+ * DA QUANDO un passo è fermo lì: quando è avvenuto, e in mancanza quando è nato.
+ *
+ * ⚠️ MAI `updated_at`, né del passo né del tile. Correggere un refuso in un
+ * titolo azzererebbe trenta giorni di attesa, e il numero tornerebbe a zero
+ * proprio mentre si guarda la cosa che nessuno tocca da un mese. È il tipo di
+ * errore che si nota solo dopo mesi, quando la colonna non ordina più niente.
+ *
+ * Serve a ORDINARE, non a classificare: non esiste una soglia oltre la quale un
+ * passo è «fermo». Sui dati veri il 63% dei passi aperti ha più di venti giorni:
+ * qualunque soglia ragionevole finirebbe per marcare quasi tutto, e una corsia
+ * che contiene tutto non separa niente.
+ */
+export function stalenessFrom(s: { occurred_at?: string | null; created_at?: string | null }): string | null {
+  return s.occurred_at ?? s.created_at ?? null;
+}
+
+// ─── IL COCKPIT ──────────────────────────────────────────────────────────────
+
+/** Le due liste, più i conclusi che stanno dietro un interruttore. */
+export type CockpitLane = 'mine' | 'theirs' | 'closed';
+
+/**
+ * In quale delle due liste finisce un flow — o se è concluso.
+ *
+ * `closed` copre due casi diversi che si somigliano da fuori:
+ *   • il tile è stato chiuso a mano (`done` / `cancelled`), e allora i suoi
+ *     passi rimasti sono NEUTRI: né fatti né da fare. Succede spesso ed è il
+ *     motivo per cui esiste questo ramo;
+ *   • non resta nessun passo aperto, e allora il flow è finito da sé.
+ *
+ * Il tile chiuso vince e viene per primo: ha l'ultima parola su quel che
+ * contiene, altrimenti un flow archiviato con tre passi aperti dentro
+ * continuerebbe a chiedere attenzione dopo che gli è stata tolta.
+ *
+ * Ogni flow sta in UNA lista sola.
+ */
+export function cockpitLane(
+  opts: { closed: boolean; steps: StepRow[] },
+  selfContactId?: string | null,
+): CockpitLane {
+  if (opts.closed) return 'closed';
+  const next = currentStep(opts.steps);
+  if (!next) return 'closed';
+  return subtaskBall(next, selfContactId);
+}
+
 /**
  * Mappa TRANSITORIA, viva solo durante la migrazione dei 72 beat in subtask.
  *

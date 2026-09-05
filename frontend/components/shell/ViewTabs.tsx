@@ -11,6 +11,12 @@
  * È uscita di scena col modello: un flow è un tile con `action_type = 'flow'`,
  * quindi si guarda dove si guardano i tile — la colonna FLOW di Chrono, il
  * Kanban, il Canvas — senza una vista che sappia solo di lui.
+ *
+ * Al suo posto c'è il COCKPIT, e la differenza non è nel nome: quella board
+ * elencava i BEAT raggruppati per stato del beat, questa elenca i FLOW
+ * raggruppati per l'unica domanda che si ha in testa aprendola — di chi è la
+ * palla. Ha potuto esistere solo da quando quel dato ha un comando che lo
+ * scrive (`is_theirs` + il contatto sul passo, migration 049).
  */
 import * as React from 'react';
 import { cn } from '@/lib/utils';
@@ -18,7 +24,7 @@ import { Icon, type ShellIconName } from './icons';
 
 export type ViewId =
   | 'sparks' | 'tiles' | 'tags'
-  | 'chrono' | 'canvas' | 'kanban' | 'panopticon';
+  | 'chrono' | 'canvas' | 'kanban' | 'cockpit' | 'panopticon';
 
 export interface ViewTab {
   id: ViewId;
@@ -36,6 +42,7 @@ export const DEFAULT_RIGHT_VIEWS: ViewTab[] = [
   { id: 'chrono', label: 'Chrono', icon: 'chrono' },
   { id: 'canvas', label: 'Canvas', icon: 'canvas' },
   { id: 'kanban', label: 'Kanban', icon: 'kanban' },
+  { id: 'cockpit', label: 'Cockpit', icon: 'cockpit' },
   { id: 'panopticon', label: 'Panopticon', icon: 'panopticon' },
 ];
 

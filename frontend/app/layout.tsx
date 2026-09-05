@@ -10,6 +10,7 @@ import './obsidian-tiles.css';
 import './obsidian-sparks.css';
 import './obsidian-canvas.css';
 import './obsidian-kanban.css';
+import './obsidian-cockpit.css';
 import './obsidian-chrono.css';
 import './obsidian-panopticon.css';
 import './obsidian-settings.css';

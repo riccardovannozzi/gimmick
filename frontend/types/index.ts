@@ -199,8 +199,13 @@ export interface Subtask {
   content: string;
   is_done: boolean;
   sort_order: number;
-  /** Chi ha la palla su questo passo. */
+  /** A CHI tocca, quando lo si vuole dire. Nullo = tocca a me. */
   contact_id?: string | null;
+  /**
+   * La palla è di qualcun altro, senza dire di chi. Marcatura di eccezione:
+   * `false` è il valore muto. Vince su `contact_id` — vedi `subtaskBall()`.
+   */
+  is_theirs?: boolean | null;
   /** Quando il passo è avvenuto. Storia, non programma: non va in calendario. */
   occurred_at?: string | null;
   /** `null` = voce ordinaria (lo stato lo dice `is_done`). */

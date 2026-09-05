@@ -2,7 +2,7 @@ import { Router, Response } from 'express';
 import { supabaseAdmin } from '../config/supabase.js';
 import { authenticate } from '../middleware/auth.js';
 import type { AuthenticatedRequest } from '../types/index.js';
-import { assertTileOwned } from '../utils/ownership.js';
+import { assertTileOwned, assertContactOwned } from '../utils/ownership.js';
 
 export const subtasksRouter = Router();
 subtasksRouter.use(authenticate);
@@ -20,9 +20,56 @@ subtasksRouter.get('/', async (req: AuthenticatedRequest, res: Response, next) =
     }
     const { data, error } = await supabaseAdmin
       .from('tile_subtasks')
-      .select('id, tile_id, content, is_done, sort_order, contact_id, occurred_at, state, created_at, updated_at')
+      .select('id, tile_id, content, is_done, sort_order, contact_id, is_theirs, occurred_at, state, created_at, updated_at')
       .eq('user_id', req.user!.id)
       .eq('tile_id', tileId)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (error) { next(error); }
+});
+
+/**
+ * GET /api/subtasks/flow
+ *
+ * TUTTI i passi dei tile `flow` dell'utente, in una richiesta sola.
+ *
+ * Serve al Cockpit, che deve rispondere a una domanda trasversale — «di chi è
+ * la palla, su tutto quel che ho aperto» — e non può farlo con la lista dei
+ * tile: quella porta una proiezione COMPATTA dei subtask (`is_done` e `state`,
+ * vedi `routes/tiles.ts`), che basta a disegnare una barra e non basta a dire
+ * chi aspetta chi. Servono `contact_id`, `is_theirs`, `sort_order` e le date.
+ *
+ * L'alternativa era una `GET /api/subtasks?tile_id=` per ogni flow: oggi
+ * sarebbero ventotto richieste per aprire una pagina.
+ *
+ * ⚠️ Nessun id arriva dal client: i tile si ricavano dall'utente autenticato.
+ * È anche ciò che rende la rotta banale da verificare — non c'è niente da
+ * possedere che non sia già filtrato per `user_id`, due volte.
+ */
+subtasksRouter.get('/flow', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { data: flowTiles, error: tilesError } = await supabaseAdmin
+      .from('tiles')
+      .select('id')
+      .eq('user_id', req.user!.id)
+      .eq('action_type', 'flow');
+
+    if (tilesError) throw tilesError;
+
+    const ids = (flowTiles ?? []).map((t) => t.id as string);
+    // `.in()` con un array vuoto è SQL valido ma inutile: si esce prima.
+    if (ids.length === 0) {
+      res.json({ success: true, data: [] });
+      return;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('tile_subtasks')
+      .select('id, tile_id, content, is_done, sort_order, contact_id, is_theirs, occurred_at, state, created_at, updated_at')
+      .eq('user_id', req.user!.id)
+      .in('tile_id', ids)
       .order('sort_order', { ascending: true });
 
     if (error) throw error;
@@ -88,7 +135,19 @@ subtasksRouter.patch('/:id', async (req: AuthenticatedRequest, res: Response, ne
     // Campi dei passi di un flow. `null` è un valore legittimo — significa
     // "togli il contatto / la data / lo stato eccezionale" — quindi il controllo
     // è su `undefined`, non sulla verità del valore.
-    if (req.body.contact_id !== undefined) updates.contact_id = req.body.contact_id || null;
+    //
+    // ⚠️ `contact_id` arriva DAL CLIENT e punta a un'altra tabella. Il filtro
+    // `user_id` qui sotto protegge il subtask, non il contatto: senza questa
+    // verifica si potrebbe agganciare a un proprio passo il contatto di un
+    // altro utente, e la riga terrebbe un riferimento a dati non propri.
+    if (req.body.contact_id !== undefined) {
+      const contactId = (req.body.contact_id as string | null) || null;
+      if (contactId) await assertContactOwned(req.user!.id, contactId);
+      updates.contact_id = contactId;
+    }
+    // La palla del passo (migration 049). Marcatura di eccezione: FALSE è il
+    // valore muto. Vince sul contatto in lettura — vedi `subtaskBall()`.
+    if (req.body.is_theirs !== undefined) updates.is_theirs = !!req.body.is_theirs;
     if (req.body.occurred_at !== undefined) updates.occurred_at = req.body.occurred_at || null;
     if (req.body.state !== undefined) {
       const s = req.body.state;

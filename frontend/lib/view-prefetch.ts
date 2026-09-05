@@ -1,5 +1,5 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { sparksApi, tilesApi, tagsApi, kanbanApi, canvasApi } from '@/lib/api';
+import { sparksApi, tilesApi, tagsApi, kanbanApi, canvasApi, subtasksApi } from '@/lib/api';
 import type { ViewId } from '@/components/shell';
 
 /**
@@ -69,6 +69,21 @@ export function prefetchView(qc: QueryClient, view: ViewId): void {
     case 'chrono':
       prefetchTileList(qc, 'tiles-calendar');
       prefetchTags(qc);
+      break;
+    case 'cockpit':
+      // Due query e basta: la lista dei soli flow e i loro passi. Non passa da
+      // `prefetchTileList` perché quella carica TUTTI i tile paginati, mentre
+      // qui ne servono al massimo cento già filtrati.
+      qc.prefetchQuery({
+        queryKey: ['tiles-cockpit'],
+        queryFn: () => tilesApi.list({ action_type: 'flow', limit: 100 }),
+        staleTime: PREFETCH_STALE,
+      });
+      qc.prefetchQuery({
+        queryKey: ['subtasks-flow'],
+        queryFn: () => subtasksApi.listFlow(),
+        staleTime: PREFETCH_STALE,
+      });
       break;
     case 'panopticon':
       qc.prefetchQuery({ queryKey: ['graph-data'], queryFn: () => tilesApi.graph(), staleTime: PREFETCH_STALE });
