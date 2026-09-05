@@ -127,6 +127,15 @@
   --ob-info: #4F86EE;    /* all-day ← photo */
   --ob-warning: #C99220; /* amber  ← file  */
 
+  /* La PALLA IN MANO AD ALTRI — il colore della lista «Tocca a te»: badge di
+     colonna, glifo del contatto, testata. È un RUOLO, non una tinta: dice
+     «questo dipende da qualcun altro», che è il contrario di quel che dicono
+     l'accento (tocca a me) e il verde (fatto).
+     ⚠️ Sfiora `--ob-info`, ed è voluto — sono due blu vicini con due mestieri
+     diversi: quello è il blu degli eventi su giornata intera, questo è l'attesa.
+     Tenerli separati costa un token e permette di muoverne uno senza l'altro. */
+  --ob-theirs: #5B8DEF;
+
   /* Elevation — a single faint card shadow in light. */
   --ob-shadow-card: 0 1px 3px rgba(24, 20, 38, 0.05);
 
@@ -204,6 +213,9 @@
   --ob-marker-goal: var(--ob-success);
   --ob-info: #7AA7F5;    /* all-day ← photo */
   --ob-warning: #E7C25E; /* amber  ← file  */
+  /* Schiarito come gli altri semantici: il blu chiaro sul fondo scuro non
+     reggerebbe. Stesso scarto applicato a `--ob-info` (#4F86EE → #7AA7F5). */
+  --ob-theirs: #86AEF6;
 
   /* Elevation — no hard shadows in dark. */
   --ob-shadow-card: none;

@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>Gimmick · Obsidian — Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ob-canvas:#f6f6f8; --ob-surface:#ffffff; --ob-surface2:#f1f0f4; --ob-head:#fbfbfc;
+  --ob-text:#1b1923; --ob-muted:#5c5868; --ob-subtle:#9a96a4; --ob-faint:#c4c1cd;
+  --ob-line:rgba(24,20,38,0.08); --ob-line2:rgba(24,20,38,0.13);
+  --ob-accent:#7C5CCB; --ob-accent-soft:#efeafb;
+  --ob-theirs:#5B8DEF;
+  --ob-success:#3FAE72; --ob-error:#E0544F; --ob-info:#4F86EE; --ob-warning:#C99220;
+  --ob-type-photo:#4F86EE; --ob-type-voice:#E0544F; --ob-type-text:#3FAE72; --ob-type-file:#C99220;
+  --ob-tile-w:128px; --ob-tile-h:72px;
+  --row-h:30px; --anchor-w:92px; --who-w:104px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ob-canvas);color:var(--ob-text);
+  font-family:'Geist',system-ui,sans-serif;font-size:13px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;overflow:hidden}
+.cockpit{height:100vh;padding:16px 18px;display:grid;
+  grid-template-rows:auto auto minmax(0,1fr);gap:14px}
+
+/* ─── barra ─────────────────────────────────────────────────────────────── */
+.appbar{display:flex;align-items:center;gap:14px;height:26px}
+.appbar .brand{font-size:14px;font-weight:600;letter-spacing:-.015em}
+.appbar .tabs{display:flex;gap:2px;margin-left:6px}
+.appbar .tab{font-size:11px;color:var(--ob-subtle);padding:3px 9px;border-radius:999px}
+.appbar .tab.on{background:var(--ob-surface);color:var(--ob-text);
+  border:1px solid var(--ob-line2);font-weight:600}
+.appbar .tools{margin-left:auto;display:flex;gap:6px;align-items:center}
+.toolword{font-family:'Geist Mono',monospace;font-size:10px;color:var(--ob-muted);
+  background:var(--ob-surface);border:1px solid var(--ob-line2);border-radius:6px;
+  padding:4px 9px;display:flex;align-items:center;gap:5px}
+.toolword.off{color:var(--ob-subtle);background:transparent;border-style:dashed}
+
+/* ─── fascia FOCUS ──────────────────────────────────────────────────────── */
+.band{background:var(--ob-surface);border:1px solid var(--ob-line);border-radius:10px;
+  padding:12px 14px;display:flex;align-items:center;gap:16px}
+.bandlab{writing-mode:vertical-rl;transform:rotate(180deg);
+  font-family:'Geist Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--ob-subtle);align-self:stretch;
+  display:flex;align-items:center;justify-content:center;padding-right:2px;
+  border-right:1px solid var(--ob-line)}
+.slots{display:flex;gap:18px;align-items:center}
+.slot{position:relative;width:var(--ob-tile-w);height:var(--ob-tile-h);flex:0 0 auto}
+.tile{position:relative;width:100%;height:100%;background:var(--ob-surface);
+  border:1px solid #E2E1DD;border-radius:6px;padding:8px 8px 6px;display:flex;flex-direction:column}
+.tile.solid{border-color:var(--ob-line2)}
+.tile.dashed{border-style:dashed;border-color:var(--ob-error)}
+.tile .ttitle{font-size:12.5px;font-weight:600;line-height:1.25;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tile .tfoot{margin-top:auto;display:flex;align-items:flex-end;justify-content:space-between}
+.tile .tmeta{font-family:'Geist Mono',monospace;font-size:10px;color:var(--ob-subtle)}
+.tsparks{display:flex;gap:3px}
+.tsparks i{width:6px;height:6px;border-radius:50%;display:block}
+.tbadge{position:absolute;top:-8px;right:8px;height:16px;padding:0 5px;border-radius:999px;
+  background:var(--ob-surface);border:1.2px solid var(--ob-line2);display:flex;align-items:center;
+  font-family:'Geist Mono',monospace;font-size:8px;font-weight:700;letter-spacing:.06em;color:var(--ob-muted)}
+.tbadge.err{border-color:var(--ob-error);color:var(--ob-error)}
+.tstrip{position:absolute;left:6px;top:9px;bottom:9px;width:3px;display:flex;flex-direction:column;gap:3px}
+.tstrip span{width:3px;height:3px;border-radius:1px;background:var(--ob-faint);display:block}
+.tstrip span.done{background:var(--ob-text)}
+.tstrip span.blk{background:var(--ob-warning)}
+.tile.hasstrip{padding-left:16px}
+.slot.on::after{content:"";position:absolute;inset:-5px;border:1.5px dashed var(--ob-error);
+  border-radius:9px;pointer-events:none}
+.slot.empty{border:1.5px dashed var(--ob-line2);border-radius:6px;display:flex;
+  align-items:center;justify-content:center;color:var(--ob-faint);font-size:20px}
+.bandmeta{margin-left:auto;display:flex;gap:10px}
+.pill{background:var(--ob-surface2);border-radius:8px;padding:8px 13px;
+  display:flex;align-items:center;gap:9px;min-width:104px}
+.pill .n{font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;line-height:1}
+.pill .l{font-size:10.5px;color:var(--ob-muted);line-height:1.3}
+.pill.alert .n{color:var(--ob-error)}
+
+/* ─── colonne ───────────────────────────────────────────────────────────── */
+.cols{display:grid;grid-template-columns:1.34fr 1.14fr 0.82fr;gap:14px;min-height:0}
+.col{background:var(--ob-surface);border:1px solid var(--ob-line);border-radius:10px;
+  display:flex;flex-direction:column;min-height:0;overflow:hidden}
+.chead{display:flex;align-items:center;gap:8px;padding:10px 13px 9px;
+  border-bottom:1px solid var(--ob-line);flex:0 0 auto}
+.chead .cbadge{width:19px;height:19px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-size:11px;color:#fff;flex:0 0 auto}
+.chead .cn{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ob-muted)}
+.chead .cq{font-size:10.5px;color:var(--ob-subtle)}
+.chead .cc{margin-left:auto;font-family:'Geist Mono',monospace;font-size:10px;
+  color:var(--ob-subtle);font-variant-numeric:tabular-nums;white-space:nowrap}
+.clist{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+.cfoot{flex:0 0 auto;height:26px;display:flex;align-items:center;padding-left:13px;
+  font-family:'Geist Mono',monospace;font-size:10px;color:var(--ob-subtle);
+  background:var(--ob-head);border-top:1px solid var(--ob-line)}
+
+/* ─── RIGA · grammatica unica per le due liste ──────────────────────────── */
+.row{display:grid;align-items:center;height:var(--row-h);padding:0 11px;
+  border-bottom:1px solid var(--ob-line);
+  grid-template-columns:var(--anchor-w) minmax(0,1fr) var(--who-w) auto 42px;gap:10px}
+.row:hover{background:var(--ob-surface2)}
+
+/* 1 · àncora: NOME del tag, 15 caratteri poi taglia (D1, D6) */
+.chip{font-family:'Geist Mono',monospace;font-size:10px;color:#4b3a86;
+  background:var(--ob-accent-soft);border-radius:3px;padding:2px 6px;display:block;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+.chip.root{color:var(--ob-faint);background:transparent;border:1px dashed var(--ob-line2);padding:1px 6px}
+
+/* 2 · il PASSO in primo piano, il tile come contesto */
+.rstep{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rstep .rctx{color:var(--ob-subtle);font-size:11px}
+.rstep .lock{color:var(--ob-warning);font-size:10px;margin-right:4px}
+
+/* 3 · CHI / CONTESTO — allineata, quindi scandibile in verticale */
+.rwho{font-size:11px;color:var(--ob-subtle);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:flex;align-items:center;gap:4px}
+.rwho .g{color:var(--ob-theirs);font-size:9px;flex:0 0 auto}
+.rwho.named{color:var(--ob-muted);font-weight:500}
+.rwho.anon{font-style:italic;color:var(--ob-faint)}
+
+/* 3 · pioli */
+.steps{display:flex;gap:2.5px;align-items:center;min-width:26px}
+.steps span{width:3px;height:9px;border-radius:1px;background:var(--ob-faint);display:block}
+.steps span.done{background:var(--ob-text)}
+.steps span.blk{background:var(--ob-warning)}
+.steps span.neu{background:#e6e4ea}
+.steps .more{width:auto;height:auto;background:none;font-family:'Geist Mono',monospace;
+  font-size:9px;color:var(--ob-subtle);margin-left:2px}
+
+/* 4 · età: chiave d'ordinamento, non giudizio (D3) */
+.age{font-family:'Geist Mono',monospace;font-size:10.5px;color:var(--ob-subtle);
+  text-align:right;font-variant-numeric:tabular-nums}
+.age.hi{color:var(--ob-muted);font-weight:600}
+
+/* conclusi: restano nell'elenco, in coda e spenti (D4) */
+.divider{height:24px;display:flex;align-items:center;padding:0 11px;
+  background:var(--ob-head);border-bottom:1px solid var(--ob-line);
+  font-family:'Geist Mono',monospace;font-size:9px;letter-spacing:.06em;
+  text-transform:uppercase;color:var(--ob-subtle)}
+.row.closed .rstep{opacity:.55}
+.row.closed .chip{background:var(--ob-surface2);color:var(--ob-subtle)}
+
+/* ─── orizzonte ─────────────────────────────────────────────────────────── */
+.agenda{flex:1 1 auto;min-height:0;padding:2px 0}
+.day{display:grid;grid-template-columns:50px minmax(0,1fr);border-bottom:1px solid var(--ob-line)}
+.day:last-child{border-bottom:none}
+.dlab{padding:7px 0 7px 13px;font-family:'Geist Mono',monospace;font-size:10px;
+  color:var(--ob-subtle);line-height:1.35}
+.dlab b{display:block;font-size:11px;font-weight:600;color:var(--ob-muted)}
+.day.now .dlab b{color:var(--ob-error)}
+.day.wknd{background:rgba(24,20,38,0.018)}
+.dev{padding:7px 11px 7px 0;display:flex;flex-direction:column;gap:4px;min-width:0}
+.ev{display:grid;grid-template-columns:3px 32px minmax(0,1fr);gap:7px;align-items:center}
+.ev i{width:3px;height:12px;border-radius:1px;display:block}
+.ev i.deadline{background:var(--ob-error)}
+.ev i.event{background:var(--ob-success)}
+.ev i.allday{background:var(--ob-info)}
+.ev .h{font-family:'Geist Mono',monospace;font-size:9.5px;color:var(--ob-subtle);font-variant-numeric:tabular-nums}
+.ev .t{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dempty{padding:7px 0;font-size:11px;color:var(--ob-faint)}
+</style>
+</head>
+<body>
+<div class="cockpit">
+
+  <div class="appbar">
+    <span class="brand">Gimmick</span>
+    <span class="tabs">
+      <span class="tab on">Cockpit</span><span class="tab">Chrono</span>
+      <span class="tab">Radar</span><span class="tab">Canvas</span>
+      <span class="tab">Kanban</span><span class="tab">Ask</span>
+    </span>
+    <span class="tools">
+      <span class="toolword">⇅ Attesa</span>
+      <span class="toolword off">✓ Conclusi (15)</span>
+    </span>
+  </div>
+
+  <!-- ══ FOCUS ═══════════════════════════════════════════════════════════ -->
+  <div class="band">
+    <span class="bandlab">Focus</span>
+    <div class="slots">
+      <div class="slot on">
+        <div class="tile solid hasstrip">
+          <span class="tbadge">FLOW</span>
+          <div class="tstrip">
+            <span class="done"></span><span class="done"></span><span class="done"></span>
+            <span class="blk"></span><span></span><span></span><span></span>
+          </div>
+          <div class="ttitle">Preventivo strutture — capannone Ostiense</div>
+          <div class="tfoot">
+            <span class="tsparks"><i style="background:var(--ob-type-file)"></i><i style="background:var(--ob-type-text)"></i></span>
+            <span class="tmeta">3 di 7</span>
+          </div>
+        </div>
+      </div>
+      <div class="slot on">
+        <div class="tile dashed">
+          <span class="tbadge err">2 g</span>
+          <div class="ttitle">Relazione di calcolo — consegna committente</div>
+          <div class="tfoot">
+            <span class="tsparks"><i style="background:var(--ob-type-photo)"></i><i style="background:var(--ob-type-voice)"></i><i style="background:var(--ob-type-file)"></i></span>
+            <span class="tmeta">6 set</span>
+          </div>
+        </div>
+      </div>
+      <div class="slot empty">+</div>
+    </div>
+    <div class="bandmeta">
+      <div class="pill alert"><span class="n">17</span>
+        <span class="l">da triagiare<br><span style="color:var(--ob-subtle)">tag GIMMICK</span></span></div>
+      <div class="pill"><span class="n">61</span>
+        <span class="l">tile aperti<br><span style="color:var(--ob-subtle)">123 passi</span></span></div>
+      <div class="pill"><span class="n">4</span>
+        <span class="l">in scadenza<br><span style="color:var(--ob-subtle)">questa settimana</span></span></div>
+    </div>
+  </div>
+
+  <!-- ══ COLONNE ═════════════════════════════════════════════════════════ -->
+  <div class="cols">
+
+    <!-- ── TOCCA A ME ─────────────────────────────────────────────────── -->
+    <div class="col">
+      <div class="chead">
+        <span class="cbadge" style="background:var(--ob-accent)">◐</span>
+        <span class="cn">Tocca a me</span>
+        <span class="cq">passo corrente non marcato</span>
+        <span class="cc">14 di 33</span>
+      </div>
+      <div class="clist">
+        <div class="row"><span class="chip">GDS_Varie</span>
+          <span class="rstep">Richiamare Ferramenta Belli per i tirafondi </span><span class="rwho">Preventivo capannone</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span></span><span></span></span>
+          <span class="age hi">34 g</span></div>
+        <div class="row"><span class="chip">Ortano_Mare</span>
+          <span class="rstep">Mandare i disegni esecutivi al direttore </span><span class="rwho">Esecutivi lotto B</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span></span>
+          <span class="age hi">28 g</span></div>
+        <div class="row"><span class="chip">Immobili_Roma</span>
+          <span class="rstep"><span class="lock">▣</span>Attendere il parere edilizio </span><span class="rwho">Variante Nomentana</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span class="blk"></span><span></span><span></span></span>
+          <span class="age hi">26 g</span></div>
+        <div class="row"><span class="chip">Strutture_BSP</span>
+          <span class="rstep">Aggiornare il modello sismico dopo la variante </span><span class="rwho">Borgo Santo Pietro</span>
+          <span class="steps"><span class="done"></span><span></span><span></span></span>
+          <span class="age hi">23 g</span></div>
+        <div class="row"><span class="chip">Money_Studio</span>
+          <span class="rstep">Preparare il preventivo </span><span class="rwho">Studio Marchetti</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span><span></span><span class="more">+8</span></span>
+          <span class="age hi">21 g</span></div>
+        <div class="row"><span class="chip">Immobili_Roma</span>
+          <span class="rstep">Integrare la documentazione catastale </span><span class="rwho">Pratica 4471</span>
+          <span class="steps"><span class="done"></span><span></span><span></span><span></span><span></span></span>
+          <span class="age">17 g</span></div>
+        <div class="row"><span class="chip">Ortano_Mare</span>
+          <span class="rstep">Ordinare i profilati per il soppalco </span><span class="rwho">Soppalco magazzino</span>
+          <span class="steps"><span class="done"></span><span></span></span>
+          <span class="age">14 g</span></div>
+        <div class="row"><span class="chip">Family</span>
+          <span class="rstep">Prenotare la revisione dell'auto</span><span class="rwho"></span>
+          <span class="steps"></span>
+          <span class="age">11 g</span></div>
+        <div class="row"><span class="chip">GDS_Varie</span>
+          <span class="rstep">Rivedere il capitolato sezione impianti </span><span class="rwho">Golfo del Sole</span>
+          <span class="steps"><span class="done"></span><span></span><span></span></span>
+          <span class="age">9 g</span></div>
+        <div class="row"><span class="chip root">Gimmick</span>
+          <span class="rstep">Chiedere a Mario il feedback sulla cattura mobile</span><span class="rwho"></span>
+          <span class="steps"></span>
+          <span class="age">7 g</span></div>
+        <div class="row"><span class="chip">Money_Studio</span>
+          <span class="rstep">Chiudere il computo metrico e mandarlo in revisione</span><span class="rwho"></span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span></span><span></span></span>
+          <span class="age">5 g</span></div>
+        <div class="row"><span class="chip">Strutture_BSP</span>
+          <span class="rstep">Riordinare gli appunti del sopralluogo</span><span class="rwho"></span>
+          <span class="steps"></span>
+          <span class="age">3 g</span></div>
+        <div class="row"><span class="chip root">Gimmick</span>
+          <span class="rstep">Scrivere il DESIGN_TOKENS.md</span><span class="rwho"></span>
+          <span class="steps"></span>
+          <span class="age">2 g</span></div>
+        <div class="row"><span class="chip">Topic_NTC</span>
+          <span class="rstep">Leggere la circolare applicativa</span><span class="rwho"></span>
+          <span class="steps"><span class="done"></span><span></span></span>
+          <span class="age">1 g</span></div>
+
+        <div class="divider">Conclusi · i passi rimasti si leggono neutri</div>
+        <div class="row closed"><span class="chip">Immobili_Roma</span>
+          <span class="rstep">Verificare le distanze dai confini </span><span class="rwho">Perizia via Latina</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span class="neu"></span><span class="neu"></span></span>
+          <span class="age">—</span></div>
+        <div class="row closed"><span class="chip">Ortano_Mare</span>
+          <span class="rstep">Chiedere il preventivo alternativo </span><span class="rwho">Impianto elettrico</span>
+          <span class="steps"><span class="done"></span><span class="neu"></span><span class="neu"></span></span>
+          <span class="age">—</span></div>
+      </div>
+      <div class="cfoot">altri 19 · apri l'elenco completo</div>
+    </div>
+
+    <!-- ── TOCCA A TE ─────────────────────────────────────────────────── -->
+    <div class="col">
+      <div class="chead">
+        <span class="cbadge" style="background:var(--ob-theirs)">◔</span>
+        <span class="cn">Tocca a te</span>
+        <span class="cq">passi marcati</span>
+        <span class="cc">7</span>
+      </div>
+      <div class="clist">
+        <div class="row"><span class="chip">Immobili_Roma</span>
+          <span class="rstep">Relazione geologica </span><span class="rwho named"><span class="g">◉</span>Geotecnica</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span></span></span>
+          <span class="age hi">31 g</span></div>
+        <div class="row"><span class="chip">Ortano_Mare</span>
+          <span class="rstep">Conferma delle quote </span><span class="rwho named"><span class="g">◉</span>M. Bellini</span>
+          <span class="steps"><span class="done"></span><span></span><span></span><span></span></span>
+          <span class="age hi">19 g</span></div>
+        <div class="row"><span class="chip">GDS_Varie</span>
+          <span class="rstep">Parere sulla variante </span><span class="rwho named"><span class="g">◉</span>Comune</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span class="done"></span><span></span></span>
+          <span class="age hi">12 g</span></div>
+        <div class="row"><span class="chip">Money_Studio</span>
+          <span class="rstep">Firma del contratto </span><span class="rwho named"><span class="g">◉</span>S. Ferri</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span></span></span>
+          <span class="age">9 g</span></div>
+        <div class="row"><span class="chip">Ortano_Mare</span>
+          <span class="rstep">Offerta profilati HEA </span><span class="rwho anon"><span class="g">◎</span>qualcuno</span>
+          <span class="steps"><span class="done"></span><span></span></span>
+          <span class="age">5 g</span></div>
+        <div class="row"><span class="chip">Strutture_BSP</span>
+          <span class="rstep">Data del collaudo </span><span class="rwho anon"><span class="g">◎</span>qualcuno</span>
+          <span class="steps"><span class="done"></span><span class="done"></span><span></span><span></span></span>
+          <span class="age">4 g</span></div>
+        <div class="row"><span class="chip root">Gimmick</span>
+          <span class="rstep">Feedback sul widget </span><span class="rwho named"><span class="g">◉</span>Mario</span>
+          <span class="steps"><span class="done"></span><span></span></span>
+          <span class="age">1 g</span></div>
+      </div>
+      <div class="cfoot">nessun altro</div>
+    </div>
+
+    <!-- ── ORIZZONTE ──────────────────────────────────────────────────── -->
+    <div class="col">
+      <div class="chead">
+        <span class="cbadge" style="background:var(--ob-muted)">◷</span>
+        <span class="cn">Orizzonte</span>
+        <span class="cq">10 giorni</span>
+        <span class="cc">11</span>
+      </div>
+      <div class="agenda">
+        <div class="day now"><span class="dlab"><b>oggi</b>ven 4</span>
+          <span class="dev">
+            <span class="ev"><i class="deadline"></i><span class="h">18:00</span><span class="t">Consegna relazione</span></span>
+            <span class="ev"><i class="event"></i><span class="h">15:30</span><span class="t">Sopralluogo Ostiense</span></span>
+          </span></div>
+        <div class="day"><span class="dlab"><b>sab 5</b></span>
+          <span class="dev"><span class="ev"><i class="event"></i><span class="h">11:00</span><span class="t">Call studio Marchetti</span></span></span></div>
+        <div class="day wknd"><span class="dlab"><b>dom 6</b></span>
+          <span class="dev"><span class="dempty">—</span></span></div>
+        <div class="day wknd"><span class="dlab"><b>lun 7</b></span>
+          <span class="dev"><span class="ev"><i class="allday"></i><span class="h">tutto</span><span class="t">Corso sicurezza</span></span></span></div>
+        <div class="day"><span class="dlab"><b>mar 8</b></span>
+          <span class="dev"><span class="ev"><i class="deadline"></i><span class="h">12:00</span><span class="t">Invio pratica catastale</span></span></span></div>
+        <div class="day"><span class="dlab"><b>mer 9</b></span>
+          <span class="dev">
+            <span class="ev"><i class="event"></i><span class="h">09:00</span><span class="t">Riunione coordinamento</span></span>
+            <span class="ev"><i class="event"></i><span class="h">16:00</span><span class="t">Verifica in cantiere</span></span>
+          </span></div>
+        <div class="day"><span class="dlab"><b>gio 10</b></span>
+          <span class="dev"><span class="dempty">—</span></span></div>
+        <div class="day"><span class="dlab"><b>ven 11</b></span>
+          <span class="dev"><span class="ev"><i class="deadline"></i><span class="h">18:00</span><span class="t">Preventivo capannone</span></span></span></div>
+        <div class="day wknd"><span class="dlab"><b>sab 12</b></span>
+          <span class="dev"><span class="dempty">—</span></span></div>
+        <div class="day wknd"><span class="dlab"><b>dom 13</b></span>
+          <span class="dev"><span class="ev"><i class="allday"></i><span class="h">tutto</span><span class="t">Convegno NTC</span></span></span></div>
+      </div>
+      <div class="cfoot">3 oltre l'orizzonte</div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

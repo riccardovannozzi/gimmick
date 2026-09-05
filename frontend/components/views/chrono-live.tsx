@@ -35,7 +35,7 @@ import {
 import { Icon } from '@/components/shell';
 import { calendarApi, tilesApi, tagsApi } from '@/lib/api';
 import { invalidateTileCaches } from '@/lib/tile-cache';
-import { subtaskToStep, type TileStatus } from '@/lib/tile-visual';
+import { subtaskToStep, eventRefIso, type TileStatus } from '@/lib/tile-visual';
 import { useIsomorphicLayoutEffect } from '@/lib/use-isomorphic-layout-effect';
 import { useTypeIcons } from '@/store/type-icons-store';
 import { useTileSelectionStore } from '@/store/tile-selection-store';
@@ -174,11 +174,6 @@ function frac(iso: string): number {
 
 function dateKey(d: Date): string {
   return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-}
-
-/** Riferimento temporale dell'evento (deadline → end, altrimenti start). */
-function eventRefIso(t: Tile): string | undefined {
-  return t.action_type === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
 }
 
 export function ChronoLive() {

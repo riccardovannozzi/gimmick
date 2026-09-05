@@ -4,17 +4,37 @@
    Due liste e una domanda sola: DI CHI È LA PALLA. A sinistra quel che dipende
    da te, a destra quel che stai aspettando da qualcun altro.
 
-   Il chrome è quello del Kanban — stessa toolbar, stesse colonne che si toccano
-   separate da una hairline, stessa testata di corsia. Non per pigrizia: sono
-   due board, e due board che si somigliano si imparano una volta sola.
+   Specifica di resa: `design_handoff_obsidian/GimmickCockpit.dc.html`.
 
-   ⚠️ L'anteprima di progetto (`/obsidian-flow-preview`) dichiara di riusare
-   classi `.ob-flows__*` «che esistono già». Non esistevano: quel CSS non è mai
-   stato scritto. Queste sono le stesse forme, sotto il nome della vista che le
-   usa davvero.
+   ─── Perché RIGHE e non card ────────────────────────────────────────────────
+
+   Una card mette in evidenza il contenitore — il titolo del tile — e relega
+   l'azione a seconda fila. In una lista di cose da fare si legge l'AZIONE: il
+   passo corrente è il testo primario, il tile diventa contesto.
+
+   E righe di altezza fissa con gli slot allineati si scandiscono in verticale:
+   si legge la colonna «chi» dall'alto in basso senza rileggere il resto. Con le
+   card ogni informazione stava a un'altezza diversa.
+
+   ⚠️ Divergenza dichiarata dal mockup: i PIOLI. Il mockup li disegna neri per i
+   passi fatti e ambra per quelli fermi. Qui restano verdi e rossi, cioè i token
+   canonici `--ob-step-*` che la strip usa su ogni card di Chrono, Kanban e
+   Canvas. La stessa scaletta non può avere due vocabolari a seconda della vista
+   che la ospita: se quel nero-e-ambra è una scelta vera, è tutta l'app che
+   cambia, e non da qui.
    ───────────────────────────────────────────────────────────────────────────── */
 
-.ob-cockpit { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--ob-canvas); font-family: var(--ob-font-sans); }
+.ob-cockpit {
+  display: flex; flex-direction: column;
+  height: 100%; min-height: 0;
+  background: var(--ob-canvas);
+  font-family: var(--ob-font-sans);
+  /* Le tre misure della griglia stanno qui, non sparse nelle regole: la riga è
+     una griglia sola e si ritara da un punto. */
+  --row-h: 30px;
+  --anchor-w: 92px;
+  --who-w: 104px;
+}
 
 /* ── Toolbar ── */
 .ob-cockpit__toolbar {
@@ -26,126 +46,292 @@
 }
 .ob-cockpit__spacer { flex: 1; }
 
-/* ── Board ── */
-.ob-cockpit__board { flex: 1; min-height: 0; display: flex; overflow-x: auto; }
+/* ── Colonne ──
+   Non più flex a larghezza uguale: le due liste non pesano uguale. «Tocca a me»
+   è la più lunga e la più letta e si prende più spazio. */
+.ob-cockpit__board {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: 1.34fr 1.14fr 0.82fr;
+  gap: 14px; padding: 14px;
+}
 
 .ob-cockpit__lane {
-  flex: 1 1 0; min-width: 300px; min-height: 0;
+  min-height: 0;
   display: flex; flex-direction: column;
-  border-right: 1px solid var(--ob-line);
-}
-.ob-cockpit__lane:last-child { border-right: none; }
-
-/* La testata porta il colore della corsia in una fascia sottile in alto: due
-   liste affiancate hanno bisogno di essere distinguibili con la coda
-   dell'occhio, senza leggere l'etichetta. */
-.ob-cockpit__lane-head {
-  flex-shrink: 0; height: 38px;
-  display: flex; align-items: center; gap: 8px;
-  padding: 0 12px;
   background: var(--ob-surface);
+  border: 1px solid var(--ob-line);
+  border-radius: var(--ob-radius-md);
+  /* Le righe arrivano fino al bordo: il ritaglio è quel che tiene l'angolo
+     tondo sopra la prima riga e sotto l'ultima. */
+  overflow: hidden;
+}
+
+/* ── Testata di colonna ── */
+.ob-cockpit__lane-head {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 13px 9px;
   border-bottom: 1px solid var(--ob-line);
-  box-shadow: inset 0 2px 0 0 var(--st-c, var(--ob-line-2));
 }
 .ob-cockpit__lane-badge {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; flex-shrink: 0;
-  border-radius: var(--ob-radius-sm);
-  color: var(--st-c, var(--ob-text));
-  background: color-mix(in srgb, var(--st-c, var(--ob-line)) 14%, transparent);
+  width: 19px; height: 19px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  background: var(--st-c, var(--ob-muted));
+  color: var(--ob-accent-ink);
 }
 .ob-cockpit__lane-label {
-  font-family: var(--ob-font-mono); font-size: var(--ob-text-meta);
-  font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--ob-text);
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ob-muted);
 }
+/* Il qualificatore: dice a voce bassa COME si finisce in questa lista, che è
+   l'unica cosa che l'etichetta da sola non spiega. */
+.ob-cockpit__lane-hint { font-size: 10.5px; color: var(--ob-subtle); }
 .ob-cockpit__lane-count {
-  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
+  margin-left: auto;
+  font-family: var(--ob-font-mono); font-size: 10px;
   color: var(--ob-subtle);
-  padding: 1px 6px; border-radius: 999px;
-  background: var(--ob-surface-2);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.ob-cockpit__lane-body {
-  flex: 1; min-height: 0; overflow-y: auto;
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 10px;
-}
+
+/* ── Corpo ──
+   Niente scroll e niente gap: le righe si toccano, separate dalla hairline.
+   La lista sta in finestra; quel che non ci sta lo dichiara il piede.
+
+   `overflow: hidden` è la rete, non il meccanismo: a tenere corta la lista è il
+   TETTO in `cockpit-live.tsx`. Serve al caso in cui la finestra sia più bassa di
+   quanto il tetto presuppone — meglio una riga tagliata a metà che il piede
+   spinto fuori schermo, perché è il piede a dire quante cose non stai vedendo. */
+.ob-cockpit__lane-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Aperta a richiesta: qui lo scroll torna, ed è una scelta esplicita di chi
+   guarda. La regola «nessuno scroll» vale per lo stato a riposo, che è quello
+   che deve stare in finestra. */
+.ob-cockpit__lane-body--expanded { overflow-y: auto; }
+
 .ob-cockpit__empty {
-  padding: 18px 8px; text-align: center;
-  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
-  letter-spacing: 0.12em; text-transform: uppercase;
+  padding: 18px 11px;
+  font-family: var(--ob-font-mono); font-size: 10px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ob-faint);
+}
+
+/* Piede: sempre presente, anche quando non c'è niente di tagliato. Una riga che
+   compare e scompare cambierebbe l'altezza della colonna a ogni filtro, e il
+   suo mestiere — dire quante cose NON stai vedendo — vale anche quando la
+   risposta è nessuna. */
+.ob-cockpit__lane-foot {
+  flex: 0 0 auto; height: 26px; width: 100%;
+  display: flex; align-items: center; padding: 0 13px;
+  font-family: var(--ob-font-mono); font-size: 10px;
   color: var(--ob-subtle);
+  background: var(--ob-head);
+  border: none; border-top: 1px solid var(--ob-line);
+  text-align: left;
+}
+/* Cliccabile solo quando c'è davvero qualcosa da aprire: un comando che non fa
+   niente insegna a non fidarsi degli altri. */
+.ob-cockpit__lane-foot--action { cursor: pointer; color: var(--ob-muted); }
+.ob-cockpit__lane-foot--action:hover { background: var(--ob-surface-2); color: var(--ob-text); }
+
+/* ── LA RIGA — cinque slot, una grammatica sola per le due liste ─────────────
+   Le larghezze fisse su àncora e «chi» sono ciò che rende la lista scandibile
+   in verticale: le colonne si allineano fra righe diverse. Solo il passo è
+   elastico, perché è l'unico testo che vale la pena leggere per intero. */
+.ob-cockpit__row {
+  display: grid; align-items: center;
+  grid-template-columns: var(--anchor-w) minmax(0, 1fr) var(--who-w) auto 42px;
+  gap: 10px;
+  height: var(--row-h); padding: 0 11px;
+  width: 100%;
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--ob-line);
+  text-align: left; cursor: pointer;
+  font-family: inherit;
+}
+.ob-cockpit__row:hover { background: var(--ob-surface-2); }
+
+/* 1 · L'ÀNCORA: il nome del tag, che è il progetto. */
+.ob-cockpit__chip {
+  font-family: var(--ob-font-mono); font-size: 10px;
+  color: var(--ob-accent-text);
+  background: var(--ob-accent-soft);
+  border-radius: 3px; padding: 2px 6px;
+  display: block; text-align: center;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Il tag root non ancora niente: è di tutti. Si vede che c'è, senza pesare. */
+.ob-cockpit__chip--root {
+  color: var(--ob-faint);
+  background: transparent;
+  border: 1px dashed var(--ob-line-2);
+  padding: 1px 6px;
 }
 
-/* ── Card ──
-   La riga alta è la SCALETTA: un segmento per passo, impilati. È la stessa
-   grammatica della strip dei tile in Chrono e nel Canvas — verde è fatto,
-   rosso è fermo — così il linguaggio non cambia da una vista all'altra. */
-.ob-cockpit__card {
-  display: flex; align-items: stretch; gap: 10px;
-  padding: 9px 10px;
-  background: var(--ob-tile-bg);
-  border: 1px solid var(--ob-tile-border);
-  border-radius: var(--ob-radius-md);
-  cursor: pointer; text-align: left;
-  transition: border-color 120ms ease, background 120ms ease;
+/* 2 · IL PASSO in primo piano, il tile come contesto sulla stessa riga. */
+.ob-cockpit__step {
+  font-size: 12.5px; color: var(--ob-text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
 }
-.ob-cockpit__card:hover { border-color: var(--ob-accent); }
-/* Un flow concluso resta leggibile ma smette di chiamare: stessa scelta della
-   riga di checklist spenta. */
-.ob-cockpit__card--closed { opacity: 0.55; }
+.ob-cockpit__ctx { color: var(--ob-subtle); font-size: 11px; }
+/* Il lucchetto dice PERCHÉ quel passo è ancora lì. Ambra e non rosso: il rosso
+   è dei pioli, e due rossi sulla stessa riga direbbero la stessa cosa due volte. */
+.ob-cockpit__lock { color: var(--ob-warning); font-size: 10px; margin-right: 4px; display: inline-flex; vertical-align: -1px; }
 
-/* La GEOMETRIA è di qui — pioli verticali che si dividono l'altezza della card,
-   non i segmenti orizzontali da 10×3 della strip (`.ob-tstep`). I COLORI no:
-   sono i token canonici dello stepper, gli stessi che la strip usa sui tile.
-   Una scaletta verde-e-rossa con verdi diversi da quelli delle card sarebbe un
-   secondo vocabolario per la stessa cosa. */
-.ob-cockpit__ladder { display: flex; flex-direction: column; gap: 2px; width: 8px; flex-shrink: 0; }
-.ob-cockpit__rung { flex: 1; min-height: 2px; border-radius: 1px; background: var(--ob-step-pending); }
+/* 3 · CHI — tre gradi di precisione, non tre categorie.
+   vuoto (tocca a me) · un nome · «qualcuno». Stessa larghezza e stessa
+   posizione, così la colonna si legge dall'alto in basso. */
+.ob-cockpit__who {
+  font-size: 11px; color: var(--ob-subtle);
+  display: flex; align-items: center; gap: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  min-width: 0;
+}
+.ob-cockpit__who-glyph { color: var(--ob-theirs); flex: 0 0 auto; display: inline-flex; }
+.ob-cockpit__who-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-cockpit__who--named { color: var(--ob-muted); font-weight: 500; }
+/* Il corsivo è quel che distingue una PAROLA da un NOME: «qualcuno» non è
+   nessuno in rubrica, ed è giusto che si legga come un segnaposto. */
+.ob-cockpit__who--anon { font-style: italic; color: var(--ob-faint); }
+
+/* 4 · I PIOLI — la scaletta dei passi, orizzontale in riga.
+   La GEOMETRIA è di qui; i COLORI sono i token canonici dello stepper, gli
+   stessi della strip sui tile. Vedi la nota in cima al file. */
+.ob-cockpit__steps { display: flex; align-items: center; gap: 2.5px; min-width: 26px; }
+.ob-cockpit__rung { width: 3px; height: 9px; border-radius: 1px; display: block; background: var(--ob-step-pending); }
 .ob-cockpit__rung--done { background: var(--ob-step-done); }
 .ob-cockpit__rung--blocked { background: var(--ob-step-blocked); }
 .ob-cockpit__rung--cancelled { background: var(--ob-step-cancelled); }
-/* Il NEUTRO dei tile chiusi: né fatto né da fare. Grigio PIENO, non sbiadito:
-   un passo da fare aspetta ed è tenue, questo non aspetta più niente ma resta
-   un'attività individuata, e deve vedersi che c'è. */
-.ob-cockpit__rung--neutral { background: var(--ob-line); }
+/* Il NEUTRO dei tile chiusi: né fatto né da fare. Più tenue di un passo da
+   fare, perché quello aspetta ancora e questo no. */
+.ob-cockpit__rung--neutral { background: var(--ob-line-2); }
+/* Oltre il tetto: un numero al posto dei pioli mancanti. La FORMA dice «ce ne
+   sono altri», come il segmento riassuntivo della strip. */
+.ob-cockpit__rung-more {
+  font-family: var(--ob-font-mono); font-size: 9px;
+  color: var(--ob-subtle); margin-left: 2px;
+}
 
-.ob-cockpit__card-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* 5 · L'ETÀ — chiave d'ordinamento, non giudizio: nessuna soglia, nessun rosso.
+   `hi` non è un allarme, è il peso che serve a far emergere i primi della lista
+   quando si scorre in fretta. */
+.ob-cockpit__age {
+  font-family: var(--ob-font-mono); font-size: 10.5px;
+  color: var(--ob-subtle); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ob-cockpit__age--hi { color: var(--ob-muted); font-weight: 600; }
 
-/* L'ÀNCORA: il tag del tile, che è il progetto. Tagliata a 15 caratteri da chi
-   la rende; qui l'ellissi è la cintura per i casi che sfuggono. */
-.ob-cockpit__card-tag {
-  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
+/* ── I CONCLUSI, in coda alla lista a cui appartengono ── */
+.ob-cockpit__divider {
+  height: 24px; display: flex; align-items: center; padding: 0 11px;
+  background: var(--ob-head);
+  border-bottom: 1px solid var(--ob-line);
+  font-family: var(--ob-font-mono); font-size: 9px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--ob-subtle);
+}
+.ob-cockpit__row--closed .ob-cockpit__step { opacity: 0.55; }
+.ob-cockpit__row--closed .ob-cockpit__chip { background: var(--ob-surface-2); color: var(--ob-subtle); }
+
+/* ── L'ORIZZONTE ───────────────────────────────────────────────────────
+   La terza colonna non è una terza lista: è il CALENDARIO dei prossimi giorni,
+   accanto a quel che c'è da fare. Le due liste dicono cosa aspetta, questa dice
+   cosa arriva — ed è la differenza che rende il Cockpit una plancia e non un
+   elenco.
+
+   Una riga per GIORNO, anche vuoto: i buchi sono informazione quanto i pieni, e
+   una lista che salta i giorni liberi non si legge più come un calendario. */
+.ob-cockpit__agenda { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 2px 0; }
+
+.ob-cockpit__day {
+  display: grid; grid-template-columns: 50px minmax(0, 1fr);
+  border-bottom: 1px solid var(--ob-line);
+}
+.ob-cockpit__day:last-child { border-bottom: none; }
+/* Il fine settimana ha un fondo appena percettibile: serve a far vedere il
+   RITMO della settimana con la coda dell'occhio, non a dire qualcosa. */
+.ob-cockpit__day--wknd { background: color-mix(in srgb, var(--ob-text) 2%, transparent); }
+
+.ob-cockpit__day-label {
+  padding: 7px 0 7px 13px;
+  font-family: var(--ob-font-mono); font-size: 10px;
+  color: var(--ob-subtle); line-height: 1.35;
+}
+.ob-cockpit__day-label b { display: block; font-size: 11px; font-weight: 600; color: var(--ob-muted); }
+/* Oggi è l'unica riga marcata, e in rosso: è il punto da cui si contano tutti
+   gli altri giorni. */
+.ob-cockpit__day--now .ob-cockpit__day-label b { color: var(--ob-error); }
+
+.ob-cockpit__day-events { padding: 7px 11px 7px 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ob-cockpit__event { display: grid; grid-template-columns: 3px 32px minmax(0, 1fr); gap: 7px; align-items: center; }
+/* Il trattino di colore dice il TIPO, con gli stessi colori che il tile porta
+   altrove: rosso la scadenza, verde l'orario, blu la giornata intera. */
+.ob-cockpit__event-kind { width: 3px; height: 12px; border-radius: 1px; display: block; }
+.ob-cockpit__event-kind--deadline { background: var(--ob-error); }
+.ob-cockpit__event-kind--event { background: var(--ob-success); }
+.ob-cockpit__event-kind--allday { background: var(--ob-info); }
+.ob-cockpit__event-hour {
+  font-family: var(--ob-font-mono); font-size: 9.5px;
+  color: var(--ob-subtle); font-variant-numeric: tabular-nums;
+}
+.ob-cockpit__event-title { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-cockpit__day-empty { padding: 7px 0; font-size: 11px; color: var(--ob-faint); }
+
+/* ── LA FASCIA FOCUS ─────────────────────────────────────────────────────────
+   In cima, sopra le liste: quello su cui stai lavorando ADESSO, e quattro
+   numeri che dicono quanto pesa il resto.
+
+   Sta sopra e non a lato perché è l'unica parte della plancia che parla di TE e
+   non delle cose: le liste dicono cosa c'è, questa dice dove sei. */
+.ob-cockpit__band {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 16px;
+  margin: 14px 14px 0;
+  padding: 12px 14px;
+  background: var(--ob-surface);
+  border: 1px solid var(--ob-line);
+  border-radius: var(--ob-radius-md);
+}
+/* L'etichetta gira di lato: verticale occupa la larghezza di una lettera invece
+   di una riga intera, e la fascia è tutta larghezza da guadagnare. */
+.ob-cockpit__band-label {
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  align-self: stretch; padding-right: 2px;
+  display: flex; align-items: center; justify-content: center;
+  border-right: 1px solid var(--ob-line);
+  font-family: var(--ob-font-mono); font-size: 8px; font-weight: 700;
   letter-spacing: 0.08em; text-transform: uppercase;
   color: var(--ob-subtle);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ob-cockpit__card-title {
-  font-size: var(--ob-text-card); font-weight: 600; color: var(--ob-text);
-  line-height: var(--ob-leading-tight);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.ob-cockpit__slots { display: flex; gap: 18px; align-items: center; min-width: 0; }
+/* Il riquadro vuoto: dice che il posto c'è. Una fascia senza tile in evidenza
+   sarebbe una striscia vuota di cui non si capisce il mestiere. */
+.ob-cockpit__slot-empty {
+  width: 128px; height: 72px; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px dashed var(--ob-line-2); border-radius: 6px;
+  background: transparent; cursor: default;
+  color: var(--ob-faint); font-size: 11px; line-height: 1.35; text-align: center;
+  padding: 0 10px;
 }
 
-/* Il PROSSIMO PASSO è l'unica cosa azionabile della card: prende la freccia. */
-.ob-cockpit__card-action { display: flex; align-items: center; gap: 5px; min-width: 0; margin-top: 1px; }
-.ob-cockpit__card-arrow { display: inline-flex; flex-shrink: 0; color: var(--ob-subtle); }
-.ob-cockpit__card-action-text {
-  font-size: var(--ob-text-meta); color: var(--ob-muted);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+/* ── Le pillole ──
+   Il numero grande e l'etichetta piccola accanto: si leggono i numeri per primi
+   scorrendo la fascia, e solo dopo si legge di cosa sono. */
+.ob-cockpit__pills { margin-left: auto; display: flex; gap: 10px; flex-shrink: 0; }
+.ob-cockpit__pill {
+  background: var(--ob-surface-2); border-radius: 8px;
+  padding: 8px 13px; min-width: 104px;
+  display: flex; align-items: center; gap: 9px;
 }
-/* Un passo fermo si vede da qui: è il motivo per cui è ancora aperto. */
-.ob-cockpit__card-action--blocked .ob-cockpit__card-arrow,
-.ob-cockpit__card-action--blocked .ob-cockpit__card-action-text { color: var(--ob-step-blocked); }
-
-.ob-cockpit__card-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
-.ob-cockpit__card-who { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: var(--ob-accent); }
-.ob-cockpit__card-who-name {
-  font-size: var(--ob-text-micro);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.ob-cockpit__pill-n {
+  font-family: var(--ob-font-mono); font-size: 18px; font-weight: 600; line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
-.ob-cockpit__card-meta { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.ob-cockpit__card-count { font-family: var(--ob-font-mono); font-size: var(--ob-text-micro); color: var(--ob-subtle); }
-/* L'anzianità è un NUMERO, non un allarme: niente soglia, niente rosso. Serve a
-   ordinare, e sui dati veri il 63% dei passi aperti supera i venti giorni —
-   qualunque soglia marcherebbe quasi tutto. */
-.ob-cockpit__card-age { font-family: var(--ob-font-mono); font-size: var(--ob-text-micro); color: var(--ob-subtle); }
+.ob-cockpit__pill-l { font-size: 10.5px; color: var(--ob-muted); line-height: 1.3; }
+.ob-cockpit__pill-sub { display: block; color: var(--ob-subtle); }
+/* Rosso su UNA pillola sola: il triage è l'unico numero che chiede di fare
+   qualcosa adesso. Se fossero rosse tutte, non lo sarebbe nessuna. */
+.ob-cockpit__pill--alert .ob-cockpit__pill-n { color: var(--ob-error); }

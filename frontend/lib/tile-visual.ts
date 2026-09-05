@@ -269,6 +269,29 @@ export function stalenessFrom(s: { occurred_at?: string | null; created_at?: str
   return s.occurred_at ?? s.created_at ?? null;
 }
 
+/**
+ * IL RIFERIMENTO TEMPORALE di un tile: la data che lo colloca nel tempo.
+ *
+ *   deadline  → `end_at`, la scadenza. È il momento che conta: quando SCADE,
+ *               non quando hai cominciato a occupartene.
+ *   tutti gli altri → `start_at`, quando inizia.
+ *
+ * Con ripiego sull'altro estremo quando quello giusto manca, perché una data
+ * approssimativa colloca il tile meglio di nessuna data.
+ *
+ * ⚠️ Questa regola era scritta in `chrono-live.tsx` e RICOPIATA A PAROLE in
+ * altri tre punti, ognuno con il suo commento «come `eventRefIso`». Tre commenti
+ * che rimandano a una funzione che non si poteva chiamare sono il sintomo: la
+ * regola serviva a più di un posto e stava in uno solo.
+ */
+export function eventRefIso(
+  t: { action_type?: ActionType | null; start_at?: string | null; end_at?: string | null },
+): string | undefined {
+  return t.action_type === 'deadline'
+    ? (t.end_at || t.start_at || undefined)
+    : (t.start_at || t.end_at || undefined);
+}
+
 // ─── IL COCKPIT ──────────────────────────────────────────────────────────────
 
 /** Le due liste, più i conclusi che stanno dietro un interruttore. */

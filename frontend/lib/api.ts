@@ -281,11 +281,13 @@ export const tilesApi = {
   /** `action_type` filtra lato server: il tetto di 100 vale allora PER TIPO
    *  invece che spartito fra tutti. Con 393 eventi su 585 tile è la differenza
    *  fra una colonna piena e una colonna vuota. */
-  async list(options?: { page?: number; limit?: number; action_type?: ActionType }) {
+  async list(options?: { page?: number; limit?: number; action_type?: ActionType; is_focused?: boolean }) {
     const params = new URLSearchParams();
     if (options?.page) params.set('page', options.page.toString());
     if (options?.limit) params.set('limit', options.limit.toString());
     if (options?.action_type) params.set('action_type', options.action_type);
+    // Solo `true` si manda: la lista dei NON in evidenza è la lista normale.
+    if (options?.is_focused) params.set('is_focused', 'true');
 
     const query = params.toString();
     const endpoint = `/api/tiles${query ? `?${query}` : ''}`;
@@ -295,6 +297,20 @@ export const tilesApi = {
 
   async get(id: string) {
     return apiRequest<Tile & { sparks: Spark[] }>(`/api/tiles/${id}`);
+  },
+
+  /**
+   * I quattro numeri della fascia del Cockpit. Vengono dal server perché
+   * contarli qui vorrebbe dire scaricare tutti i tile con i loro tag e tutti i
+   * passi, e con il tetto di 100 righe per pagina il totale uscirebbe TRONCATO.
+   */
+  async stats() {
+    return apiRequest<{
+      open_tiles: number;
+      open_steps: number;
+      triage: number;
+      due_this_week: number;
+    }>('/api/tiles/stats');
   },
 
   async graph() {

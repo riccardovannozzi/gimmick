@@ -49,6 +49,17 @@ const querySchema = z.object({
   // parte lato client, quindi con 585 tile di cui 393 eventi le colonne senza
   // data restano quasi vuote. Con il filtro il tetto di 100 vale per tipo.
   action_type: z.enum(ACTION_TYPES).optional(),
+  /**
+   * Filtro sui soli tile IN EVIDENZA. Serve alla fascia del Cockpit, che deve
+   * chiedere «dammi quelli che ho messo in evidenza» — una domanda che nessuna
+   * vista aveva mai posto: Chrono, Kanban e Canvas leggono `is_focused` sui
+   * tile che hanno già in mano, per disegnare un segno sulla card.
+   *
+   * Stringa e non `z.coerce.boolean()`: quella trasformerebbe «false» in `true`,
+   * perché ogni stringa non vuota è vera. E solo `true` ha senso chiedere: la
+   * lista dei NON in evidenza è la lista normale.
+   */
+  is_focused: z.enum(['true', 'false']).optional(),
 });
 
 /**
@@ -60,7 +71,8 @@ tilesRouter.get(
   validate(querySchema, 'query'),
   async (req: AuthenticatedRequest, res: Response, next) => {
     try {
-      const { page, limit, action_type } = req.query as unknown as {
+      const { page, limit, action_type, is_focused } = req.query as unknown as {
+        is_focused?: 'true' | 'false';
         page: number;
         limit: number;
         action_type?: string;
@@ -89,6 +101,9 @@ tilesRouter.get(
 
       if (action_type) {
         query = query.eq('action_type', action_type);
+      }
+      if (is_focused === 'true') {
+        query = query.eq('is_focused', true);
       }
 
       const { data, error, count } = await query
@@ -195,6 +210,81 @@ tilesRouter.get(
  * GET /api/tiles/graph
  * Get all tiles with their memos for graph visualization
  */
+/**
+ * GET /api/tiles/stats
+ *
+ * I quattro numeri della fascia del Cockpit, in una richiesta sola.
+ *
+ * Esistono perche' non erano ricavabili dal client: contarli di la' avrebbe
+ * voluto dire scaricare tutti i tile con i loro tag e tutti i subtask, e con il
+ * tetto di 100 righe per pagina il conteggio sarebbe uscito TRONCATO. Un totale
+ * sbagliato su una plancia e' peggio di un totale assente.
+ *
+ * ⚠️ REGISTRATA PRIMA DI `/:id`, e non e' un dettaglio: Express prova le rotte
+ * in ordine, e piu' in basso `/:id` accetta qualunque segmento — «stats»
+ * compreso. Finirebbe a cercare un tile con quell'UUID e a rispondere 404.
+ *
+ * Nessun id arriva dal client: tutto si ricava dall'utente autenticato.
+ */
+tilesRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const userId = req.user!.id;
+
+    // ── Aperti: la stessa definizione di passo aperto che usa il Cockpit
+    //    (`currentStep` nel frontend) — non fatto, e non annullato. Un passo
+    //    `blocked` E' aperto: e' fermo, non chiuso.
+    const { data: openSteps, error: stepsError } = await supabaseAdmin
+      .from('tile_subtasks')
+      .select('tile_id')
+      .eq('user_id', userId)
+      .eq('is_done', false)
+      .or('state.is.null,state.eq.blocked');
+    if (stepsError) throw stepsError;
+
+    const rows = (openSteps ?? []) as Array<{ tile_id: string }>;
+    const openTiles = new Set(rows.map((r) => r.tile_id)).size;
+
+    // ── Da triagiare: i tile che non hanno ancora un tag VERO. Ogni tile ne ha
+    //    almeno uno — il root GIMMICK gli viene messo d'ufficio — quindi la
+    //    domanda non e' «quanti sono senza tag» ma «quanti hanno solo quello».
+    const { data: tagged, error: tagsError } = await supabaseAdmin
+      .from('tiles')
+      .select('id, tile_tags(tags(is_root))')
+      .eq('user_id', userId);
+    if (tagsError) throw tagsError;
+
+    type TagLink = { tags: { is_root: boolean | null } | null };
+    const tiles = (tagged ?? []) as unknown as Array<{ id: string; tile_tags?: TagLink[] }>;
+    const triage = tiles.filter((t) => !(t.tile_tags ?? []).some((l) => l.tags && !l.tags.is_root)).length;
+
+    // ── In scadenza: le deadline dei prossimi sette giorni. La scadenza vive su
+    //    `end_at` — la stessa regola che il frontend chiama `eventRefIso`.
+    const now = new Date();
+    const inAWeek = new Date(now);
+    inAWeek.setDate(inAWeek.getDate() + 7);
+    const { count: dueSoon, error: dueError } = await supabaseAdmin
+      .from('tiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('action_type', 'deadline')
+      .gte('end_at', now.toISOString())
+      .lte('end_at', inAWeek.toISOString());
+    if (dueError) throw dueError;
+
+    res.json({
+      success: true,
+      data: {
+        open_tiles: openTiles,
+        open_steps: rows.length,
+        triage,
+        due_this_week: dueSoon || 0,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
 tilesRouter.get('/graph', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     // Get all tiles
