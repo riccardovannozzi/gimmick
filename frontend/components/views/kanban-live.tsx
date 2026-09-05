@@ -63,8 +63,8 @@ import { useTagFilterStore } from '@/store/tag-filter-store';
 import { tileMatchesFilters, sortTiles, dateRangeKind } from '@/lib/kanban-helpers';
 import { applyOrder } from '@/lib/kanban-layout';
 import { useStatuses } from '@/store/statuses-store';
-import { tileVisualKey, subtaskToStep, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
-import type { Tile, Tag, KanbanColumn, KanbanLane, KanbanFilter, Status } from '@/types';
+import { tileVisualKey, subtaskToStep, eventRefIso, TILE_VISUAL, type TileStatus, type TileVisualKey } from '@/lib/tile-visual';
+import type { ActionType, Tile, Tag, KanbanColumn, KanbanLane, KanbanFilter, Status } from '@/types';
 import { OB_TEXT } from '@/lib/theme/ob-typography';
 
 const fmtDate = (iso: string) => new Date(iso).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: '2-digit' });
@@ -81,8 +81,8 @@ function cardMeta(t: Tile, key: TileVisualKey): string | undefined {
     const subs = t.subtasks ?? [];
     return subs.length ? `${subs.filter((s) => s.is_done).length} di ${subs.length}` : undefined;
   }
-  // `deadline` vive su end_at, gli eventi su start_at — come `eventRefIso`.
-  const iso = key === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+  // `deadline` vive su end_at, gli eventi su start_at: la regola è `eventRefIso`.
+  const iso = eventRefIso(t);
   if (!iso) return undefined;
   if (kind === 'time') {
     return t.start_at && t.end_at ? `${fmtTime(t.start_at)}–${fmtTime(t.end_at)}` : fmtTime(iso);
@@ -111,9 +111,10 @@ function datesForDay(tile: Tile, action: string, key: string): Record<string, st
     d.setHours(h, min, 0, 0);
     return d;
   };
-  // Il riferimento e' lo stesso di `eventRefIso`: la scadenza vive sulla fine,
-  // tutto il resto sull'inizio.
-  const refIso = action === 'deadline' ? (tile.end_at || tile.start_at) : (tile.start_at || tile.end_at);
+  // La scadenza vive sulla fine, tutto il resto sull'inizio: `eventRefIso`.
+  // `action` arriva come stringa larga dal chiamante: il cast è la stessa
+  // assunzione che le righe qui sopra fanno già confrontandola con 'deadline'.
+  const refIso = eventRefIso({ action_type: action as ActionType, start_at: tile.start_at, end_at: tile.end_at });
   const ref = refIso ? new Date(refIso) : null;
   if (action === 'deadline') {
     // Una scadenza nuova senza ora scade a fine giornata lavorativa, non a

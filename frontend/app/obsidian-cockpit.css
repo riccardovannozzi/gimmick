@@ -55,6 +55,11 @@
   gap: 14px; padding: 14px;
 }
 
+/* ⚠️ Riquadri STACCATI, non colonne a filo come in Kanban e Chrono — e la
+   differenza è voluta. Là le colonne sono una plancia sola in cui le card si
+   spostano da una all'altra, e il vuoto fra loro sarebbe un buco nel percorso
+   del trascinamento. Qui sono tre liste INDIPENDENTI che nessuno sposta a mano:
+   la palla la decide il passo, non il gesto. Il distacco dice proprio questo. */
 .ob-cockpit__lane {
   min-height: 0;
   display: flex; flex-direction: column;
@@ -74,23 +79,23 @@
   border-bottom: 1px solid var(--ob-line);
 }
 .ob-cockpit__lane-badge {
-  width: 19px; height: 19px; flex: 0 0 auto;
+  width: 20px; height: 20px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
-  border-radius: 5px;
+  border-radius: var(--ob-radius-sm);
   background: var(--st-c, var(--ob-muted));
   color: var(--ob-accent-ink);
 }
 .ob-cockpit__lane-label {
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.06em; text-transform: uppercase;
+  font-size: var(--ob-text-meta); font-weight: 600;
+  letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--ob-muted);
 }
 /* Il qualificatore: dice a voce bassa COME si finisce in questa lista, che è
    l'unica cosa che l'etichetta da sola non spiega. */
-.ob-cockpit__lane-hint { font-size: 10.5px; color: var(--ob-subtle); }
+.ob-cockpit__lane-hint { font-size: var(--ob-text-meta); color: var(--ob-subtle); }
 .ob-cockpit__lane-count {
   margin-left: auto;
-  font-family: var(--ob-font-mono); font-size: 10px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-subtle);
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
@@ -111,8 +116,8 @@
 
 .ob-cockpit__empty {
   padding: 18px 11px;
-  font-family: var(--ob-font-mono); font-size: 10px;
-  letter-spacing: 0.06em; text-transform: uppercase;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
+  letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--ob-faint);
 }
 
@@ -123,7 +128,7 @@
 .ob-cockpit__lane-foot {
   flex: 0 0 auto; height: 26px; width: 100%;
   display: flex; align-items: center; padding: 0 13px;
-  font-family: var(--ob-font-mono); font-size: 10px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-subtle);
   background: var(--ob-head);
   border: none; border-top: 1px solid var(--ob-line);
@@ -132,7 +137,7 @@
 /* Cliccabile solo quando c'è davvero qualcosa da aprire: un comando che non fa
    niente insegna a non fidarsi degli altri. */
 .ob-cockpit__lane-foot--action { cursor: pointer; color: var(--ob-muted); }
-.ob-cockpit__lane-foot--action:hover { background: var(--ob-surface-2); color: var(--ob-text); }
+.ob-cockpit__lane-foot--action:hover { background: var(--ob-hover); color: var(--ob-text); }
 
 /* ── LA RIGA — cinque slot, una grammatica sola per le due liste ─────────────
    Le larghezze fisse su àncora e «chi» sono ciò che rende la lista scandibile
@@ -149,14 +154,14 @@
   text-align: left; cursor: pointer;
   font-family: inherit;
 }
-.ob-cockpit__row:hover { background: var(--ob-surface-2); }
+.ob-cockpit__row:hover { background: var(--ob-hover); }
 
 /* 1 · L'ÀNCORA: il nome del tag, che è il progetto. */
 .ob-cockpit__chip {
-  font-family: var(--ob-font-mono); font-size: 10px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-accent-text);
   background: var(--ob-accent-soft);
-  border-radius: 3px; padding: 2px 6px;
+  border-radius: var(--ob-radius-sm); padding: 2px 6px;
   display: block; text-align: center;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
@@ -170,20 +175,20 @@
 
 /* 2 · IL PASSO in primo piano, il tile come contesto sulla stessa riga. */
 .ob-cockpit__step {
-  font-size: 12.5px; color: var(--ob-text);
+  font-size: var(--ob-text-card); color: var(--ob-text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0;
 }
-.ob-cockpit__ctx { color: var(--ob-subtle); font-size: 11px; }
+.ob-cockpit__ctx { color: var(--ob-subtle); font-size: var(--ob-text-meta); }
 /* Il lucchetto dice PERCHÉ quel passo è ancora lì. Ambra e non rosso: il rosso
    è dei pioli, e due rossi sulla stessa riga direbbero la stessa cosa due volte. */
-.ob-cockpit__lock { color: var(--ob-warning); font-size: 10px; margin-right: 4px; display: inline-flex; vertical-align: -1px; }
+.ob-cockpit__lock { color: var(--ob-warning); font-size: var(--ob-text-micro); margin-right: 4px; display: inline-flex; vertical-align: -1px; }
 
 /* 3 · CHI — tre gradi di precisione, non tre categorie.
    vuoto (tocca a me) · un nome · «qualcuno». Stessa larghezza e stessa
    posizione, così la colonna si legge dall'alto in basso. */
 .ob-cockpit__who {
-  font-size: 11px; color: var(--ob-subtle);
+  font-size: var(--ob-text-meta); color: var(--ob-subtle);
   display: flex; align-items: center; gap: 4px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   min-width: 0;
@@ -209,7 +214,7 @@
 /* Oltre il tetto: un numero al posto dei pioli mancanti. La FORMA dice «ce ne
    sono altri», come il segmento riassuntivo della strip. */
 .ob-cockpit__rung-more {
-  font-family: var(--ob-font-mono); font-size: 9px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-subtle); margin-left: 2px;
 }
 
@@ -217,7 +222,7 @@
    `hi` non è un allarme, è il peso che serve a far emergere i primi della lista
    quando si scorre in fretta. */
 .ob-cockpit__age {
-  font-family: var(--ob-font-mono); font-size: 10.5px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-meta);
   color: var(--ob-subtle); text-align: right;
   font-variant-numeric: tabular-nums;
 }
@@ -228,8 +233,8 @@
   height: 24px; display: flex; align-items: center; padding: 0 11px;
   background: var(--ob-head);
   border-bottom: 1px solid var(--ob-line);
-  font-family: var(--ob-font-mono); font-size: 9px;
-  letter-spacing: 0.06em; text-transform: uppercase;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
+  letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--ob-subtle);
 }
 .ob-cockpit__row--closed .ob-cockpit__step { opacity: 0.55; }
@@ -246,7 +251,7 @@
 .ob-cockpit__agenda { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 2px 0; }
 
 .ob-cockpit__day {
-  display: grid; grid-template-columns: 50px minmax(0, 1fr);
+  display: grid; grid-template-columns: 52px minmax(0, 1fr);
   border-bottom: 1px solid var(--ob-line);
 }
 .ob-cockpit__day:last-child { border-bottom: none; }
@@ -256,10 +261,10 @@
 
 .ob-cockpit__day-label {
   padding: 7px 0 7px 13px;
-  font-family: var(--ob-font-mono); font-size: 10px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-subtle); line-height: 1.35;
 }
-.ob-cockpit__day-label b { display: block; font-size: 11px; font-weight: 600; color: var(--ob-muted); }
+.ob-cockpit__day-label b { display: block; font-size: var(--ob-text-meta); font-weight: 600; color: var(--ob-muted); }
 /* Oggi è l'unica riga marcata, e in rosso: è il punto da cui si contano tutti
    gli altri giorni. */
 .ob-cockpit__day--now .ob-cockpit__day-label b { color: var(--ob-error); }
@@ -273,11 +278,11 @@
 .ob-cockpit__event-kind--event { background: var(--ob-success); }
 .ob-cockpit__event-kind--allday { background: var(--ob-info); }
 .ob-cockpit__event-hour {
-  font-family: var(--ob-font-mono); font-size: 9.5px;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-micro);
   color: var(--ob-subtle); font-variant-numeric: tabular-nums;
 }
-.ob-cockpit__event-title { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ob-cockpit__day-empty { padding: 7px 0; font-size: 11px; color: var(--ob-faint); }
+.ob-cockpit__event-title { font-size: var(--ob-text-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ob-cockpit__day-empty { padding: 7px 0; font-size: var(--ob-text-meta); color: var(--ob-faint); }
 
 /* ── LA FASCIA FOCUS ─────────────────────────────────────────────────────────
    In cima, sopra le liste: quello su cui stai lavorando ADESSO, e quattro
@@ -301,8 +306,8 @@
   align-self: stretch; padding-right: 2px;
   display: flex; align-items: center; justify-content: center;
   border-right: 1px solid var(--ob-line);
-  font-family: var(--ob-font-mono); font-size: 8px; font-weight: 700;
-  letter-spacing: 0.08em; text-transform: uppercase;
+  font-family: var(--ob-font-mono); font-size: var(--ob-text-eyebrow); font-weight: 700;
+  letter-spacing: 0.13em; text-transform: uppercase;
   color: var(--ob-subtle);
 }
 .ob-cockpit__slots { display: flex; gap: 18px; align-items: center; min-width: 0; }
@@ -311,9 +316,9 @@
 .ob-cockpit__slot-empty {
   width: 128px; height: 72px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
-  border: 1.5px dashed var(--ob-line-2); border-radius: 6px;
+  border: 1.5px dashed var(--ob-line-2); border-radius: var(--ob-radius-md);
   background: transparent; cursor: default;
-  color: var(--ob-faint); font-size: 11px; line-height: 1.35; text-align: center;
+  color: var(--ob-faint); font-size: var(--ob-text-meta); line-height: 1.35; text-align: center;
   padding: 0 10px;
 }
 
@@ -322,15 +327,20 @@
    scorrendo la fascia, e solo dopo si legge di cosa sono. */
 .ob-cockpit__pills { margin-left: auto; display: flex; gap: 10px; flex-shrink: 0; }
 .ob-cockpit__pill {
-  background: var(--ob-surface-2); border-radius: 8px;
+  background: var(--ob-surface-2); border-radius: var(--ob-radius-md);
   padding: 8px 13px; min-width: 104px;
   display: flex; align-items: center; gap: 9px;
 }
+/* 18px è fuori dalla scala tipografica, e di proposito: non è testo, è un
+   NUMERO DA LEGGERE DA LONTANO. La scala arriva a 14 (`--ob-text-title`), che
+   basta a un titolo e non basta a un totale che deve saltare all'occhio prima
+   dell'etichetta che lo accompagna. Stessa natura di `--row-h`: una costante di
+   layout di questa vista, non un gradino mancato. */
 .ob-cockpit__pill-n {
   font-family: var(--ob-font-mono); font-size: 18px; font-weight: 600; line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.ob-cockpit__pill-l { font-size: 10.5px; color: var(--ob-muted); line-height: 1.3; }
+.ob-cockpit__pill-l { font-size: var(--ob-text-meta); color: var(--ob-muted); line-height: 1.3; }
 .ob-cockpit__pill-sub { display: block; color: var(--ob-subtle); }
 /* Rosso su UNA pillola sola: il triage è l'unico numero che chiede di fare
    qualcosa adesso. Se fossero rosse tutte, non lo sarebbe nessuna. */

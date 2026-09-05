@@ -230,6 +230,33 @@ tilesRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next)
   try {
     const userId = req.user!.id;
 
+    // ── I TILE CHIUSI, che vanno tolti di mezzo per primi.
+    //
+    // ⚠️ Il Cockpit non conta i passi di un tile chiuso: `cockpitLane` guarda lo
+    //    stato del TILE prima dei passi (`if (opts.closed) return 'closed'`) e
+    //    manda tutto in coda. Senza questo pezzo la pillola direbbe un numero
+    //    piu' alto di quello che si vede nelle liste sotto, sulla stessa
+    //    schermata — sui dati veri sono quindici tile chiusi con dentro una
+    //    checklist mai finita, che e' un caso frequente e non un residuo.
+    const { data: closedStatuses, error: stError } = await supabaseAdmin
+      .from('statuses')
+      .select('id')
+      .eq('user_id', userId)
+      .in('name', ['done', 'cancelled']);
+    if (stError) throw stError;
+
+    const closedStatusIds = (closedStatuses ?? []).map((r) => r.id as string);
+    let closedTileIds = new Set<string>();
+    if (closedStatusIds.length > 0) {
+      const { data: closedTiles, error: ctError } = await supabaseAdmin
+        .from('tiles')
+        .select('id')
+        .eq('user_id', userId)
+        .in('status_id', closedStatusIds);
+      if (ctError) throw ctError;
+      closedTileIds = new Set((closedTiles ?? []).map((r) => r.id as string));
+    }
+
     // ── Aperti: la stessa definizione di passo aperto che usa il Cockpit
     //    (`currentStep` nel frontend) — non fatto, e non annullato. Un passo
     //    `blocked` E' aperto: e' fermo, non chiuso.
@@ -241,7 +268,8 @@ tilesRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next)
       .or('state.is.null,state.eq.blocked');
     if (stepsError) throw stepsError;
 
-    const rows = (openSteps ?? []) as Array<{ tile_id: string }>;
+    const rows = ((openSteps ?? []) as Array<{ tile_id: string }>)
+      .filter((r) => !closedTileIds.has(r.tile_id));
     const openTiles = new Set(rows.map((r) => r.tile_id)).size;
 
     // ── Da triagiare: i tile che non hanno ancora un tag VERO. Ogni tile ne ha
@@ -262,13 +290,23 @@ tilesRouter.get('/stats', async (req: AuthenticatedRequest, res: Response, next)
     const now = new Date();
     const inAWeek = new Date(now);
     inAWeek.setDate(inAWeek.getDate() + 7);
+    //
+    // ⚠️ Il RIPIEGO su `start_at` non e' pedanteria: `eventRefIso` per una
+    //    deadline fa `end_at || start_at`, e senza il ripiego un tile con la
+    //    sola data d'inizio comparirebbe nell'Orizzonte accanto e NON in questa
+    //    pillola. Due parti della stessa schermata direbbero due cose diverse
+    //    sullo stesso tile.
+    const nowIso = now.toISOString();
+    const weekIso = inAWeek.toISOString();
     const { count: dueSoon, error: dueError } = await supabaseAdmin
       .from('tiles')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId)
       .eq('action_type', 'deadline')
-      .gte('end_at', now.toISOString())
-      .lte('end_at', inAWeek.toISOString());
+      .or(
+        `and(end_at.gte.${nowIso},end_at.lte.${weekIso}),`
+        + `and(end_at.is.null,start_at.gte.${nowIso},start_at.lte.${weekIso})`,
+      );
     if (dueError) throw dueError;
 
     res.json({

@@ -14,7 +14,7 @@ import { usePixelTheme } from '@/components/pixel';
 // `Tile` è già il tipo di dominio importato qui sopra: la card si chiama
 // `TileCard` per non coprirlo.
 import { Tile as TileCard } from '@/components/tiles/Tile';
-import { tileVisualKey, subtaskToStep, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, eventRefIso, TILE_VISUAL, TILE_LOD_MIN_SCALE, TILE_W, TILE_H, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { ActionType } from '@/types';
 import { IconChevronsDown, IconFlag, IconCircle, IconUser, IconBuilding } from '@tabler/icons-react';
 import { TextEditor, BOX_FONT_SIZE } from './TextEditor';
@@ -2512,9 +2512,10 @@ export const CanvasBoard = React.memo(function CanvasBoard({
         if (!items.length) return undefined;
         return `${items.filter((s) => s.is_done).length} di ${items.length}`;
       }
-      // `deadline` vive su end_at, gli eventi su start_at: stessa regola del
-      // resto dell'app (cfr. eventRefIso in chrono-live).
-      const iso = key === 'deadline' ? (d.endAt || d.startAt) : (d.startAt || d.endAt);
+      // `deadline` vive su end_at, gli eventi su start_at: la regola è
+      // `eventRefIso`. Il nodo del canvas porta i campi in camelCase, quindi si
+      // adatta la forma — si adatta il DATO alla regola, non il contrario.
+      const iso = eventRefIso({ action_type: d.actionType as ActionType, start_at: d.startAt, end_at: d.endAt });
       if (!iso) return undefined;
       if (kind === 'time') {
         const t = formatTime(iso);

@@ -623,7 +623,7 @@ export function ChronoLive() {
     const allday: ChronoAllDay[] = [];
     for (const t of events) {
       const isAllDay = !!t.all_day || t.action_type === 'deadline';
-      const refIso = t.action_type === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+      const refIso = eventRefIso(t);
       if (!refIso) continue;
       const day = dayIndexFrom(refIso, gridStart);
       if (day < 0 || day >= dayCount) continue;

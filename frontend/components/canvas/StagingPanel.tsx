@@ -17,7 +17,7 @@ import { useStatuses } from '@/store/statuses-store';
 // `Tile` è già il tipo di dominio: la card si chiama `TileComponent`.
 import { Tile as TileComponent } from '@/components/tiles/Tile';
 import { TILE_W } from '@/lib/tile-visual';
-import { tileVisualKey, subtaskToStep, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
+import { tileVisualKey, subtaskToStep, eventRefIso, TILE_VISUAL, type StepState, type TileStatus } from '@/lib/tile-visual';
 import type { Tile } from '@/types';
 import { OB_LEADING, OB_WEIGHT, OB_TEXT } from '@/lib/theme/ob-typography';
 
@@ -296,9 +296,9 @@ export function StagingPanel({
     if (metaKind === 'progress') {
       if (subs.length) meta = `${subs.filter((s) => s.is_done).length} di ${subs.length}`;
     } else if (metaKind !== 'none') {
-      // `deadline` vive su end_at, gli eventi su start_at — la stessa regola
-      // che il resto dell'app applica in `eventRefIso`.
-      const iso = key === 'deadline' ? (t.end_at || t.start_at) : (t.start_at || t.end_at);
+      // `deadline` vive su end_at, gli eventi su start_at. La regola sta in
+      // `eventRefIso`: qui si chiama, non si riscrive.
+      const iso = eventRefIso(t);
       if (iso) {
         meta = metaKind === 'time'
           ? (t.start_at && t.end_at ? `${fmtTime(t.start_at)}–${fmtTime(t.end_at)}` : fmtTime(iso))

@@ -279,10 +279,15 @@ export function stalenessFrom(s: { occurred_at?: string | null; created_at?: str
  * Con ripiego sull'altro estremo quando quello giusto manca, perché una data
  * approssimativa colloca il tile meglio di nessuna data.
  *
- * ⚠️ Questa regola era scritta in `chrono-live.tsx` e RICOPIATA A PAROLE in
- * altri tre punti, ognuno con il suo commento «come `eventRefIso`». Tre commenti
- * che rimandano a una funzione che non si poteva chiamare sono il sintomo: la
- * regola serviva a più di un posto e stava in uno solo.
+ * ⚠️ Questa regola era scritta in `chrono-live.tsx` e RICOPIATA A MANO in altri
+ * CINQUE punti — una perfino nello stesso file della definizione, trentotto
+ * righe sotto — ognuno con il suo commento «come `eventRefIso`». Commenti che
+ * rimandano a una funzione che non si poteva chiamare: il sintomo esatto di una
+ * regola che serve a molti posti e sta in uno solo.
+ *
+ * Sono stati riportati tutti: `chrono-live` (×2), `kanban-live` (×2),
+ * `StagingPanel` e `CanvasBoard`. Quest'ultimo passa i campi in camelCase e si
+ * adatta la forma del dato alla regola, non il contrario.
  */
 export function eventRefIso(
   t: { action_type?: ActionType | null; start_at?: string | null; end_at?: string | null },
